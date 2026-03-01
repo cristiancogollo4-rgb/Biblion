@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.focusable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +34,9 @@ import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -292,24 +295,22 @@ fun ReaderContent(
             )
         }
     ) { padding ->
-        SelectionContainer {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(16.dp)
-            ) {
-                items(verses) { (verseNumber, verseText) ->
-                    VerseItem(
-                        verseNumber = verseNumber,
-                        verseText = verseText,
-                        fontSize = fontSize,
-                        highlightColor = highlightPalette[verseHighlights[verseNumber] ?: 0],
-                        onShowActions = {
-                            selectedVerseAction = VerseAction(verseNumber, verseText)
-                        }
-                    )
-                }
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(16.dp)
+        ) {
+            items(verses) { (verseNumber, verseText) ->
+                VerseItem(
+                    verseNumber = verseNumber,
+                    verseText = verseText,
+                    fontSize = fontSize,
+                    highlightColor = highlightPalette[verseHighlights[verseNumber] ?: 0],
+                    onShowActions = {
+                        selectedVerseAction = VerseAction(verseNumber, verseText)
+                    }
+                )
             }
         }
 
@@ -319,63 +320,94 @@ fun ReaderContent(
             val nextVerseText = verses.getOrNull(currentIndex + 1)?.second
             val reference = "${bookName ?: ""} $selectedChapter:${selected.number}"
 
-            AlertDialog(
-                onDismissRequest = { selectedVerseAction = null },
-                title = { Text("Opciones") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(reference, style = MaterialTheme.typography.labelLarge)
-                        Text(selected.text, style = MaterialTheme.typography.bodySmall)
-                        HorizontalDivider()
-                        Text("Subrayado / Favorito")
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            highlightPalette.forEachIndexed { index, color ->
-                                Box(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .background(
-                                            color = if (index == 0) Color.White else color,
-                                            shape = RoundedCornerShape(12.dp)
-                                        )
-                                        .clickable {
-                                            saveHighlight(selected.number, index)
-                                        }
-                                )
-                            }
-                        }
-                        Text(
-                            text = "Copiar",
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.clickable {
-                                copyVerse(reference, selected.text, clipboard)
-                                selectedVerseAction = null
-                            }
-                        )
-                        if (isStudyModeActive) {
-                            Text(
-                                text = "Citar en cuaderno",
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.clickable {
-                                    viewModel.addCitation(
-                                        reference = reference,
-                                        text = selected.text,
-                                        previousText = previousVerseText,
-                                        nextText = nextVerseText
-                                    )
-                                    selectedVerseAction = null
-                                }
-                            )
-                        }
-                    }
+            VerseActionsDialog(
+                selectedVerse = selected,
+                reference = reference,
+                isStudyModeActive = isStudyModeActive,
+                previousVerseText = previousVerseText,
+                nextVerseText = nextVerseText,
+                onSaveHighlight = { colorIndex ->
+                    saveHighlight(selected.number, colorIndex)
                 },
-                confirmButton = {
-                    TextButton(onClick = { selectedVerseAction = null }) {
-                        Text("Cerrar")
-                    }
+                onAddCitation = { ref, text, previousText, nextText ->
+                    viewModel.addCitation(
+                        reference = ref,
+                        text = text,
+                        previousText = previousText,
+                        nextText = nextText
+                    )
+                },
+                onDismiss = { selectedVerseAction = null },
+                onCopy = { ref, text ->
+                    copyVerse(ref, text, clipboard)
                 }
             )
         }
     }
+}
+
+@Composable
+private fun VerseActionsDialog(
+    selectedVerse: VerseAction,
+    reference: String,
+    isStudyModeActive: Boolean,
+    previousVerseText: String?,
+    nextVerseText: String?,
+    onSaveHighlight: (Int) -> Unit,
+    onAddCitation: (reference: String, text: String, previousText: String?, nextText: String?) -> Unit,
+    onDismiss: () -> Unit,
+    onCopy: (reference: String, text: String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Opciones") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(reference, style = MaterialTheme.typography.labelLarge)
+                Text(selectedVerse.text, style = MaterialTheme.typography.bodySmall)
+                HorizontalDivider()
+                Text("Subrayado / Favorito")
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    highlightPalette.forEachIndexed { index, color ->
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .background(
+                                    color = if (index == 0) Color.White else color,
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .clickable {
+                                    onSaveHighlight(index)
+                                }
+                        )
+                    }
+                }
+                Text(
+                    text = "Copiar",
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable {
+                        onCopy(reference, selectedVerse.text)
+                        onDismiss()
+                    }
+                )
+                if (isStudyModeActive) {
+                    Text(
+                        text = "Citar en cuaderno",
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable {
+                            onAddCitation(reference, selectedVerse.text, previousVerseText, nextVerseText)
+                            onDismiss()
+                        }
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cerrar")
+            }
+        }
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -392,7 +424,19 @@ fun VerseItem(
             .fillMaxWidth()
             .padding(bottom = 12.dp)
             .background(highlightColor, RoundedCornerShape(8.dp))
-            .combinedClickable(onClick = onShowActions, onLongClick = onShowActions)
+            .combinedClickable(onClick = {}, onLongClick = onShowActions)
+            .onPreviewKeyEvent { keyEvent ->
+                if (
+                    keyEvent.type == KeyEventType.KeyUp &&
+                    (keyEvent.key == Key.Enter || keyEvent.key == Key.Spacebar)
+                ) {
+                    onShowActions()
+                    true
+                } else {
+                    false
+                }
+            }
+            .focusable()
             .padding(8.dp),
         text = buildAnnotatedString {
             withStyle(
