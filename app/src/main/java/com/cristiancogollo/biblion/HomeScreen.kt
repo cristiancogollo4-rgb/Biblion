@@ -40,8 +40,25 @@ import java.nio.charset.StandardCharsets
 import java.util.Calendar
 
 // Estructura para almacenar el versículo diario
+/**
+ * Modelo de UI para representar un versículo mostrado en pantalla principal.
+ *
+ * @property text contenido del versículo.
+ * @property reference referencia textual (ej. "Juan 3:16").
+ */
 data class DailyVerse(val text: String, val reference: String)
 
+/**
+ * Pantalla principal (Home).
+ *
+ * Funciones clave:
+ * - Renderiza AppBar y menú lateral.
+ * - Muestra selector de testamento.
+ * - Carga y muestra el versículo del día.
+ *
+ * @param navController controlador de navegación para cambiar de pantalla.
+ * @param modifier modificador externo opcional para composición (por defecto sin cambios).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
@@ -237,6 +254,12 @@ private fun getDailyVerse(context: Context): DailyVerse {
 
 
 @Composable
+/**
+ * Item reutilizable de menú lateral.
+ *
+ * @param text texto visible de la opción.
+ * @param onClick callback invocado cuando el usuario toca la opción.
+ */
 fun BiblionMenuItem(text: String, onClick: () -> Unit) {
     Text(
         text = text,

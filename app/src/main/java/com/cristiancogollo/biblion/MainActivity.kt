@@ -10,7 +10,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.cristiancogollo.biblion.ui.theme.BiblionTheme
 
+/**
+ * Punto de entrada Android de la aplicación.
+ *
+ * Responsabilidad:
+ * - Inicializar Compose.
+ * - Aplicar el tema global de Biblion.
+ * - Montar el árbol raíz de navegación (`AppNavigation`).
+ *
+ * Esta clase no contiene lógica de negocio; solo configuración de arranque.
+ */
 class MainActivity : ComponentActivity() {
+    /**
+     * Ciclo de vida inicial del Activity.
+     *
+     * @param savedInstanceState estado previo de Android para restauración de proceso/actividad.
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()

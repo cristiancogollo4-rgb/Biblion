@@ -21,6 +21,12 @@ import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
+/**
+ * Pantalla de listado de libros por testamento.
+ *
+ * @param navController navegación para abrir lector y otras secciones.
+ * @param selectedTestament testamento inicial recibido desde la pantalla anterior.
+ */
 @Composable
 fun BooksScreen(navController: NavController, selectedTestament: String) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -110,6 +116,12 @@ fun BooksScreen(navController: NavController, selectedTestament: String) {
 }
 
 @Composable
+/**
+ * Contenido del drawer lateral de la app.
+ *
+ * @param navController permite abrir rutas globales (inicio, modo estudio, etc.).
+ * @param onClose callback para cerrar el drawer al seleccionar opción.
+ */
 fun BiblionDrawerContent(navController: NavController, onClose: () -> Unit) {
     ModalDrawerSheet(
         modifier = Modifier.fillMaxHeight().width(300.dp),

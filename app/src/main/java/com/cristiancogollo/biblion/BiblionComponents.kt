@@ -36,6 +36,14 @@ import androidx.compose.material.icons.filled.HorizontalRule
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.ui.unit.TextUnit
 
+/**
+ * Archivo de componentes UI reutilizables de Biblion.
+ *
+ * Objetivo:
+ * - Centralizar piezas visuales compartidas por múltiples pantallas.
+ * - Evitar duplicación de estilos/comportamientos en Home, Books y Reader.
+ */
+
 // 1. BiblionTopAppBar: Reutilizable en todas las pantallas
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -336,6 +344,19 @@ fun BiblionReaderTopAppBar(
     }
 }
 
+/**
+ * Burbuja contextual flotante para acciones sobre versículos seleccionados.
+ *
+ * @param selectedCount cantidad de versículos seleccionados actualmente.
+ * @param anchorOffset coordenada donde se ancla el popup (relativa al root).
+ * @param showHighlightOptions controla si se muestra la paleta de subrayado.
+ * @param highlightPalette colores disponibles para subrayar.
+ * @param onDismiss callback al tocar fuera/cerrar popup.
+ * @param onClearSelection limpia selección actual.
+ * @param onCopy copia selección al portapapeles.
+ * @param onAddCitation inserta selección en cuaderno (si aplica).
+ * @param onHighlight aplica color de subrayado a la selección.
+ */
 @Composable
 fun VerseActionsFloatingMenu(
     selectedCount: Int,

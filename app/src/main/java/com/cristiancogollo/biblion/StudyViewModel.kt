@@ -16,6 +16,12 @@ data class StudyCitation(
     val nextText: String?
 )
 
+/**
+ * Solicitud temporal de inserción de cita dentro del editor rico.
+ *
+ * Se encola desde el panel lector y se consume en el panel de estudio
+ * para insertar el nodo estructurado en la posición actual del cursor.
+ */
 data class CitationInsertRequest(
     val id: String,
     val reference: String,
@@ -23,6 +29,12 @@ data class CitationInsertRequest(
     val version: String = "default"
 )
 
+/**
+ * Registro serializable de un span de formato dentro del documento rico.
+ *
+ * Permite preservar estilos y nodos especiales (como citas bíblicas)
+ * en un formato estructurado JSON.
+ */
 data class RichSpanRecord(
     val type: String,
     val start: Int,
@@ -34,6 +46,15 @@ data class RichSpanRecord(
     val citationVersion: String? = null
 )
 
+/**
+ * ViewModel del modo estudio.
+ *
+ * Gestiona:
+ * - metadatos de nota (título, referencia base),
+ * - contenido rico serializado,
+ * - cola de inserciones de citas,
+ * - lista de citas registradas en la sesión.
+ */
 class StudyViewModel : ViewModel() {
     var noteTitle by mutableStateOf("")
     var baseReference by mutableStateOf("")

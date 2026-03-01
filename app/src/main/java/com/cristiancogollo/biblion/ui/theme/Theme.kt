@@ -6,6 +6,11 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
+/**
+ * Configuración de tema global Compose para Biblion.
+ *
+ * Actualmente la app usa esquema claro fijo para mantener consistencia visual.
+ */
 // Definimos solo la paleta clara
 private val LightColorScheme = lightColorScheme(
     primary = Purple40,

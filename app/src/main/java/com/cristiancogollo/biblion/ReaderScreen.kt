@@ -71,6 +71,11 @@ private val highlightPalette = listOf(
     Color(0xFFD8E8FF)
 )
 
+/**
+ * Utility para obtener el [Activity] desde un [Context] de Compose.
+ *
+ * Se usa principalmente para cambios de orientación cuando se activa/desactiva modo estudio.
+ */
 fun Context.findActivity(): Activity? {
     var context = this
     while (context is ContextWrapper) {
@@ -81,6 +86,17 @@ fun Context.findActivity(): Activity? {
 }
 
 @Composable
+/**
+ * Pantalla contenedora del lector.
+ *
+ * Maneja:
+ * - Modo lectura normal.
+ * - Modo estudio en split (lectura + editor) cuando corresponde.
+ *
+ * @param navController navegación principal.
+ * @param bookName libro inicial a abrir.
+ * @param initialStudyMode bandera inicial para abrir directamente en modo estudio.
+ */
 fun ReaderScreen(
     navController: NavController,
     bookName: String?,
@@ -120,6 +136,11 @@ fun ReaderScreen(
 }
 
 @Composable
+/**
+ * Navegación interna usada solo en el panel izquierdo cuando el modo estudio está activo.
+ *
+ * @param initialBook libro a abrir automáticamente al iniciar la navegación dividida.
+ */
 private fun StudyModeNavigation(initialBook: String?) {
     val splitNavController = rememberNavController()
     val charset = StandardCharsets.UTF_8.toString()
@@ -164,6 +185,14 @@ private fun StudyModeNavigation(initialBook: String?) {
 data class VerseAction(val number: String, val text: String)
 
 @Composable
+/**
+ * Contenido principal del lector de capítulos y versículos.
+ *
+ * @param navController controlador para navegación interna/externa.
+ * @param bookName libro actual.
+ * @param isStudyModeActive indica si está embebido en split de estudio.
+ * @param viewModel estado compartido del cuaderno de estudio.
+ */
 fun ReaderContent(
     navController: NavController,
     bookName: String?,
@@ -380,6 +409,22 @@ fun ReaderContent(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
+/**
+ * Composable de un versículo individual con soporte de:
+ * - selección múltiple,
+ * - long-press para iniciar selección,
+ * - teclado/mouse para accesibilidad.
+ *
+ * @param verseNumber número del versículo.
+ * @param verseText contenido textual del versículo.
+ * @param fontSize tamaño de letra del lector.
+ * @param highlightColor color de subrayado persistido del versículo.
+ * @param isSelected estado visual de selección múltiple.
+ * @param isSelectionMode indica si hay selección activa global.
+ * @param onShowActions callback long-press (inicio de selección/acciones).
+ * @param onToggleSelection callback de toggle en selección activa.
+ * @param onPositionCaptured callback para reportar coordenada usada por popup contextual.
+ */
 fun VerseItem(
     verseNumber: String,
     verseText: String,

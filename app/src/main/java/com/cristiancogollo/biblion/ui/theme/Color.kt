@@ -2,6 +2,12 @@ package com.cristiancogollo.biblion.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
+/**
+ * Paleta de colores usada por Material y componentes de Biblion.
+ *
+ * Nota: aunque existen colores base de plantilla, el color de marca usado
+ * frecuentemente en la app es [BiblionNavy].
+ */
 val Purple80 = Color(0xFFD0BCFF)
 val PurpleGrey80 = Color(0xFFCCC2DC)
 val Pink80 = Color(0xFFEFB8C8)

@@ -40,6 +40,11 @@ import org.json.JSONObject
 
 data class SearchResult(val reference: String, val text: String)
 
+/**
+ * Pantalla de búsqueda bíblica por texto libre.
+ *
+ * @param navController controlador de navegación para volver a pantalla anterior.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(navController: NavController) {
@@ -110,6 +115,13 @@ fun SearchScreen(navController: NavController) {
     }
 }
 
+/**
+ * Recorre el JSON bíblico local y devuelve coincidencias por texto.
+ *
+ * @param context contexto Android para leer assets.
+ * @param query texto buscado (case-insensitive).
+ * @return lista de referencias y textos que contienen la consulta.
+ */
 private suspend fun searchVerses(context: Context, query: String): List<SearchResult> {
     return withContext(Dispatchers.IO) {
         val results = mutableListOf<SearchResult>()

@@ -6,6 +6,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
+/**
+ * Tipografías base de Material usadas en la app.
+ *
+ * Puede extenderse para definir jerarquías de texto adicionales según evolución de diseño.
+ */
 // Set of Material typography styles to start with
 val Typography = Typography(
     bodyLarge = TextStyle(

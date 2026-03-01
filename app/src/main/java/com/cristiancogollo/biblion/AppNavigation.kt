@@ -8,9 +8,19 @@ import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
+/**
+ * Grafo principal de navegación de la app.
+ *
+ * Define rutas Compose y sus parámetros codificados en URL.
+ * Se centraliza aquí para mantener consistente el flujo entre Home, Books, Reader y Search.
+ */
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
+
+    /**
+     * startDestination = "home": pantalla inicial al abrir la aplicación.
+     */
     NavHost(navController = navController, startDestination = "home") {
         composable("home") { 
             HomeScreen(navController) 

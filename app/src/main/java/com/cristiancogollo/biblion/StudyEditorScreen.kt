@@ -57,6 +57,12 @@ import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.roundToInt
 
+/**
+ * Span clickeable que representa una cita bíblica inline dentro del editor.
+ *
+ * Mantiene metadata de referencia/texto para popup contextual, serialización
+ * y eliminación limpia del nodo de cita.
+ */
 private class CitationSpan(
     val citationId: String,
     val reference: String,
@@ -75,6 +81,9 @@ private class CitationSpan(
     }
 }
 
+/**
+ * Ejecuta una operación de formato sobre el rango actualmente seleccionado.
+ */
 private fun applySpan(editText: EditText, block: (Editable, Int, Int) -> Unit) {
     val start = editText.selectionStart.coerceAtLeast(0)
     val end = editText.selectionEnd.coerceAtLeast(0)
@@ -84,6 +93,9 @@ private fun applySpan(editText: EditText, block: (Editable, Int, Int) -> Unit) {
     block(editText.text, min, max)
 }
 
+/**
+ * Convierte el contenido enriquecido del editor a registros serializables.
+ */
 private fun extractRichSpans(editable: Editable): List<RichSpanRecord> {
     val output = mutableListOf<RichSpanRecord>()
 
@@ -139,6 +151,9 @@ private fun extractRichSpans(editable: Editable): List<RichSpanRecord> {
     return output
 }
 
+/**
+ * Restaura el documento enriquecido desde su JSON persistido.
+ */
 private fun restoreFromDocumentJson(
     documentJson: String,
     onCitationPressed: (CitationSpan, IntOffset) -> Unit
@@ -201,6 +216,9 @@ private fun restoreFromDocumentJson(
 }
 
 @Composable
+/**
+ * Panel derecho del modo estudio: editor enriquecido y popups contextuales.
+ */
 fun StudyEditorScreen(
     viewModel: StudyViewModel,
     onClose: () -> Unit
@@ -541,6 +559,9 @@ fun StudyEditorScreen(
     }
 }
 
+/**
+ * Reporta cambios de selección y coordenadas para anclar el menú contextual flotante.
+ */
 private fun EditText.setOnSelectionChangedListener(onSelectionChanged: (Int, Int, IntOffset) -> Unit) {
     val self = this
     self.customSelectionActionModeCallback = object : android.view.ActionMode.Callback {
