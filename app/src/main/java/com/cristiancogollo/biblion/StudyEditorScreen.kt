@@ -3,23 +3,61 @@ package com.cristiancogollo.biblion
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeFloatingActionButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
+
+private fun applyAroundSelection(value: TextFieldValue, prefix: String, suffix: String): TextFieldValue {
+    val start = value.selection.start.coerceAtLeast(0)
+    val end = value.selection.end.coerceAtLeast(start)
+    if (start == end) return value
+    val selected = value.text.substring(start, end)
+    val replacement = "$prefix$selected$suffix"
+    val updated = value.text.replaceRange(start, end, replacement)
+    val cursor = start + replacement.length
+    return value.copy(text = updated, selection = TextRange(cursor, cursor))
+}
 
 @Composable
 fun StudyEditorScreen(
@@ -27,11 +65,24 @@ fun StudyEditorScreen(
     onClose: () -> Unit
 ) {
     var selectedCitation by remember { mutableStateOf<StudyCitation?>(null) }
+    val clipboard = LocalClipboardManager.current
+
+    var noteField by remember {
+        mutableStateOf(TextFieldValue(viewModel.noteContent))
+    }
+
+    LaunchedEffect(viewModel.noteContent) {
+        if (viewModel.noteContent != noteField.text) {
+            noteField = noteField.copy(text = viewModel.noteContent)
+        }
+    }
+
+    val hasSelection = noteField.selection.start != noteField.selection.end
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5F5)) // Fondo ligeramente distinto para el editor
+            .background(Color(0xFFF5F5F5))
     ) {
         Column(
             modifier = Modifier
@@ -56,7 +107,6 @@ fun StudyEditorScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Título de la enseñanza
             BasicTextField(
                 value = viewModel.noteTitle,
                 onValueChange = { viewModel.updateTitle(it) },
@@ -118,22 +168,71 @@ fun StudyEditorScreen(
                         )
                     }
                 }
+                Spacer(modifier = Modifier.height(6.dp))
+                SelectionContainer {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        viewModel.citations.takeLast(3).forEach { citation ->
+                            Text(
+                                text = "\"${citation.text}\"",
+                                fontStyle = FontStyle.Italic,
+                                fontFamily = FontFamily.Serif,
+                                color = Color(0xFF303030)
+                            )
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            // Contenido de la nota
+            if (hasSelection) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White, shape = MaterialTheme.shapes.medium)
+                        .padding(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Copiar", color = BiblionNavy, modifier = Modifier.clickable {
+                        val selected = noteField.getSelectedText().text
+                        if (selected.isNotEmpty()) {
+                            clipboard.setText(AnnotatedString(selected))
+                        }
+                    })
+                    Text("Subrayar", color = BiblionNavy, modifier = Modifier.clickable {
+                        noteField = applyAroundSelection(noteField, "[hl]", "[/hl]")
+                        viewModel.updateContent(noteField.text)
+                    })
+                    Text("Negrita", color = BiblionNavy, modifier = Modifier.clickable {
+                        noteField = applyAroundSelection(noteField, "**", "**")
+                        viewModel.updateContent(noteField.text)
+                    })
+                    Text("A+", color = BiblionNavy, modifier = Modifier.clickable {
+                        viewModel.updateFontSize(viewModel.noteFontSize + 1f)
+                    })
+                    Text("A-", color = BiblionNavy, modifier = Modifier.clickable {
+                        viewModel.updateFontSize(viewModel.noteFontSize - 1f)
+                    })
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
             BasicTextField(
-                value = viewModel.noteContent,
-                onValueChange = { viewModel.updateContent(it) },
+                value = noteField,
+                onValueChange = {
+                    noteField = it
+                    viewModel.updateContent(it.text)
+                },
                 textStyle = TextStyle(
-                    fontSize = 16.sp,
+                    fontSize = viewModel.noteFontSize.sp,
                     fontFamily = FontFamily.Serif,
                     color = Color.DarkGray,
-                    lineHeight = 24.sp
+                    lineHeight = (viewModel.noteFontSize + 8f).sp
                 ),
-                modifier = Modifier.fillMaxSize().weight(1f),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .weight(1f),
                 decorationBox = { innerTextField ->
-                    if (viewModel.noteContent.isEmpty()) {
+                    if (noteField.text.isEmpty()) {
                         Text("Empieza a escribir tus notas aquí...", color = Color.Gray, fontSize = 16.sp)
                     }
                     innerTextField()
@@ -151,7 +250,7 @@ fun StudyEditorScreen(
                             Text("Anterior: $it", color = Color.Gray)
                             Spacer(modifier = Modifier.height(8.dp))
                         }
-                        Text("Base: ${citation.text}")
+                        Text("\"${citation.text}\"", fontStyle = FontStyle.Italic, fontFamily = FontFamily.Serif)
                         citation.nextText?.let {
                             Spacer(modifier = Modifier.height(8.dp))
                             Text("Siguiente: $it", color = Color.Gray)
@@ -170,9 +269,8 @@ fun StudyEditorScreen(
             )
         }
 
-        // FloatingActionButton "AI"
         LargeFloatingActionButton(
-            onClick = { /* Acción AI */ },
+            onClick = { },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(24.dp),

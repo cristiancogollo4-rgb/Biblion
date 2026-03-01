@@ -17,6 +17,7 @@ class StudyViewModel : ViewModel() {
     var noteContent by mutableStateOf("")
     var baseReference by mutableStateOf("")
     var citations by mutableStateOf<List<StudyCitation>>(emptyList())
+    var noteFontSize by mutableStateOf(16f)
 
     fun updateTitle(newTitle: String) {
         noteTitle = newTitle
@@ -37,6 +38,10 @@ class StudyViewModel : ViewModel() {
         nextText: String?
     ) {
         citations = citations + StudyCitation(reference, text, previousText, nextText)
-        noteContent = (noteContent.trimEnd() + "\n\n[$reference]\n$text\n").trimStart()
+        noteContent = (noteContent.trimEnd() + "\n\n[$reference]\n\"$text\"\n").trimStart()
+    }
+
+    fun updateFontSize(newSize: Float) {
+        noteFontSize = newSize.coerceIn(12f, 30f)
     }
 }

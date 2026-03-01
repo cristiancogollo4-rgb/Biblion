@@ -6,27 +6,41 @@ import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.util.Log
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.StarBorder
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.BaselineShift
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -47,6 +61,15 @@ import java.nio.charset.StandardCharsets
 
 private const val PREFS_NAME = "BiblionReaderPrefs"
 private const val KEY_FONT_SIZE = "fontSize"
+private const val KEY_VERSE_HIGHLIGHTS = "verseHighlights"
+
+private val highlightPalette = listOf(
+    Color(0x00000000),
+    Color(0xFFFFF2A8),
+    Color(0xFFC8F7C5),
+    Color(0xFFFFD0D0),
+    Color(0xFFD8E8FF)
+)
 
 fun Context.findActivity(): Activity? {
     var context = this
@@ -138,6 +161,8 @@ private fun StudyModeNavigation(initialBook: String?) {
     }
 }
 
+data class VerseAction(val number: String, val text: String)
+
 @Composable
 fun ReaderContent(
     navController: NavController,
@@ -148,6 +173,7 @@ fun ReaderContent(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+    val clipboard = LocalClipboardManager.current
 
     var fontSizeValue by remember { mutableStateOf(prefs.getInt(KEY_FONT_SIZE, 18).toFloat()) }
     val fontSize = fontSizeValue.sp
@@ -155,10 +181,36 @@ fun ReaderContent(
     var chapterCount by remember { mutableStateOf(0) }
     var selectedChapter by remember { mutableStateOf(1) }
     var verses by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
-    var favoriteVerses by remember { mutableStateOf(setOf<String>()) }
-    var verseStyles by remember { mutableStateOf<Map<String, VerseStyle>>(emptyMap()) }
+    var verseHighlights by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var showDialog by remember { mutableStateOf(false) }
-    var selectedVerseMenu by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var selectedVerseAction by remember { mutableStateOf<VerseAction?>(null) }
+
+    fun verseKey(verseNumber: String): String = "${bookName ?: ""}|$selectedChapter|$verseNumber"
+
+    fun loadHighlightsForChapter() {
+        val raw = prefs.getString(KEY_VERSE_HIGHLIGHTS, "{}") ?: "{}"
+        val json = JSONObject(raw)
+        val map = mutableMapOf<String, Int>()
+        verses.forEach { (verseNumber, _) ->
+            val saved = json.optInt(verseKey(verseNumber), 0)
+            if (saved in highlightPalette.indices) {
+                map[verseNumber] = saved
+            }
+        }
+        verseHighlights = map
+    }
+
+    fun saveHighlight(verseNumber: String, colorIndex: Int) {
+        val raw = prefs.getString(KEY_VERSE_HIGHLIGHTS, "{}") ?: "{}"
+        val json = JSONObject(raw)
+        json.put(verseKey(verseNumber), colorIndex)
+        prefs.edit().putString(KEY_VERSE_HIGHLIGHTS, json.toString()).apply()
+        verseHighlights = verseHighlights + (verseNumber to colorIndex)
+    }
+
+    fun copyVerse(reference: String, text: String, clipboardManager: ClipboardManager) {
+        clipboardManager.setText(AnnotatedString("$reference\n$text"))
+    }
 
     fun loadChapter(book: String, chapter: Int) {
         scope.launch(Dispatchers.IO) {
@@ -183,6 +235,12 @@ fun ReaderContent(
 
     LaunchedEffect(bookName) {
         bookName?.let { loadChapter(it, selectedChapter) }
+    }
+
+    LaunchedEffect(bookName, selectedChapter, verses) {
+        if (bookName != null && verses.isNotEmpty()) {
+            loadHighlightsForChapter()
+        }
     }
 
     if (showDialog && bookName != null) {
@@ -241,76 +299,77 @@ fun ReaderContent(
                     .padding(padding),
                 contentPadding = PaddingValues(16.dp)
             ) {
-                items(verses) { verse ->
+                items(verses) { (verseNumber, verseText) ->
                     VerseItem(
-                        verseNumber = verse.first,
-                        verseText = verse.second,
+                        verseNumber = verseNumber,
+                        verseText = verseText,
                         fontSize = fontSize,
-                        isFavorite = favoriteVerses.contains(verse.first),
-                        verseStyle = verseStyles[verse.first] ?: VerseStyle.None,
-                        onFavoriteToggle = {
-                            favoriteVerses = if (favoriteVerses.contains(verse.first)) {
-                                favoriteVerses - verse.first
-                            } else {
-                                favoriteVerses + verse.first
-                            }
-                        },
-                        onShowStudyMenu = {
-                            if (isStudyModeActive) selectedVerseMenu = verse
+                        highlightColor = highlightPalette[verseHighlights[verseNumber] ?: 0],
+                        onShowActions = {
+                            selectedVerseAction = VerseAction(verseNumber, verseText)
                         }
                     )
                 }
             }
         }
 
-        selectedVerseMenu?.let { (verseNumber, verseText) ->
-            val currentIndex = verses.indexOfFirst { it.first == verseNumber }
+        selectedVerseAction?.let { selected ->
+            val currentIndex = verses.indexOfFirst { it.first == selected.number }
             val previousVerseText = verses.getOrNull(currentIndex - 1)?.second
             val nextVerseText = verses.getOrNull(currentIndex + 1)?.second
+            val reference = "${bookName ?: ""} $selectedChapter:${selected.number}"
 
             AlertDialog(
-                onDismissRequest = { selectedVerseMenu = null },
-                title = { Text("Herramientas de estudio") },
+                onDismissRequest = { selectedVerseAction = null },
+                title = { Text("Opciones") },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("$bookName $selectedChapter:$verseNumber")
-                        Text(verseText, style = MaterialTheme.typography.bodySmall)
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                        Text(
-                            "Resaltar amarillo",
-                            modifier = Modifier.clickable {
-                                verseStyles = verseStyles + (verseNumber to VerseStyle.HighlightYellow)
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(reference, style = MaterialTheme.typography.labelLarge)
+                        Text(selected.text, style = MaterialTheme.typography.bodySmall)
+                        HorizontalDivider()
+                        Text("Subrayado / Favorito")
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            highlightPalette.forEachIndexed { index, color ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .background(
+                                            color = if (index == 0) Color.White else color,
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                        .clickable {
+                                            saveHighlight(selected.number, index)
+                                        }
+                                )
                             }
-                        )
+                        }
                         Text(
-                            "Resaltar verde",
-                            modifier = Modifier.clickable {
-                                verseStyles = verseStyles + (verseNumber to VerseStyle.HighlightGreen)
-                            }
-                        )
-                        Text(
-                            "Subrayar",
-                            modifier = Modifier.clickable {
-                                verseStyles = verseStyles + (verseNumber to VerseStyle.Underline)
-                            }
-                        )
-                        Text(
-                            "Citar en cuaderno",
+                            text = "Copiar",
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.clickable {
-                                viewModel.addCitation(
-                                    reference = "$bookName $selectedChapter:$verseNumber",
-                                    text = verseText,
-                                    previousText = previousVerseText,
-                                    nextText = nextVerseText
-                                )
-                                selectedVerseMenu = null
+                                copyVerse(reference, selected.text, clipboard)
+                                selectedVerseAction = null
                             }
                         )
+                        if (isStudyModeActive) {
+                            Text(
+                                text = "Citar en cuaderno",
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.clickable {
+                                    viewModel.addCitation(
+                                        reference = reference,
+                                        text = selected.text,
+                                        previousText = previousVerseText,
+                                        nextText = nextVerseText
+                                    )
+                                    selectedVerseAction = null
+                                }
+                            )
+                        }
                     }
                 },
                 confirmButton = {
-                    TextButton(onClick = { selectedVerseMenu = null }) {
+                    TextButton(onClick = { selectedVerseAction = null }) {
                         Text("Cerrar")
                     }
                 }
@@ -319,68 +378,41 @@ fun ReaderContent(
     }
 }
 
-enum class VerseStyle {
-    None,
-    HighlightYellow,
-    HighlightGreen,
-    Underline
-}
-
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun VerseItem(
     verseNumber: String,
     verseText: String,
     fontSize: TextUnit,
-    isFavorite: Boolean,
-    verseStyle: VerseStyle,
-    onFavoriteToggle: () -> Unit,
-    onShowStudyMenu: () -> Unit
+    highlightColor: Color,
+    onShowActions: () -> Unit
 ) {
-    val textColor = when (verseStyle) {
-        VerseStyle.HighlightYellow -> Color(0xFF664A00)
-        VerseStyle.HighlightGreen -> Color(0xFF155930)
-        else -> MaterialTheme.colorScheme.onBackground
-    }
-    val textDecoration = if (verseStyle == VerseStyle.Underline) TextDecoration.Underline else null
-
-    Row(
+    Text(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        IconButton(onClick = onFavoriteToggle, modifier = Modifier.size(26.dp)) {
-            Icon(
-                imageVector = if (isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
-                contentDescription = "Favorito",
-                tint = if (isFavorite) Color(0xFFFFB300) else Color.Gray
-            )
-        }
-
-        Text(
-            modifier = Modifier.weight(1f).clickable { onShowStudyMenu() },
-            text = buildAnnotatedString {
-                withStyle(
-                    style = SpanStyle(
-                        fontSize = (fontSize.value * 0.6).sp,
-                        fontWeight = FontWeight.Bold,
-                        baselineShift = BaselineShift.Superscript,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    append(verseNumber)
-                }
-                append("  $verseText")
-            },
-            style = MaterialTheme.typography.bodyLarge.merge(
-                TextStyle(
-                    fontFamily = FontFamily.Serif,
-                    lineHeight = (fontSize.value * 1.5).sp,
-                    fontSize = fontSize,
-                    color = textColor,
-                    textDecoration = textDecoration
+            .padding(bottom = 12.dp)
+            .background(highlightColor, RoundedCornerShape(8.dp))
+            .combinedClickable(onClick = onShowActions, onLongClick = onShowActions)
+            .padding(8.dp),
+        text = buildAnnotatedString {
+            withStyle(
+                style = SpanStyle(
+                    fontSize = (fontSize.value * 0.6).sp,
+                    fontWeight = FontWeight.Bold,
+                    baselineShift = BaselineShift.Superscript,
+                    color = MaterialTheme.colorScheme.primary
                 )
+            ) {
+                append(verseNumber)
+            }
+            append("  $verseText")
+        },
+        style = MaterialTheme.typography.bodyLarge.merge(
+            TextStyle(
+                fontFamily = FontFamily.Serif,
+                lineHeight = (fontSize.value * 1.5).sp,
+                fontSize = fontSize
             )
         )
-    }
+    )
 }
