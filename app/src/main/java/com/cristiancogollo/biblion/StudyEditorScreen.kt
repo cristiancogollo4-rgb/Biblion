@@ -1,5 +1,19 @@
 package com.cristiancogollo.biblion
 
+import android.graphics.Typeface
+import android.text.Editable
+import android.text.Spannable
+import android.text.SpannableStringBuilder
+import android.text.TextWatcher
+import android.text.method.LinkMovementMethod
+import android.text.style.AbsoluteSizeSpan
+import android.text.style.BackgroundColorSpan
+import android.text.style.ClickableSpan
+import android.text.style.RelativeSizeSpan
+import android.text.style.StyleSpan
+import android.view.View
+import android.widget.EditText
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -13,84 +27,176 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeFloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
+import org.json.JSONArray
+import org.json.JSONObject
+import kotlin.math.roundToInt
 
-private fun applyAroundSelection(value: TextFieldValue, prefix: String, suffix: String): TextFieldValue {
-    val start = value.selection.min
-    val end = value.selection.max
-    if (start == end) return value
-    val selected = value.text.substring(start, end)
-    val replacement = "$prefix$selected$suffix"
-    val updated = value.text.replaceRange(start, end, replacement)
-    val cursor = start + replacement.length
-    return value.copy(text = updated, selection = TextRange(cursor, cursor))
-}
-
-private fun applyToSelection(value: TextFieldValue, transform: (String) -> String): TextFieldValue {
-    val start = value.selection.min
-    val end = value.selection.max
-    if (start == end) return value
-    val selected = value.text.substring(start, end)
-    val replacement = transform(selected)
-    val updated = value.text.replaceRange(start, end, replacement)
-    val cursor = start + replacement.length
-    return value.copy(text = updated, selection = TextRange(cursor, cursor))
-}
-
-private fun toBoldUnicode(input: String): String = buildString {
-    input.forEach { char ->
-        val codePoint = when (char) {
-            in 'A'..'Z' -> 0x1D400 + (char.code - 'A'.code)
-            in 'a'..'z' -> 0x1D41A + (char.code - 'a'.code)
-            in '0'..'9' -> 0x1D7CE + (char.code - '0'.code)
-            else -> null
-        }
-        if (codePoint != null) {
-            append(String(Character.toChars(codePoint)))
-        } else {
-            append(char)
-        }
+private class CitationSpan(
+    val citationId: String,
+    val reference: String,
+    val verseText: String,
+    var version: String,
+    private val onPress: (CitationSpan, IntOffset) -> Unit
+) : ClickableSpan() {
+    override fun onClick(widget: View) {
+        val editText = widget as? EditText ?: return
+        val text = editText.text as? Spannable ?: return
+        val start = text.getSpanStart(this)
+        val line = editText.layout?.getLineForOffset(start) ?: 0
+        val x = (editText.layout?.getPrimaryHorizontal(start) ?: 0f).roundToInt()
+        val y = (editText.layout?.getLineBottom(line) ?: 0)
+        onPress(this, IntOffset(x, y))
     }
 }
 
-private fun toUnderlineUnicode(input: String): String = buildString {
-    input.forEach { char ->
-        append(char)
-        if (char != ' ' && char != '\n') {
-            append('\u0332')
+private fun applySpan(editText: EditText, block: (Editable, Int, Int) -> Unit) {
+    val start = editText.selectionStart.coerceAtLeast(0)
+    val end = editText.selectionEnd.coerceAtLeast(0)
+    if (start == end) return
+    val min = minOf(start, end)
+    val max = maxOf(start, end)
+    block(editText.text, min, max)
+}
+
+private fun extractRichSpans(editable: Editable): List<RichSpanRecord> {
+    val output = mutableListOf<RichSpanRecord>()
+
+    editable.getSpans(0, editable.length, StyleSpan::class.java).forEach { span ->
+        val start = editable.getSpanStart(span)
+        val end = editable.getSpanEnd(span)
+        if (start >= 0 && end > start) {
+            val type = if (span.style == Typeface.BOLD) "bold" else if (span.style == Typeface.ITALIC) "italic" else "style"
+            output += RichSpanRecord(type = type, start = start, end = end)
         }
+    }
+
+    editable.getSpans(0, editable.length, BackgroundColorSpan::class.java).forEach { span ->
+        val start = editable.getSpanStart(span)
+        val end = editable.getSpanEnd(span)
+        if (start >= 0 && end > start) {
+            output += RichSpanRecord(type = "highlight", start = start, end = end, value = span.backgroundColor.toString())
+        }
+    }
+
+    editable.getSpans(0, editable.length, RelativeSizeSpan::class.java).forEach { span ->
+        val start = editable.getSpanStart(span)
+        val end = editable.getSpanEnd(span)
+        if (start >= 0 && end > start) {
+            output += RichSpanRecord(type = "size_relative", start = start, end = end, value = span.sizeChange.toString())
+        }
+    }
+
+    editable.getSpans(0, editable.length, AbsoluteSizeSpan::class.java).forEach { span ->
+        val start = editable.getSpanStart(span)
+        val end = editable.getSpanEnd(span)
+        if (start >= 0 && end > start) {
+            output += RichSpanRecord(type = "size_abs", start = start, end = end, value = span.size.toString())
+        }
+    }
+
+    editable.getSpans(0, editable.length, CitationSpan::class.java).forEach { span ->
+        val start = editable.getSpanStart(span)
+        val end = editable.getSpanEnd(span)
+        if (start >= 0 && end > start) {
+            output += RichSpanRecord(
+                type = "bible_reference",
+                start = start,
+                end = end,
+                citationId = span.citationId,
+                citationReference = span.reference,
+                citationText = span.verseText,
+                citationVersion = span.version
+            )
+        }
+    }
+
+    return output
+}
+
+private fun restoreFromDocumentJson(
+    documentJson: String,
+    onCitationPressed: (CitationSpan, IntOffset) -> Unit
+): SpannableStringBuilder {
+    if (documentJson.isBlank()) return SpannableStringBuilder("")
+
+    return try {
+        val root = JSONObject(documentJson)
+        val text = root.optString("text", "")
+        val spans = root.optJSONArray("spans") ?: JSONArray()
+        val editable = SpannableStringBuilder(text)
+
+        for (i in 0 until spans.length()) {
+            val item = spans.optJSONObject(i) ?: continue
+            val type = item.optString("type")
+            val start = item.optInt("start", -1)
+            val end = item.optInt("end", -1)
+            if (start < 0 || end <= start || end > editable.length) continue
+
+            when (type) {
+                "bold" -> editable.setSpan(StyleSpan(Typeface.BOLD), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                "italic" -> editable.setSpan(StyleSpan(Typeface.ITALIC), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                "highlight" -> {
+                    val defaultHighlight = android.graphics.Color.parseColor("#FFF2A8")
+                    val value = item.optString("value", defaultHighlight.toString())
+                    editable.setSpan(BackgroundColorSpan(value.toIntOrNull() ?: defaultHighlight), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                "size_relative" -> {
+                    val value = item.optString("value", "1.1").toFloatOrNull() ?: 1.1f
+                    editable.setSpan(RelativeSizeSpan(value), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                "size_abs" -> {
+                    val value = item.optString("value", "24").toIntOrNull() ?: 24
+                    editable.setSpan(AbsoluteSizeSpan(value, true), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                "bible_reference" -> {
+                    val span = CitationSpan(
+                        citationId = item.optString("citationId", ""),
+                        reference = item.optString("citationReference", "Cita"),
+                        verseText = item.optString("citationText", ""),
+                        version = item.optString("citationVersion", "default"),
+                        onPress = onCitationPressed
+                    )
+                    editable.setSpan(span, start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    editable.setSpan(
+                        BackgroundColorSpan(android.graphics.Color.parseColor("#D8E8FF")),
+                        start,
+                        end,
+                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    editable.setSpan(StyleSpan(Typeface.BOLD), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            }
+        }
+
+        editable
+    } catch (_: Exception) {
+        SpannableStringBuilder("")
     }
 }
 
@@ -99,20 +205,54 @@ fun StudyEditorScreen(
     viewModel: StudyViewModel,
     onClose: () -> Unit
 ) {
-    var selectedCitation by remember { mutableStateOf<StudyCitation?>(null) }
-    val clipboard = LocalClipboardManager.current
+    var selectedCitation by remember { mutableStateOf<CitationSpan?>(null) }
+    var citationMenuOffset by remember { mutableStateOf(IntOffset.Zero) }
+    var selectionStart by remember { mutableIntStateOf(0) }
+    var selectionEnd by remember { mutableIntStateOf(0) }
+    var editorRef by remember { mutableStateOf<EditText?>(null) }
+    val density = LocalDensity.current
 
-    var noteField by remember {
-        mutableStateOf(TextFieldValue(viewModel.noteContent))
-    }
-
-    LaunchedEffect(viewModel.noteContent) {
-        if (viewModel.noteContent != noteField.text) {
-            noteField = noteField.copy(text = viewModel.noteContent)
+    fun persistDocument() {
+        editorRef?.let { editor ->
+            viewModel.updateDocument(editor.text.toString(), extractRichSpans(editor.text))
         }
     }
 
-    val hasSelection = noteField.selection.start != noteField.selection.end
+    fun insertCitation(request: CitationInsertRequest) {
+        val editor = editorRef ?: return
+        val editable = editor.text
+        val at = editor.selectionStart.coerceAtLeast(0)
+        val inlineText = " ${request.reference} "
+        editable.insert(at, inlineText)
+
+        val citationSpan = CitationSpan(
+            citationId = request.id,
+            reference = request.reference,
+            verseText = request.text,
+            version = request.version,
+            onPress = { span, offset ->
+                selectedCitation = span
+                citationMenuOffset = offset
+            }
+        )
+
+        editable.setSpan(citationSpan, at, at + inlineText.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        editable.setSpan(
+            BackgroundColorSpan(android.graphics.Color.parseColor("#D8E8FF")),
+            at,
+            at + inlineText.length,
+            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        editable.setSpan(StyleSpan(Typeface.BOLD), at, at + inlineText.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        editor.setSelection((at + inlineText.length).coerceAtMost(editable.length))
+        persistDocument()
+    }
+
+    LaunchedEffect(viewModel.pendingCitationInsertions.size, editorRef) {
+        if (editorRef != null && viewModel.pendingCitationInsertions.isNotEmpty()) {
+            viewModel.consumePendingCitations().forEach { insertCitation(it) }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -132,8 +272,7 @@ fun StudyEditorScreen(
                 Text(
                     text = "CUADERNO DE ESTUDIO",
                     style = MaterialTheme.typography.labelLarge,
-                    color = BiblionNavy,
-                    fontWeight = FontWeight.Bold
+                    color = BiblionNavy
                 )
                 IconButton(onClick = onClose) {
                     Icon(imageVector = Icons.Default.Close, contentDescription = "Cerrar", tint = Color.Gray)
@@ -142,19 +281,18 @@ fun StudyEditorScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            BasicTextField(
+            androidx.compose.foundation.text.BasicTextField(
                 value = viewModel.noteTitle,
                 onValueChange = { viewModel.updateTitle(it) },
-                textStyle = TextStyle(
+                textStyle = androidx.compose.ui.text.TextStyle(
                     fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Serif,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
                     color = Color.Black
                 ),
                 modifier = Modifier.fillMaxWidth(),
                 decorationBox = { innerTextField ->
                     if (viewModel.noteTitle.isEmpty()) {
-                        Text("Título de la enseñanza...", color = Color.Gray, fontSize = 20.sp, fontFamily = FontFamily.Serif)
+                        Text("Título de la enseñanza...", color = Color.Gray, fontSize = 20.sp)
                     }
                     innerTextField()
                 }
@@ -162,19 +300,18 @@ fun StudyEditorScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            BasicTextField(
+            androidx.compose.foundation.text.BasicTextField(
                 value = viewModel.baseReference,
                 onValueChange = { viewModel.updateBaseReference(it) },
-                textStyle = TextStyle(
+                textStyle = androidx.compose.ui.text.TextStyle(
                     fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    fontFamily = FontFamily.Serif,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
                     color = Color(0xFF1A3A6E)
                 ),
                 modifier = Modifier.fillMaxWidth(),
                 decorationBox = { innerTextField ->
                     if (viewModel.baseReference.isEmpty()) {
-                        Text("Versículo o texto base...", color = Color.Gray, fontSize = 16.sp, fontFamily = FontFamily.Serif)
+                        Text("Versículo o texto base...", color = Color.Gray, fontSize = 16.sp)
                     }
                     innerTextField()
                 }
@@ -186,8 +323,7 @@ fun StudyEditorScreen(
                 Text(
                     text = "Versículos citados",
                     style = MaterialTheme.typography.labelLarge,
-                    color = BiblionNavy,
-                    fontWeight = FontWeight.Bold
+                    color = BiblionNavy
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(
@@ -198,28 +334,23 @@ fun StudyEditorScreen(
                 ) {
                     viewModel.citations.forEach { citation ->
                         AssistChip(
-                            onClick = { selectedCitation = citation },
+                            onClick = {
+                                selectedCitation = CitationSpan(
+                                    citationId = "",
+                                    reference = citation.reference,
+                                    verseText = citation.text,
+                                    version = "default",
+                                    onPress = { _, _ -> }
+                                )
+                            },
                             label = { Text(citation.reference) }
                         )
-                    }
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-                SelectionContainer {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        viewModel.citations.takeLast(3).forEach { citation ->
-                            Text(
-                                text = "\"${citation.text}\"",
-                                fontStyle = FontStyle.Italic,
-                                fontFamily = FontFamily.Serif,
-                                color = Color(0xFF303030)
-                            )
-                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            if (hasSelection) {
+            if (selectionStart != selectionEnd) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -227,105 +358,211 @@ fun StudyEditorScreen(
                         .padding(10.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Copiar", color = BiblionNavy, modifier = Modifier.clickable {
-                        val start = noteField.selection.min
-                        val end = noteField.selection.max
-                        val selected = noteField.text.substring(start, end)
-                        if (selected.isNotEmpty()) {
-                            clipboard.setText(AnnotatedString(selected))
+                    Text("Pintar", color = BiblionNavy, modifier = Modifier.clickable {
+                        editorRef?.let { editor ->
+                            applySpan(editor) { editable, start, end ->
+                                editable.setSpan(
+                                    BackgroundColorSpan(android.graphics.Color.parseColor("#FFF2A8")),
+                                    start,
+                                    end,
+                                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                                )
+                            }
+                            persistDocument()
                         }
                     })
-                    Text("Subrayar", color = BiblionNavy, modifier = Modifier.clickable {
-                        noteField = applyToSelection(noteField, ::toUnderlineUnicode)
-                        viewModel.updateContent(noteField.text)
-                    })
                     Text("Negrita", color = BiblionNavy, modifier = Modifier.clickable {
-                        noteField = applyToSelection(noteField, ::toBoldUnicode)
-                        viewModel.updateContent(noteField.text)
+                        editorRef?.let { editor ->
+                            applySpan(editor) { editable, start, end ->
+                                editable.setSpan(StyleSpan(Typeface.BOLD), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            }
+                            persistDocument()
+                        }
+                    })
+                    Text("Cursiva", color = BiblionNavy, modifier = Modifier.clickable {
+                        editorRef?.let { editor ->
+                            applySpan(editor) { editable, start, end ->
+                                editable.setSpan(StyleSpan(Typeface.ITALIC), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            }
+                            persistDocument()
+                        }
                     })
                     Text("A+", color = BiblionNavy, modifier = Modifier.clickable {
-                        noteField = applyAroundSelection(
-                            noteField,
-                            "[size=${(viewModel.noteFontSize + 3f).coerceIn(12f, 32f)}]",
-                            "[/size]"
-                        )
-                        viewModel.updateContent(noteField.text)
+                        editorRef?.let { editor ->
+                            applySpan(editor) { editable, start, end ->
+                                editable.setSpan(RelativeSizeSpan(1.2f), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            }
+                            persistDocument()
+                        }
                     })
                     Text("A-", color = BiblionNavy, modifier = Modifier.clickable {
-                        noteField = applyAroundSelection(
-                            noteField,
-                            "[size=${(viewModel.noteFontSize - 2f).coerceIn(12f, 32f)}]",
-                            "[/size]"
-                        )
-                        viewModel.updateContent(noteField.text)
+                        editorRef?.let { editor ->
+                            applySpan(editor) { editable, start, end ->
+                                editable.setSpan(RelativeSizeSpan(0.9f), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            }
+                            persistDocument()
+                        }
+                    })
+                    Text("H1", color = BiblionNavy, modifier = Modifier.clickable {
+                        editorRef?.let { editor ->
+                            applySpan(editor) { editable, start, end ->
+                                editable.setSpan(AbsoluteSizeSpan(30, true), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                                editable.setSpan(StyleSpan(Typeface.BOLD), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            }
+                            persistDocument()
+                        }
+                    })
+                    Text("H2", color = BiblionNavy, modifier = Modifier.clickable {
+                        editorRef?.let { editor ->
+                            applySpan(editor) { editable, start, end ->
+                                editable.setSpan(AbsoluteSizeSpan(24, true), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                                editable.setSpan(StyleSpan(Typeface.BOLD), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            }
+                            persistDocument()
+                        }
+                    })
+                    Text("H3", color = BiblionNavy, modifier = Modifier.clickable {
+                        editorRef?.let { editor ->
+                            applySpan(editor) { editable, start, end ->
+                                editable.setSpan(AbsoluteSizeSpan(20, true), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            }
+                            persistDocument()
+                        }
+                    })
+                    Text("Limpiar", color = BiblionNavy, modifier = Modifier.clickable {
+                        editorRef?.let { editor ->
+                            applySpan(editor) { editable, start, end ->
+                                editable.getSpans(start, end, Any::class.java).forEach { span ->
+                                    if (span is StyleSpan || span is RelativeSizeSpan || span is AbsoluteSizeSpan || span is BackgroundColorSpan) {
+                                        editable.removeSpan(span)
+                                    }
+                                }
+                            }
+                            persistDocument()
+                        }
                     })
                 }
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            BasicTextField(
-                value = noteField,
-                onValueChange = {
-                    noteField = it
-                    viewModel.updateContent(it.text)
+            AndroidView(
+                factory = { context ->
+                    EditText(context).apply {
+                        setTextColor(android.graphics.Color.DKGRAY)
+                        setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                        textSize = viewModel.noteFontSize
+                        typeface = Typeface.SERIF
+                        movementMethod = LinkMovementMethod.getInstance()
+                        setPadding(6, 6, 6, 6)
+
+                        val restored = restoreFromDocumentJson(viewModel.noteDocumentJson) { span, offset ->
+                            selectedCitation = span
+                            citationMenuOffset = offset
+                        }
+                        if (restored.isNotEmpty()) {
+                            setText(restored)
+                        } else {
+                            setText(viewModel.noteContent)
+                        }
+
+                        addTextChangedListener(object : TextWatcher {
+                            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+                            override fun afterTextChanged(s: Editable?) {
+                                if (s != null) {
+                                    viewModel.updateDocument(s.toString(), extractRichSpans(s))
+                                }
+                            }
+                        })
+
+                        setOnSelectionChangedListener { selStart, selEnd ->
+                            selectionStart = selStart
+                            selectionEnd = selEnd
+                        }
+
+                        editorRef = this
+                    }
                 },
-                textStyle = TextStyle(
-                    fontSize = viewModel.noteFontSize.sp,
-                    fontFamily = FontFamily.Serif,
-                    color = Color.DarkGray,
-                    lineHeight = (viewModel.noteFontSize + 8f).sp
-                ),
+                update = { editorRef = it },
                 modifier = Modifier
                     .fillMaxSize()
-                    .weight(1f),
-                decorationBox = { innerTextField ->
-                    if (noteField.text.isEmpty()) {
-                        Text("Empieza a escribir tus notas aquí...", color = Color.Gray, fontSize = 16.sp)
-                    }
-                    innerTextField()
-                }
+                    .weight(1f)
+                    .background(Color.White, MaterialTheme.shapes.medium)
             )
         }
 
         selectedCitation?.let { citation ->
-            AlertDialog(
-                onDismissRequest = { selectedCitation = null },
-                title = { Text(citation.reference) },
-                text = {
-                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                        citation.previousText?.let {
-                            Text("Anterior: $it", color = Color.Gray)
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-                        Text("\"${citation.text}\"", fontStyle = FontStyle.Italic, fontFamily = FontFamily.Serif)
-                        citation.nextText?.let {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text("Siguiente: $it", color = Color.Gray)
-                        }
+            androidx.compose.ui.window.Popup(
+                alignment = Alignment.TopStart,
+                offset = IntOffset(
+                    x = citationMenuOffset.x,
+                    y = citationMenuOffset.y + with(density) { 8.dp.roundToPx() }
+                ),
+                onDismissRequest = { selectedCitation = null }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .background(Color.White, shape = MaterialTheme.shapes.medium)
+                        .padding(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(citation.reference, color = BiblionNavy, style = MaterialTheme.typography.labelLarge)
+                        Icon(
+                            imageVector = Icons.Default.SwapHoriz,
+                            contentDescription = "Cambiar versión",
+                            tint = BiblionNavy,
+                            modifier = Modifier.clickable {
+                                editorRef?.let {
+                                    Toast.makeText(it.context, "Próximamente múltiples versiones", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        )
                     }
-                },
-                confirmButton = {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Column(modifier = Modifier.height(120.dp).verticalScroll(rememberScrollState())) {
+                        Text(citation.verseText, color = Color(0xFF303030))
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Cerrar",
-                        color = BiblionNavy,
-                        modifier = Modifier
-                            .clickable { selectedCitation = null }
-                            .padding(8.dp)
+                        text = "Eliminar cita",
+                        color = Color(0xFFB00020),
+                        modifier = Modifier.clickable {
+                            editorRef?.text?.let { editable ->
+                                editable.getSpans(0, editable.length, CitationSpan::class.java).forEach { span ->
+                                    if (span.citationId == citation.citationId || span.reference == citation.reference) {
+                                        val start = editable.getSpanStart(span)
+                                        val end = editable.getSpanEnd(span)
+                                        editable.removeSpan(span)
+                                        if (start >= 0 && end > start && end <= editable.length) {
+                                            editable.delete(start, end)
+                                        }
+                                    }
+                                }
+                                persistDocument()
+                            }
+                            selectedCitation = null
+                        }
                     )
                 }
-            )
+            }
         }
+    }
+}
 
-        LargeFloatingActionButton(
-            onClick = { },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(24.dp),
-            containerColor = BiblionNavy,
-            contentColor = Color.White,
-            shape = MaterialTheme.shapes.extraLarge
-        ) {
-            Text(text = "AI", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-        }
+private fun EditText.setOnSelectionChangedListener(onSelectionChanged: (Int, Int) -> Unit) {
+    val self = this
+    self.customSelectionActionModeCallback = object : android.view.ActionMode.Callback {
+        override fun onCreateActionMode(mode: android.view.ActionMode?, menu: android.view.Menu?): Boolean = true
+        override fun onPrepareActionMode(mode: android.view.ActionMode?, menu: android.view.Menu?): Boolean = true
+        override fun onActionItemClicked(mode: android.view.ActionMode?, item: android.view.MenuItem?): Boolean = false
+        override fun onDestroyActionMode(mode: android.view.ActionMode?) = Unit
+    }
+
+    self.viewTreeObserver.addOnGlobalLayoutListener {
+        onSelectionChanged(self.selectionStart.coerceAtLeast(0), self.selectionEnd.coerceAtLeast(0))
     }
 }
