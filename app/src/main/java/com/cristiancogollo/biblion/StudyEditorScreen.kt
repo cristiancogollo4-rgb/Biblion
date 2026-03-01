@@ -209,6 +209,7 @@ fun StudyEditorScreen(
     var citationMenuOffset by remember { mutableStateOf(IntOffset.Zero) }
     var selectionStart by remember { mutableIntStateOf(0) }
     var selectionEnd by remember { mutableIntStateOf(0) }
+    var selectionMenuOffset by remember { mutableStateOf(IntOffset(24, 240)) }
     var editorRef by remember { mutableStateOf<EditText?>(null) }
     val density = LocalDensity.current
 
@@ -350,101 +351,6 @@ fun StudyEditorScreen(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            if (selectionStart != selectionEnd) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color.White, shape = MaterialTheme.shapes.medium)
-                        .padding(10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text("Pintar", color = BiblionNavy, modifier = Modifier.clickable {
-                        editorRef?.let { editor ->
-                            applySpan(editor) { editable, start, end ->
-                                editable.setSpan(
-                                    BackgroundColorSpan(android.graphics.Color.parseColor("#FFF2A8")),
-                                    start,
-                                    end,
-                                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                                )
-                            }
-                            persistDocument()
-                        }
-                    })
-                    Text("Negrita", color = BiblionNavy, modifier = Modifier.clickable {
-                        editorRef?.let { editor ->
-                            applySpan(editor) { editable, start, end ->
-                                editable.setSpan(StyleSpan(Typeface.BOLD), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                            }
-                            persistDocument()
-                        }
-                    })
-                    Text("Cursiva", color = BiblionNavy, modifier = Modifier.clickable {
-                        editorRef?.let { editor ->
-                            applySpan(editor) { editable, start, end ->
-                                editable.setSpan(StyleSpan(Typeface.ITALIC), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                            }
-                            persistDocument()
-                        }
-                    })
-                    Text("A+", color = BiblionNavy, modifier = Modifier.clickable {
-                        editorRef?.let { editor ->
-                            applySpan(editor) { editable, start, end ->
-                                editable.setSpan(RelativeSizeSpan(1.2f), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                            }
-                            persistDocument()
-                        }
-                    })
-                    Text("A-", color = BiblionNavy, modifier = Modifier.clickable {
-                        editorRef?.let { editor ->
-                            applySpan(editor) { editable, start, end ->
-                                editable.setSpan(RelativeSizeSpan(0.9f), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                            }
-                            persistDocument()
-                        }
-                    })
-                    Text("H1", color = BiblionNavy, modifier = Modifier.clickable {
-                        editorRef?.let { editor ->
-                            applySpan(editor) { editable, start, end ->
-                                editable.setSpan(AbsoluteSizeSpan(30, true), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                                editable.setSpan(StyleSpan(Typeface.BOLD), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                            }
-                            persistDocument()
-                        }
-                    })
-                    Text("H2", color = BiblionNavy, modifier = Modifier.clickable {
-                        editorRef?.let { editor ->
-                            applySpan(editor) { editable, start, end ->
-                                editable.setSpan(AbsoluteSizeSpan(24, true), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                                editable.setSpan(StyleSpan(Typeface.BOLD), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                            }
-                            persistDocument()
-                        }
-                    })
-                    Text("H3", color = BiblionNavy, modifier = Modifier.clickable {
-                        editorRef?.let { editor ->
-                            applySpan(editor) { editable, start, end ->
-                                editable.setSpan(AbsoluteSizeSpan(20, true), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-                            }
-                            persistDocument()
-                        }
-                    })
-                    Text("Limpiar", color = BiblionNavy, modifier = Modifier.clickable {
-                        editorRef?.let { editor ->
-                            applySpan(editor) { editable, start, end ->
-                                editable.getSpans(start, end, Any::class.java).forEach { span ->
-                                    if (span is StyleSpan || span is RelativeSizeSpan || span is AbsoluteSizeSpan || span is BackgroundColorSpan) {
-                                        editable.removeSpan(span)
-                                    }
-                                }
-                            }
-                            persistDocument()
-                        }
-                    })
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
             AndroidView(
                 factory = { context ->
                     EditText(context).apply {
@@ -475,9 +381,10 @@ fun StudyEditorScreen(
                             }
                         })
 
-                        setOnSelectionChangedListener { selStart, selEnd ->
+                        setOnSelectionChangedListener { selStart, selEnd, offset ->
                             selectionStart = selStart
                             selectionEnd = selEnd
+                            selectionMenuOffset = offset
                         }
 
                         editorRef = this
@@ -550,10 +457,91 @@ fun StudyEditorScreen(
                 }
             }
         }
+
+        if (selectionStart != selectionEnd) {
+            androidx.compose.ui.window.Popup(
+                alignment = Alignment.TopStart,
+                offset = IntOffset(selectionMenuOffset.x, (selectionMenuOffset.y - with(density) { 48.dp.roundToPx() }).coerceAtLeast(12)),
+                onDismissRequest = {
+                    selectionStart = 0
+                    selectionEnd = 0
+                    editorRef?.clearFocus()
+                }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .background(Color.White, shape = MaterialTheme.shapes.medium)
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("Pintar", color = BiblionNavy, modifier = Modifier.clickable {
+                        editorRef?.let { editor ->
+                            applySpan(editor) { editable, start, end ->
+                                editable.setSpan(BackgroundColorSpan(android.graphics.Color.parseColor("#FFF2A8")), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            }
+                            persistDocument()
+                        }
+                    })
+                    Text("Negrita", color = BiblionNavy, modifier = Modifier.clickable {
+                        editorRef?.let { editor ->
+                            applySpan(editor) { editable, start, end ->
+                                editable.setSpan(StyleSpan(Typeface.BOLD), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            }
+                            persistDocument()
+                        }
+                    })
+                    Text("Cursiva", color = BiblionNavy, modifier = Modifier.clickable {
+                        editorRef?.let { editor ->
+                            applySpan(editor) { editable, start, end ->
+                                editable.setSpan(StyleSpan(Typeface.ITALIC), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            }
+                            persistDocument()
+                        }
+                    })
+                    Text("A+", color = BiblionNavy, modifier = Modifier.clickable {
+                        editorRef?.let { editor ->
+                            applySpan(editor) { editable, start, end ->
+                                editable.setSpan(RelativeSizeSpan(1.2f), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            }
+                            persistDocument()
+                        }
+                    })
+                    Text("A-", color = BiblionNavy, modifier = Modifier.clickable {
+                        editorRef?.let { editor ->
+                            applySpan(editor) { editable, start, end ->
+                                editable.setSpan(RelativeSizeSpan(0.9f), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            }
+                            persistDocument()
+                        }
+                    })
+                    Text("Título", color = BiblionNavy, modifier = Modifier.clickable {
+                        editorRef?.let { editor ->
+                            applySpan(editor) { editable, start, end ->
+                                editable.setSpan(AbsoluteSizeSpan(24, true), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                                editable.setSpan(StyleSpan(Typeface.BOLD), start, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            }
+                            persistDocument()
+                        }
+                    })
+                    Text("Limpiar", color = BiblionNavy, modifier = Modifier.clickable {
+                        editorRef?.let { editor ->
+                            applySpan(editor) { editable, start, end ->
+                                editable.getSpans(start, end, Any::class.java).forEach { span ->
+                                    if (span is StyleSpan || span is RelativeSizeSpan || span is AbsoluteSizeSpan || span is BackgroundColorSpan) {
+                                        editable.removeSpan(span)
+                                    }
+                                }
+                            }
+                            persistDocument()
+                        }
+                    })
+                }
+            }
+        }
     }
 }
 
-private fun EditText.setOnSelectionChangedListener(onSelectionChanged: (Int, Int) -> Unit) {
+private fun EditText.setOnSelectionChangedListener(onSelectionChanged: (Int, Int, IntOffset) -> Unit) {
     val self = this
     self.customSelectionActionModeCallback = object : android.view.ActionMode.Callback {
         override fun onCreateActionMode(mode: android.view.ActionMode?, menu: android.view.Menu?): Boolean = true
@@ -563,6 +551,10 @@ private fun EditText.setOnSelectionChangedListener(onSelectionChanged: (Int, Int
     }
 
     self.viewTreeObserver.addOnGlobalLayoutListener {
-        onSelectionChanged(self.selectionStart.coerceAtLeast(0), self.selectionEnd.coerceAtLeast(0))
+        val start = self.selectionStart.coerceAtLeast(0)
+        val line = self.layout?.getLineForOffset(start) ?: 0
+        val x = ((self.layout?.getPrimaryHorizontal(start) ?: 0f) + self.totalPaddingLeft).toInt()
+        val y = ((self.layout?.getLineTop(line) ?: 0) + self.totalPaddingTop).toInt()
+        onSelectionChanged(start, self.selectionEnd.coerceAtLeast(0), IntOffset(x, y))
     }
 }

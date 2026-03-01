@@ -21,9 +21,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CopyAll
@@ -336,20 +339,22 @@ fun BiblionReaderTopAppBar(
 @Composable
 fun VerseActionsFloatingMenu(
     selectedCount: Int,
+    anchorOffset: IntOffset,
     showHighlightOptions: Boolean,
     highlightPalette: List<Color>,
+    onDismiss: () -> Unit,
     onClearSelection: () -> Unit,
     onCopy: () -> Unit,
     onAddCitation: (() -> Unit)?,
     onHighlight: (Int) -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        contentAlignment = Alignment.BottomEnd
+    Popup(
+        alignment = Alignment.TopStart,
+        offset = anchorOffset,
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = true)
     ) {
-        ElevatedCard(shape = RoundedCornerShape(18.dp)) {
+        ElevatedCard(shape = RoundedCornerShape(18.dp), elevation = CardDefaults.elevatedCardElevation(defaultElevation = 6.dp)) {
             Column(
                 modifier = Modifier.padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)

@@ -25,10 +25,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -182,6 +184,8 @@ fun ReaderContent(
     var verseHighlights by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var showDialog by remember { mutableStateOf(false) }
     var selectedVerseActions by remember { mutableStateOf<Map<String, VerseAction>>(emptyMap()) }
+    var verseAnchors by remember { mutableStateOf<Map<String, IntOffset>>(emptyMap()) }
+    var menuAnchor by remember { mutableStateOf(IntOffset(24, 220)) }
 
     fun verseKey(verseNumber: String): String = "${bookName ?: ""}|$selectedChapter|$verseNumber"
 
@@ -306,6 +310,7 @@ fun ReaderContent(
                         } else {
                             selectedVerseActions + (verseNumber to VerseAction(verseNumber, verseText))
                         }
+                        verseAnchors[verseNumber]?.let { menuAnchor = it }
                     },
                     onToggleSelection = {
                         if (selectedVerseActions.isNotEmpty()) {
@@ -314,7 +319,11 @@ fun ReaderContent(
                             } else {
                                 selectedVerseActions + (verseNumber to VerseAction(verseNumber, verseText))
                             }
+                            verseAnchors[verseNumber]?.let { menuAnchor = it }
                         }
+                    },
+                    onPositionCaptured = { anchor ->
+                        verseAnchors = verseAnchors + (verseNumber to anchor)
                     }
                 )
             }
@@ -323,8 +332,10 @@ fun ReaderContent(
         if (selectedVerseActions.isNotEmpty()) {
             VerseActionsFloatingMenu(
                 selectedCount = selectedVerseActions.size,
-                showHighlightOptions = isStudyModeActive,
+                anchorOffset = IntOffset(menuAnchor.x, (menuAnchor.y - 110).coerceAtLeast(12)),
+                showHighlightOptions = true,
                 highlightPalette = highlightPalette,
+                onDismiss = { selectedVerseActions = emptyMap() },
                 onClearSelection = { selectedVerseActions = emptyMap() },
                 onCopy = {
                     val selectedContent = selectedVerseActions.values
@@ -358,10 +369,8 @@ fun ReaderContent(
                     null
                 },
                 onHighlight = { colorIndex ->
-                    if (isStudyModeActive) {
-                        selectedVerseActions.keys.forEach { verseNumber ->
-                            saveHighlight(verseNumber, colorIndex)
-                        }
+                    selectedVerseActions.keys.forEach { verseNumber ->
+                        saveHighlight(verseNumber, colorIndex)
                     }
                 }
             )
@@ -379,7 +388,8 @@ fun VerseItem(
     isSelected: Boolean,
     isSelectionMode: Boolean,
     onShowActions: () -> Unit,
-    onToggleSelection: () -> Unit
+    onToggleSelection: () -> Unit,
+    onPositionCaptured: (IntOffset) -> Unit
 ) {
     Text(
         modifier = Modifier
@@ -389,6 +399,10 @@ fun VerseItem(
                 if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else highlightColor,
                 RoundedCornerShape(8.dp)
             )
+            .onGloballyPositioned { coords ->
+                val pos = coords.positionInRoot()
+                onPositionCaptured(IntOffset(pos.x.toInt() + 24, pos.y.toInt()))
+            }
             .combinedClickable(onClick = onToggleSelection, onLongClick = onShowActions)
             .onPreviewKeyEvent { keyEvent ->
                 if (
