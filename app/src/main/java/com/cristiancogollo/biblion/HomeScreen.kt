@@ -77,8 +77,13 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
                         text = titulo,
                         onClick = {
                             scope.launch { drawerState.close() }
-                            if (titulo == "Biblion") {
-                                // Por ahora, sin navegación
+                            when (titulo) {
+                                "Modo Estudio" -> {
+                                    // Navegamos a un libro por defecto (ej: Genesis) con modo estudio activado
+                                    val encodedBook = URLEncoder.encode("Genesis", StandardCharsets.UTF_8.toString())
+                                    navController.navigate("reader/$encodedBook?studyMode=true")
+                                }
+                                //navegación para otras opciones si es necesario
                             }
                         }
                     )
