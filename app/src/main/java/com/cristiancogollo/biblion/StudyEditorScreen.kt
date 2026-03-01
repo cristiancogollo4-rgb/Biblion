@@ -1,12 +1,16 @@
 package com.cristiancogollo.biblion
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -22,6 +26,8 @@ fun StudyEditorScreen(
     viewModel: StudyViewModel,
     onClose: () -> Unit
 ) {
+    var selectedCitation by remember { mutableStateOf<StudyCitation?>(null) }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -50,7 +56,7 @@ fun StudyEditorScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Título de la nota
+            // Título de la enseñanza
             BasicTextField(
                 value = viewModel.noteTitle,
                 onValueChange = { viewModel.updateTitle(it) },
@@ -63,13 +69,57 @@ fun StudyEditorScreen(
                 modifier = Modifier.fillMaxWidth(),
                 decorationBox = { innerTextField ->
                     if (viewModel.noteTitle.isEmpty()) {
-                        Text("Título de la nota...", color = Color.Gray, fontSize = 20.sp, fontFamily = FontFamily.Serif)
+                        Text("Título de la enseñanza...", color = Color.Gray, fontSize = 20.sp, fontFamily = FontFamily.Serif)
+                    }
+                    innerTextField()
+                }
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            BasicTextField(
+                value = viewModel.baseReference,
+                onValueChange = { viewModel.updateBaseReference(it) },
+                textStyle = TextStyle(
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = FontFamily.Serif,
+                    color = Color(0xFF1A3A6E)
+                ),
+                modifier = Modifier.fillMaxWidth(),
+                decorationBox = { innerTextField ->
+                    if (viewModel.baseReference.isEmpty()) {
+                        Text("Versículo o texto base...", color = Color.Gray, fontSize = 16.sp, fontFamily = FontFamily.Serif)
                     }
                     innerTextField()
                 }
             )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), thickness = 1.dp, color = Color.LightGray)
+
+            if (viewModel.citations.isNotEmpty()) {
+                Text(
+                    text = "Versículos citados",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = BiblionNavy,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    viewModel.citations.forEach { citation ->
+                        AssistChip(
+                            onClick = { selectedCitation = citation },
+                            label = { Text(citation.reference) }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             // Contenido de la nota
             BasicTextField(
@@ -87,6 +137,35 @@ fun StudyEditorScreen(
                         Text("Empieza a escribir tus notas aquí...", color = Color.Gray, fontSize = 16.sp)
                     }
                     innerTextField()
+                }
+            )
+        }
+
+        selectedCitation?.let { citation ->
+            AlertDialog(
+                onDismissRequest = { selectedCitation = null },
+                title = { Text(citation.reference) },
+                text = {
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        citation.previousText?.let {
+                            Text("Anterior: $it", color = Color.Gray)
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        Text("Base: ${citation.text}")
+                        citation.nextText?.let {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Siguiente: $it", color = Color.Gray)
+                        }
+                    }
+                },
+                confirmButton = {
+                    Text(
+                        text = "Cerrar",
+                        color = BiblionNavy,
+                        modifier = Modifier
+                            .clickable { selectedCitation = null }
+                            .padding(8.dp)
+                    )
                 }
             )
         }
