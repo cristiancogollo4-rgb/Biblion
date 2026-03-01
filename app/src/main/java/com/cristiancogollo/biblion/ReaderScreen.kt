@@ -104,15 +104,16 @@ private fun StudyModeNavigation(initialBook: String?) {
             route = "books/{testament}",
             arguments = listOf(navArgument("testament") { type = NavType.StringType })
         ) { backStackEntry ->
-            val testament = URLDecoder.decode(backStackEntry.arguments?.getString("testament") ?: "", charset)
+            val encodedTestament = backStackEntry.arguments?.getString("testament") ?: ""
+            val testament = URLDecoder.decode(encodedTestament, charset)
             BooksScreen(navController = splitNavController, selectedTestament = testament)
         }
-
         composable(
             route = "reader/{bookName}",
             arguments = listOf(navArgument("bookName") { type = NavType.StringType })
         ) { backStackEntry ->
-            val book = URLDecoder.decode(backStackEntry.arguments?.getString("bookName") ?: "", charset)
+            val encodedBook = backStackEntry.arguments?.getString("bookName") ?: ""
+            val book = URLDecoder.decode(encodedBook, charset)
             ReaderContent(navController = splitNavController, bookName = book, isStudyModeActive = true)
         }
     }
@@ -194,10 +195,10 @@ fun ReaderContent(
                 selectedChapter = selectedChapter,
                 fontSize = fontSize,
                 onNavigationIconClick = {
-                    if (isStudyModeActive) {
-                        context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                    } else {
+                    if (!isStudyModeActive) {
                         navController.popBackStack()
+                    } else if (!navController.popBackStack()) {
+                        context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                     }
                 },
                 onChapterClick = {
