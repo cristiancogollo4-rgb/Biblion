@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -49,8 +48,8 @@ import androidx.compose.ui.unit.sp
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 
 private fun applyAroundSelection(value: TextFieldValue, prefix: String, suffix: String): TextFieldValue {
-    val start = value.selection.start.coerceAtLeast(0)
-    val end = value.selection.end.coerceAtLeast(start)
+    val start = value.selection.min
+    val end = value.selection.max
     if (start == end) return value
     val selected = value.text.substring(start, end)
     val replacement = "$prefix$selected$suffix"
@@ -193,7 +192,9 @@ fun StudyEditorScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text("Copiar", color = BiblionNavy, modifier = Modifier.clickable {
-                        val selected = noteField.getSelectedText().text
+                        val start = noteField.selection.min
+                        val end = noteField.selection.max
+                        val selected = noteField.text.substring(start, end)
                         if (selected.isNotEmpty()) {
                             clipboard.setText(AnnotatedString(selected))
                         }
