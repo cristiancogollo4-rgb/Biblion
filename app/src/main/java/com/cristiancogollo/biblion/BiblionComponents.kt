@@ -38,9 +38,8 @@ fun BiblionTopAppBar(
     title: String = "Biblion",
     navigationIcon: ImageVector = Icons.Default.Menu,
     onNavigationIconClick: () -> Unit,
-    onSearchIconClick: () -> Unit,
     showSearch: Boolean = true,
-    onSearchClick: () -> Unit = {},
+    onSearchIconClick: () -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {}
 ) {
     CenterAlignedTopAppBar(
@@ -59,7 +58,7 @@ fun BiblionTopAppBar(
         actions = {
             actions()
             if (showSearch) {
-                IconButton(onClick = onSearchClick) {
+                IconButton(onClick = onSearchIconClick) {
                     Icon(imageVector = Icons.Default.Search, contentDescription = "Search", tint = BiblionNavy)
                 }
             }
@@ -239,7 +238,7 @@ fun BiblionReaderTopAppBar(
     fontSize: TextUnit,
     onNavigationIconClick: () -> Unit,
     onChapterClick: (Int) -> Unit,
-    onSearchIconClick: () -> Unit = {},
+    onSearchIconClick: () -> Unit,
     onBookTitleClick: () -> Unit,
     onIncreaseFontSize: () -> Unit,
     onDecreaseFontSize: () -> Unit,
@@ -272,6 +271,13 @@ fun BiblionReaderTopAppBar(
                 }
             },
             actions = {
+                IconButton(onClick = onSearchIconClick) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Buscar",
+                        tint = BiblionNavy
+                    )
+                }
                 // Botón Disminuir Fuente
                 IconButton(onClick = onDecreaseFontSize) {
                     Icon(

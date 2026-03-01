@@ -11,8 +11,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -27,14 +25,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import androidx.navigation.NavType
+import androidx.navigation.compose.*
+import androidx.navigation.navArgument
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.net.URLDecoder
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 private const val PREFS_NAME = "BiblionReaderPrefs"
 private const val KEY_FONT_SIZE = "fontSize"
 
+// Helper para encontrar la Activity y manejar la rotación
 fun Context.findActivity(): Activity? {
     var context = this
     while (context is ContextWrapper) {
@@ -55,32 +59,72 @@ fun ReaderScreen(
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val studyViewModel: StudyViewModel = viewModel()
 
-    // Forzar rotación si viene del menú "Modo Estudio"
-    LaunchedEffect(initialStudyMode) {
-        if (initialStudyMode && !isLandscape) {
+    var isStudyModeEnabled by remember { mutableStateOf(initialStudyMode) }
+
+    // Manejo de rotación automática
+    LaunchedEffect(isStudyModeEnabled, isLandscape) {
+        if (isStudyModeEnabled && !isLandscape) {
             context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         }
     }
 
-    // Estructura de pantalla dividida para Modo Estudio (Horizontal)
-    if (isLandscape) {
+    if (isStudyModeEnabled && isLandscape) {
+        // MODO ESTUDIO: Pantalla Dividida
         Row(modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.weight(1f)) {
-                ReaderContent(navController, bookName, isStudyModeActive = true)
+                StudyModeNavigation(initialBook = bookName)
             }
             Box(modifier = Modifier.weight(1f)) {
-                // Pasamos el bookName al editor para que sepa de qué libro son las notas
                 StudyEditorScreen(
                     viewModel = studyViewModel,
                     onClose = {
+                        isStudyModeEnabled = false
                         context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                     }
                 )
             }
         }
     } else {
-        // Lector normal (Vertical)
+        // MODO LECTURA: Pantalla Completa
         ReaderContent(navController, bookName, isStudyModeActive = false)
+    }
+}
+
+@Composable
+private fun StudyModeNavigation(initialBook: String?) {
+    val splitNavController = rememberNavController()
+    val charset = StandardCharsets.UTF_8.toString()
+
+    NavHost(navController = splitNavController, startDestination = "home") {
+        composable("home") { HomeScreen(splitNavController) }
+
+        composable("search") { SearchScreen(splitNavController) }
+
+        composable(
+            route = "books/{testament}",
+            arguments = listOf(navArgument("testament") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val testament = URLDecoder.decode(backStackEntry.arguments?.getString("testament") ?: "", charset)
+            BooksScreen(navController = splitNavController, selectedTestament = testament)
+        }
+
+        composable(
+            route = "reader/{bookName}",
+            arguments = listOf(navArgument("bookName") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val book = URLDecoder.decode(backStackEntry.arguments?.getString("bookName") ?: "", charset)
+            ReaderContent(navController = splitNavController, bookName = book, isStudyModeActive = true)
+        }
+    }
+
+    // Al iniciar, si hay un libro seleccionado, navegamos a él dentro del split
+    LaunchedEffect(initialBook) {
+        initialBook?.let {
+            val encoded = URLEncoder.encode(it, charset)
+            splitNavController.navigate("reader/$encoded") {
+                popUpTo("home") // Evita acumular historial al iniciar
+            }
+        }
     }
 }
 
@@ -91,27 +135,24 @@ fun ReaderContent(
     isStudyModeActive: Boolean
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-
-    // Preferencias de fuente
+    val scope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+
     var fontSizeValue by remember { mutableStateOf(prefs.getInt(KEY_FONT_SIZE, 18).toFloat()) }
     val fontSize = fontSizeValue.sp
 
-    // Estados de la Biblia
     var chapterCount by remember { mutableStateOf(0) }
     var selectedChapter by remember { mutableStateOf(1) }
     var verses by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var showDialog by remember { mutableStateOf(false) }
 
-    // --- FUNCIONES DE CARGA ---
+    // Carga de JSON simplificada
     fun loadChapter(book: String, chapter: Int) {
-        coroutineScope.launch(Dispatchers.IO) {
+        scope.launch(Dispatchers.IO) {
             try {
                 context.assets.open("rvr1960.json").use { input ->
                     val json = JSONObject(input.bufferedReader().readText())
-                    val bookJson = json.optJSONObject(book)
-                    if (bookJson != null) {
+                    json.optJSONObject(book)?.let { bookJson ->
                         chapterCount = bookJson.length()
                         val chapterJson = bookJson.optJSONObject(chapter.toString())
                         val versesList = mutableListOf<Pair<String, String>>()
@@ -122,14 +163,13 @@ fun ReaderContent(
                     }
                 }
             } catch (e: Exception) {
-                Log.e("READER", "Error: ${e.message}")
+                Log.e("READER", "Error loading chapter: ${e.message}")
             }
         }
     }
 
-    // Carga inicial
     LaunchedEffect(bookName) {
-        bookName?.let { loadChapter(it, 1) }
+        bookName?.let { loadChapter(it, selectedChapter) }
     }
 
     if (showDialog && bookName != null) {
@@ -138,18 +178,15 @@ fun ReaderContent(
             subtitle = bookName,
             itemCount = chapterCount,
             onDismiss = { showDialog = false },
-            onItemSelected = { chapter ->
-                selectedChapter = chapter
-                loadChapter(bookName, chapter)
+            onItemSelected = {
+                selectedChapter = it
+                loadChapter(bookName, it)
                 showDialog = false
             }
         )
     }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background, // Asegura el fondo oscuro/claro oficial
-        contentColor = MaterialTheme.colorScheme.onBackground, // Asegura que el contenido sea visible
-
         topBar = {
             BiblionReaderTopAppBar(
                 bookName = bookName ?: "",
@@ -163,10 +200,11 @@ fun ReaderContent(
                         navController.popBackStack()
                     }
                 },
-                onChapterClick = { chapter ->
-                    selectedChapter = chapter
-                    bookName?.let { loadChapter(it, chapter) }
+                onChapterClick = {
+                    selectedChapter = it
+                    bookName?.let { b -> loadChapter(b, it) }
                 },
+                onSearchIconClick = { navController.navigate("search") },
                 onBookTitleClick = { showDialog = true },
                 onIncreaseFontSize = {
                     if (fontSizeValue < 35f) {
@@ -182,20 +220,13 @@ fun ReaderContent(
                 }
             )
         }
-    ) { paddingValues ->
-        // LISTA DE VERSÍCULOS
+    ) { padding ->
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
+            modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp)
         ) {
             items(verses) { verse ->
-                VerseItem(
-                    verseNumber = verse.first,
-                    verseText = verse.second,
-                    fontSize = fontSize
-                )
+                VerseItem(verse.first, verse.second, fontSize)
             }
         }
     }
@@ -214,10 +245,8 @@ fun VerseItem(verseNumber: String, verseText: String, fontSize: TextUnit) {
             )) {
                 append(verseNumber)
             }
-            append("  ")
-            append(verseText)
+            append("  $verseText")
         },
-        color = MaterialTheme.colorScheme.onBackground,
         style = MaterialTheme.typography.bodyLarge.copy(
             fontFamily = FontFamily.Serif,
             lineHeight = (fontSize.value * 1.5).sp,

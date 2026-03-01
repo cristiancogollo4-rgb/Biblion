@@ -3,35 +3,33 @@ package com.cristiancogollo.biblion
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
+import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
-import java.util.Locale
 
 @Composable
 fun BooksScreen(navController: NavController, selectedTestament: String) {
-    // Log para verificar qué llega exactamente
-    Log.d("BooksScreen", "Received testament: '$selectedTestament'")
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
 
-    // Quitamos guiones bajos por si acaso llegaran, para normalizar
+    // Estado y normalización
     val normalizedTestament = selectedTestament.replace("_", " ")
     var currentSelectedTestament by remember { mutableStateOf(normalizedTestament) }
 
-    // NOTA: Asegúrate de que estos nombres coincidan EXACTAMENTE con las llaves de tu JSON
-    // Si en el JSON dice "Génesis", aquí debe decir "Génesis"
     val oldTestamentBooks = listOf(
         "Genesis", "Exodo", "Levitico", "Numeros", "Deuteronomio", "Josue", "Jueces", "Rut",
         "1 Samuel", "2 Samuel", "1 Reyes", "2 Reyes", "1 Cronicas", "2 Cronicas", "Esdras",
@@ -47,66 +45,104 @@ fun BooksScreen(navController: NavController, selectedTestament: String) {
         "1 Juan", "2 Juan", "3 Juan", "Judas", "Apocalipsis"
     )
 
-    // CORRECCIÓN 1: Comparación flexible (ignorando guiones o espacios)
-    val booksToShow = if (currentSelectedTestament.contains("ANTIGUO")) oldTestamentBooks else newTestamentBooks
-
+    val booksToShow = if (currentSelectedTestament.contains("ANTIGUO", ignoreCase = true)) oldTestamentBooks else newTestamentBooks
     val title = "Libros Del ${currentSelectedTestament.lowercase().replaceFirstChar { it.uppercase() }}"
 
-    Scaffold(
-        topBar = {
-            BiblionTopAppBar(
-                onNavigationIconClick = { navController.navigateUp() },
-                onSearchIconClick = { navController.navigate("search") }
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            BiblionDrawerContent(navController) { scope.launch { drawerState.close() } }
+        }
+    ) {
+        Scaffold(
+            topBar = {
+                BiblionTopAppBar(
+                    onNavigationIconClick = { scope.launch { drawerState.open() } },
+                    onSearchIconClick = { navController.navigate("search") }
+                )
+            }
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .background(Color.White)
+            ) {
+                TestamentSelector(
+                    selectedTab = currentSelectedTestament,
+                    onTabSelected = { currentSelectedTestament = it.replace("_", " ") }
+                )
+
+                HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray)
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = title,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontFamily = FontFamily.Serif,
+                        color = BiblionNavy
+                    )
+                )
+
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(4),
+                    contentPadding = PaddingValues(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(booksToShow) { bookName ->
+                        BookCard(
+                            bookName = bookName,
+                            onClick = {
+                                val encoded = URLEncoder.encode(bookName, StandardCharsets.UTF_8.toString())
+                                navController.navigate("reader/$encoded")
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun BiblionDrawerContent(navController: NavController, onClose: () -> Unit) {
+    ModalDrawerSheet(
+        modifier = Modifier.fillMaxHeight().width(300.dp),
+        drawerContainerColor = Color.White,
+        drawerShape = RectangleShape
+    ) {
+        Spacer(modifier = Modifier.height(48.dp))
+
+        val opciones = listOf("Inicio", "Elegir Versión", "Mis Enseñanzas", "Doctrinas", "Biblion", "Modo Estudio", "Sobre Nosotros")
+
+        opciones.forEach { titulo ->
+            BiblionMenuItem(
+                text = titulo,
+                onClick = {
+                    onClose()
+                    when (titulo) {
+                        "Inicio" -> navController.navigate("home")
+                        "Modo Estudio" -> {
+                            val encoded = URLEncoder.encode("Genesis", StandardCharsets.UTF_8.toString())
+                            navController.navigate("reader/$encoded?studyMode=true")
+                        }
+                    }
+                }
             )
         }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .background(Color.White)
+
+        Box(
+            modifier = Modifier.fillMaxSize().padding(bottom = 32.dp),
+            contentAlignment = Alignment.BottomCenter
         ) {
-            TestamentSelector(
-                // Enviamos el valor con guion bajo si tu selector lo espera así
-                selectedTab = currentSelectedTestament.replace(" ", "_"),
-                onTabSelected = { newValue ->
-                    currentSelectedTestament = newValue.replace("_", " ")
-                }
-            )
-
-            HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray)
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = title,
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontFamily = FontFamily.Serif,
-                    color = BiblionNavy
-                )
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(4),
-                contentPadding = PaddingValues(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                items(booksToShow) { bookName ->
-                    BookCard(
-                        bookName = bookName,
-                        onClick = {
-                            // CORRECCIÓN 2: Codificar el nombre del libro para la navegación
-                            val encodedBook = URLEncoder.encode(bookName, StandardCharsets.UTF_8.toString())
-                            navController.navigate("reader/$encodedBook")
-                        }
-                    )
-                }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Default.AccountCircle, contentDescription = null, modifier = Modifier.size(80.dp))
+                Text("Lector")
             }
         }
     }

@@ -129,7 +129,7 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
                     .verticalScroll(rememberScrollState()) // Para que la pantalla pueda hacer scroll si el contenido crece
             ) {
                 // *** CORRECCIÓN CLAVE: Pasar "ANTIGUO_TESTAMENTO" como estado inicial ***
-                var selectedTestament by remember { mutableStateOf("ANTIGUO_TESTAMENTO") }
+                var selectedTestament by remember { mutableStateOf("ANTIGUO TESTAMENTO") }
 
                 TestamentSelector(selectedTab = selectedTestament) { testament ->
                     selectedTestament = testament // Actualiza el color del botón seleccionado
