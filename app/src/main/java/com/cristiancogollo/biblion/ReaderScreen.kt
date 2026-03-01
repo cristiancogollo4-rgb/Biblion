@@ -147,6 +147,9 @@ fun ReaderContent(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background, // Asegura el fondo oscuro/claro oficial
+        contentColor = MaterialTheme.colorScheme.onBackground, // Asegura que el contenido sea visible
+
         topBar = {
             BiblionReaderTopAppBar(
                 bookName = bookName ?: "",
@@ -214,6 +217,7 @@ fun VerseItem(verseNumber: String, verseText: String, fontSize: TextUnit) {
             append("  ")
             append(verseText)
         },
+        color = MaterialTheme.colorScheme.onBackground,
         style = MaterialTheme.typography.bodyLarge.copy(
             fontFamily = FontFamily.Serif,
             lineHeight = (fontSize.value * 1.5).sp,
