@@ -8,17 +8,12 @@ import android.content.res.Configuration
 import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.focusable
-import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -31,7 +26,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -49,10 +43,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CopyAll
-import androidx.compose.material.icons.filled.EditNote
-import androidx.compose.material.icons.filled.HighlightOff
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavType
@@ -309,11 +299,21 @@ fun ReaderContent(
                     fontSize = fontSize,
                     highlightColor = highlightPalette[verseHighlights[verseNumber] ?: 0],
                     isSelected = selectedVerseActions.containsKey(verseNumber),
+                    isSelectionMode = selectedVerseActions.isNotEmpty(),
                     onShowActions = {
                         selectedVerseActions = if (selectedVerseActions.containsKey(verseNumber)) {
                             selectedVerseActions - verseNumber
                         } else {
                             selectedVerseActions + (verseNumber to VerseAction(verseNumber, verseText))
+                        }
+                    },
+                    onToggleSelection = {
+                        if (selectedVerseActions.isNotEmpty()) {
+                            selectedVerseActions = if (selectedVerseActions.containsKey(verseNumber)) {
+                                selectedVerseActions - verseNumber
+                            } else {
+                                selectedVerseActions + (verseNumber to VerseAction(verseNumber, verseText))
+                            }
                         }
                     }
                 )
@@ -323,6 +323,8 @@ fun ReaderContent(
         if (selectedVerseActions.isNotEmpty()) {
             VerseActionsFloatingMenu(
                 selectedCount = selectedVerseActions.size,
+                showHighlightOptions = isStudyModeActive,
+                highlightPalette = highlightPalette,
                 onClearSelection = { selectedVerseActions = emptyMap() },
                 onCopy = {
                     val selectedContent = selectedVerseActions.values
@@ -356,72 +358,13 @@ fun ReaderContent(
                     null
                 },
                 onHighlight = { colorIndex ->
-                    selectedVerseActions.keys.forEach { verseNumber ->
-                        saveHighlight(verseNumber, colorIndex)
+                    if (isStudyModeActive) {
+                        selectedVerseActions.keys.forEach { verseNumber ->
+                            saveHighlight(verseNumber, colorIndex)
+                        }
                     }
                 }
             )
-        }
-    }
-}
-
-@Composable
-private fun VerseActionsFloatingMenu(
-    selectedCount: Int,
-    onClearSelection: () -> Unit,
-    onCopy: () -> Unit,
-    onAddCitation: (() -> Unit)?,
-    onHighlight: (Int) -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        contentAlignment = Alignment.BottomEnd
-    ) {
-        ElevatedCard(shape = RoundedCornerShape(18.dp)) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text("$selectedCount versículo(s) seleccionado(s)")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ActionPill(icon = Icons.Default.CopyAll, label = "Copiar", onClick = onCopy)
-                    if (onAddCitation != null) {
-                        ActionPill(icon = Icons.Default.EditNote, label = "Citar", onClick = onAddCitation)
-                    }
-                    ActionPill(icon = Icons.Default.HighlightOff, label = "Limpiar", onClick = onClearSelection)
-                }
-                HorizontalDivider()
-                Text("Subrayado / Favorito")
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    highlightPalette.forEachIndexed { index, color ->
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .background(
-                                    color = if (index == 0) Color.White else color,
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                .clickable { onHighlight(index) }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ActionPill(icon: ImageVector, label: String, onClick: () -> Unit) {
-    FloatingActionButton(onClick = onClick, containerColor = MaterialTheme.colorScheme.surfaceVariant) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(imageVector = icon, contentDescription = label)
-            Text(label)
         }
     }
 }
@@ -434,7 +377,9 @@ fun VerseItem(
     fontSize: TextUnit,
     highlightColor: Color,
     isSelected: Boolean,
-    onShowActions: () -> Unit
+    isSelectionMode: Boolean,
+    onShowActions: () -> Unit,
+    onToggleSelection: () -> Unit
 ) {
     Text(
         modifier = Modifier
@@ -444,13 +389,17 @@ fun VerseItem(
                 if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else highlightColor,
                 RoundedCornerShape(8.dp)
             )
-            .combinedClickable(onClick = {}, onLongClick = onShowActions)
+            .combinedClickable(onClick = onToggleSelection, onLongClick = onShowActions)
             .onPreviewKeyEvent { keyEvent ->
                 if (
                     keyEvent.type == KeyEventType.KeyUp &&
                     (keyEvent.key == Key.Enter || keyEvent.key == Key.Spacebar)
                 ) {
-                    onShowActions()
+                    if (isSelectionMode) {
+                        onToggleSelection()
+                    } else {
+                        onShowActions()
+                    }
                     true
                 } else {
                     false

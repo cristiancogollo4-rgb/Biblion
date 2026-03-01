@@ -26,8 +26,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CopyAll
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.HighlightOff
 import androidx.compose.material.icons.filled.HorizontalRule
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.ui.unit.TextUnit
 
@@ -328,5 +330,70 @@ fun BiblionReaderTopAppBar(
 
         // Línea divisoria sutil
         HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray.copy(alpha = 0.5f))
+    }
+}
+
+@Composable
+fun VerseActionsFloatingMenu(
+    selectedCount: Int,
+    showHighlightOptions: Boolean,
+    highlightPalette: List<Color>,
+    onClearSelection: () -> Unit,
+    onCopy: () -> Unit,
+    onAddCitation: (() -> Unit)?,
+    onHighlight: (Int) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        contentAlignment = Alignment.BottomEnd
+    ) {
+        ElevatedCard(shape = RoundedCornerShape(18.dp)) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("$selectedCount versículo(s) seleccionado(s)")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ActionPill(icon = Icons.Default.CopyAll, label = "Copiar", onClick = onCopy)
+                    if (onAddCitation != null) {
+                        ActionPill(icon = Icons.Default.EditNote, label = "Citar", onClick = onAddCitation)
+                    }
+                    ActionPill(icon = Icons.Default.HighlightOff, label = "Limpiar", onClick = onClearSelection)
+                }
+                if (showHighlightOptions) {
+                    HorizontalDivider()
+                    Text("Subrayado / Favorito")
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        highlightPalette.forEachIndexed { index, color ->
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .background(
+                                        color = if (index == 0) Color.White else color,
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable { onHighlight(index) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActionPill(icon: ImageVector, label: String, onClick: () -> Unit) {
+    FloatingActionButton(onClick = onClick, containerColor = MaterialTheme.colorScheme.surfaceVariant) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(imageVector = icon, contentDescription = label)
+            Text(label)
+        }
     }
 }

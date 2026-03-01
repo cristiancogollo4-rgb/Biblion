@@ -39,11 +39,9 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontSynthesis
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -94,39 +92,6 @@ private fun toUnderlineUnicode(input: String): String = buildString {
             append('\u0332')
         }
     }
-}
-
-private fun buildFormattedStudyText(text: String, defaultSize: Float): AnnotatedString {
-    val regex = Regex("\\[size=(\\d+(?:\\.\\d+)?)\\](.*?)\\[/size\\]", RegexOption.DOT_MATCHES_ALL)
-    val builder = AnnotatedString.Builder()
-    var cursor = 0
-
-    regex.findAll(text).forEach { match ->
-        val start = match.range.first
-        val end = match.range.last + 1
-        val rawSize = match.groupValues[1].toFloatOrNull()?.coerceIn(12f, 32f) ?: defaultSize
-        val content = match.groupValues[2]
-
-        if (start > cursor) {
-            builder.append(text.substring(cursor, start))
-        }
-
-        builder.withStyle(
-            androidx.compose.ui.text.SpanStyle(
-                fontSize = rawSize.sp,
-                fontWeight = FontWeight.Medium
-            )
-        ) {
-            append(content)
-        }
-        cursor = end
-    }
-
-    if (cursor < text.length) {
-        builder.append(text.substring(cursor))
-    }
-
-    return builder.toAnnotatedString()
 }
 
 @Composable
@@ -297,29 +262,6 @@ fun StudyEditorScreen(
                 }
                 Spacer(modifier = Modifier.height(8.dp))
             }
-
-            Text(
-                text = "Vista previa",
-                style = MaterialTheme.typography.labelMedium,
-                color = BiblionNavy,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = buildFormattedStudyText(noteField.text, viewModel.noteFontSize),
-                style = TextStyle(
-                    fontSize = viewModel.noteFontSize.sp,
-                    fontFamily = FontFamily.Serif,
-                    color = Color(0xFF303030),
-                    lineHeight = (viewModel.noteFontSize + 8f).sp,
-                    fontSynthesis = FontSynthesis.All
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.White, MaterialTheme.shapes.medium)
-                    .padding(10.dp)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
 
             BasicTextField(
                 value = noteField,
