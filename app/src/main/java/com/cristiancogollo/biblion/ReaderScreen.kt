@@ -15,12 +15,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.focusable
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -30,7 +31,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ClipboardManager
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -48,6 +49,10 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CopyAll
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.HighlightOff
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavType
@@ -186,7 +191,7 @@ fun ReaderContent(
     var verses by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var verseHighlights by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var showDialog by remember { mutableStateOf(false) }
-    var selectedVerseAction by remember { mutableStateOf<VerseAction?>(null) }
+    var selectedVerseActions by remember { mutableStateOf<Map<String, VerseAction>>(emptyMap()) }
 
     fun verseKey(verseNumber: String): String = "${bookName ?: ""}|$selectedChapter|$verseNumber"
 
@@ -209,10 +214,6 @@ fun ReaderContent(
         json.put(verseKey(verseNumber), colorIndex)
         prefs.edit().putString(KEY_VERSE_HIGHLIGHTS, json.toString()).apply()
         verseHighlights = verseHighlights + (verseNumber to colorIndex)
-    }
-
-    fun copyVerse(reference: String, text: String, clipboardManager: ClipboardManager) {
-        clipboardManager.setText(AnnotatedString("$reference\n$text"))
     }
 
     fun loadChapter(book: String, chapter: Int) {
@@ -307,39 +308,57 @@ fun ReaderContent(
                     verseText = verseText,
                     fontSize = fontSize,
                     highlightColor = highlightPalette[verseHighlights[verseNumber] ?: 0],
+                    isSelected = selectedVerseActions.containsKey(verseNumber),
                     onShowActions = {
-                        selectedVerseAction = VerseAction(verseNumber, verseText)
+                        selectedVerseActions = if (selectedVerseActions.containsKey(verseNumber)) {
+                            selectedVerseActions - verseNumber
+                        } else {
+                            selectedVerseActions + (verseNumber to VerseAction(verseNumber, verseText))
+                        }
                     }
                 )
             }
         }
 
-        selectedVerseAction?.let { selected ->
-            val currentIndex = verses.indexOfFirst { it.first == selected.number }
-            val previousVerseText = verses.getOrNull(currentIndex - 1)?.second
-            val nextVerseText = verses.getOrNull(currentIndex + 1)?.second
-            val reference = "${bookName ?: ""} $selectedChapter:${selected.number}"
-
-            VerseActionsDialog(
-                selectedVerse = selected,
-                reference = reference,
-                isStudyModeActive = isStudyModeActive,
-                previousVerseText = previousVerseText,
-                nextVerseText = nextVerseText,
-                onSaveHighlight = { colorIndex ->
-                    saveHighlight(selected.number, colorIndex)
+        if (selectedVerseActions.isNotEmpty()) {
+            VerseActionsFloatingMenu(
+                selectedCount = selectedVerseActions.size,
+                onClearSelection = { selectedVerseActions = emptyMap() },
+                onCopy = {
+                    val selectedContent = selectedVerseActions.values
+                        .sortedBy { it.number.toIntOrNull() ?: Int.MAX_VALUE }
+                        .joinToString("\n\n") { selected ->
+                            val reference = "${bookName ?: ""} $selectedChapter:${selected.number}"
+                            "$reference\n${selected.text}"
+                        }
+                    clipboard.setText(AnnotatedString(selectedContent))
+                    selectedVerseActions = emptyMap()
                 },
-                onAddCitation = { ref, text, previousText, nextText ->
-                    viewModel.addCitation(
-                        reference = ref,
-                        text = text,
-                        previousText = previousText,
-                        nextText = nextText
-                    )
+                onAddCitation = if (isStudyModeActive) {
+                    {
+                        selectedVerseActions.values
+                            .sortedBy { it.number.toIntOrNull() ?: Int.MAX_VALUE }
+                            .forEach { selected ->
+                                val currentIndex = verses.indexOfFirst { it.first == selected.number }
+                                val previousVerseText = verses.getOrNull(currentIndex - 1)?.second
+                                val nextVerseText = verses.getOrNull(currentIndex + 1)?.second
+                                val reference = "${bookName ?: ""} $selectedChapter:${selected.number}"
+                                viewModel.addCitation(
+                                    reference = reference,
+                                    text = selected.text,
+                                    previousText = previousVerseText,
+                                    nextText = nextVerseText
+                                )
+                            }
+                        selectedVerseActions = emptyMap()
+                    }
+                } else {
+                    null
                 },
-                onDismiss = { selectedVerseAction = null },
-                onCopy = { ref, text ->
-                    copyVerse(ref, text, clipboard)
+                onHighlight = { colorIndex ->
+                    selectedVerseActions.keys.forEach { verseNumber ->
+                        saveHighlight(verseNumber, colorIndex)
+                    }
                 }
             )
         }
@@ -347,24 +366,32 @@ fun ReaderContent(
 }
 
 @Composable
-private fun VerseActionsDialog(
-    selectedVerse: VerseAction,
-    reference: String,
-    isStudyModeActive: Boolean,
-    previousVerseText: String?,
-    nextVerseText: String?,
-    onSaveHighlight: (Int) -> Unit,
-    onAddCitation: (reference: String, text: String, previousText: String?, nextText: String?) -> Unit,
-    onDismiss: () -> Unit,
-    onCopy: (reference: String, text: String) -> Unit
+private fun VerseActionsFloatingMenu(
+    selectedCount: Int,
+    onClearSelection: () -> Unit,
+    onCopy: () -> Unit,
+    onAddCitation: (() -> Unit)?,
+    onHighlight: (Int) -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Opciones") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(reference, style = MaterialTheme.typography.labelLarge)
-                Text(selectedVerse.text, style = MaterialTheme.typography.bodySmall)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        contentAlignment = Alignment.BottomEnd
+    ) {
+        ElevatedCard(shape = RoundedCornerShape(18.dp)) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("$selectedCount versículo(s) seleccionado(s)")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ActionPill(icon = Icons.Default.CopyAll, label = "Copiar", onClick = onCopy)
+                    if (onAddCitation != null) {
+                        ActionPill(icon = Icons.Default.EditNote, label = "Citar", onClick = onAddCitation)
+                    }
+                    ActionPill(icon = Icons.Default.HighlightOff, label = "Limpiar", onClick = onClearSelection)
+                }
                 HorizontalDivider()
                 Text("Subrayado / Favorito")
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -376,38 +403,27 @@ private fun VerseActionsDialog(
                                     color = if (index == 0) Color.White else color,
                                     shape = RoundedCornerShape(12.dp)
                                 )
-                                .clickable {
-                                    onSaveHighlight(index)
-                                }
+                                .clickable { onHighlight(index) }
                         )
                     }
                 }
-                Text(
-                    text = "Copiar",
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable {
-                        onCopy(reference, selectedVerse.text)
-                        onDismiss()
-                    }
-                )
-                if (isStudyModeActive) {
-                    Text(
-                        text = "Citar en cuaderno",
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.clickable {
-                            onAddCitation(reference, selectedVerse.text, previousVerseText, nextVerseText)
-                            onDismiss()
-                        }
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cerrar")
             }
         }
-    )
+    }
+}
+
+@Composable
+private fun ActionPill(icon: ImageVector, label: String, onClick: () -> Unit) {
+    FloatingActionButton(onClick = onClick, containerColor = MaterialTheme.colorScheme.surfaceVariant) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(imageVector = icon, contentDescription = label)
+            Text(label)
+        }
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -417,13 +433,17 @@ fun VerseItem(
     verseText: String,
     fontSize: TextUnit,
     highlightColor: Color,
+    isSelected: Boolean,
     onShowActions: () -> Unit
 ) {
     Text(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 12.dp)
-            .background(highlightColor, RoundedCornerShape(8.dp))
+            .background(
+                if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else highlightColor,
+                RoundedCornerShape(8.dp)
+            )
             .combinedClickable(onClick = {}, onLongClick = onShowActions)
             .onPreviewKeyEvent { keyEvent ->
                 if (

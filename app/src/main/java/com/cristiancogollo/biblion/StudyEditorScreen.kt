@@ -39,9 +39,11 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontSynthesis
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -56,6 +58,75 @@ private fun applyAroundSelection(value: TextFieldValue, prefix: String, suffix: 
     val updated = value.text.replaceRange(start, end, replacement)
     val cursor = start + replacement.length
     return value.copy(text = updated, selection = TextRange(cursor, cursor))
+}
+
+private fun applyToSelection(value: TextFieldValue, transform: (String) -> String): TextFieldValue {
+    val start = value.selection.min
+    val end = value.selection.max
+    if (start == end) return value
+    val selected = value.text.substring(start, end)
+    val replacement = transform(selected)
+    val updated = value.text.replaceRange(start, end, replacement)
+    val cursor = start + replacement.length
+    return value.copy(text = updated, selection = TextRange(cursor, cursor))
+}
+
+private fun toBoldUnicode(input: String): String = buildString {
+    input.forEach { char ->
+        val codePoint = when (char) {
+            in 'A'..'Z' -> 0x1D400 + (char.code - 'A'.code)
+            in 'a'..'z' -> 0x1D41A + (char.code - 'a'.code)
+            in '0'..'9' -> 0x1D7CE + (char.code - '0'.code)
+            else -> null
+        }
+        if (codePoint != null) {
+            append(String(Character.toChars(codePoint)))
+        } else {
+            append(char)
+        }
+    }
+}
+
+private fun toUnderlineUnicode(input: String): String = buildString {
+    input.forEach { char ->
+        append(char)
+        if (char != ' ' && char != '\n') {
+            append('\u0332')
+        }
+    }
+}
+
+private fun buildFormattedStudyText(text: String, defaultSize: Float): AnnotatedString {
+    val regex = Regex("\\[size=(\\d+(?:\\.\\d+)?)\\](.*?)\\[/size\\]", RegexOption.DOT_MATCHES_ALL)
+    val builder = AnnotatedString.Builder()
+    var cursor = 0
+
+    regex.findAll(text).forEach { match ->
+        val start = match.range.first
+        val end = match.range.last + 1
+        val rawSize = match.groupValues[1].toFloatOrNull()?.coerceIn(12f, 32f) ?: defaultSize
+        val content = match.groupValues[2]
+
+        if (start > cursor) {
+            builder.append(text.substring(cursor, start))
+        }
+
+        builder.withStyle(
+            androidx.compose.ui.text.SpanStyle(
+                fontSize = rawSize.sp,
+                fontWeight = FontWeight.Medium
+            )
+        ) {
+            append(content)
+        }
+        cursor = end
+    }
+
+    if (cursor < text.length) {
+        builder.append(text.substring(cursor))
+    }
+
+    return builder.toAnnotatedString()
 }
 
 @Composable
@@ -200,22 +271,55 @@ fun StudyEditorScreen(
                         }
                     })
                     Text("Subrayar", color = BiblionNavy, modifier = Modifier.clickable {
-                        noteField = applyAroundSelection(noteField, "[hl]", "[/hl]")
+                        noteField = applyToSelection(noteField, ::toUnderlineUnicode)
                         viewModel.updateContent(noteField.text)
                     })
                     Text("Negrita", color = BiblionNavy, modifier = Modifier.clickable {
-                        noteField = applyAroundSelection(noteField, "**", "**")
+                        noteField = applyToSelection(noteField, ::toBoldUnicode)
                         viewModel.updateContent(noteField.text)
                     })
                     Text("A+", color = BiblionNavy, modifier = Modifier.clickable {
-                        viewModel.updateFontSize(viewModel.noteFontSize + 1f)
+                        noteField = applyAroundSelection(
+                            noteField,
+                            "[size=${(viewModel.noteFontSize + 3f).coerceIn(12f, 32f)}]",
+                            "[/size]"
+                        )
+                        viewModel.updateContent(noteField.text)
                     })
                     Text("A-", color = BiblionNavy, modifier = Modifier.clickable {
-                        viewModel.updateFontSize(viewModel.noteFontSize - 1f)
+                        noteField = applyAroundSelection(
+                            noteField,
+                            "[size=${(viewModel.noteFontSize - 2f).coerceIn(12f, 32f)}]",
+                            "[/size]"
+                        )
+                        viewModel.updateContent(noteField.text)
                     })
                 }
                 Spacer(modifier = Modifier.height(8.dp))
             }
+
+            Text(
+                text = "Vista previa",
+                style = MaterialTheme.typography.labelMedium,
+                color = BiblionNavy,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = buildFormattedStudyText(noteField.text, viewModel.noteFontSize),
+                style = TextStyle(
+                    fontSize = viewModel.noteFontSize.sp,
+                    fontFamily = FontFamily.Serif,
+                    color = Color(0xFF303030),
+                    lineHeight = (viewModel.noteFontSize + 8f).sp,
+                    fontSynthesis = FontSynthesis.All
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White, MaterialTheme.shapes.medium)
+                    .padding(10.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
 
             BasicTextField(
                 value = noteField,
