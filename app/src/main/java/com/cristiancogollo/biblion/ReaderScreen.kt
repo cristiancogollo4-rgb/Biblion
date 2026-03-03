@@ -1,6 +1,7 @@
 package com.cristiancogollo.biblion
 
 import android.app.Activity
+import android.content.ClipData
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
@@ -20,20 +21,23 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -42,6 +46,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -52,6 +57,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.core.content.edit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -202,19 +208,17 @@ fun ReaderContent(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
 
-    var fontSizeValue by remember { mutableStateOf(prefs.getInt(KEY_FONT_SIZE, 18).toFloat()) }
+    var fontSizeValue by remember { mutableFloatStateOf(prefs.getInt(KEY_FONT_SIZE, 18).toFloat()) }
     val fontSize = fontSizeValue.sp
 
-    var chapterCount by remember { mutableStateOf(0) }
-    var selectedChapter by remember { mutableStateOf(1) }
+    var chapterCount by remember { mutableIntStateOf(0) }
+    var selectedChapter by remember { mutableIntStateOf(1) }
     var verses by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var verseHighlights by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var showDialog by remember { mutableStateOf(false) }
     var selectedVerseActions by remember { mutableStateOf<Map<String, VerseAction>>(emptyMap()) }
-    var verseAnchors by remember { mutableStateOf<Map<String, IntOffset>>(emptyMap()) }
-    var menuAnchor by remember { mutableStateOf(IntOffset(24, 220)) }
 
     fun verseKey(verseNumber: String): String = "${bookName ?: ""}|$selectedChapter|$verseNumber"
 
@@ -235,7 +239,7 @@ fun ReaderContent(
         val raw = prefs.getString(KEY_VERSE_HIGHLIGHTS, "{}") ?: "{}"
         val json = JSONObject(raw)
         json.put(verseKey(verseNumber), colorIndex)
-        prefs.edit().putString(KEY_VERSE_HIGHLIGHTS, json.toString()).apply()
+        prefs.edit { putString(KEY_VERSE_HIGHLIGHTS, json.toString()) }
         verseHighlights = verseHighlights + (verseNumber to colorIndex)
     }
 
@@ -307,13 +311,13 @@ fun ReaderContent(
                 onIncreaseFontSize = {
                     if (fontSizeValue < 35f) {
                         fontSizeValue++
-                        prefs.edit().putInt(KEY_FONT_SIZE, fontSizeValue.toInt()).apply()
+                        prefs.edit { putInt(KEY_FONT_SIZE, fontSizeValue.toInt()) }
                     }
                 },
                 onDecreaseFontSize = {
                     if (fontSizeValue > 12f) {
                         fontSizeValue--
-                        prefs.edit().putInt(KEY_FONT_SIZE, fontSizeValue.toInt()).apply()
+                        prefs.edit { putInt(KEY_FONT_SIZE, fontSizeValue.toInt()) }
                     }
                 }
             )
@@ -339,7 +343,6 @@ fun ReaderContent(
                         } else {
                             selectedVerseActions + (verseNumber to VerseAction(verseNumber, verseText))
                         }
-                        verseAnchors[verseNumber]?.let { menuAnchor = it }
                     },
                     onToggleSelection = {
                         if (selectedVerseActions.isNotEmpty()) {
@@ -348,11 +351,7 @@ fun ReaderContent(
                             } else {
                                 selectedVerseActions + (verseNumber to VerseAction(verseNumber, verseText))
                             }
-                            verseAnchors[verseNumber]?.let { menuAnchor = it }
                         }
-                    },
-                    onPositionCaptured = { anchor ->
-                        verseAnchors = verseAnchors + (verseNumber to anchor)
                     }
                 )
             }
@@ -361,8 +360,8 @@ fun ReaderContent(
         if (selectedVerseActions.isNotEmpty()) {
             VerseActionsFloatingMenu(
                 selectedCount = selectedVerseActions.size,
-                anchorOffset = IntOffset(menuAnchor.x, (menuAnchor.y - 110).coerceAtLeast(12)),
-                showHighlightOptions = true,
+                anchorOffset = IntOffset.Zero,
+                showHighlightOptions = true, // Siempre mostrar subrayado
                 highlightPalette = highlightPalette,
                 onDismiss = { selectedVerseActions = emptyMap() },
                 onClearSelection = { selectedVerseActions = emptyMap() },
@@ -373,7 +372,9 @@ fun ReaderContent(
                             val reference = "${bookName ?: ""} $selectedChapter:${selected.number}"
                             "$reference\n${selected.text}"
                         }
-                    clipboard.setText(AnnotatedString(selectedContent))
+                    scope.launch {
+                        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Biblion", selectedContent)))
+                    }
                     selectedVerseActions = emptyMap()
                 },
                 onAddCitation = if (isStudyModeActive) {
@@ -401,6 +402,7 @@ fun ReaderContent(
                     selectedVerseActions.keys.forEach { verseNumber ->
                         saveHighlight(verseNumber, colorIndex)
                     }
+                    selectedVerseActions = emptyMap()
                 }
             )
         }
@@ -433,8 +435,7 @@ fun VerseItem(
     isSelected: Boolean,
     isSelectionMode: Boolean,
     onShowActions: () -> Unit,
-    onToggleSelection: () -> Unit,
-    onPositionCaptured: (IntOffset) -> Unit
+    onToggleSelection: () -> Unit
 ) {
     Text(
         modifier = Modifier
@@ -444,10 +445,6 @@ fun VerseItem(
                 if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else highlightColor,
                 RoundedCornerShape(8.dp)
             )
-            .onGloballyPositioned { coords ->
-                val pos = coords.positionInRoot()
-                onPositionCaptured(IntOffset(pos.x.toInt() + 24, pos.y.toInt()))
-            }
             .combinedClickable(onClick = onToggleSelection, onLongClick = onShowActions)
             .onPreviewKeyEvent { keyEvent ->
                 if (

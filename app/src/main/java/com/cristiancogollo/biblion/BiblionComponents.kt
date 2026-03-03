@@ -2,13 +2,20 @@ package com.cristiancogollo.biblion
 
 import android.util.Log
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CopyAll
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.HighlightOff
+import androidx.compose.material.icons.filled.HorizontalRule
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -22,58 +29,40 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CopyAll
-import androidx.compose.material.icons.filled.EditNote
-import androidx.compose.material.icons.filled.HighlightOff
-import androidx.compose.material.icons.filled.HorizontalRule
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.ui.unit.TextUnit
 
-/**
- * Archivo de componentes UI reutilizables de Biblion.
- *
- * Objetivo:
- * - Centralizar piezas visuales compartidas por múltiples pantallas.
- * - Evitar duplicación de estilos/comportamientos en Home, Books y Reader.
- */
-
-// 1. BiblionTopAppBar: Reutilizable en todas las pantallas
+// 1. BiblionTopAppBar: Usado en HomeScreen y BooksScreen
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BiblionTopAppBar(
-    title: String = "Biblion",
-    navigationIcon: ImageVector = Icons.Default.Menu,
-    onNavigationIconClick: () -> Unit,
-    showSearch: Boolean = true,
-    onSearchIconClick: () -> Unit = {},
-    actions: @Composable RowScope.() -> Unit = {}
+    onNavigationIconClick: () -> Unit = {},
+    onSearchIconClick: () -> Unit = {}
 ) {
     CenterAlignedTopAppBar(
         title = {
             Text(
-                text = title,
-                style = MaterialTheme.typography.headlineMedium.copy(fontFamily = FontFamily.Serif),
+                text = "Biblion",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontFamily = FontFamily.Serif,
+                    fontWeight = FontWeight.Bold
+                ),
                 color = BiblionNavy
             )
         },
         navigationIcon = {
             IconButton(onClick = onNavigationIconClick) {
-                Icon(imageVector = navigationIcon, contentDescription = "Menu", tint = BiblionNavy)
+                Icon(imageVector = Icons.Default.Menu, contentDescription = "Menú", tint = BiblionNavy)
             }
         },
         actions = {
-            actions()
-            if (showSearch) {
-                IconButton(onClick = onSearchIconClick) {
-                    Icon(imageVector = Icons.Default.Search, contentDescription = "Search", tint = BiblionNavy)
-                }
+            IconButton(onClick = onSearchIconClick) {
+                Icon(imageVector = Icons.Default.Search, contentDescription = "Buscar", tint = BiblionNavy)
             }
         },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -82,16 +71,13 @@ fun BiblionTopAppBar(
     )
 }
 
-// 2. TestamentSelector: Para navegar entre Antiguo y Nuevo Testamento
+// 2. TestamentSelector: Selector tipo pestañas (Antiguo / Nuevo)
 @Composable
 fun TestamentSelector(
     selectedTab: String,
     onTabSelected: (String) -> Unit
 ) {
-    val tabs = listOf(
-        "ANTIGUO TESTAMENTO" to "ANTIGUO TESTAMENTO",
-        "NUEVO TESTAMENTO" to "NUEVO TESTAMENTO"
-    )
+    val tabs = listOf("Antiguo Testamento" to "ANTIGUO", "Nuevo Testamento" to "NUEVO")
 
     Row(
         modifier = Modifier
@@ -345,17 +331,8 @@ fun BiblionReaderTopAppBar(
 }
 
 /**
- * Burbuja contextual flotante para acciones sobre versículos seleccionados.
- *
- * @param selectedCount cantidad de versículos seleccionados actualmente.
- * @param anchorOffset coordenada donde se ancla el popup (relativa al root).
- * @param showHighlightOptions controla si se muestra la paleta de subrayado.
- * @param highlightPalette colores disponibles para subrayar.
- * @param onDismiss callback al tocar fuera/cerrar popup.
- * @param onClearSelection limpia selección actual.
- * @param onCopy copia selección al portapapeles.
- * @param onAddCitation inserta selección en cuaderno (si aplica).
- * @param onHighlight aplica color de subrayado a la selección.
+ * Burbuja contextual flotante optimizada para acciones sobre versículos.
+ * Ubicada en la parte inferior-media para mejor ergonomía.
  */
 @Composable
 fun VerseActionsFloatingMenu(
@@ -370,36 +347,75 @@ fun VerseActionsFloatingMenu(
     onHighlight: (Int) -> Unit
 ) {
     Popup(
-        alignment = Alignment.TopStart,
-        offset = anchorOffset,
+        alignment = Alignment.BottomCenter,
+        offset = IntOffset(0, -180), // Posición interactiva en la zona inferior-media
         onDismissRequest = onDismiss,
-        properties = PopupProperties(focusable = true)
+        properties = PopupProperties(
+            focusable = false,
+            dismissOnClickOutside = false
+        )
     ) {
-        ElevatedCard(shape = RoundedCornerShape(18.dp), elevation = CardDefaults.elevatedCardElevation(defaultElevation = 6.dp)) {
+        ElevatedCard(
+            shape = RoundedCornerShape(28.dp),
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 12.dp),
+            colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
             Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("$selectedCount versículo(s) seleccionado(s)")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Contador Estilizado
+                    Surface(
+                        color = BiblionNavy,
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text(
+                            text = "$selectedCount",
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
                     ActionPill(icon = Icons.Default.CopyAll, label = "Copiar", onClick = onCopy)
+                    
                     if (onAddCitation != null) {
                         ActionPill(icon = Icons.Default.EditNote, label = "Citar", onClick = onAddCitation)
                     }
-                    ActionPill(icon = Icons.Default.HighlightOff, label = "Limpiar", onClick = onClearSelection)
+
+                    IconButton(onClick = onClearSelection, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.HighlightOff,
+                            contentDescription = "Limpiar",
+                            tint = Color.Gray
+                        )
+                    }
                 }
+
                 if (showHighlightOptions) {
-                    HorizontalDivider()
-                    Text("Subrayado / Favorito")
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HorizontalDivider(
+                        modifier = Modifier.width(60.dp).padding(vertical = 4.dp),
+                        color = Color.LightGray.copy(alpha = 0.2f)
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         highlightPalette.forEachIndexed { index, color ->
                             Box(
                                 modifier = Modifier
-                                    .size(24.dp)
+                                    .size(26.dp)
                                     .background(
                                         color = if (index == 0) Color.White else color,
-                                        shape = RoundedCornerShape(12.dp)
+                                        shape = RoundedCornerShape(13.dp)
                                     )
+                                    .border(1.dp, Color.LightGray.copy(alpha = 0.5f), RoundedCornerShape(13.dp))
                                     .clickable { onHighlight(index) }
                             )
                         }
@@ -412,14 +428,15 @@ fun VerseActionsFloatingMenu(
 
 @Composable
 private fun ActionPill(icon: ImageVector, label: String, onClick: () -> Unit) {
-    FloatingActionButton(onClick = onClick, containerColor = MaterialTheme.colorScheme.surfaceVariant) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(imageVector = icon, contentDescription = label)
-            Text(label)
-        }
-    }
+    AssistChip(
+        onClick = onClick,
+        label = { Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium) },
+        leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp)) },
+        shape = RoundedCornerShape(12.dp),
+        border = null,
+        colors = AssistChipDefaults.assistChipColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+        ),
+        modifier = Modifier.height(30.dp)
+    )
 }
