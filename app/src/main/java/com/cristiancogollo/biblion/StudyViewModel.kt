@@ -37,6 +37,7 @@ data class StudyUiState(
     val popupVisible: Boolean = false,
     val keyboardOpen: Boolean = false,
     val hasActiveSelection: Boolean = false,
+    val selectionFontSizeSp: Float = 18f,
     val pendingCitations: List<CitationInsertRequest> = emptyList(),
     val globalVersion: String = "rvr1960"
 )
@@ -51,6 +52,9 @@ sealed interface StudyIntent {
     data class SetContextMenuVisible(val visible: Boolean) : StudyIntent
     data class SetSelectionActive(val active: Boolean) : StudyIntent
     data class SetKeyboardOpen(val open: Boolean) : StudyIntent
+    data class UpdateSelectionFontFromEditor(val currentSp: Float) : StudyIntent
+    data object IncreaseSelectionFont : StudyIntent
+    data object DecreaseSelectionFont : StudyIntent
     data class AddAudioBlock(val uri: String, val title: String) : StudyIntent
     data class AddImageBlock(val uri: String, val caption: String) : StudyIntent
     data class ChangeVersion(val version: String) : StudyIntent
@@ -109,6 +113,15 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
             is StudyIntent.SetContextMenuVisible -> _state.value = _state.value.copy(contextualMenuVisible = intent.visible)
             is StudyIntent.SetSelectionActive -> _state.value = _state.value.copy(hasActiveSelection = intent.active)
             is StudyIntent.SetKeyboardOpen -> _state.value = _state.value.copy(keyboardOpen = intent.open)
+            is StudyIntent.UpdateSelectionFontFromEditor -> {
+                _state.value = _state.value.copy(selectionFontSizeSp = intent.currentSp.coerceIn(12f, 46f))
+            }
+            StudyIntent.IncreaseSelectionFont -> {
+                _state.value = _state.value.copy(selectionFontSizeSp = (_state.value.selectionFontSizeSp + 2f).coerceAtMost(46f))
+            }
+            StudyIntent.DecreaseSelectionFont -> {
+                _state.value = _state.value.copy(selectionFontSizeSp = (_state.value.selectionFontSizeSp - 2f).coerceAtLeast(12f))
+            }
             is StudyIntent.AddAudioBlock -> _state.value = _state.value.copy(
                 blocks = _state.value.blocks + StudyBlockNode.Audio(intent.uri, intent.title)
             )
@@ -156,6 +169,14 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
         val pending = _state.value.pendingCitations
         _state.value = _state.value.copy(pendingCitations = emptyList())
         return pending
+    }
+
+    fun asBlockquoteText(request: CitationInsertRequest): String {
+        return if (request.includeFullText) {
+            "\n    \"${request.text}\"\n    — ${request.reference}\n"
+        } else {
+            "\n    — ${request.reference}\n"
+        }
     }
 
     private suspend fun ensureSeedData() {

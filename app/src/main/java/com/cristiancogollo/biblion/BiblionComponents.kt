@@ -17,6 +17,9 @@ import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.HighlightOff
 import androidx.compose.material.icons.filled.HorizontalRule
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.TextIncrease
+import androidx.compose.material.icons.filled.TextDecrease
+import androidx.compose.material.icons.filled.Title
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -421,6 +424,64 @@ fun VerseActionsFloatingMenu(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Menú contextual flotante del editor de estudio (estética píldora).
+ */
+@Composable
+fun StudyEditorFloatingMenu(
+    isVisible: Boolean,
+    anchorOffset: IntOffset,
+    pendingCitations: Int,
+    onDismiss: () -> Unit,
+    onHeadlineUp: () -> Unit,
+    onHeadlineDown: () -> Unit,
+    onBold: () -> Unit,
+    onItalic: () -> Unit,
+    onIncreaseSize: () -> Unit,
+    onDecreaseSize: () -> Unit,
+    onBulletList: () -> Unit,
+    onOrderedList: () -> Unit,
+    onInsertPendingCitations: () -> Unit
+) {
+    if (!isVisible) return
+
+    Popup(
+        alignment = Alignment.BottomCenter,
+        offset = IntOffset(anchorOffset.x, anchorOffset.y - 180),
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = false)
+    ) {
+        ElevatedCard(
+            shape = RoundedCornerShape(28.dp),
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 10.dp),
+            colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                IconButton(onClick = onHeadlineUp) { Icon(Icons.Default.Title, contentDescription = "H+") }
+                IconButton(onClick = onHeadlineDown) { Icon(Icons.Default.HorizontalRule, contentDescription = "H-") }
+                IconButton(onClick = onBold) { Icon(Icons.Default.FormatBold, contentDescription = "Negrita") }
+                IconButton(onClick = onItalic) { Icon(Icons.Default.FormatItalic, contentDescription = "Cursiva") }
+                IconButton(onClick = onIncreaseSize) { Icon(Icons.Default.TextIncrease, contentDescription = "A+") }
+                IconButton(onClick = onDecreaseSize) { Icon(Icons.Default.TextDecrease, contentDescription = "A-") }
+                IconButton(onClick = onBulletList) { Icon(Icons.Default.FormatListBulleted, contentDescription = "Viñetas") }
+                IconButton(onClick = onOrderedList) { Icon(Icons.Default.FormatListNumbered, contentDescription = "Numerada") }
+
+                AssistChip(
+                    onClick = onInsertPendingCitations,
+                    label = {
+                        Text(if (pendingCitations > 0) "Citar $pendingCitations" else "Citar")
+                    },
+                    leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                )
             }
         }
     }
