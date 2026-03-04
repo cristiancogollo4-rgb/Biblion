@@ -1,133 +1,275 @@
 package com.cristiancogollo.biblion
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
-import org.json.JSONArray
-import org.json.JSONObject
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import java.util.UUID
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
-data class StudyCitation(
-    val reference: String,
-    val text: String,
-    val previousText: String?,
-    val nextText: String?
-)
 
-/**
- * Solicitud temporal de inserción de cita dentro del editor rico.
- *
- * Se encola desde el panel lector y se consume en el panel de estudio
- * para insertar el nodo estructurado en la posición actual del cursor.
- */
 data class CitationInsertRequest(
     val id: String,
     val reference: String,
     val text: String,
-    val version: String = "default"
+    val version: String = "rvr1960",
+    val includeFullText: Boolean = true
 )
 
-/**
- * Registro serializable de un span de formato dentro del documento rico.
- *
- * Permite preservar estilos y nodos especiales (como citas bíblicas)
- * en un formato estructurado JSON.
- */
-data class RichSpanRecord(
-    val type: String,
-    val start: Int,
-    val end: Int,
-    val value: String? = null,
-    val citationId: String? = null,
-    val citationReference: String? = null,
-    val citationText: String? = null,
-    val citationVersion: String? = null
+data class StudyUiState(
+    val notebooks: List<StudyNotebookEntity> = emptyList(),
+    val selectedNotebookId: Long? = null,
+    val studies: List<StudyEntity> = emptyList(),
+    val selectedStudyId: Long? = null,
+    val title: String = "",
+    val richHtml: String = "",
+    val blocks: List<StudyBlockNode> = emptyList(),
+    val focusMode: Boolean = false,
+    val contextualMenuVisible: Boolean = false,
+    val popupVisible: Boolean = false,
+    val keyboardOpen: Boolean = false,
+    val hasActiveSelection: Boolean = false,
+    val selectionFontSizeSp: Float = 18f,
+    val pendingCitations: List<CitationInsertRequest> = emptyList(),
+    val globalVersion: String = "rvr1960"
 )
 
-/**
- * ViewModel del modo estudio.
- *
- * Gestiona:
- * - metadatos de nota (título, referencia base),
- * - contenido rico serializado,
- * - cola de inserciones de citas,
- * - lista de citas registradas en la sesión.
- */
-class StudyViewModel : ViewModel() {
-    var noteTitle by mutableStateOf("")
-    var baseReference by mutableStateOf("")
-    var noteFontSize by mutableStateOf(16f)
+sealed interface StudyIntent {
+    data class SelectNotebook(val notebookId: Long) : StudyIntent
+    data class SelectStudy(val studyId: Long) : StudyIntent
+    data class UpdateTitle(val title: String) : StudyIntent
+    data class UpdateRichHtml(val html: String) : StudyIntent
+    data class ToggleFocusMode(val enabled: Boolean) : StudyIntent
+    data class SetPopupVisible(val visible: Boolean) : StudyIntent
+    data class SetContextMenuVisible(val visible: Boolean) : StudyIntent
+    data class SetSelectionActive(val active: Boolean) : StudyIntent
+    data class SetKeyboardOpen(val open: Boolean) : StudyIntent
+    data class UpdateSelectionFontFromEditor(val currentSp: Float) : StudyIntent
+    data object IncreaseSelectionFont : StudyIntent
+    data object DecreaseSelectionFont : StudyIntent
+    data class AddAudioBlock(val uri: String, val title: String) : StudyIntent
+    data class AddImageBlock(val uri: String, val caption: String) : StudyIntent
+    data class ChangeVersion(val version: String) : StudyIntent
+    data object Undo : StudyIntent
+    data object Redo : StudyIntent
+    data object ExportPdf : StudyIntent
+}
 
-    // Persisted rich document JSON (text + spans structured)
-    var noteDocumentJson by mutableStateOf("")
+class StudyViewModel(application: Application) : AndroidViewModel(application) {
+    private val dao = StudyDatabase.getInstance(application).studyDao()
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; classDiscriminator = "nodeType" }
 
-    // Legacy plain content fallback
-    var noteContent by mutableStateOf("")
+    private val _state = MutableStateFlow(StudyUiState())
+    val state: StateFlow<StudyUiState> = _state.asStateFlow()
 
-    var citations by mutableStateOf<List<StudyCitation>>(emptyList())
-        private set
+    private val undoStack = ArrayDeque<String>()
+    private val redoStack = ArrayDeque<String>()
 
-    val pendingCitationInsertions = mutableStateListOf<CitationInsertRequest>()
+    private val notebooksFlow = dao.observeNotebooks().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    private val selectedNotebookFlow = MutableStateFlow<Long?>(null)
 
-    fun updateTitle(newTitle: String) {
-        noteTitle = newTitle
+    init {
+        viewModelScope.launch {
+            ensureSeedData()
+        }
+        viewModelScope.launch {
+            notebooksFlow.collect { notebooks ->
+                val selected = _state.value.selectedNotebookId ?: notebooks.firstOrNull()?.id
+                _state.value = _state.value.copy(notebooks = notebooks, selectedNotebookId = selected)
+                selectedNotebookFlow.value = selected
+                selected?.let { observeStudies(it) }
+            }
+        }
+        startAutoSave()
     }
 
-    fun updateBaseReference(newReference: String) {
-        baseReference = newReference
+    fun process(intent: StudyIntent) {
+        when (intent) {
+            is StudyIntent.SelectNotebook -> {
+                _state.value = _state.value.copy(selectedNotebookId = intent.notebookId, selectedStudyId = null)
+                selectedNotebookFlow.value = intent.notebookId
+                viewModelScope.launch { observeStudies(intent.notebookId) }
+            }
+            is StudyIntent.SelectStudy -> viewModelScope.launch { loadStudy(intent.studyId) }
+            is StudyIntent.UpdateTitle -> _state.value = _state.value.copy(title = intent.title)
+            is StudyIntent.UpdateRichHtml -> {
+                undoStack.addLast(_state.value.richHtml)
+                _state.value = _state.value.copy(
+                    richHtml = intent.html,
+                    blocks = rebuildBlocks(intent.html, _state.value.blocks)
+                )
+                redoStack.clear()
+            }
+            is StudyIntent.ToggleFocusMode -> _state.value = _state.value.copy(focusMode = intent.enabled)
+            is StudyIntent.SetPopupVisible -> _state.value = _state.value.copy(popupVisible = intent.visible)
+            is StudyIntent.SetContextMenuVisible -> _state.value = _state.value.copy(contextualMenuVisible = intent.visible)
+            is StudyIntent.SetSelectionActive -> _state.value = _state.value.copy(hasActiveSelection = intent.active)
+            is StudyIntent.SetKeyboardOpen -> _state.value = _state.value.copy(keyboardOpen = intent.open)
+            is StudyIntent.UpdateSelectionFontFromEditor -> {
+                _state.value = _state.value.copy(selectionFontSizeSp = intent.currentSp.coerceIn(12f, 46f))
+            }
+            StudyIntent.IncreaseSelectionFont -> {
+                _state.value = _state.value.copy(selectionFontSizeSp = (_state.value.selectionFontSizeSp + 2f).coerceAtMost(46f))
+            }
+            StudyIntent.DecreaseSelectionFont -> {
+                _state.value = _state.value.copy(selectionFontSizeSp = (_state.value.selectionFontSizeSp - 2f).coerceAtLeast(12f))
+            }
+            is StudyIntent.AddAudioBlock -> _state.value = _state.value.copy(
+                blocks = _state.value.blocks + StudyBlockNode.Audio(intent.uri, intent.title)
+            )
+            is StudyIntent.AddImageBlock -> _state.value = _state.value.copy(
+                blocks = _state.value.blocks + StudyBlockNode.Image(intent.uri, intent.caption)
+            )
+            is StudyIntent.ChangeVersion -> _state.value = _state.value.copy(globalVersion = intent.version)
+            StudyIntent.Undo -> if (undoStack.isNotEmpty()) {
+                val previous = undoStack.removeLast()
+                redoStack.addLast(_state.value.richHtml)
+                _state.value = _state.value.copy(richHtml = previous, blocks = rebuildBlocks(previous, _state.value.blocks))
+            }
+            StudyIntent.Redo -> if (redoStack.isNotEmpty()) {
+                val next = redoStack.removeLast()
+                undoStack.addLast(_state.value.richHtml)
+                _state.value = _state.value.copy(richHtml = next, blocks = rebuildBlocks(next, _state.value.blocks))
+            }
+            StudyIntent.ExportPdf -> exportPdfStub()
+        }
     }
 
-    fun updateFontSize(newSize: Float) {
-        noteFontSize = newSize.coerceIn(12f, 30f)
-    }
-
-    fun addCitation(
-        reference: String,
-        text: String,
-        previousText: String?,
-        nextText: String?
-    ) {
-        citations = citations + StudyCitation(reference, text, previousText, nextText)
-        pendingCitationInsertions += CitationInsertRequest(
-            id = UUID.randomUUID().toString(),
-            reference = reference,
-            text = text
+    fun addCitation(reference: String, text: String, includeFullText: Boolean) {
+        val parsed = parseReference(reference) ?: return
+        val id = UUID.randomUUID().toString()
+        val citation = StudyBlockNode.Citation(
+            citationId = id,
+            reference = parsed,
+            text = text,
+            version = _state.value.globalVersion,
+            includeFullText = includeFullText
+        )
+        _state.value = _state.value.copy(
+            blocks = _state.value.blocks + citation,
+            pendingCitations = _state.value.pendingCitations + CitationInsertRequest(
+                id = id,
+                reference = reference,
+                text = text,
+                version = _state.value.globalVersion,
+                includeFullText = includeFullText
+            )
         )
     }
 
     fun consumePendingCitations(): List<CitationInsertRequest> {
-        val items = pendingCitationInsertions.toList()
-        pendingCitationInsertions.clear()
-        return items
+        val pending = _state.value.pendingCitations
+        _state.value = _state.value.copy(pendingCitations = emptyList())
+        return pending
     }
 
-    fun updateDocument(text: String, spans: List<RichSpanRecord>) {
-        noteContent = text
-        noteDocumentJson = serializeDocument(text, spans)
-    }
-
-    private fun serializeDocument(text: String, spans: List<RichSpanRecord>): String {
-        val root = JSONObject()
-        root.put("type", "study_document")
-        root.put("version", 1)
-        root.put("text", text)
-
-        val spansArray = JSONArray()
-        spans.forEach { span ->
-            val item = JSONObject()
-            item.put("type", span.type)
-            item.put("start", span.start)
-            item.put("end", span.end)
-            span.value?.let { item.put("value", it) }
-            span.citationId?.let { item.put("citationId", it) }
-            span.citationReference?.let { item.put("citationReference", it) }
-            span.citationText?.let { item.put("citationText", it) }
-            span.citationVersion?.let { item.put("citationVersion", it) }
-            spansArray.put(item)
+    fun asBlockquoteText(request: CitationInsertRequest): String {
+        return if (request.includeFullText) {
+            "\n    \"${request.text}\"\n    — ${request.reference}\n"
+        } else {
+            "\n    — ${request.reference}\n"
         }
-        root.put("spans", spansArray)
-        return root.toString()
+    }
+
+    private suspend fun ensureSeedData() {
+        if (notebooksFlow.value.isEmpty()) {
+            val now = System.currentTimeMillis()
+            val notebookId = dao.insertNotebook(StudyNotebookEntity(title = "Estudio sobre la Fe", createdAt = now, updatedAt = now))
+            dao.insertNotebook(StudyNotebookEntity(title = "Serie Romanos", createdAt = now, updatedAt = now))
+            dao.insertNotebook(StudyNotebookEntity(title = "Predicaciones 2026", createdAt = now, updatedAt = now))
+            val emptyDoc = json.encodeToString(SerializedStudyDocument())
+            dao.insertStudy(StudyEntity(title = "Nuevo estudio", notebookId = notebookId, contentSerialized = emptyDoc, createdAt = now, updatedAt = now))
+        }
+    }
+
+    private suspend fun observeStudies(notebookId: Long) {
+        dao.observeStudies(notebookId).collect { studies ->
+            val currentSelected = _state.value.selectedStudyId?.takeIf { id -> studies.any { it.id == id } } ?: studies.firstOrNull()?.id
+            _state.value = _state.value.copy(studies = studies, selectedStudyId = currentSelected)
+            currentSelected?.let { loadStudy(it) }
+        }
+    }
+
+    private suspend fun loadStudy(studyId: Long) {
+        val study = dao.getStudy(studyId) ?: return
+        val doc = runCatching { json.decodeFromString<SerializedStudyDocument>(study.contentSerialized) }
+            .getOrDefault(SerializedStudyDocument())
+        val firstRich = doc.blocks.filterIsInstance<StudyBlockNode.RichText>().firstOrNull()
+        _state.value = _state.value.copy(
+            selectedStudyId = study.id,
+            title = study.title,
+            richHtml = firstRich?.html ?: "",
+            blocks = doc.blocks,
+            globalVersion = doc.globalVersion
+        )
+    }
+
+    private fun startAutoSave() {
+        viewModelScope.launch {
+            while (true) {
+                delay(7000)
+                persistCurrentStudy()
+            }
+        }
+    }
+
+    private suspend fun persistCurrentStudy() {
+        val s = _state.value
+        val id = s.selectedStudyId ?: return
+        val now = System.currentTimeMillis()
+        val document = SerializedStudyDocument(blocks = s.blocks, globalVersion = s.globalVersion)
+        dao.updateStudy(
+            StudyEntity(
+                id = id,
+                title = s.title.ifBlank { "Nuevo estudio" },
+                notebookId = s.selectedNotebookId ?: return,
+                contentSerialized = json.encodeToString(document),
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+        val citations = s.blocks.filterIsInstance<StudyBlockNode.Citation>().map {
+            LinkedCitationEntity(
+                estudioId = id,
+                book = it.reference.book,
+                chapter = it.reference.chapter,
+                verseStart = it.reference.verseStart,
+                verseEnd = it.reference.verseEnd,
+                version = it.version,
+                positionMetadata = "inline"
+            )
+        }
+        dao.replaceCitations(id, citations)
+    }
+
+    private fun rebuildBlocks(html: String, old: List<StudyBlockNode>): List<StudyBlockNode> {
+        val refs = detectReferences(html)
+        val nonText = old.filterNot { it is StudyBlockNode.RichText }
+        return listOf(StudyBlockNode.RichText(html = html, references = refs)) + nonText
+    }
+
+    private fun detectReferences(text: String): List<BibleReferenceNode> {
+        val regex = Regex("""([1-3]?\s?[A-Za-zÁÉÍÓÚáéíóúñÑ]+)\s+(\d+):(\d+)(?:-(\d+))?""")
+        return regex.findAll(text).mapNotNull { m ->
+            val book = m.groupValues[1].trim()
+            val chapter = m.groupValues[2].toIntOrNull() ?: return@mapNotNull null
+            val start = m.groupValues[3].toIntOrNull() ?: return@mapNotNull null
+            val end = m.groupValues[4].toIntOrNull() ?: start
+            BibleReferenceNode(book = book, chapter = chapter, verseStart = start, verseEnd = end)
+        }.toList()
+    }
+
+    private fun parseReference(reference: String): BibleReferenceNode? = detectReferences(reference).firstOrNull()
+
+    private fun exportPdfStub() {
+        // Punto de extensión: implementación de exportación PDF elegante del estudio.
     }
 }
