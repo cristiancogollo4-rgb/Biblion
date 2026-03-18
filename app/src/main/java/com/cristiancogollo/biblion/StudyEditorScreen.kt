@@ -9,20 +9,22 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Button
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,6 +42,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mohamedrejeb.richeditor.model.rememberRichTextState
+import kotlinx.coroutines.launch
 import com.mohamedrejeb.richeditor.ui.RichTextEditor
 
 @Composable
@@ -51,6 +54,7 @@ fun StudyEditorScreen(
     val ui by viewModel.state.collectAsState()
     val richState = rememberRichTextState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     var menuOffset by remember { mutableStateOf(IntOffset(0, -120)) }
 
     val selection = richState.selection
@@ -85,11 +89,6 @@ fun StudyEditorScreen(
             .fillMaxSize()
             .background(Color(0xFFFDFBF0)),
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onClose, containerColor = MaterialTheme.colorScheme.surface) {
-                Icon(Icons.Default.Close, contentDescription = "Cerrar")
-            }
-        },
         topBar = {
             androidx.compose.foundation.layout.Row(
                 modifier = Modifier
@@ -99,8 +98,28 @@ fun StudyEditorScreen(
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
             ) {
                 Text("The Minimalist Slate", style = MaterialTheme.typography.titleMedium)
-                IconButton(onClick = { viewModel.process(StudyIntent.ToggleFocusMode(!ui.focusMode)) }) {
-                    Icon(if (ui.focusMode) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, contentDescription = "Focus")
+                androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+                    Button(
+                        onClick = {
+                            viewModel.saveStudyNow { saved ->
+                                if (saved) {
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("Enseñanza guardada")
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        Text("Guardar enseñanza")
+                    }
+                    TextButton(onClick = onClose) {
+                        Icon(Icons.Default.Close, contentDescription = "Cerrar modo estudio")
+                        Text("Cerrar modo estudio")
+                    }
+                    IconButton(onClick = { viewModel.process(StudyIntent.ToggleFocusMode(!ui.focusMode)) }) {
+                        Icon(if (ui.focusMode) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, contentDescription = "Ampliar pantalla")
+                    }
                 }
             }
         }

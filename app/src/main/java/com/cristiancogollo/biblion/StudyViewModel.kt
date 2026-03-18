@@ -179,6 +179,13 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun saveStudyNow(onComplete: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            val saved = persistCurrentStudy()
+            onComplete(saved)
+        }
+    }
+
     private suspend fun ensureSeedData() {
         if (notebooksFlow.value.isEmpty()) {
             val now = System.currentTimeMillis()
@@ -221,16 +228,17 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private suspend fun persistCurrentStudy() {
+    private suspend fun persistCurrentStudy(): Boolean {
         val s = _state.value
-        val id = s.selectedStudyId ?: return
+        val id = s.selectedStudyId ?: return false
+        val notebookId = s.selectedNotebookId ?: return false
         val now = System.currentTimeMillis()
         val document = SerializedStudyDocument(blocks = s.blocks, globalVersion = s.globalVersion)
         dao.updateStudy(
             StudyEntity(
                 id = id,
                 title = s.title.ifBlank { "Nuevo estudio" },
-                notebookId = s.selectedNotebookId ?: return,
+                notebookId = notebookId,
                 contentSerialized = json.encodeToString(document),
                 createdAt = now,
                 updatedAt = now
@@ -248,6 +256,7 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
         dao.replaceCitations(id, citations)
+        return true
     }
 
     private fun rebuildBlocks(html: String, old: List<StudyBlockNode>): List<StudyBlockNode> {
