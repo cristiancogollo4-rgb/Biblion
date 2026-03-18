@@ -17,7 +17,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.focusable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,6 +29,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
@@ -114,6 +117,7 @@ fun ReaderScreen(
     val studyViewModel: StudyViewModel = viewModel()
 
     var isStudyModeEnabled by remember { mutableStateOf(initialStudyMode) }
+    val studyUi by studyViewModel.state.collectAsState()
 
     LaunchedEffect(isStudyModeEnabled, isLandscape) {
         if (isStudyModeEnabled && !isLandscape) {
@@ -123,12 +127,15 @@ fun ReaderScreen(
 
     if (isStudyModeEnabled && isLandscape) {
         Row(modifier = Modifier.fillMaxSize()) {
-            Box(modifier = Modifier.weight(1f)) {
-                StudyModeNavigation(initialBook = bookName)
+            if (!studyUi.focusMode) {
+                Box(modifier = Modifier.weight(1f)) {
+                    StudyModeNavigation(initialBook = bookName)
+                }
             }
             Box(modifier = Modifier.weight(1f)) {
                 StudyEditorScreen(
                     viewModel = studyViewModel,
+                    onFocusModeChanged = {},
                     onClose = {
                         isStudyModeEnabled = false
                         context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
@@ -218,6 +225,7 @@ fun ReaderContent(
     var verses by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var verseHighlights by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var showDialog by remember { mutableStateOf(false) }
+    var showCitationInsertDialog by remember { mutableStateOf(false) }
     var selectedVerseActions by remember { mutableStateOf<Map<String, VerseAction>>(emptyMap()) }
 
     fun verseKey(verseNumber: String): String = "${bookName ?: ""}|$selectedChapter|$verseNumber"
@@ -379,21 +387,7 @@ fun ReaderContent(
                 },
                 onAddCitation = if (isStudyModeActive) {
                     {
-                        selectedVerseActions.values
-                            .sortedBy { it.number.toIntOrNull() ?: Int.MAX_VALUE }
-                            .forEach { selected ->
-                                val currentIndex = verses.indexOfFirst { it.first == selected.number }
-                                val previousVerseText = verses.getOrNull(currentIndex - 1)?.second
-                                val nextVerseText = verses.getOrNull(currentIndex + 1)?.second
-                                val reference = "${bookName ?: ""} $selectedChapter:${selected.number}"
-                                viewModel.addCitation(
-                                    reference = reference,
-                                    text = selected.text,
-                                    previousText = previousVerseText,
-                                    nextText = nextVerseText
-                                )
-                            }
-                        selectedVerseActions = emptyMap()
+                        showCitationInsertDialog = true
                     }
                 } else {
                     null
@@ -403,6 +397,34 @@ fun ReaderContent(
                         saveHighlight(verseNumber, colorIndex)
                     }
                     selectedVerseActions = emptyMap()
+                }
+            )
+        }
+
+        if (showCitationInsertDialog) {
+            AlertDialog(
+                onDismissRequest = { showCitationInsertDialog = false },
+                title = { Text("Insertar cita") },
+                text = { Text("Elige cómo insertar los versículos seleccionados.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        selectedVerseActions.values.sortedBy { it.number.toIntOrNull() ?: Int.MAX_VALUE }.forEach { selected ->
+                            val reference = "${bookName ?: ""} $selectedChapter:${selected.number}"
+                            viewModel.addCitation(reference = reference, text = selected.text, includeFullText = true)
+                        }
+                        selectedVerseActions = emptyMap()
+                        showCitationInsertDialog = false
+                    }) { Text("Texto completo") }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        selectedVerseActions.values.sortedBy { it.number.toIntOrNull() ?: Int.MAX_VALUE }.forEach { selected ->
+                            val reference = "${bookName ?: ""} $selectedChapter:${selected.number}"
+                            viewModel.addCitation(reference = reference, text = selected.text, includeFullText = false)
+                        }
+                        selectedVerseActions = emptyMap()
+                        showCitationInsertDialog = false
+                    }) { Text("Solo referencia") }
                 }
             )
         }
