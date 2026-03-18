@@ -26,11 +26,27 @@ interface StudyDao {
     @Query("SELECT * FROM studies WHERE notebookId = :notebookId ORDER BY updatedAt DESC")
     fun observeStudies(notebookId: Long): Flow<List<StudyEntity>>
 
+    @Query(
+        """
+        SELECT studies.*
+        FROM studies
+        INNER JOIN study_notebooks ON study_notebooks.id = studies.notebookId
+        WHERE studies.title LIKE '%' || :query || '%'
+           OR studies.contentSerialized LIKE '%' || :query || '%'
+           OR study_notebooks.title LIKE '%' || :query || '%'
+        ORDER BY studies.updatedAt DESC
+        """
+    )
+    suspend fun searchStudies(query: String): List<StudyEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertStudy(study: StudyEntity): Long
 
     @Update
     suspend fun updateStudy(study: StudyEntity)
+
+    @Query("DELETE FROM studies WHERE id = :studyId")
+    suspend fun deleteStudy(studyId: Long)
 
     @Query("SELECT * FROM studies WHERE id = :id LIMIT 1")
     suspend fun getStudy(id: Long): StudyEntity?
