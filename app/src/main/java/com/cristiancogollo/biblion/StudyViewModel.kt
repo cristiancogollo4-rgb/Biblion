@@ -58,6 +58,7 @@ sealed interface StudyIntent {
     data class AddAudioBlock(val uri: String, val title: String) : StudyIntent
     data class AddImageBlock(val uri: String, val caption: String) : StudyIntent
     data class ChangeVersion(val version: String) : StudyIntent
+    data object Save : StudyIntent
     data object Undo : StudyIntent
     data object Redo : StudyIntent
     data object ExportPdf : StudyIntent
@@ -129,6 +130,7 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
                 blocks = _state.value.blocks + StudyBlockNode.Image(intent.uri, intent.caption)
             )
             is StudyIntent.ChangeVersion -> _state.value = _state.value.copy(globalVersion = intent.version)
+            StudyIntent.Save -> viewModelScope.launch { persistCurrentStudy() }
             StudyIntent.Undo -> if (undoStack.isNotEmpty()) {
                 val previous = undoStack.removeLast()
                 redoStack.addLast(_state.value.richHtml)
