@@ -28,6 +28,7 @@ data class StudyUiState(
     val notebooks: List<StudyNotebookEntity> = emptyList(),
     val selectedNotebookId: Long? = null,
     val studies: List<StudyEntity> = emptyList(),
+    val allStudies: List<StudyEntity> = emptyList(),
     val selectedStudyId: Long? = null,
     val title: String = "",
     val richHtml: String = "",
@@ -59,6 +60,7 @@ sealed interface StudyIntent {
     data class AddImageBlock(val uri: String, val caption: String) : StudyIntent
     data class ChangeVersion(val version: String) : StudyIntent
     data object Save : StudyIntent
+    data class DeleteStudy(val studyId: Long) : StudyIntent
     data object Undo : StudyIntent
     data object Redo : StudyIntent
     data object ExportPdf : StudyIntent
@@ -75,6 +77,7 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
     private val redoStack = ArrayDeque<String>()
 
     private val notebooksFlow = dao.observeNotebooks().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    private val allStudiesFlow = dao.observeAllStudies().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     private val selectedNotebookFlow = MutableStateFlow<Long?>(null)
 
     init {
@@ -87,6 +90,11 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
                 _state.value = _state.value.copy(notebooks = notebooks, selectedNotebookId = selected)
                 selectedNotebookFlow.value = selected
                 selected?.let { observeStudies(it) }
+            }
+        }
+        viewModelScope.launch {
+            allStudiesFlow.collect { allStudies ->
+                _state.value = _state.value.copy(allStudies = allStudies)
             }
         }
         startAutoSave()
@@ -131,6 +139,7 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
             )
             is StudyIntent.ChangeVersion -> _state.value = _state.value.copy(globalVersion = intent.version)
             StudyIntent.Save -> viewModelScope.launch { persistCurrentStudy() }
+            is StudyIntent.DeleteStudy -> viewModelScope.launch { dao.deleteStudy(intent.studyId) }
             StudyIntent.Undo -> if (undoStack.isNotEmpty()) {
                 val previous = undoStack.removeLast()
                 redoStack.addLast(_state.value.richHtml)
@@ -173,22 +182,12 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
         return pending
     }
 
-    fun asBlockquoteText(request: CitationInsertRequest): String {
-        return if (request.includeFullText) {
-            "\n    \"${request.text}\"\n    — ${request.reference}\n"
-        } else {
-            "\n    — ${request.reference}\n"
-        }
-    }
-
     private suspend fun ensureSeedData() {
         if (notebooksFlow.value.isEmpty()) {
             val now = System.currentTimeMillis()
-            val notebookId = dao.insertNotebook(StudyNotebookEntity(title = "Estudio sobre la Fe", createdAt = now, updatedAt = now))
-            dao.insertNotebook(StudyNotebookEntity(title = "Serie Romanos", createdAt = now, updatedAt = now))
-            dao.insertNotebook(StudyNotebookEntity(title = "Predicaciones 2026", createdAt = now, updatedAt = now))
+            val notebookId = dao.insertNotebook(StudyNotebookEntity(title = "Mis Notas", createdAt = now, updatedAt = now))
             val emptyDoc = json.encodeToString(SerializedStudyDocument())
-            dao.insertStudy(StudyEntity(title = "Nuevo estudio", notebookId = notebookId, contentSerialized = emptyDoc, createdAt = now, updatedAt = now))
+            dao.insertStudy(StudyEntity(title = "Mi primera enseñanza", notebookId = notebookId, contentSerialized = emptyDoc, createdAt = now, updatedAt = now))
         }
     }
 
@@ -217,7 +216,7 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
     private fun startAutoSave() {
         viewModelScope.launch {
             while (true) {
-                delay(7000)
+                delay(15000) // 15 seconds for auto-save
                 persistCurrentStudy()
             }
         }
@@ -272,6 +271,6 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
     private fun parseReference(reference: String): BibleReferenceNode? = detectReferences(reference).firstOrNull()
 
     private fun exportPdfStub() {
-        // Punto de extensión: implementación de exportación PDF elegante del estudio.
+        // PDF Export extension point
     }
 }

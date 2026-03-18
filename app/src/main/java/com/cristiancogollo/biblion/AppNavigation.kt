@@ -26,6 +26,10 @@ fun AppNavigation() {
             HomeScreen(navController) 
         }
 
+        composable("ensenanzas") {
+            EnsenanzaScreen(navController)
+        }
+
         composable(
             route = "books/{testament}",
             arguments = listOf(navArgument("testament") { type = NavType.StringType })

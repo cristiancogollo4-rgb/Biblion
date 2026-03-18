@@ -26,6 +26,9 @@ interface StudyDao {
     @Query("SELECT * FROM studies WHERE notebookId = :notebookId ORDER BY updatedAt DESC")
     fun observeStudies(notebookId: Long): Flow<List<StudyEntity>>
 
+    @Query("SELECT * FROM studies ORDER BY updatedAt DESC")
+    fun observeAllStudies(): Flow<List<StudyEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertStudy(study: StudyEntity): Long
 
@@ -34,6 +37,9 @@ interface StudyDao {
 
     @Query("SELECT * FROM studies WHERE id = :id LIMIT 1")
     suspend fun getStudy(id: Long): StudyEntity?
+
+    @Query("DELETE FROM studies WHERE id = :id")
+    suspend fun deleteStudy(id: Long)
 
     @Query("DELETE FROM linked_citations WHERE estudioId = :studyId")
     suspend fun deleteCitationsForStudy(studyId: Long)

@@ -95,6 +95,9 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
                         onClick = {
                             scope.launch { drawerState.close() }
                             when (titulo) {
+                                "Mis Enseñanzas" -> {
+                                    navController.navigate("ensenanzas")
+                                }
                                 "Modo Estudio" -> {
                                     // Navegamos a un libro por defecto (ej: Genesis) con modo estudio activado
                                     val encodedBook = URLEncoder.encode("Genesis", StandardCharsets.UTF_8.toString())

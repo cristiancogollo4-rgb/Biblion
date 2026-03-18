@@ -1,0 +1,122 @@
+package com.cristiancogollo.biblion
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
+import com.cristiancogollo.biblion.ui.theme.BiblionNavy
+import java.text.SimpleDateFormat
+import java.util.*
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EnsenanzaScreen(navController: NavController) {
+    val viewModel: StudyViewModel = viewModel()
+    val state by viewModel.state.collectAsState()
+    val dateFormat = remember { SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Mis Enseñanzas", color = BiblionNavy, fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás", tint = BiblionNavy)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            )
+        },
+        containerColor = Color(0xFFFDFBF0)
+    ) { padding ->
+        if (state.allStudies.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Text("No tienes enseñanzas guardadas aún.", color = Color.Gray)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(state.allStudies) { study ->
+                    EnsenanzaCard(
+                        study = study,
+                        dateText = dateFormat.format(Date(study.updatedAt)),
+                        onOpen = {
+                            viewModel.process(StudyIntent.SelectStudy(study.id))
+                            // Navegamos al lector en modo estudio. 
+                            // Podríamos intentar recuperar el último libro editado, 
+                            // pero por ahora vamos a Genesis o una ruta genérica.
+                            navController.navigate("reader/Genesis?studyMode=true")
+                        },
+                        onDelete = {
+                            viewModel.process(StudyIntent.DeleteStudy(study.id))
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EnsenanzaCard(
+    study: StudyEntity,
+    dateText: String,
+    onOpen: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable { onOpen() },
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = study.title.ifBlank { "Sin título" },
+                    style = MaterialTheme.typography.titleLarge,
+                    color = BiblionNavy,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Última edición: $dateText",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+            }
+            
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = Color.Red.copy(alpha = 0.6f))
+            }
+            
+            IconButton(onClick = onOpen) {
+                Icon(Icons.Default.Edit, contentDescription = "Editar", tint = BiblionNavy)
+            }
+        }
+    }
+}
