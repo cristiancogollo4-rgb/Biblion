@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
@@ -44,6 +45,18 @@ fun EnsenanzaScreen(navController: NavController) {
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = {
+                    viewModel.process(StudyIntent.CreateNewStudy)
+                    navController.navigate("reader/Genesis?studyMode=true")
+                },
+                containerColor = BiblionNavy,
+                contentColor = Color.White
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Nueva Enseñanza")
+            }
+        },
         containerColor = Color(0xFFFDFBF0)
     ) { padding ->
         if (state.allStudies.isEmpty()) {
@@ -56,15 +69,12 @@ fun EnsenanzaScreen(navController: NavController) {
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(state.allStudies) { study ->
+                items(state.allStudies, key = { it.id }) { study ->
                     EnsenanzaCard(
                         study = study,
                         dateText = dateFormat.format(Date(study.updatedAt)),
                         onOpen = {
                             viewModel.process(StudyIntent.SelectStudy(study.id))
-                            // Navegamos al lector en modo estudio. 
-                            // Podríamos intentar recuperar el último libro editado, 
-                            // pero por ahora vamos a Genesis o una ruta genérica.
                             navController.navigate("reader/Genesis?studyMode=true")
                         },
                         onDelete = {
@@ -85,7 +95,7 @@ fun EnsenanzaCard(
     onDelete: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onOpen() },
+        modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
@@ -93,7 +103,11 @@ fun EnsenanzaCard(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { onOpen() }
+            ) {
                 Text(
                     text = study.title.ifBlank { "Sin título" },
                     style = MaterialTheme.typography.titleLarge,
@@ -111,11 +125,19 @@ fun EnsenanzaCard(
             }
             
             IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = Color.Red.copy(alpha = 0.6f))
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Eliminar",
+                    tint = Color.Red.copy(alpha = 0.6f)
+                )
             }
             
             IconButton(onClick = onOpen) {
-                Icon(Icons.Default.Edit, contentDescription = "Editar", tint = BiblionNavy)
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Editar",
+                    tint = BiblionNavy
+                )
             }
         }
     }

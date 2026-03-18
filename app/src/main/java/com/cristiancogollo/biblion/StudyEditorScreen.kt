@@ -1,56 +1,25 @@
 package com.cristiancogollo.biblion
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.FullscreenExit
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.isCtrlPressed
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 import com.mohamedrejeb.richeditor.model.rememberRichTextState
 import com.mohamedrejeb.richeditor.ui.material3.RichTextEditor
 import com.mohamedrejeb.richeditor.ui.material3.RichTextEditorDefaults
-import kotlinx.coroutines.launch
+import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,10 +38,14 @@ fun StudyEditorScreen(
     val hasSelection = selection.start != selection.end
     val showMenu = hasSelection || ui.pendingCitations.isNotEmpty()
 
+    // Sincronizar estado del ViewModel al Editor
     LaunchedEffect(ui.richHtml) {
-        if (richState.toHtml() != ui.richHtml) richState.setHtml(ui.richHtml)
+        if (richState.toHtml() != ui.richHtml) {
+            richState.setHtml(ui.richHtml)
+        }
     }
 
+    // Guardar cambios del Editor al ViewModel
     LaunchedEffect(richState.toHtml()) {
         viewModel.process(StudyIntent.UpdateRichHtml(richState.toHtml()))
     }
@@ -97,19 +70,23 @@ fun StudyEditorScreen(
         containerColor = Color(0xFFFDFBF0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            Surface(tonalElevation = 2.dp, color = Color.White) {
+            Surface(
+                tonalElevation = 2.dp,
+                color = Color.White
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onClose) {
-                            Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.Gray)
+                            Icon(Icons.Default.Close, contentDescription = "Cerrar Modo Estudio", tint = Color.Gray)
                         }
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "Editor de Estudio",
                             style = MaterialTheme.typography.titleMedium,
@@ -118,18 +95,19 @@ fun StudyEditorScreen(
                         )
                     }
 
-                    Row {
-                        IconButton(onClick = {
-                            viewModel.process(StudyIntent.Save)
-                            scope.launch {
-                                snackbarHostState.showSnackbar("Enseñanza guardada")
-                            }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Botón de Guardar Enseñanza
+                        IconButton(onClick = { 
+                            viewModel.process(StudyIntent.SaveStudy)
+                            // Opcional: Mostrar feedback al guardar
                         }) {
-                            Icon(Icons.Default.Save, contentDescription = "Guardar", tint = BiblionNavy)
+                            Icon(Icons.Default.Save, contentDescription = "Guardar Enseñanza", tint = BiblionNavy)
                         }
+                        
+                        // Botón de Modo Enfoque (Ampliar)
                         IconButton(onClick = { viewModel.process(StudyIntent.ToggleFocusMode(!ui.focusMode)) }) {
                             Icon(
-                                if (ui.focusMode) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                imageVector = if (ui.focusMode) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
                                 contentDescription = "Modo Enfoque",
                                 tint = BiblionNavy
                             )
@@ -143,7 +121,7 @@ fun StudyEditorScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = if (ui.focusMode) 64.dp else 24.dp, vertical = 12.dp)
+                .padding(horizontal = if (ui.focusMode) 64.dp else 24.dp)
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown || !event.isCtrlPressed) return@onPreviewKeyEvent false
                     when (event.key) {
@@ -153,6 +131,9 @@ fun StudyEditorScreen(
                         Key.I -> {
                             richState.toggleSpanStyle(SpanStyle(fontStyle = FontStyle.Italic)); true
                         }
+                        Key.S -> {
+                            viewModel.process(StudyIntent.SaveStudy); true
+                        }
                         else -> false
                     }
                 }
@@ -160,11 +141,8 @@ fun StudyEditorScreen(
             RichTextEditor(
                 state = richState,
                 modifier = Modifier.fillMaxSize(),
-                colors = RichTextEditorDefaults.richTextEditorColors(
-                    containerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
-                )
+                colors = RichTextEditorDefaults.richTextEditorColors(containerColor = Color.Transparent),
+                placeholder = { Text("Comienza a escribir tu enseñanza aquí...") }
             )
 
             StudyEditorFloatingMenu(

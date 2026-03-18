@@ -23,6 +23,9 @@ interface StudyDao {
     @Update
     suspend fun updateNotebook(notebook: StudyNotebookEntity)
 
+    @Query("SELECT COUNT(*) FROM study_notebooks")
+    suspend fun getNotebookCount(): Int
+
     @Query("SELECT * FROM studies WHERE notebookId = :notebookId ORDER BY updatedAt DESC")
     fun observeStudies(notebookId: Long): Flow<List<StudyEntity>>
 
