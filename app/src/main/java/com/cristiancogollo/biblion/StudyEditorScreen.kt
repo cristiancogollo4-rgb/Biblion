@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion
 
+import android.content.Context
 import android.graphics.Typeface
 import android.text.Editable
 import android.text.Spannable
@@ -14,6 +15,7 @@ import android.text.style.StyleSpan
 import android.view.View
 import android.widget.EditText
 import android.widget.Toast
+import androidx.appcompat.widget.AppCompatEditText
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -78,6 +80,26 @@ private class CitationSpan(
         val x = (editText.layout?.getPrimaryHorizontal(start) ?: 0f).roundToInt()
         val y = (editText.layout?.getLineBottom(line) ?: 0)
         onPress(this, IntOffset(x, y))
+    }
+}
+
+/**
+ * EditText que notifica cambios de selección en tiempo real.
+ *
+ * El listener anterior basado en GlobalLayout no disparaba siempre
+ * al seleccionar texto, por lo que el popup de formato (Pintar, etc.)
+ * no aparecía de manera confiable.
+ */
+private class SelectionAwareEditText(context: Context) : AppCompatEditText(context) {
+    var onSelectionChangedListener: ((Int, Int, IntOffset) -> Unit)? = null
+
+    override fun onSelectionChanged(selStart: Int, selEnd: Int) {
+        super.onSelectionChanged(selStart, selEnd)
+        val start = selStart.coerceAtLeast(0)
+        val line = layout?.getLineForOffset(start) ?: 0
+        val x = ((layout?.getPrimaryHorizontal(start) ?: 0f) + totalPaddingLeft).toInt()
+        val y = ((layout?.getLineTop(line) ?: 0) + totalPaddingTop).toInt()
+        onSelectionChangedListener?.invoke(start, selEnd.coerceAtLeast(0), IntOffset(x, y))
     }
 }
 
@@ -371,7 +393,7 @@ fun StudyEditorScreen(
 
             AndroidView(
                 factory = { context ->
-                    EditText(context).apply {
+                    SelectionAwareEditText(context).apply {
                         setTextColor(android.graphics.Color.DKGRAY)
                         setBackgroundColor(android.graphics.Color.TRANSPARENT)
                         textSize = viewModel.noteFontSize
@@ -563,19 +585,21 @@ fun StudyEditorScreen(
  * Reporta cambios de selección y coordenadas para anclar el menú contextual flotante.
  */
 private fun EditText.setOnSelectionChangedListener(onSelectionChanged: (Int, Int, IntOffset) -> Unit) {
-    val self = this
-    self.customSelectionActionModeCallback = object : android.view.ActionMode.Callback {
+    customSelectionActionModeCallback = object : android.view.ActionMode.Callback {
         override fun onCreateActionMode(mode: android.view.ActionMode?, menu: android.view.Menu?): Boolean = true
         override fun onPrepareActionMode(mode: android.view.ActionMode?, menu: android.view.Menu?): Boolean = true
         override fun onActionItemClicked(mode: android.view.ActionMode?, item: android.view.MenuItem?): Boolean = false
         override fun onDestroyActionMode(mode: android.view.ActionMode?) = Unit
     }
 
-    self.viewTreeObserver.addOnGlobalLayoutListener {
-        val start = self.selectionStart.coerceAtLeast(0)
-        val line = self.layout?.getLineForOffset(start) ?: 0
-        val x = ((self.layout?.getPrimaryHorizontal(start) ?: 0f) + self.totalPaddingLeft).toInt()
-        val y = ((self.layout?.getLineTop(line) ?: 0) + self.totalPaddingTop).toInt()
-        onSelectionChanged(start, self.selectionEnd.coerceAtLeast(0), IntOffset(x, y))
+    val selectionAware = this as? SelectionAwareEditText
+    if (selectionAware != null) {
+        selectionAware.onSelectionChangedListener = onSelectionChanged
+    } else {
+        val start = selectionStart.coerceAtLeast(0)
+        val line = layout?.getLineForOffset(start) ?: 0
+        val x = ((layout?.getPrimaryHorizontal(start) ?: 0f) + totalPaddingLeft).toInt()
+        val y = ((layout?.getLineTop(line) ?: 0) + totalPaddingTop).toInt()
+        onSelectionChanged(start, selectionEnd.coerceAtLeast(0), IntOffset(x, y))
     }
 }
