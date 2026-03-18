@@ -61,6 +61,7 @@ sealed interface StudyIntent {
     data object Undo : StudyIntent
     data object Redo : StudyIntent
     data object ExportPdf : StudyIntent
+    data object SaveStudy : StudyIntent
 }
 
 class StudyViewModel(application: Application) : AndroidViewModel(application) {
@@ -140,6 +141,7 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
                 _state.value = _state.value.copy(richHtml = next, blocks = rebuildBlocks(next, _state.value.blocks))
             }
             StudyIntent.ExportPdf -> exportPdfStub()
+            StudyIntent.SaveStudy -> saveStudyNow()
         }
     }
 
