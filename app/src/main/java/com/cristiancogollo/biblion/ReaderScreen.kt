@@ -20,16 +20,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
@@ -114,9 +105,17 @@ fun ReaderScreen(
     var isStudyModeEnabled by remember { mutableStateOf(initialStudyMode) }
     val studyUi by studyViewModel.state.collectAsState()
 
+    // EFECTO DE ENTRADA: Forza horizontal solo si el modo estudio está activo
     LaunchedEffect(isStudyModeEnabled, isLandscape) {
         if (isStudyModeEnabled && !isLandscape) {
             context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        }
+    }
+
+    // EFECTO DE SALIDA: Restaura vertical SIEMPRE que se destruya esta pantalla
+    DisposableEffect(Unit) {
+        onDispose {
+            context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
         }
     }
 
@@ -132,8 +131,8 @@ fun ReaderScreen(
                     viewModel = studyViewModel,
                     onFocusModeChanged = {},
                     onClose = {
-                        isStudyModeEnabled = false
-                        context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                        // Al hacer popBackStack, el DisposableEffect de arriba se encargará de la orientación
+                        navController.popBackStack()
                     }
                 )
             }
@@ -160,7 +159,8 @@ private fun StudyModeNavigation(initialBook: String?) {
             route = Screen.Books.route,
             arguments = listOf(navArgument("testament") { type = NavType.StringType })
         ) { backStackEntry ->
-            val testament = Testament.fromRouteArg(backStackEntry.arguments?.getString("testament"))
+            val testamentStr = backStackEntry.arguments?.getString("testament")
+            val testament = Testament.fromRouteArg(testamentStr)
             BooksScreen(navController = splitNavController, selectedTestament = testament, openInStudyMode = true)
         }
         composable(
@@ -175,19 +175,6 @@ private fun StudyModeNavigation(initialBook: String?) {
             ReaderContent(
                 navController = splitNavController,
                 bookName = book,
-                isStudyModeActive = true,
-                viewModel = studyViewModel
-            )
-        }
-        composable(
-            route = Screen.ReaderWithoutBook.route,
-            arguments = listOf(
-                navArgument("studyMode") { type = NavType.BoolType; defaultValue = true }
-            )
-        ) {
-            ReaderContent(
-                navController = splitNavController,
-                bookName = null,
                 isStudyModeActive = true,
                 viewModel = studyViewModel
             )
@@ -368,7 +355,7 @@ fun ReaderContent(
             VerseActionsFloatingMenu(
                 selectedCount = selectedVerseActions.size,
                 anchorOffset = IntOffset.Zero,
-                showHighlightOptions = true, // Siempre mostrar subrayado
+                showHighlightOptions = true,
                 highlightPalette = highlightPalette,
                 onDismiss = { selectedVerseActions = emptyMap() },
                 onClearSelection = { selectedVerseActions = emptyMap() },
@@ -446,7 +433,6 @@ fun ReaderContent(
  * @param isSelectionMode indica si hay selección activa global.
  * @param onShowActions callback long-press (inicio de selección/acciones).
  * @param onToggleSelection callback de toggle en selección activa.
- * @param onPositionCaptured callback para reportar coordenada usada por popup contextual.
  */
 fun VerseItem(
     verseNumber: String,

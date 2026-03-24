@@ -18,6 +18,22 @@ import androidx.navigation.NavController
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 import kotlinx.coroutines.launch
 
+// Optimizacion: Listas fuera del composable para evitar re-asignacion constante
+private val oldTestamentBooks = listOf(
+    "Genesis", "Exodo", "Levitico", "Numeros", "Deuteronomio", "Josue", "Jueces", "Rut",
+    "1 Samuel", "2 Samuel", "1 Reyes", "2 Reyes", "1 Cronicas", "2 Cronicas", "Esdras",
+    "Nehemias", "Ester", "Job", "Salmos", "Proverbios", "Eclesiastes", "Cantares",
+    "Isaias", "Jeremias", "Lamentaciones", "Ezequiel", "Daniel", "Oseas", "Joel", "Amos",
+    "Abdias", "Jonas", "Miqueas", "Nahum", "Habacuc", "Sofonias", "Hageo", "Zacarias", "Malaquias"
+)
+
+private val newTestamentBooks = listOf(
+    "Mateo", "Marcos", "Lucas", "Juan", "Hechos", "Romanos", "1 Corintios", "2 Corintios",
+    "Galatas", "Efesios", "Filipenses", "Colosenses", "1 Tesalonicenses", "2 Tesalonicenses",
+    "1 Timoteo", "2 Timoteo", "Tito", "Filemon", "Hebreos", "Santiago", "1 Pedro", "2 Pedro",
+    "1 Juan", "2 Juan", "3 Juan", "Judas", "Apocalipsis"
+)
+
 /**
  * Pantalla de listado de libros por testamento.
  *
@@ -31,23 +47,14 @@ fun BooksScreen(navController: NavController, selectedTestament: Testament, open
 
     var currentSelectedTestament by remember { mutableStateOf(selectedTestament) }
 
-    val oldTestamentBooks = listOf(
-        "Genesis", "Exodo", "Levitico", "Numeros", "Deuteronomio", "Josue", "Jueces", "Rut",
-        "1 Samuel", "2 Samuel", "1 Reyes", "2 Reyes", "1 Cronicas", "2 Cronicas", "Esdras",
-        "Nehemias", "Ester", "Job", "Salmos", "Proverbios", "Eclesiastes", "Cantares",
-        "Isaias", "Jeremias", "Lamentaciones", "Ezequiel", "Daniel", "Oseas", "Joel", "Amos",
-        "Abdias", "Jonas", "Miqueas", "Nahum", "Habacuc", "Sofonias", "Hageo", "Zacarias", "Malaquias"
-    )
-
-    val newTestamentBooks = listOf(
-        "Mateo", "Marcos", "Lucas", "Juan", "Hechos", "Romanos", "1 Corintios", "2 Corintios",
-        "Galatas", "Efesios", "Filipenses", "Colosenses", "1 Tesalonicenses", "2 Tesalonicenses",
-        "1 Timoteo", "2 Timoteo", "Tito", "Filemon", "Hebreos", "Santiago", "1 Pedro", "2 Pedro",
-        "1 Juan", "2 Juan", "3 Juan", "Judas", "Apocalipsis"
-    )
-
-    val booksToShow = if (currentSelectedTestament == Testament.OLD) oldTestamentBooks else newTestamentBooks
-    val title = "Libros del ${currentSelectedTestament.label}"
+    // Optimizacion: Derivamos los datos solo cuando cambia el testamento seleccionado
+    val booksToShow = remember(currentSelectedTestament) {
+        if (currentSelectedTestament == Testament.OLD) oldTestamentBooks else newTestamentBooks
+    }
+    
+    val title = remember(currentSelectedTestament) {
+        "Libros del ${currentSelectedTestament.label}"
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -95,7 +102,8 @@ fun BooksScreen(navController: NavController, selectedTestament: Testament, open
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    items(booksToShow) { bookName ->
+                    // Optimizacion: Añadimos 'key' para que Compose identifique cada item y sea mas fluido
+                    items(booksToShow, key = { it }) { bookName ->
                         BookCard(
                             bookName = bookName,
                             onClick = {
