@@ -15,10 +15,16 @@ sealed class Screen(val route: String) {
         fun createRoute(testament: Testament): String = "books/${testament.toRouteArg()}"
     }
 
-    data object Reader : Screen("reader?bookName={bookName}&studyMode={studyMode}") {
+    data object ReaderWithBook : Screen("reader/{bookName}?studyMode={studyMode}")
+    data object ReaderWithoutBook : Screen("reader?studyMode={studyMode}")
+
+    data object Reader {
         fun createRoute(bookName: String? = null, studyMode: Boolean = false): String {
-            val encodedBook = encodeArg(bookName.orEmpty())
-            return "reader?bookName=$encodedBook&studyMode=$studyMode"
+            return if (bookName.isNullOrBlank()) {
+                "reader?studyMode=$studyMode"
+            } else {
+                "reader/${encodeArg(bookName)}?studyMode=$studyMode"
+            }
         }
     }
 

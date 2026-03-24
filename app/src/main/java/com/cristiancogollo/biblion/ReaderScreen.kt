@@ -161,12 +161,12 @@ private fun StudyModeNavigation(initialBook: String?) {
             arguments = listOf(navArgument("testament") { type = NavType.StringType })
         ) { backStackEntry ->
             val testament = Testament.fromRouteArg(backStackEntry.arguments?.getString("testament"))
-            BooksScreen(navController = splitNavController, selectedTestament = testament)
+            BooksScreen(navController = splitNavController, selectedTestament = testament, openInStudyMode = true)
         }
         composable(
-            route = Screen.Reader.route,
+            route = Screen.ReaderWithBook.route,
             arguments = listOf(
-                navArgument("bookName") { type = NavType.StringType; defaultValue = "" },
+                navArgument("bookName") { type = NavType.StringType },
                 navArgument("studyMode") { type = NavType.BoolType; defaultValue = true }
             )
         ) { backStackEntry ->
@@ -175,6 +175,19 @@ private fun StudyModeNavigation(initialBook: String?) {
             ReaderContent(
                 navController = splitNavController,
                 bookName = book,
+                isStudyModeActive = true,
+                viewModel = studyViewModel
+            )
+        }
+        composable(
+            route = Screen.ReaderWithoutBook.route,
+            arguments = listOf(
+                navArgument("studyMode") { type = NavType.BoolType; defaultValue = true }
+            )
+        ) {
+            ReaderContent(
+                navController = splitNavController,
+                bookName = null,
                 isStudyModeActive = true,
                 viewModel = studyViewModel
             )

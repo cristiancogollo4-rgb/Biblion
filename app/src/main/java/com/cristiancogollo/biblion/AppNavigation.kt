@@ -32,12 +32,9 @@ fun AppNavigation() {
         }
 
         composable(
-            route = Screen.Reader.route,
+            route = Screen.ReaderWithBook.route,
             arguments = listOf(
-                navArgument("bookName") {
-                    type = NavType.StringType
-                    defaultValue = ""
-                },
+                navArgument("bookName") { type = NavType.StringType },
                 navArgument("studyMode") {
                     type = NavType.BoolType
                     defaultValue = false
@@ -51,6 +48,23 @@ fun AppNavigation() {
             ReaderScreen(
                 navController = navController,
                 bookName = decodedBookName,
+                initialStudyMode = studyMode
+            )
+        }
+
+        composable(
+            route = Screen.ReaderWithoutBook.route,
+            arguments = listOf(
+                navArgument("studyMode") {
+                    type = NavType.BoolType
+                    defaultValue = true
+                }
+            )
+        ) { backStackEntry ->
+            val studyMode = backStackEntry.arguments?.getBoolean("studyMode") ?: true
+            ReaderScreen(
+                navController = navController,
+                bookName = null,
                 initialStudyMode = studyMode
             )
         }

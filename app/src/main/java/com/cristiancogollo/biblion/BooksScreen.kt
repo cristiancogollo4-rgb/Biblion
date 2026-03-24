@@ -25,7 +25,7 @@ import kotlinx.coroutines.launch
  * @param selectedTestament testamento inicial recibido desde la pantalla anterior.
  */
 @Composable
-fun BooksScreen(navController: NavController, selectedTestament: Testament) {
+fun BooksScreen(navController: NavController, selectedTestament: Testament, openInStudyMode: Boolean = false) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
@@ -99,7 +99,7 @@ fun BooksScreen(navController: NavController, selectedTestament: Testament) {
                         BookCard(
                             bookName = bookName,
                             onClick = {
-                                navController.navigate(Screen.Reader.createRoute(bookName = bookName))
+                                navController.navigate(Screen.Reader.createRoute(bookName = bookName, studyMode = openInStudyMode))
                             }
                         )
                     }
