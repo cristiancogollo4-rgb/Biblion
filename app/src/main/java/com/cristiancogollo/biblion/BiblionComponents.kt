@@ -85,7 +85,11 @@ fun TestamentSelector(
     selectedTab: String,
     onTabSelected: (String) -> Unit
 ) {
-    val tabs = listOf("Antiguo Testamento" to "ANTIGUO", "Nuevo Testamento" to "NUEVO")
+    val tabs = listOf(
+        "Antiguo Testamento" to "ANTIGUO TESTAMENTO",
+        "Nuevo Testamento" to "NUEVO TESTAMENTO"
+    )
+    val normalizedSelected = selectedTab.trim().uppercase()
 
     Row(
         modifier = Modifier
@@ -96,8 +100,8 @@ fun TestamentSelector(
             .background(Color(0xFFF0F0F0)),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        tabs.forEach { (internalValue, displayTitle) ->
-            val selected = selectedTab == internalValue
+        tabs.forEach { (displayTitle, internalValue) ->
+            val selected = normalizedSelected == internalValue
             Button(
                 onClick = {
                     Log.d("TestamentSelector", "Tab clicked: $internalValue")

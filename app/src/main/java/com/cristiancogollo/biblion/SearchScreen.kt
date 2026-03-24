@@ -1,6 +1,5 @@
 package com.cristiancogollo.biblion
 
-import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,10 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.json.JSONObject
 
 data class SearchResult(val reference: String, val text: String)
 
@@ -86,7 +82,7 @@ fun SearchScreen(navController: NavController) {
                     if (searchQuery.isNotBlank()) {
                         scope.launch {
                             isSearching = true
-                            searchResults = searchVerses(context, searchQuery)
+                            searchResults = BibleRepository.searchVerses(context, searchQuery)
                             isSearching = false
                         }
                     }
@@ -112,48 +108,5 @@ fun SearchScreen(navController: NavController) {
                 }
             }
         }
-    }
-}
-
-/**
- * Recorre el JSON bíblico local y devuelve coincidencias por texto.
- *
- * @param context contexto Android para leer assets.
- * @param query texto buscado (case-insensitive).
- * @return lista de referencias y textos que contienen la consulta.
- */
-private suspend fun searchVerses(context: Context, query: String): List<SearchResult> {
-    return withContext(Dispatchers.IO) {
-        val results = mutableListOf<SearchResult>()
-        try {
-            val jsonString = context.assets.open("rvr1960.json").bufferedReader().use { it.readText() }
-            val bible = JSONObject(jsonString)
-
-            val books = bible.keys()
-            while (books.hasNext()) {
-                val bookName = books.next()
-                val book = bible.getJSONObject(bookName)
-
-                val chapters = book.keys()
-                while (chapters.hasNext()) {
-                    val chapterNum = chapters.next()
-                    val chapter = book.getJSONObject(chapterNum)
-
-                    val verses = chapter.keys()
-                    while (verses.hasNext()) {
-                        val verseNum = verses.next()
-                        val verseText = chapter.getString(verseNum)
-
-                        if (verseText.contains(query, ignoreCase = true)) {
-                            results.add(SearchResult("$bookName $chapterNum:$verseNum", verseText))
-                        }
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            // Manejo de errores simple, podrías querer algo más sofisticado
-            e.printStackTrace()
-        }
-        results
     }
 }

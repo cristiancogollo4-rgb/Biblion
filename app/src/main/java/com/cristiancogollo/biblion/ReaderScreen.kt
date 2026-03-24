@@ -61,9 +61,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.core.content.edit
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import org.json.JSONObject
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -252,20 +250,11 @@ fun ReaderContent(
     }
 
     fun loadChapter(book: String, chapter: Int) {
-        scope.launch(Dispatchers.IO) {
+        scope.launch {
             try {
-                context.assets.open("rvr1960.json").use { input ->
-                    val json = JSONObject(input.bufferedReader().readText())
-                    json.optJSONObject(book)?.let { bookJson ->
-                        chapterCount = bookJson.length()
-                        val chapterJson = bookJson.optJSONObject(chapter.toString())
-                        val versesList = mutableListOf<Pair<String, String>>()
-                        chapterJson?.keys()?.forEach { key ->
-                            versesList.add(key to chapterJson.getString(key))
-                        }
-                        verses = versesList.sortedBy { it.first.toInt() }
-                    }
-                }
+                val content = BibleRepository.getChapter(context, book, chapter)
+                chapterCount = content.chapterCount
+                verses = content.verses
             } catch (e: Exception) {
                 Log.e("READER", "Error loading chapter: ${e.message}")
             }

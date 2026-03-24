@@ -1,7 +1,6 @@
 package com.cristiancogollo.biblion
 
 import android.content.Context
-import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,10 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.Calendar
@@ -70,9 +66,7 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
 
     // Cargar el versículo del día al entrar en la pantalla
     LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-            dailyVerse = getDailyVerse(context)
-        }
+        dailyVerse = getDailyVerse(context)
     }
 
     ModalNavigationDrawer(
@@ -156,7 +150,6 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
 
                     val encodedTestament = URLEncoder.encode(testament, StandardCharsets.UTF_8.toString())
 
-                    Log.d("HomeScreen", "Navegando a: books/$encodedTestament")
                     navController.navigate("books/$encodedTestament")
                 }
 
@@ -200,59 +193,37 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
  * Obtiene el versículo del día. Si ya se generó uno hoy, lo recupera.
  * Si no, genera uno nuevo aleatoriamente y lo guarda.
  */
-private fun getDailyVerse(context: Context): DailyVerse {
+private suspend fun getDailyVerse(context: Context): DailyVerse {
     val prefs = context.getSharedPreferences("BiblionAppPrefs", Context.MODE_PRIVATE)
     val today = Calendar.getInstance()
 
     val lastUpdateMillis = prefs.getLong("dailyVerseTimestamp", 0)
     val lastUpdateCalendar = Calendar.getInstance().apply { timeInMillis = lastUpdateMillis }
 
-    // Comprueba si el día del año o el año son diferentes
     val isNewDay = today.get(Calendar.DAY_OF_YEAR) != lastUpdateCalendar.get(Calendar.DAY_OF_YEAR) ||
             today.get(Calendar.YEAR) != lastUpdateCalendar.get(Calendar.YEAR)
 
     if (isNewDay) {
-        // Es un nuevo día, genera un nuevo versículo
-        try {
-            val jsonString = context.assets.open("rvr1960.json").bufferedReader().use { it.readText() }
-            val bible = JSONObject(jsonString)
-
-            val books = bible.keys().asSequence().toList()
-            val randomBookName = books.random()
-            val book = bible.getJSONObject(randomBookName)
-
-            val chapters = book.keys().asSequence().toList()
-            val randomChapterNum = chapters.random()
-            val chapter = book.getJSONObject(randomChapterNum)
-
-            val verses = chapter.keys().asSequence().toList()
-            val randomVerseNum = verses.random()
-            val verseText = chapter.getString(randomVerseNum)
-            val reference = "$randomBookName $randomChapterNum:$randomVerseNum"
-
-            val newVerse = DailyVerse(verseText, reference)
-
-            // Guarda el nuevo versículo y la fecha actual
+        return try {
+            val newVerse = BibleRepository.getRandomVerse(context)
             with(prefs.edit()) {
                 putString("dailyVerseText", newVerse.text)
                 putString("dailyVerseRef", newVerse.reference)
                 putLong("dailyVerseTimestamp", today.timeInMillis)
                 apply()
             }
-            return newVerse
-        } catch (e: Exception) {
-            // En caso de error, devuelve un versículo por defecto
-            return DailyVerse(
+            newVerse
+        } catch (_: Exception) {
+            DailyVerse(
                 "Porque de tal manera amó Dios al mundo, que ha dado a su Hijo unigénito, para que todo aquel que en él cree, no se pierda, mas tenga vida eterna.",
                 "Juan 3:16"
             )
         }
-    } else {
-        // Es el mismo día, recupera el versículo guardado
-        val text = prefs.getString("dailyVerseText", "")!!
-        val ref = prefs.getString("dailyVerseRef", "")!!
-        return DailyVerse(text, ref)
     }
+
+    val text = prefs.getString("dailyVerseText", "")!!
+    val ref = prefs.getString("dailyVerseRef", "")!!
+    return DailyVerse(text, ref)
 }
 
 
