@@ -129,7 +129,8 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
                     },
                     onSearchIconClick = {
                         navController.navigate(Screen.Search.route)
-                    }
+                    },
+                    logoResId = R.drawable.logobiblionsinletras
                 )
             }
         ) { innerPadding ->
