@@ -49,7 +49,7 @@ fun EnsenanzaScreen(navController: NavController) {
             FloatingActionButton(
                 onClick = {
                     viewModel.process(StudyIntent.CreateNewStudy)
-                    navController.navigate("reader/Genesis?studyMode=true")
+                    navController.navigate(Screen.Reader.createRoute(studyMode = true))
                 },
                 containerColor = BiblionNavy,
                 contentColor = Color.White
@@ -75,7 +75,8 @@ fun EnsenanzaScreen(navController: NavController) {
                         dateText = dateFormat.format(Date(study.updatedAt)),
                         onOpen = {
                             viewModel.process(StudyIntent.SelectStudy(study.id))
-                            navController.navigate("reader/Genesis?studyMode=true")
+                            val preferredBook = viewModel.preferredBookForStudy(study)
+                            navController.navigate(Screen.Reader.createRoute(bookName = preferredBook, studyMode = true))
                         },
                         onDelete = {
                             viewModel.process(StudyIntent.DeleteStudy(study.id))

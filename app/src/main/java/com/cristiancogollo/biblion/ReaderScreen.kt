@@ -41,7 +41,6 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -62,9 +61,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.core.content.edit
 import kotlinx.coroutines.launch
-import java.net.URLDecoder
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
+import org.json.JSONObject
 
 private const val PREFS_NAME = "BiblionReaderPrefs"
 private const val KEY_FONT_SIZE = "fontSize"
@@ -154,26 +151,27 @@ fun ReaderScreen(
  */
 private fun StudyModeNavigation(initialBook: String?) {
     val splitNavController = rememberNavController()
-    val charset = StandardCharsets.UTF_8.toString()
     val studyViewModel: StudyViewModel = viewModel()
 
-    NavHost(navController = splitNavController, startDestination = "home") {
-        composable("home") { HomeScreen(splitNavController) }
-        composable("search") { SearchScreen(splitNavController) }
+    NavHost(navController = splitNavController, startDestination = Screen.Home.route) {
+        composable(Screen.Home.route) { HomeScreen(splitNavController) }
+        composable(Screen.Search.route) { SearchScreen(splitNavController) }
         composable(
-            route = "books/{testament}",
+            route = Screen.Books.route,
             arguments = listOf(navArgument("testament") { type = NavType.StringType })
         ) { backStackEntry ->
-            val encodedTestament = backStackEntry.arguments?.getString("testament") ?: ""
-            val testament = URLDecoder.decode(encodedTestament, charset)
+            val testament = Testament.fromRouteArg(backStackEntry.arguments?.getString("testament"))
             BooksScreen(navController = splitNavController, selectedTestament = testament)
         }
         composable(
-            route = "reader/{bookName}",
-            arguments = listOf(navArgument("bookName") { type = NavType.StringType })
+            route = Screen.Reader.route,
+            arguments = listOf(
+                navArgument("bookName") { type = NavType.StringType; defaultValue = "" },
+                navArgument("studyMode") { type = NavType.BoolType; defaultValue = true }
+            )
         ) { backStackEntry ->
             val encodedBook = backStackEntry.arguments?.getString("bookName") ?: ""
-            val book = URLDecoder.decode(encodedBook, charset)
+            val book = decodeArg(encodedBook).ifBlank { null }
             ReaderContent(
                 navController = splitNavController,
                 bookName = book,
@@ -184,10 +182,9 @@ private fun StudyModeNavigation(initialBook: String?) {
     }
 
     LaunchedEffect(initialBook) {
-        initialBook?.let {
-            val encoded = URLEncoder.encode(it, charset)
-            splitNavController.navigate("reader/$encoded") {
-                popUpTo("home")
+        if (!initialBook.isNullOrBlank()) {
+            splitNavController.navigate(Screen.Reader.createRoute(bookName = initialBook, studyMode = true)) {
+                popUpTo(Screen.Home.route)
             }
         }
     }
@@ -303,7 +300,7 @@ fun ReaderContent(
                     selectedChapter = it
                     bookName?.let { b -> loadChapter(b, it) }
                 },
-                onSearchIconClick = { navController.navigate("search") },
+                onSearchIconClick = { navController.navigate(Screen.Search.route) },
                 onBookTitleClick = { showDialog = true },
                 onIncreaseFontSize = {
                     if (fontSizeValue < 35f) {

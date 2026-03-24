@@ -1,6 +1,5 @@
 package com.cristiancogollo.biblion
 
-import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
@@ -18,8 +17,6 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 import kotlinx.coroutines.launch
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 
 /**
  * Pantalla de listado de libros por testamento.
@@ -28,13 +25,11 @@ import java.nio.charset.StandardCharsets
  * @param selectedTestament testamento inicial recibido desde la pantalla anterior.
  */
 @Composable
-fun BooksScreen(navController: NavController, selectedTestament: String) {
+fun BooksScreen(navController: NavController, selectedTestament: Testament) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    // Estado y normalización
-    val normalizedTestament = selectedTestament.replace("_", " ")
-    var currentSelectedTestament by remember { mutableStateOf(normalizedTestament) }
+    var currentSelectedTestament by remember { mutableStateOf(selectedTestament) }
 
     val oldTestamentBooks = listOf(
         "Genesis", "Exodo", "Levitico", "Numeros", "Deuteronomio", "Josue", "Jueces", "Rut",
@@ -51,8 +46,8 @@ fun BooksScreen(navController: NavController, selectedTestament: String) {
         "1 Juan", "2 Juan", "3 Juan", "Judas", "Apocalipsis"
     )
 
-    val booksToShow = if (currentSelectedTestament.contains("ANTIGUO", ignoreCase = true)) oldTestamentBooks else newTestamentBooks
-    val title = "Libros Del ${currentSelectedTestament.lowercase().replaceFirstChar { it.uppercase() }}"
+    val booksToShow = if (currentSelectedTestament == Testament.OLD) oldTestamentBooks else newTestamentBooks
+    val title = "Libros del ${currentSelectedTestament.label}"
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -64,7 +59,7 @@ fun BooksScreen(navController: NavController, selectedTestament: String) {
             topBar = {
                 BiblionTopAppBar(
                     onNavigationIconClick = { scope.launch { drawerState.open() } },
-                    onSearchIconClick = { navController.navigate("search") }
+                    onSearchIconClick = { navController.navigate(Screen.Search.route) }
                 )
             }
         ) { innerPadding ->
@@ -76,7 +71,7 @@ fun BooksScreen(navController: NavController, selectedTestament: String) {
             ) {
                 TestamentSelector(
                     selectedTab = currentSelectedTestament,
-                    onTabSelected = { currentSelectedTestament = it.replace("_", " ") }
+                    onTabSelected = { currentSelectedTestament = it }
                 )
 
                 HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray)
@@ -104,8 +99,7 @@ fun BooksScreen(navController: NavController, selectedTestament: String) {
                         BookCard(
                             bookName = bookName,
                             onClick = {
-                                val encoded = URLEncoder.encode(bookName, StandardCharsets.UTF_8.toString())
-                                navController.navigate("reader/$encoded")
+                                navController.navigate(Screen.Reader.createRoute(bookName = bookName))
                             }
                         )
                     }
@@ -138,10 +132,9 @@ fun BiblionDrawerContent(navController: NavController, onClose: () -> Unit) {
                 onClick = {
                     onClose()
                     when (titulo) {
-                        "Inicio" -> navController.navigate("home")
+                        "Inicio" -> navController.navigate(Screen.Home.route)
                         "Modo Estudio" -> {
-                            val encoded = URLEncoder.encode("Genesis", StandardCharsets.UTF_8.toString())
-                            navController.navigate("reader/$encoded?studyMode=true")
+                            navController.navigate(Screen.Reader.createRoute(studyMode = true))
                         }
                     }
                 }

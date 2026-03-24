@@ -31,8 +31,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 import java.util.Calendar
 
 // Estructura para almacenar el versículo diario
@@ -90,12 +88,11 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
                             scope.launch { drawerState.close() }
                             when (titulo) {
                                 "Mis Enseñanzas" -> {
-                                    navController.navigate("ensenanzas")
+                                    navController.navigate(Screen.Ensenanzas.route)
                                 }
                                 "Modo Estudio" -> {
                                     // Navegamos a un libro por defecto (ej: Genesis) con modo estudio activado
-                                    val encodedBook = URLEncoder.encode("Genesis", StandardCharsets.UTF_8.toString())
-                                    navController.navigate("reader/$encodedBook?studyMode=true")
+                                    navController.navigate(Screen.Reader.createRoute(studyMode = true))
                                 }
                                 //navegación para otras opciones si es necesario
                             }
@@ -131,7 +128,7 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
                         scope.launch { drawerState.open() }
                     },
                     onSearchIconClick = {
-                        navController.navigate("search")
+                        navController.navigate(Screen.Search.route)
                     }
                 )
             }
@@ -143,14 +140,11 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
                     .verticalScroll(rememberScrollState()) // Para que la pantalla pueda hacer scroll si el contenido crece
             ) {
                 // *** CORRECCIÓN CLAVE: Pasar "ANTIGUO_TESTAMENTO" como estado inicial ***
-                var selectedTestament by remember { mutableStateOf("ANTIGUO TESTAMENTO") }
+                var selectedTestament by remember { mutableStateOf(Testament.OLD) }
 
                 TestamentSelector(selectedTab = selectedTestament) { testament ->
-                    selectedTestament = testament // Actualiza el color del botón seleccionado
-
-                    val encodedTestament = URLEncoder.encode(testament, StandardCharsets.UTF_8.toString())
-
-                    navController.navigate("books/$encodedTestament")
+                    selectedTestament = testament
+                    navController.navigate(Screen.Books.createRoute(testament))
                 }
 
                 HorizontalDivider(thickness = 0.5.dp)

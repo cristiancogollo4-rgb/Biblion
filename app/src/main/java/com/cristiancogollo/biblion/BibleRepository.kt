@@ -8,8 +8,8 @@ import org.json.JSONObject
 /**
  * Repositorio centralizado para acceso a Biblia local.
  *
- * - Carga y cachea `rvr1960.json` una sola vez por proceso.
- * - Expone helpers para operaciones frecuentes (capítulo, búsqueda, versículo diario).
+ * - Carga y cachea `rvr1960.json` en memoria.
+ * - Soporta invalidación manual y TTL opcional para escenarios futuros.
  */
 object BibleRepository {
     private const val BIBLE_ASSET = "rvr1960.json"
@@ -17,13 +17,44 @@ object BibleRepository {
     @Volatile
     private var cachedBible: JSONObject? = null
 
+    @Volatile
+    private var cacheLoadedAtMs: Long = 0L
+
+    /**
+     * Si es null, la cache vive durante todo el proceso.
+     * Si se define, invalida cache al superar el tiempo.
+     */
+    @Volatile
+    var cacheTtlMs: Long? = null
+
+    private fun isCacheValid(now: Long): Boolean {
+        val ttl = cacheTtlMs ?: return cachedBible != null
+        return cachedBible != null && (now - cacheLoadedAtMs) <= ttl
+    }
+
+    fun clearCache() {
+        synchronized(this) {
+            cachedBible = null
+            cacheLoadedAtMs = 0L
+        }
+    }
+
     private fun getBible(context: Context): JSONObject {
-        cachedBible?.let { return it }
+        val now = System.currentTimeMillis()
+        if (isCacheValid(now)) {
+            return cachedBible!!
+        }
 
         return synchronized(this) {
-            cachedBible ?: run {
-                val jsonString = context.assets.open(BIBLE_ASSET).bufferedReader().use { it.readText() }
-                JSONObject(jsonString).also { cachedBible = it }
+            val nowInLock = System.currentTimeMillis()
+            if (isCacheValid(nowInLock)) {
+                return@synchronized cachedBible!!
+            }
+
+            val jsonString = context.assets.open(BIBLE_ASSET).bufferedReader().use { it.readText() }
+            JSONObject(jsonString).also {
+                cachedBible = it
+                cacheLoadedAtMs = nowInLock
             }
         }
     }

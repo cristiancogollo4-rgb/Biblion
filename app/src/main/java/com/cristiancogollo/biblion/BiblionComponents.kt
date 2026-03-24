@@ -1,6 +1,5 @@
 package com.cristiancogollo.biblion
 
-import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -82,14 +81,10 @@ fun BiblionTopAppBar(
 // 2. TestamentSelector: Selector tipo pestañas (Antiguo / Nuevo)
 @Composable
 fun TestamentSelector(
-    selectedTab: String,
-    onTabSelected: (String) -> Unit
+    selectedTab: Testament,
+    onTabSelected: (Testament) -> Unit
 ) {
-    val tabs = listOf(
-        "Antiguo Testamento" to "ANTIGUO TESTAMENTO",
-        "Nuevo Testamento" to "NUEVO TESTAMENTO"
-    )
-    val normalizedSelected = selectedTab.trim().uppercase()
+    val tabs = listOf(Testament.OLD, Testament.NEW)
 
     Row(
         modifier = Modifier
@@ -100,12 +95,11 @@ fun TestamentSelector(
             .background(Color(0xFFF0F0F0)),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        tabs.forEach { (displayTitle, internalValue) ->
-            val selected = normalizedSelected == internalValue
+        tabs.forEach { testament ->
+            val selected = selectedTab == testament
             Button(
                 onClick = {
-                    Log.d("TestamentSelector", "Tab clicked: $internalValue")
-                    onTabSelected(internalValue)
+                    onTabSelected(testament)
                 },
                 modifier = Modifier.weight(1f).fillMaxHeight(),
                 shape = RoundedCornerShape(10.dp),
@@ -116,7 +110,7 @@ fun TestamentSelector(
                 contentPadding = PaddingValues(0.dp)
             ) {
                 Text(
-                    text = displayTitle,
+                    text = testament.shortLabel,
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                     fontSize = 13.sp
                 )

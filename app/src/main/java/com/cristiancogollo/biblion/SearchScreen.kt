@@ -36,11 +36,14 @@ import kotlinx.coroutines.launch
 
 data class SearchResult(val reference: String, val text: String)
 
-/**
- * Pantalla de búsqueda bíblica por texto libre.
- *
- * @param navController controlador de navegación para volver a pantalla anterior.
- */
+sealed interface SearchUiState {
+    data object Idle : SearchUiState
+    data object Loading : SearchUiState
+    data class Success(val results: List<SearchResult>) : SearchUiState
+    data class Empty(val query: String) : SearchUiState
+    data class Error(val message: String) : SearchUiState
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(navController: NavController) {
@@ -48,8 +51,7 @@ fun SearchScreen(navController: NavController) {
     val scope = rememberCoroutineScope()
 
     var searchQuery by remember { mutableStateOf("") }
-    var searchResults by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
-    var isSearching by remember { mutableStateOf(false) }
+    var uiState by remember { mutableStateOf<SearchUiState>(SearchUiState.Idle) }
 
     Scaffold(
         topBar = {
@@ -79,31 +81,55 @@ fun SearchScreen(navController: NavController) {
             Spacer(modifier = Modifier.height(8.dp))
             Button(
                 onClick = {
-                    if (searchQuery.isNotBlank()) {
-                        scope.launch {
-                            isSearching = true
-                            searchResults = BibleRepository.searchVerses(context, searchQuery)
-                            isSearching = false
+                    if (searchQuery.isBlank()) return@Button
+                    scope.launch {
+                        uiState = SearchUiState.Loading
+                        runCatching {
+                            BibleRepository.searchVerses(context, searchQuery)
+                        }.onSuccess { results ->
+                            uiState = if (results.isEmpty()) {
+                                SearchUiState.Empty(searchQuery)
+                            } else {
+                                SearchUiState.Success(results)
+                            }
+                        }.onFailure { error ->
+                            uiState = SearchUiState.Error(error.message ?: "Ocurrió un error inesperado")
                         }
                     }
                 },
+                enabled = uiState !is SearchUiState.Loading,
                 modifier = Modifier.align(Alignment.End)
             ) {
                 Text("Buscar")
             }
             Spacer(modifier = Modifier.height(16.dp))
 
-            if (isSearching) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+            when (val state = uiState) {
+                SearchUiState.Idle -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Escribe una palabra para comenzar la búsqueda.")
+                    }
                 }
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(searchResults) { result ->
-                        // Usamos la Card que ya tienes para mostrar cada versículo encontrado
-                        DailyVerseCard(verse = result.text, reference = result.reference)
+                SearchUiState.Loading -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                }
+                is SearchUiState.Empty -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Sin resultados para: \"${state.query}\".")
+                    }
+                }
+                is SearchUiState.Error -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Error al buscar: ${state.message}")
+                    }
+                }
+                is SearchUiState.Success -> {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(state.results) { result ->
+                            DailyVerseCard(verse = result.text, reference = result.reference)
+                        }
                     }
                 }
             }

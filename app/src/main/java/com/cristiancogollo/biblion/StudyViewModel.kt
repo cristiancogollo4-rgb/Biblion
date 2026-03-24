@@ -4,13 +4,17 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import java.util.UUID
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -82,6 +86,9 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
     private val notebooksFlow = dao.observeNotebooks().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     private val selectedNotebookFlow = MutableStateFlow<Long?>(null)
 
+    private val autosaveDebounceMs = 2500L
+    private var lastSavedSignature: String? = null
+
     init {
         viewModelScope.launch {
             ensureSeedData()
@@ -99,7 +106,7 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
                 _state.value = _state.value.copy(allStudies = all)
             }
         }
-        startAutoSave()
+        startAutoSaveObserver()
     }
 
     fun process(intent: StudyIntent) {
@@ -116,7 +123,9 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
                     dao.deleteCitationsForStudy(intent.studyId)
                 }
             }
-            is StudyIntent.UpdateTitle -> _state.value = _state.value.copy(title = intent.title)
+            is StudyIntent.UpdateTitle -> {
+                _state.value = _state.value.copy(title = intent.title)
+            }
             is StudyIntent.UpdateRichHtml -> {
                 undoStack.addLast(_state.value.richHtml)
                 _state.value = _state.value.copy(
@@ -139,13 +148,19 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
             StudyIntent.DecreaseSelectionFont -> {
                 _state.value = _state.value.copy(selectionFontSizeSp = (_state.value.selectionFontSizeSp - 2f).coerceAtLeast(12f))
             }
-            is StudyIntent.AddAudioBlock -> _state.value = _state.value.copy(
-                blocks = _state.value.blocks + StudyBlockNode.Audio(intent.uri, intent.title)
-            )
-            is StudyIntent.AddImageBlock -> _state.value = _state.value.copy(
-                blocks = _state.value.blocks + StudyBlockNode.Image(intent.uri, intent.caption)
-            )
-            is StudyIntent.ChangeVersion -> _state.value = _state.value.copy(globalVersion = intent.version)
+            is StudyIntent.AddAudioBlock -> {
+                _state.value = _state.value.copy(
+                    blocks = _state.value.blocks + StudyBlockNode.Audio(intent.uri, intent.title)
+                )
+            }
+            is StudyIntent.AddImageBlock -> {
+                _state.value = _state.value.copy(
+                    blocks = _state.value.blocks + StudyBlockNode.Image(intent.uri, intent.caption)
+                )
+            }
+            is StudyIntent.ChangeVersion -> {
+                _state.value = _state.value.copy(globalVersion = intent.version)
+            }
             StudyIntent.Undo -> if (undoStack.isNotEmpty()) {
                 val previous = undoStack.removeLast()
                 redoStack.addLast(_state.value.richHtml)
@@ -242,14 +257,25 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
             blocks = doc.blocks,
             globalVersion = doc.globalVersion
         )
+        lastSavedSignature = buildSignature(_state.value)
     }
 
-    private fun startAutoSave() {
+    private fun startAutoSaveObserver() {
         viewModelScope.launch {
-            while (true) {
-                delay(7000)
-                persistCurrentStudy()
-            }
+            state
+                .map { current ->
+                    val selectedId = current.selectedStudyId ?: return@map ""
+                    val document = SerializedStudyDocument(blocks = current.blocks, globalVersion = current.globalVersion)
+                    "$selectedId|${current.title}|${json.encodeToString(document)}"
+                }
+                .filter { it.isNotBlank() }
+                .debounce(autosaveDebounceMs)
+                .distinctUntilChanged()
+                .collect { signature ->
+                    if (signature != lastSavedSignature) {
+                        persistCurrentStudy()
+                    }
+                }
         }
     }
 
@@ -258,6 +284,7 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
         val id = s.selectedStudyId ?: return false
         val notebookId = s.selectedNotebookId ?: return false
         val now = System.currentTimeMillis()
+        val existing = dao.getStudy(id)
         val document = SerializedStudyDocument(blocks = s.blocks, globalVersion = s.globalVersion)
         dao.updateStudy(
             StudyEntity(
@@ -265,7 +292,7 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
                 title = s.title.ifBlank { "Nuevo estudio" },
                 notebookId = notebookId,
                 contentSerialized = json.encodeToString(document),
-                createdAt = now,
+                createdAt = existing?.createdAt ?: now,
                 updatedAt = now
             )
         )
@@ -281,7 +308,29 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
         dao.replaceCitations(id, citations)
+        lastSavedSignature = buildSignature(_state.value)
         return true
+    }
+
+    fun preferredBookForStudy(study: StudyEntity): String? {
+        val document = runCatching { json.decodeFromString<SerializedStudyDocument>(study.contentSerialized) }
+            .getOrNull() ?: return null
+
+        val citationBook = document.blocks
+            .filterIsInstance<StudyBlockNode.Citation>()
+            .firstOrNull()
+            ?.reference
+            ?.book
+        if (!citationBook.isNullOrBlank()) return citationBook
+
+        val richText = document.blocks.filterIsInstance<StudyBlockNode.RichText>().firstOrNull()?.html.orEmpty()
+        return detectReferences(richText).firstOrNull()?.book
+    }
+
+    private fun buildSignature(state: StudyUiState): String {
+        val studyId = state.selectedStudyId ?: return ""
+        val document = SerializedStudyDocument(blocks = state.blocks, globalVersion = state.globalVersion)
+        return "$studyId|${state.title}|${json.encodeToString(document)}"
     }
 
     private fun rebuildBlocks(html: String, old: List<StudyBlockNode>): List<StudyBlockNode> {
