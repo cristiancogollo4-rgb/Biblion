@@ -218,6 +218,7 @@ fun ReaderContent(
     var chapterCount by remember { mutableIntStateOf(0) }
     var selectedChapter by remember { mutableIntStateOf(1) }
     var verses by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+    var chapterTitles by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var verseHighlights by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var showDialog by remember { mutableStateOf(false) }
     var showCitationInsertDialog by remember { mutableStateOf(false) }
@@ -252,6 +253,7 @@ fun ReaderContent(
                 val content = BibleRepository.getChapter(context, book, chapter)
                 chapterCount = content.chapterCount
                 verses = content.verses
+                chapterTitles = content.titlesByVerse
             } catch (e: Exception) {
                 Log.e("READER", "Error loading chapter: ${e.message}")
             }
@@ -324,6 +326,17 @@ fun ReaderContent(
             contentPadding = PaddingValues(16.dp)
         ) {
             items(verses) { (verseNumber, verseText) ->
+                val chapterTitle = chapterTitles[verseNumber]
+                if (!chapterTitle.isNullOrBlank()) {
+                    Text(
+                        text = chapterTitle,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp, bottom = 10.dp)
+                    )
+                }
+
                 VerseItem(
                     verseNumber = verseNumber,
                     verseText = verseText,

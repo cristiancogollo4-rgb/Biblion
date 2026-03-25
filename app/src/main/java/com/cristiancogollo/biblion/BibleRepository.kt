@@ -4,6 +4,7 @@ import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.FileNotFoundException
 import java.util.Locale
 
 /**
@@ -23,6 +24,9 @@ object BibleRepository {
     @Volatile
     private var cacheLoadedAtMsByVersion: MutableMap<String, Long> = mutableMapOf()
 
+    @Volatile
+    private var cachedTitlesByVersion: MutableMap<String, JSONObject> = mutableMapOf()
+
     /**
      * Si es null, la cache vive durante todo el proceso.
      * Si se define, invalida cache al superar el tiempo.
@@ -41,6 +45,7 @@ object BibleRepository {
         synchronized(this) {
             cachedBibleByVersion.clear()
             cacheLoadedAtMsByVersion.clear()
+            cachedTitlesByVersion.clear()
         }
     }
 
@@ -109,6 +114,31 @@ object BibleRepository {
         }
     }
 
+    private fun getTitles(context: Context): JSONObject {
+        val versionKey = getSelectedVersionKey(context)
+        val cached = cachedTitlesByVersion[versionKey]
+        if (cached != null) {
+            return cached
+        }
+
+        return synchronized(this) {
+            cachedTitlesByVersion[versionKey]?.let { return@synchronized it }
+
+            val titlesAssetName = "${versionKey}_titles.json"
+            val titlesJson = try {
+                val jsonString = context.assets.open(titlesAssetName).bufferedReader().use { it.readText() }
+                JSONObject(jsonString)
+            } catch (_: FileNotFoundException) {
+                JSONObject()
+            } catch (_: Exception) {
+                JSONObject()
+            }
+
+            cachedTitlesByVersion[versionKey] = titlesJson
+            titlesJson
+        }
+    }
+
     suspend fun getRandomVerse(context: Context): DailyVerse = withContext(Dispatchers.IO) {
         val bible = getBible(context)
 
@@ -136,10 +166,13 @@ object BibleRepository {
         chapterNumber: Int
     ): ChapterContent = withContext(Dispatchers.IO) {
         val bible = getBible(context)
+        val titlesJsonRoot = getTitles(context)
         val bookJson = bible.optJSONObject(bookName)
+        val bookTitlesJson = titlesJsonRoot.optJSONObject(bookName)
 
         val chapterCount = bookJson?.length() ?: 0
         val chapterJson = bookJson?.optJSONObject(chapterNumber.toString())
+        val chapterTitlesJson = bookTitlesJson?.optJSONObject(chapterNumber.toString())
 
         val verses = buildList {
             chapterJson?.keys()?.forEach { key ->
@@ -147,7 +180,16 @@ object BibleRepository {
             }
         }.sortedBy { it.first.toIntOrNull() ?: Int.MAX_VALUE }
 
-        ChapterContent(chapterCount = chapterCount, verses = verses)
+        val titlesByVerse = buildMap {
+            chapterTitlesJson?.keys()?.forEach { key ->
+                val title = chapterTitlesJson.optString(key).trim()
+                if (title.isNotBlank()) {
+                    put(key, title)
+                }
+            }
+        }
+
+        ChapterContent(chapterCount = chapterCount, verses = verses, titlesByVerse = titlesByVerse)
     }
 
     suspend fun searchVerses(context: Context, query: String): List<SearchResult> = withContext(Dispatchers.IO) {
@@ -182,7 +224,8 @@ object BibleRepository {
 
 data class ChapterContent(
     val chapterCount: Int,
-    val verses: List<Pair<String, String>>
+    val verses: List<Pair<String, String>>,
+    val titlesByVerse: Map<String, String> = emptyMap()
 )
 
 data class BibleVersionOption(
