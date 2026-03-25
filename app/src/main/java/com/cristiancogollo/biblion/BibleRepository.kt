@@ -4,21 +4,24 @@ import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.util.Locale
 
 /**
  * Repositorio centralizado para acceso a Biblia local.
  *
- * - Carga y cachea `rvr1960.json` en memoria.
+ * - Carga y cachea la versión seleccionada en memoria.
  * - Soporta invalidación manual y TTL opcional para escenarios futuros.
  */
 object BibleRepository {
-    private const val BIBLE_ASSET = "rvr1960.json"
+    private const val PREFS_NAME = "BiblionAppPrefs"
+    private const val KEY_SELECTED_BIBLE_VERSION = "selectedBibleVersion"
+    private const val DEFAULT_BIBLE_VERSION = "rvr1960"
 
     @Volatile
-    private var cachedBible: JSONObject? = null
+    private var cachedBibleByVersion: MutableMap<String, JSONObject> = mutableMapOf()
 
     @Volatile
-    private var cacheLoadedAtMs: Long = 0L
+    private var cacheLoadedAtMsByVersion: MutableMap<String, Long> = mutableMapOf()
 
     /**
      * Si es null, la cache vive durante todo el proceso.
@@ -27,34 +30,81 @@ object BibleRepository {
     @Volatile
     var cacheTtlMs: Long? = null
 
-    private fun isCacheValid(now: Long): Boolean {
+    private fun isCacheValid(versionKey: String, now: Long): Boolean {
+        val cachedBible = cachedBibleByVersion[versionKey]
+        val loadedAt = cacheLoadedAtMsByVersion[versionKey] ?: 0L
         val ttl = cacheTtlMs ?: return cachedBible != null
-        return cachedBible != null && (now - cacheLoadedAtMs) <= ttl
+        return cachedBible != null && (now - loadedAt) <= ttl
     }
 
     fun clearCache() {
         synchronized(this) {
-            cachedBible = null
-            cacheLoadedAtMs = 0L
+            cachedBibleByVersion.clear()
+            cacheLoadedAtMsByVersion.clear()
+        }
+    }
+
+    fun getSelectedVersionKey(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_SELECTED_BIBLE_VERSION, DEFAULT_BIBLE_VERSION)
+            ?.trim()
+            ?.lowercase(Locale.ROOT)
+            ?.ifBlank { DEFAULT_BIBLE_VERSION }
+            ?: DEFAULT_BIBLE_VERSION
+    }
+
+    fun setSelectedVersionKey(context: Context, versionKey: String) {
+        val normalized = versionKey.trim().lowercase(Locale.ROOT)
+        if (normalized.isBlank()) return
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_SELECTED_BIBLE_VERSION, normalized)
+            .apply()
+    }
+
+    fun getAvailableVersions(context: Context): List<BibleVersionOption> {
+        val availableAssets = context.assets.list("")?.toSet().orEmpty()
+        val known = listOf(
+            BibleVersionOption("rvr1960", "Reina Valera 1960"),
+            BibleVersionOption("rvr1960s", "Reina Valera 1960S"),
+            BibleVersionOption("nvi", "Nueva Versión Internacional (NVI)"),
+            BibleVersionOption("dhh", "Dios Habla Hoy (DHH)"),
+            BibleVersionOption("pdt", "Palabra de Dios para Todos (PDT)")
+        )
+
+        val knownAvailable = known.filter { "${it.key}.json" in availableAssets }
+
+        val dynamic = availableAssets
+            .asSequence()
+            .filter { it.endsWith(".json") && !it.endsWith("_titles.json") }
+            .map { it.removeSuffix(".json") }
+            .filterNot { key -> known.any { it.key == key } }
+            .map { key -> BibleVersionOption(key, key.uppercase(Locale.ROOT)) }
+            .toList()
+
+        return (knownAvailable + dynamic).ifEmpty {
+            listOf(BibleVersionOption(DEFAULT_BIBLE_VERSION, "Reina Valera 1960"))
         }
     }
 
     private fun getBible(context: Context): JSONObject {
+        val versionKey = getSelectedVersionKey(context)
+        val assetName = "$versionKey.json"
         val now = System.currentTimeMillis()
-        if (isCacheValid(now)) {
-            return cachedBible!!
+        if (isCacheValid(versionKey, now)) {
+            return cachedBibleByVersion[versionKey]!!
         }
 
         return synchronized(this) {
             val nowInLock = System.currentTimeMillis()
-            if (isCacheValid(nowInLock)) {
-                return@synchronized cachedBible!!
+            if (isCacheValid(versionKey, nowInLock)) {
+                return@synchronized cachedBibleByVersion[versionKey]!!
             }
 
-            val jsonString = context.assets.open(BIBLE_ASSET).bufferedReader().use { it.readText() }
+            val jsonString = context.assets.open(assetName).bufferedReader().use { it.readText() }
             JSONObject(jsonString).also {
-                cachedBible = it
-                cacheLoadedAtMs = nowInLock
+                cachedBibleByVersion[versionKey] = it
+                cacheLoadedAtMsByVersion[versionKey] = nowInLock
             }
         }
     }
@@ -133,4 +183,9 @@ object BibleRepository {
 data class ChapterContent(
     val chapterCount: Int,
     val verses: List<Pair<String, String>>
+)
+
+data class BibleVersionOption(
+    val key: String,
+    val label: String
 )
