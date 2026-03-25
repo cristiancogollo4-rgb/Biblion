@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -44,8 +45,17 @@ private val newTestamentBooks = listOf(
 fun BooksScreen(navController: NavController, selectedTestament: Testament, openInStudyMode: Boolean = false) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var selectedVersionKey by remember { mutableStateOf(BibleRepository.getSelectedVersionKey(context)) }
+    var availableVersions by remember { mutableStateOf<List<BibleVersionOption>>(emptyList()) }
+    var showVersionDialog by remember { mutableStateOf(false) }
 
     var currentSelectedTestament by remember { mutableStateOf(selectedTestament) }
+
+    LaunchedEffect(Unit) {
+        availableVersions = BibleRepository.getAvailableVersions(context)
+        selectedVersionKey = BibleRepository.getSelectedVersionKey(context)
+    }
 
     // Optimizacion: Derivamos los datos solo cuando cambia el testamento seleccionado
     val booksToShow = remember(currentSelectedTestament) {
@@ -59,14 +69,19 @@ fun BooksScreen(navController: NavController, selectedTestament: Testament, open
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            BiblionDrawerContent(navController) { scope.launch { drawerState.close() } }
+            BiblionDrawerContent(
+                navController = navController,
+                onClose = { scope.launch { drawerState.close() } },
+                onPickVersion = { showVersionDialog = true }
+            )
         }
     ) {
         Scaffold(
             topBar = {
                 BiblionTopAppBar(
                     onNavigationIconClick = { scope.launch { drawerState.open() } },
-                    onSearchIconClick = { navController.navigate(Screen.Search.route) }
+                    onSearchIconClick = { navController.navigate(Screen.Search.route) },
+                    logoResId = R.drawable.logobiblionsinletras
                 )
             }
         ) { innerPadding ->
@@ -115,6 +130,20 @@ fun BooksScreen(navController: NavController, selectedTestament: Testament, open
             }
         }
     }
+
+    if (showVersionDialog) {
+        BibleVersionDialog(
+            versions = availableVersions,
+            selectedVersionKey = selectedVersionKey,
+            onVersionSelected = { selected ->
+                BibleRepository.setSelectedVersionKey(context, selected.key)
+                selectedVersionKey = selected.key
+                showVersionDialog = false
+                scope.launch { drawerState.close() }
+            },
+            onDismiss = { showVersionDialog = false }
+        )
+    }
 }
 
 @Composable
@@ -124,7 +153,11 @@ fun BooksScreen(navController: NavController, selectedTestament: Testament, open
  * @param navController permite abrir rutas globales (inicio, modo estudio, etc.).
  * @param onClose callback para cerrar el drawer al seleccionar opción.
  */
-fun BiblionDrawerContent(navController: NavController, onClose: () -> Unit) {
+fun BiblionDrawerContent(
+    navController: NavController,
+    onClose: () -> Unit,
+    onPickVersion: () -> Unit
+) {
     ModalDrawerSheet(
         modifier = Modifier.fillMaxHeight().width(300.dp),
         drawerContainerColor = Color.White,
@@ -141,6 +174,7 @@ fun BiblionDrawerContent(navController: NavController, onClose: () -> Unit) {
                     onClose()
                     when (titulo) {
                         "Inicio" -> navController.navigate(Screen.Home.route)
+                        "Elegir Versión" -> onPickVersion()
                         "Modo Estudio" -> {
                             navController.navigate(Screen.Reader.createRoute(studyMode = true))
                         }

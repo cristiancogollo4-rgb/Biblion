@@ -61,10 +61,19 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
 
     val context = LocalContext.current
     var dailyVerse by remember { mutableStateOf<DailyVerse?>(null) }
+    var selectedVersionKey by remember { mutableStateOf(BibleRepository.getSelectedVersionKey(context)) }
+    var availableVersions by remember { mutableStateOf<List<BibleVersionOption>>(emptyList()) }
+    var showVersionDialog by remember { mutableStateOf(false) }
 
     // Cargar el versículo del día al entrar en la pantalla
     LaunchedEffect(Unit) {
-        dailyVerse = getDailyVerse(context)
+        availableVersions = BibleRepository.getAvailableVersions(context)
+        selectedVersionKey = BibleRepository.getSelectedVersionKey(context)
+        dailyVerse = getDailyVerse(context, selectedVersionKey)
+    }
+
+    LaunchedEffect(selectedVersionKey) {
+        dailyVerse = getDailyVerse(context, selectedVersionKey)
     }
 
     ModalNavigationDrawer(
@@ -93,6 +102,9 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
                                 "Modo Estudio" -> {
                                     // Navegamos a un libro por defecto (ej: Genesis) con modo estudio activado
                                     navController.navigate(Screen.Reader.createRoute(studyMode = true))
+                                }
+                                "Elegir Versión" -> {
+                                    showVersionDialog = true
                                 }
                                 //navegación para otras opciones si es necesario
                             }
@@ -129,7 +141,8 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
                     },
                     onSearchIconClick = {
                         navController.navigate(Screen.Search.route)
-                    }
+                    },
+                    logoResId = R.drawable.logobiblionsinletras
                 )
             }
         ) { innerPadding ->
@@ -181,17 +194,34 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
             }
         }
     }
+
+    if (showVersionDialog) {
+        BibleVersionDialog(
+            versions = availableVersions,
+            selectedVersionKey = selectedVersionKey,
+            onVersionSelected = { selected ->
+                BibleRepository.setSelectedVersionKey(context, selected.key)
+                selectedVersionKey = selected.key
+                showVersionDialog = false
+                scope.launch { drawerState.close() }
+            },
+            onDismiss = { showVersionDialog = false }
+        )
+    }
 }
 
 /**
  * Obtiene el versículo del día. Si ya se generó uno hoy, lo recupera.
  * Si no, genera uno nuevo aleatoriamente y lo guarda.
  */
-private suspend fun getDailyVerse(context: Context): DailyVerse {
+private suspend fun getDailyVerse(context: Context, versionKey: String): DailyVerse {
     val prefs = context.getSharedPreferences("BiblionAppPrefs", Context.MODE_PRIVATE)
+    val dailyTextKey = "dailyVerseText_$versionKey"
+    val dailyRefKey = "dailyVerseRef_$versionKey"
+    val dailyTimestampKey = "dailyVerseTimestamp_$versionKey"
     val today = Calendar.getInstance()
 
-    val lastUpdateMillis = prefs.getLong("dailyVerseTimestamp", 0)
+    val lastUpdateMillis = prefs.getLong(dailyTimestampKey, 0)
     val lastUpdateCalendar = Calendar.getInstance().apply { timeInMillis = lastUpdateMillis }
 
     val isNewDay = today.get(Calendar.DAY_OF_YEAR) != lastUpdateCalendar.get(Calendar.DAY_OF_YEAR) ||
@@ -201,9 +231,9 @@ private suspend fun getDailyVerse(context: Context): DailyVerse {
         return try {
             val newVerse = BibleRepository.getRandomVerse(context)
             with(prefs.edit()) {
-                putString("dailyVerseText", newVerse.text)
-                putString("dailyVerseRef", newVerse.reference)
-                putLong("dailyVerseTimestamp", today.timeInMillis)
+                putString(dailyTextKey, newVerse.text)
+                putString(dailyRefKey, newVerse.reference)
+                putLong(dailyTimestampKey, today.timeInMillis)
                 apply()
             }
             newVerse
@@ -215,8 +245,8 @@ private suspend fun getDailyVerse(context: Context): DailyVerse {
         }
     }
 
-    val text = prefs.getString("dailyVerseText", "")!!
-    val ref = prefs.getString("dailyVerseRef", "")!!
+    val text = prefs.getString(dailyTextKey, "")!!
+    val ref = prefs.getString(dailyRefKey, "")!!
     return DailyVerse(text, ref)
 }
 

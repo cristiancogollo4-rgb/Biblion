@@ -3,6 +3,7 @@ package com.cristiancogollo.biblion
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -30,8 +31,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -49,7 +52,9 @@ import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 @Composable
 fun BiblionTopAppBar(
     onNavigationIconClick: () -> Unit = {},
-    onSearchIconClick: () -> Unit = {}
+    onSearchIconClick: () -> Unit = {},
+    logoResId: Int? = null,
+    logoContentDescription: String = "Logo de la app"
 ) {
     CenterAlignedTopAppBar(
         title = {
@@ -63,8 +68,24 @@ fun BiblionTopAppBar(
             )
         },
         navigationIcon = {
-            IconButton(onClick = onNavigationIconClick) {
-                Icon(imageVector = Icons.Default.Menu, contentDescription = "Menú", tint = BiblionNavy)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(start = 4.dp)
+            ) {
+                if (logoResId != null) {
+                    Image(
+                        painter = painterResource(id = logoResId),
+                        contentDescription = logoContentDescription,
+                        modifier = Modifier
+                            .size(30.dp)
+                            .padding(end = 6.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+
+                IconButton(onClick = onNavigationIconClick) {
+                    Icon(imageVector = Icons.Default.Menu, contentDescription = "Menú", tint = BiblionNavy)
+                }
             }
         },
         actions = {
