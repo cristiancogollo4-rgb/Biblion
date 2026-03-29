@@ -1,0 +1,5053 @@
+{
+  "Genesis": {
+    "1": {
+      "1": "La creación del mundo",
+      "3": "El primer día de la creación",
+      "6": "El segundo día de la creación",
+      "9": "El tercer día de la creación",
+      "14": "El cuarto día de la creación",
+      "20": "El quinto día de la creación",
+      "24": "El sexto día de la creación"
+    },
+    "2": {
+      "1": "El séptimo día",
+      "4": "El hombre y la mujer"
+    },
+    "3": {
+      "1": "El hombre desobedece a Dios"
+    },
+    "4": {
+      "1": "Caín y Abel"
+    },
+    "5": {
+      "1": "Los descendientes de Adán"
+    },
+    "6": {
+      "1": "El origen de los gigantes",
+      "5": "Dios se enoja con la gente",
+      "9": "Noé construye una casa flotante"
+    },
+    "7": {
+      "6": "Comienza a llover"
+    },
+    "8": {
+      "13": "Noé baja a tierra"
+    },
+    "9": {
+      "1": "Dios hace una promesa",
+      "18": "Los hijos de Noé"
+    },
+    "10": {
+      "1": "Orígenes de las naciones",
+      "2": "Los hijos de Jafet",
+      "6": "Los hijos de Cam",
+      "21": "Los hijos de Sem"
+    },
+    "11": {
+      "1": "La torre de Babel",
+      "10": "Sem y sus descendientes",
+      "27": "Térah y sus descendientes"
+    },
+    "12": {
+      "1": "Dios llama a Abram",
+      "10": "Abram llega a Egipto"
+    },
+    "13": {
+      "1": "Abram y Lot se separan"
+    },
+    "14": {
+      "1": "Abram rescata a Lot"
+    },
+    "15": {
+      "1": "Dios hace un compromiso con Abram"
+    },
+    "16": {
+      "1": "El hijo de Abram y Agar"
+    },
+    "17": {
+      "1": "El pacto de Dios con Abram"
+    },
+    "18": {
+      "1": "Dios visita a Abraham",
+      "16": "Abraham ruega por Sodoma"
+    },
+    "19": {
+      "1": "Dios destruye Sodoma y Gomorra",
+      "30": "Lot y sus hijas"
+    },
+    "20": {
+      "1": "Abraham, Sara y Abimélec"
+    },
+    "21": {
+      "1": "El nacimiento de Isaac",
+      "9": "Abraham despide a Agar y a su hijo",
+      "22": "Abraham y Abimélec"
+    },
+    "22": {
+      "1": "Abraham obedece a Dios",
+      "20": "Los hijos de Nahor"
+    },
+    "23": {
+      "1": "Muerte de Sara"
+    },
+    "24": {
+      "1": "Isaac y Rebeca"
+    },
+    "25": {
+      "1": "Muerte de Abraham",
+      "12": "Los hijos de Ismael",
+      "19": "Los hijos de Isaac: Jacob y Esaú"
+    },
+    "26": {
+      "1": "Isaac y Abimélec",
+      "34": "Esaú se casa"
+    },
+    "27": {
+      "1": "Primeras trampas de Jacob",
+      "41": "Jacob huye de Esaú"
+    },
+    "28": {
+      "10": "Jacob tiene un sueño"
+    },
+    "29": {
+      "1": "Jacob llega a Padán-aram",
+      "14": "Jacob se casa con Lía y con Raquel",
+      "31": "Los hijos de Jacob y Lía"
+    },
+    "30": {
+      "1": "Los hijos de Jacob y Bilhá",
+      "9": "Los hijos de Jacob y Zilpá",
+      "14": "Jacob tiene otros hijos con Lía",
+      "22": "Nacimiento de José",
+      "25": "Trampas entre Jacob y Labán"
+    },
+    "31": {
+      "1": "Jacob huye de Labán",
+      "22": "Labán persigue a Jacob"
+    },
+    "32": {
+      "1": "Jacob envía mensajeros a Esaú",
+      "22": "La lucha de Jacob"
+    },
+    "33": {
+      "1": "Jacob y Esaú se encuentran"
+    },
+    "34": {
+      "1": "Siquem viola a Dina"
+    },
+    "35": {
+      "1": "Jacob regresa a Betel",
+      "16": "Muerte de Raquel",
+      "22": "Los hijos de Jacob",
+      "27": "Muerte de Isaac"
+    },
+    "36": {
+      "1": "Los descendientes de Esaú",
+      "31": "Los reyes de Edom"
+    },
+    "37": {
+      "1": "Los sueños de José",
+      "12": "José es vendido como esclavo"
+    },
+    "38": {
+      "1": "Judá y Tamar"
+    },
+    "39": {
+      "1": "José y la esposa de Potifar"
+    },
+    "40": {
+      "1": "Los sueños del copero y del panadero"
+    },
+    "41": {
+      "1": "Los sueños del rey de Egipto",
+      "46": "José se hace cargo de Egipto"
+    },
+    "42": {
+      "1": "Los hermanos de José van a Egipto"
+    },
+    "43": {
+      "1": "Benjamín en Egipto"
+    },
+    "44": {
+      "1": "La copa de plata de José"
+    },
+    "45": {
+      "1": "José se da a conocer a sus hermanos"
+    },
+    "46": {
+      "1": "Jacob llega a Egipto",
+      "8": "Los descendientes de Jacob y Lía",
+      "16": "Los descendientes de Jacob y Zilpá",
+      "19": "Los descendientes de Jacob y Raquel",
+      "23": "Los descendientes de Jacob y Bilhá",
+      "28": "Jacob y José se encuentran"
+    },
+    "47": {
+      "1": "Jacob ante el rey de Egipto",
+      "13": "José y el hambre",
+      "28": "Juramento de José a su padre"
+    },
+    "48": {
+      "1": "Jacob bendice a Manasés y a Efraín"
+    },
+    "49": {
+      "1": "Jacob bendice a sus hijos",
+      "29": "Muerte de Jacob"
+    },
+    "50": {
+      "15": "José tranquiliza a sus hermanos",
+      "22": "Muerte de José"
+    }
+  },
+  "Exodo": {
+    "1": {
+      "1": "Los egipcios esclavizan a Israel",
+      "15": "El rey ordena matar a los niños israelitas"
+    },
+    "2": {
+      "1": "El nacimiento de Moisés",
+      "11": "Moisés huye de Egipto",
+      "23": "Dios se preocupa por los israelitas"
+    },
+    "3": {
+      "1": "Dios llama a Moisés"
+    },
+    "4": {
+      "19": "Moisés regresa a Egipto",
+      "27": "Moisés y Aarón hablan al pueblo"
+    },
+    "5": {
+      "1": "Moisés y Aarón hablan con el rey de Egipto",
+      "12": "Los israelitas se quejan ante el rey de Egipto"
+    },
+    "6": {
+      "14": "Las familias israelitas",
+      "28": "Dios habla con Moisés en Egipto"
+    },
+    "7": {
+      "8": "Moisés y Aarón hablan con el rey de Egipto",
+      "14": "Los diez castigos"
+    },
+    "12": {
+      "37": "Los israelitas salen de Egipto",
+      "43": "Más instrucciones acerca de la Pascua"
+    },
+    "13": {
+      "1": "La fiesta de los panes sin levadura",
+      "17": "Dios guía a los israelitas en su viaje"
+    },
+    "14": {
+      "1": "Los israelitas cruzan el Mar de los Juncos"
+    },
+    "15": {
+      "1": "Un canto de victoria",
+      "19": "El canto de María",
+      "22": "Dios convierte el agua amarga en agua dulce"
+    },
+    "16": {
+      "1": "Dios alimenta a los israelitas",
+      "22": "Dios ordena descansar el día séptimo",
+      "32": "Dios ordena guardar un poco de maná"
+    },
+    "17": {
+      "1": "Dios saca agua de una roca",
+      "8": "Los israelitas pelean contra los amalecitas"
+    },
+    "18": {
+      "1": "La visita de Jetró",
+      "13": "Moisés nombra ayudantes"
+    },
+    "19": {
+      "1": "Los israelitas llegan al desierto del Sinaí"
+    },
+    "20": {
+      "1": "Los diez mandamientos",
+      "18": "Los israelitas sienten miedo ante Dios",
+      "22": "Instrucciones para hacer altares a Dios"
+    },
+    "21": {
+      "1": "Leyes acerca de los esclavos",
+      "12": "Delitos castigados con la muerte",
+      "18": "Leyes contra golpes y heridas",
+      "28": "Leyes acerca de los accidentes"
+    },
+    "22": {
+      "1": "Leyes acerca del robo",
+      "5": "Leyes contra daños en propiedad privada",
+      "16": "Otras leyes"
+    },
+    "23": {
+      "1": "Justicia para todos",
+      "10": "Leyes sobre el descanso",
+      "14": "Leyes acerca de las fiestas religiosas",
+      "20": "Promesas y advertencias"
+    },
+    "24": {
+      "1": "Pacto de Dios con los israelitas",
+      "12": "Moisés sube al Sinaí"
+    },
+    "25": {
+      "1": "Una ofrenda para el santuario",
+      "10": "El cofre del pacto",
+      "23": "La mesa del pan para Dios",
+      "31": "El candelabro de oro"
+    },
+    "26": {
+      "1": "El santuario",
+      "31": "La cortina del santuario"
+    },
+    "27": {
+      "1": "El altar para las ofrendas quemadas",
+      "9": "El patio del santuario",
+      "20": "El aceite para las lámparas"
+    },
+    "28": {
+      "1": "El traje del jefe de los sacerdotes",
+      "15": "El chaleco del jefe de los sacerdotes",
+      "31": "Las demás piezas del traje",
+      "40": "El traje de los demás sacerdotes"
+    },
+    "29": {
+      "1": "Consagración de los sacerdotes",
+      "38": "Los sacrificios de cada día"
+    },
+    "30": {
+      "1": "El altar del incienso",
+      "11": "Ley acerca del censo",
+      "17": "El recipiente de bronce",
+      "22": "El aceite de consagrar",
+      "34": "El incienso"
+    },
+    "31": {
+      "1": "Los artesanos del santuario",
+      "12": "El sábado"
+    },
+    "32": {
+      "1": "El toro de oro"
+    },
+    "33": {
+      "1": "Hacia la tierra prometida",
+      "7": "La Carpa comunitaria",
+      "12": "Moisés pide ver a Dios"
+    },
+    "34": {
+      "1": "Dios vuelve a escribir su ley",
+      "10": "Dios hace un pacto",
+      "18": "Las fiestas de cada año",
+      "29": "Moisés baja del Sinaí"
+    },
+    "35": {
+      "1": "La ley del sábado",
+      "4": "Las ofrendas para construir el santuario",
+      "10": "Utensilios para el santuario",
+      "20": "El pueblo lleva las ofrendas voluntarias",
+      "30": "Los artesanos elegidos"
+    },
+    "36": {
+      "2": "Ofrendas abundantes",
+      "8": "La construcción del santuario"
+    },
+    "37": {
+      "1": "Muebles del santuario"
+    },
+    "38": {
+      "9": "El patio del santuario",
+      "21": "Metales usados en el santuario"
+    },
+    "39": {
+      "1": "Confección de los trajes sacerdotales",
+      "32": "Termina la construcción del santuario"
+    },
+    "40": {
+      "1": "Dedicación del santuario",
+      "33": "Dios se presenta en el santuario"
+    }
+  },
+  "Levitico": {
+    "1": {
+      "1": "Ofrendas para agradar a Dios"
+    },
+    "2": {
+      "1": "Ofrendas para dar gracias a Dios"
+    },
+    "3": {
+      "1": "Ofrendas para pedir salud y bienestar"
+    },
+    "4": {
+      "1": "Ofrenda por el perdón de pecados"
+    },
+    "5": {
+      "1": "Otras ofrendas por el perdón de pecados"
+    },
+    "6": {
+      "1": "Pecados contra el prójimo",
+      "8": "Ofrendas diarias",
+      "19": "Otras ofrendas",
+      "24": "Cómo presentar la ofrenda por el perdón de pecados"
+    },
+    "7": {
+      "1": "Cómo presentar la ofrenda para hacer las paces",
+      "7": "La parte que corresponde a los sacerdotes",
+      "11": "Cómo presentar la ofrenda para pedir salud y bienestar",
+      "16": "Otras reglas relacionadas con el culto",
+      "22": "Instrucciones acerca de la grasa y la sangre",
+      "28": "La parte de los sacerdotes",
+      "35": "Conclusión de las instrucciones anteriores"
+    },
+    "8": {
+      "1": "Consagración de Aarón y de sus hijos",
+      "14": "Las ofrendas para la consagración",
+      "30": "Ceremonia de consagración"
+    },
+    "9": {
+      "1": "Las primeras ofrendas",
+      "22": "Dios muestra su poder ante Israel"
+    },
+    "10": {
+      "1": "Dios castiga a Nadab y a Abihú",
+      "8": "Prohibiciones para los sacerdotes"
+    },
+    "11": {
+      "1": "Los animales puros e impuros"
+    },
+    "12": {
+      "1": "Purificación de la mujer que da a luz"
+    },
+    "13": {
+      "1": "Enfermedades de la piel",
+      "47": "Las manchas en la ropa y en los cueros"
+    },
+    "14": {
+      "1": "Purificación de los leprosos",
+      "33": "Purificación de las paredes"
+    },
+    "15": {
+      "1": "Otras formas de impureza",
+      "19": "Impurezas en la mujer"
+    },
+    "16": {
+      "1": "El gran día del perdón",
+      "17": "La purificación del altar",
+      "20": "El chivo enviado al desierto"
+    },
+    "17": {
+      "1": "En la sangre está la vida"
+    },
+    "18": {
+      "1": "Relaciones sexuales prohibidas"
+    },
+    "19": {
+      "1": "Leyes morales, sociales y religiosas"
+    },
+    "20": {
+      "1": "Pecados terribles",
+      "22": "Vale la pena obedecer a Dios"
+    },
+    "21": {
+      "1": "Instrucciones acerca de los sacerdotes",
+      "10": "Instrucciones acerca del jefe de los sacerdotes",
+      "16": "Defectos que impiden ser sacerdote"
+    },
+    "22": {
+      "1": "Ofrendas especiales",
+      "17": "Los animales ofrendados"
+    },
+    "23": {
+      "1": "Días y fiestas especiales"
+    },
+    "24": {
+      "1": "El cuidado de las lámparas",
+      "5": "Los panes dedicados a Dios",
+      "10": "Castigo para los que ofenden a Dios",
+      "17": "Ojo por ojo, diente por diente"
+    },
+    "25": {
+      "1": "El descanso del séptimo año",
+      "8": "El año de liberación",
+      "20": "Dios promete bendecir a su pueblo",
+      "23": "Recuperación de la propiedad familiar",
+      "29": "Recuperación de una casa",
+      "32": "Propiedades de la tribu de Leví",
+      "35": "No se aprovechen del pobre",
+      "39": "Los esclavos israelitas",
+      "44": "Los esclavos extranjeros",
+      "47": "Libertad de los esclavos israelitas"
+    },
+    "26": {
+      "1": "Bendiciones para los que obedecen la ley",
+      "14": "Castigos para los desobedientes"
+    },
+    "27": {
+      "1": "El rescate de personas que pertenecen a Dios",
+      "9": "El rescate de todo lo dedicado a Dios",
+      "26": "Casos especiales"
+    }
+  },
+  "Numeros": {
+    "1": {
+      "1": "El ejército israelita",
+      "47": "Los descendientes de Leví"
+    },
+    "2": {
+      "1": "Distribución del campamento israelita",
+      "3": "Campamento del este",
+      "10": "Campamento del sur",
+      "18": "Campamento del oeste",
+      "25": "Campamento del norte",
+      "32": "El ejército israelita"
+    },
+    "3": {
+      "1": "El trabajo de los descendientes de Leví",
+      "11": "Los descendientes de Leví pertenecen a Dios",
+      "14": "Moisés hace una lista de los descendientes de Leví",
+      "40": "La tribu de Leví, propiedad especial de Dios"
+    },
+    "4": {
+      "1": "El trabajo de los descendientes de Leví",
+      "34": "Moisés y Aarón obedecen"
+    },
+    "5": {
+      "1": "Reglas para el campamento",
+      "5": "Otras reglas",
+      "11": "Reglas en relación con los celos"
+    },
+    "6": {
+      "1": "Leyes para los nazireos",
+      "22": "La bendición de los sacerdotes"
+    },
+    "7": {
+      "1": "Ofrendas para la dedicación del santuario"
+    },
+    "8": {
+      "1": "El candelabro de oro",
+      "5": "Consagración de los descendientes de Leví"
+    },
+    "9": {
+      "1": "La fiesta de la Pascua",
+      "15": "Dios guía a su pueblo"
+    },
+    "10": {
+      "1": "Las trompetas de plata",
+      "11": "Los israelitas se van del Sinaí",
+      "29": "Moisés y Hobab"
+    },
+    "11": {
+      "1": "Los israelitas se quejan contra Dios",
+      "26": "Eldad y Medad",
+      "31": "Las codornices"
+    },
+    "12": {
+      "1": "María y Aarón critican a su hermano Moisés"
+    },
+    "13": {
+      "1": "Moisés envía espías a Canaán",
+      "19": "Los espías recorren el territorio prometido",
+      "25": "Los espías presentan su informe"
+    },
+    "14": {
+      "1": "Quejas de los israelitas contra Dios",
+      "10": "Dios castiga a los israelitas",
+      "40": "Derrota de los israelitas"
+    },
+    "15": {
+      "1": "Ofrendas y sacrificios",
+      "22": "Las ofrendas para el perdón de los pecados",
+      "32": "Desobediencia y castigo",
+      "37": "Cordones en la ropa"
+    },
+    "16": {
+      "1": "La rebelión de Coré",
+      "18": "Dios castiga a Coré y a sus compañeros",
+      "41": "El pueblo vuelve a rebelarse"
+    },
+    "17": {
+      "1": "La vara de Aarón"
+    },
+    "18": {
+      "1": "El servicio de los sacerdotes y los descendientes de Leví",
+      "8": "Las ofrendas para los sacerdotes",
+      "20": "Las ofrendas para los descendientes de Leví"
+    },
+    "19": {
+      "1": "Reglas para la purificación",
+      "11": "Reglas para presentarse ante Dios"
+    },
+    "20": {
+      "1": "Los israelitas protestan contra Dios",
+      "14": "El rey de Edom",
+      "22": "Aarón muere en el monte Hor"
+    },
+    "21": {
+      "1": "Israel conquista y destruye Hormá",
+      "4": "La serpiente de bronce",
+      "10": "Los israelitas siguen su camino",
+      "21": "Los israelitas vencen al rey Sihón",
+      "32": "Israel vence al rey de Basán"
+    },
+    "22": {
+      "1": "La historia de Balac y Balaam"
+    },
+    "23": {
+      "1": "Balaam bendice a los israelitas",
+      "13": "Segunda bendición de Balaam",
+      "27": "Tercera bendición de Balaam"
+    },
+    "25": {
+      "1": "Los israelitas adoran a Baal-peor",
+      "10": "Promesa de Dios a favor de Finees"
+    },
+    "26": {
+      "1": "El nuevo censo",
+      "52": "Cómo repartir el territorio",
+      "57": "Las familias descendientes de Leví"
+    },
+    "27": {
+      "1": "Las hijas de Selofhad",
+      "12": "Un nuevo líder en Israel"
+    },
+    "28": {
+      "1": "Las ofrendas diarias",
+      "9": "Las ofrendas del sábado",
+      "11": "La ofrenda de cada mes",
+      "16": "Las ofrendas de la Pascua",
+      "26": "Las primicias"
+    },
+    "29": {
+      "1": "La fiesta de las trompetas",
+      "7": "Ofrendas del día del perdón",
+      "12": "Ofrendas de la fiesta de las enramadas"
+    },
+    "30": {
+      "1": "Las promesas a Dios"
+    },
+    "31": {
+      "1": "Derrota de Madián",
+      "48": "La ofrenda de los soldados"
+    },
+    "32": {
+      "1": "La tribu de Rubén y la de Gad eligen dónde vivir"
+    },
+    "33": {
+      "1": "Distribución del territorio en la región de Canaán"
+    },
+    "34": {
+      "1": "Los límites del territorio",
+      "13": "Cómo repartir el territorio"
+    },
+    "35": {
+      "1": "Ciudades para los descendientes de Leví",
+      "9": "Las ciudades de refugio",
+      "24": "Procedimientos legales"
+    },
+    "36": {
+      "1": "Terrenos para las mujeres"
+    }
+  },
+  "Deuteronomio": {
+    "1": {
+      "1": "Discurso de Moisés",
+      "8": "Los jefes de Israel",
+      "19": "Los doce espías",
+      "34": "Dios castiga a Israel"
+    },
+    "2": {
+      "1": "Israel en el desierto",
+      "26": "La derrota de Sihón"
+    },
+    "3": {
+      "1": "La derrota de Og",
+      "12": "Las tribus al este del río Jordán",
+      "23": "Dios no permite a Moisés entrar a Canaán"
+    },
+    "4": {
+      "1": "Consejos de Moisés para el pueblo",
+      "10": "Fieles a Dios",
+      "41": "Ciudades de refugio",
+      "44": "Los diez mandamientos"
+    },
+    "5": {
+      "22": "Invitación a la obediencia"
+    },
+    "6": {
+      "4": "El mandamiento más importante",
+      "10": "La fidelidad a Dios"
+    },
+    "7": {
+      "1": "Advertencia",
+      "6": "Un pueblo elegido por Dios",
+      "12": "La obediencia trae felicidad"
+    },
+    "8": {
+      "1": "Dios cuidará de su pueblo",
+      "11": "No se olviden de su Dios"
+    },
+    "9": {
+      "1": "Dios ayudará a su pueblo",
+      "7": "Desobediencia de Israel"
+    },
+    "10": {
+      "1": "Dios vuelve a dar las tablas del pacto",
+      "6": "Muerte de Aarón",
+      "10": "Dios perdona a Israel",
+      "12": "Lo que Dios pide a Israel"
+    },
+    "11": {
+      "1": "El poder de Dios",
+      "8": "Las bendiciones prometidas"
+    },
+    "12": {
+      "1": "Las leyes dadas al pueblo",
+      "29": "Advertencia contra la infidelidad"
+    },
+    "14": {
+      "3": "Animales que se pueden comer",
+      "22": "El diezmo",
+      "27": "Un diezmo especial"
+    },
+    "15": {
+      "1": "El año de liberación",
+      "12": "Leyes sobre los esclavos",
+      "19": "Entrega de los primeros animales en nacer"
+    },
+    "16": {
+      "1": "La fiesta de la Pascua",
+      "9": "La fiesta de la cosecha",
+      "13": "La fiesta de las enramadas",
+      "16": "Las tres fiestas",
+      "18": "Los jueces",
+      "21": "Leyes para celebrar el culto a Dios"
+    },
+    "17": {
+      "14": "Instrucciones acerca de los reyes"
+    },
+    "18": {
+      "1": "Derechos de los sacerdotes",
+      "9": "Advertencia contra las malas costumbres",
+      "15": "Otro profeta"
+    },
+    "19": {
+      "1": "Las ciudades de refugio",
+      "15": "Instrucciones acerca de los testigos"
+    },
+    "20": {
+      "1": "Leyes acerca de la guerra"
+    },
+    "21": {
+      "1": "Muertes sin explicación",
+      "10": "Prisioneras de guerra",
+      "15": "Los hijos mayores",
+      "18": "Los hijos rebeldes",
+      "22": "Instrucciones generales"
+    },
+    "22": {
+      "13": "Sexo y matrimonio"
+    },
+    "23": {
+      "1": "Los que pueden entrar al Santuario",
+      "9": "Normas sanitarias",
+      "15": "Otras instrucciones"
+    },
+    "24": {
+      "1": "Instrucciones acerca del divorcio",
+      "5": "Otras instrucciones"
+    },
+    "25": {
+      "5": "Instrucciones acerca de las viudas",
+      "11": "Norma acerca de los pleitos",
+      "13": "Las medidas falsas",
+      "17": "La muerte de los amalecitas"
+    },
+    "26": {
+      "1": "Los primeros frutos",
+      "12": "El diezmo",
+      "16": "Israel es el pueblo de Dios"
+    },
+    "27": {
+      "1": "El altar del monte Ebal",
+      "11": "Maldiciones para los desobedientes"
+    },
+    "28": {
+      "1": "Bendiciones para los obedientes",
+      "15": "Castigos para los desobedientes",
+      "45": "Otras maldiciones",
+      "58": "La desobediencia trae destrucción"
+    },
+    "29": {
+      "1": "Nuevo pacto de Dios con Israel",
+      "16": "La adoración de dioses falsos"
+    },
+    "30": {
+      "1": "Perdón y bendición"
+    },
+    "31": {
+      "1": "Un nuevo jefe para Israel",
+      "9": "Lectura de los mandamientos",
+      "14": "Dios da instrucciones a Moisés y a Josué",
+      "30": "La canción"
+    },
+    "32": {
+      "46": "Últimas instrucciones de Moisés",
+      "48": "Moisés ve la tierra prometida"
+    },
+    "33": {
+      "1": "Moisés bendice a Israel"
+    },
+    "34": {
+      "1": "Muerte de Moisés"
+    }
+  },
+  "Josue": {
+    "1": {
+      "1": "Dios llama a un nuevo líder",
+      "10": "Preparativos para la conquista"
+    },
+    "2": {
+      "1": "Rahab y los espías",
+      "15": "Rahab y los espías se despiden"
+    },
+    "3": {
+      "1": "La gente de Israel cruza el Jordán"
+    },
+    "4": {
+      "1": "Piedras recordatorias"
+    },
+    "5": {
+      "2": "La circuncisión en Guilgal",
+      "13": "Josué y el hombre con una espada"
+    },
+    "6": {
+      "1": "Los israelitas conquistan Jericó",
+      "22": "Rahab y su familia se salvan"
+    },
+    "7": {
+      "1": "El pecado de Acán"
+    },
+    "8": {
+      "1": "Josué ataca la ciudad de Ai",
+      "18": "Captura y destrucción de Ai",
+      "30": "Josué lee la Ley en el monte Ebal"
+    },
+    "9": {
+      "1": "Los gabaonitas engañan a Josué",
+      "16": "Los israelitas descubren el engaño de los gabaonitas"
+    },
+    "10": {
+      "1": "Los israelitas derrotan a los amorreos",
+      "16": "Captura y muerte de los cinco reyes amorreos",
+      "28": "Josué conquista más territorio amorreo"
+    },
+    "11": {
+      "1": "Josué derrota a Jabín y a sus aliados"
+    },
+    "12": {
+      "1": "Los reyes derrotados por Moisés",
+      "7": "Los reyes derrotados por Josué"
+    },
+    "13": {
+      "1": "Territorios no conquistados",
+      "8": "Territorio al este del Jordán",
+      "15": "Territorio de la tribu de Rubén",
+      "24": "Territorio de la tribu de Gad",
+      "29": "Territorio de la media tribu de Manasés"
+    },
+    "14": {
+      "1": "El territorio al oeste del Jordán",
+      "6": "Caleb recibe la ciudad de Hebrón"
+    },
+    "15": {
+      "1": "Territorio de la tribu de Judá",
+      "13": "Caleb conquista Hebrón y Debir",
+      "20": "Las ciudades de la tribu de Judá"
+    },
+    "16": {
+      "1": "Los territorios de Efraín y Manasés",
+      "5": "Territorio de la tribu de Efraín"
+    },
+    "17": {
+      "1": "Territorios de la tribu de Manasés",
+      "14": "Los descendientes de José piden más territorios"
+    },
+    "18": {
+      "1": "Josué reparte el resto del territorio",
+      "11": "El territorio de la tribu de Benjamín"
+    },
+    "19": {
+      "1": "Territorios de la tribu de Simeón",
+      "10": "Territorio de la tribu de Zabulón",
+      "17": "Territorio de la tribu de Isacar",
+      "24": "Territorio de la tribu de Aser",
+      "32": "Territorio de la tribu de Neftalí",
+      "40": "Territorio de la tribu de Dan",
+      "49": "Territorio asignado a Josué"
+    },
+    "20": {
+      "1": "Las ciudades de refugio"
+    },
+    "21": {
+      "1": "Las ciudades de los levitas",
+      "43": "Dios cumple sus promesas"
+    },
+    "22": {
+      "1": "Las tribus que regresan a su territorio",
+      "10": "El altar al este del Jordán"
+    },
+    "23": {
+      "1": "Josué se despide de su pueblo"
+    },
+    "24": {
+      "1": "Josué reúne al pueblo",
+      "14": "El pueblo renueva su pacto con Dios",
+      "29": "Entierro de Josué, Eleazar y José"
+    }
+  },
+  "Jueces": {
+    "1": {
+      "1": "Las tribus de Judá y Simeón capturan a Adonisédec",
+      "8": "La tribu de Judá conquista Jerusalén y Hebrón",
+      "11": "Otoniel conquista la ciudad de Debir",
+      "16": "Conquistas de las tribus de Judá y de Benjamín",
+      "22": "Las tribus de Efraín y Manasés conquistan Betel",
+      "27": "Los territorios no conquistados"
+    },
+    "2": {
+      "1": "El ángel de Dios en Boquim",
+      "6": "Muerte de Josué",
+      "11": "Los israelitas dejan de adorar a Dios"
+    },
+    "3": {
+      "1": "Los pueblos que quedaban en Canaán",
+      "7": "Otoniel",
+      "12": "Ehud",
+      "31": "Samgar"
+    },
+    "4": {
+      "1": "Débora y Barac"
+    },
+    "5": {
+      "1": "La canción de Débora y Barac"
+    },
+    "6": {
+      "1": "Gedeón"
+    },
+    "7": {
+      "1": "Gedeón derrota a los madianitas"
+    },
+    "8": {
+      "1": "Derrota final de los madianitas",
+      "29": "Muerte de Gedeón"
+    },
+    "9": {
+      "1": "Abimélec",
+      "7": "La fábula de Jotam",
+      "22": "Rebelión contra Abimélec"
+    },
+    "10": {
+      "1": "Tolá",
+      "3": "Jaír",
+      "6": "Los amonitas dominan Israel"
+    },
+    "11": {
+      "1": "Jefté",
+      "29": "Promesa de Jefté"
+    },
+    "12": {
+      "1": "Jefté y la tribu de Efraín",
+      "8": "Ibsán",
+      "11": "Elón",
+      "13": "Abdón"
+    },
+    "13": {
+      "1": "Nacimiento de Sansón"
+    },
+    "14": {
+      "1": "Casamiento de Sansón"
+    },
+    "15": {
+      "1": "La venganza de Sansón",
+      "9": "La quijada de burro"
+    },
+    "16": {
+      "1": "Sansón va a Gaza",
+      "4": "Sansón y Dalila",
+      "23": "Muerte de Sansón"
+    },
+    "17": {
+      "1": "Las imágenes de Micaías"
+    },
+    "18": {
+      "1": "La tribu de Dan conquista su territorio"
+    },
+    "19": {
+      "1": "El levita y su mujer"
+    },
+    "20": {
+      "1": "Reacción de los israelitas",
+      "18": "La guerra contra la tribu de Benjamín"
+    },
+    "21": {
+      "1": "Esposas para la tribu de Benjamín"
+    }
+  },
+  "Rut": {
+    "1": {
+      "1": "Elimélec y su familia van a Moab",
+      "6": "Noemí y Rut van a Belén"
+    },
+    "2": {
+      "1": "Rut trabaja en el campo de Booz"
+    },
+    "3": {
+      "1": "Booz trata bien a Rut"
+    },
+    "4": {
+      "1": "Booz se casa con Rut",
+      "13": "Nacimiento de Obed",
+      "18": "Obed, abuelo de David"
+    }
+  },
+  "1 Samuel": {
+    "1": {
+      "1": "Dios le da un hijo a Ana"
+    },
+    "2": {
+      "1": "El canto de Ana",
+      "11": "Samuel y los hijos de Elí",
+      "18": "Elí bendice a Ana",
+      "22": "Maldad de los hijos de Elí",
+      "27": "Un profeta reprende a Elí"
+    },
+    "3": {
+      "1": "Dios llama a Samuel"
+    },
+    "4": {
+      "1": "Los filisteos capturan el cofre del pacto",
+      "12": "Muerte de Elí"
+    },
+    "5": {
+      "1": "El cofre del pacto de Dios y los filisteos"
+    },
+    "6": {
+      "1": "Los filisteos devuelven el cofre"
+    },
+    "7": {
+      "1": "Samuel gobierna Israel"
+    },
+    "8": {
+      "1": "Los israelitas piden rey"
+    },
+    "9": {
+      "1": "Samuel y Saúl se encuentran",
+      "22": "Saúl, futuro rey de Israel"
+    },
+    "10": {
+      "9": "Saúl regresa a su casa",
+      "17": "Saúl es nombrado rey"
+    },
+    "11": {
+      "1": "Saúl derrota a los amonitas"
+    },
+    "12": {
+      "1": "Samuel se despide de su pueblo"
+    },
+    "13": {
+      "1": "Guerra contra los filisteos"
+    },
+    "14": {
+      "1": "Jonatán ataca a los filisteos",
+      "24": "El juramento de Saúl"
+    },
+    "15": {
+      "1": "Dios rechaza a Saúl"
+    },
+    "16": {
+      "1": "David es elegido rey",
+      "14": "David sirve a Saúl"
+    },
+    "17": {
+      "1": "David y Goliat"
+    },
+    "18": {
+      "1": "La amistad de David y Jonatán",
+      "6": "Saúl tiene envidia de David"
+    },
+    "19": {
+      "1": "Saúl trata de matar a David",
+      "18": "Saúl persigue a David"
+    },
+    "20": {
+      "1": "Jonatán ayuda a David"
+    },
+    "21": {
+      "1": "David huye de Saúl"
+    },
+    "22": {
+      "6": "Saúl mata a los sacerdotes de Nob"
+    },
+    "23": {
+      "1": "David libera a la ciudad de Queilá",
+      "14": "David se esconde en el desierto"
+    },
+    "24": {
+      "1": "David le perdona la vida a Saúl"
+    },
+    "25": {
+      "1": "Muerte de Samuel",
+      "2": "David, Nabal y Abigail"
+    },
+    "26": {
+      "1": "David perdona otra vez a Saúl"
+    },
+    "27": {
+      "1": "David vive entre los filisteos"
+    },
+    "28": {
+      "3": "Saúl consulta a una adivina"
+    },
+    "29": {
+      "1": "Los filisteos no confían en David"
+    },
+    "30": {
+      "1": "David vence a los amalecitas"
+    },
+    "31": {
+      "1": "Muerte de Saúl y sus hijos"
+    }
+  },
+  "2 Samuel": {
+    "1": {
+      "1": "Noticia de la muerte de Saúl",
+      "17": "David lamenta la muerte de Saúl y Jonatán"
+    },
+    "2": {
+      "1": "David llega a ser rey de Judá",
+      "8": "Guerra entre Israel y Judá"
+    },
+    "3": {
+      "2": "La familia de David",
+      "6": "Abner se une a David",
+      "22": "Joab mata a Abner"
+    },
+    "4": {
+      "1": "Recab y Baaná matan a Is-bóset"
+    },
+    "5": {
+      "1": "David, rey de Israel y de Judá",
+      "6": "David conquista Jerusalén",
+      "10": "Un palacio para David",
+      "13": "Otros hijos de David",
+      "17": "David vence a los filisteos"
+    },
+    "6": {
+      "1": "El cofre del pacto en Jerusalén",
+      "12": "David lleva el cofre de Dios a Jerusalén"
+    },
+    "7": {
+      "1": "Dios hace una promesa a David"
+    },
+    "8": {
+      "1": "Otras batallas de David",
+      "16": "Los asistentes de David"
+    },
+    "9": {
+      "1": "David trata bien a Mefi-bóset"
+    },
+    "10": {
+      "1": "Hanún avergüenza a David",
+      "6": "David vence a los amonitas",
+      "15": "David vence a los arameos"
+    },
+    "11": {
+      "1": "David, Betsabé y Natán"
+    },
+    "12": {
+      "1": "Dios reprende a David",
+      "24": "Nacimiento de Salomón",
+      "26": "David vence a los amonitas"
+    },
+    "13": {
+      "1": "Amnón viola a su hermana",
+      "23": "Absalón mata a Amnón"
+    },
+    "14": {
+      "1": "El regreso de Absalón"
+    },
+    "15": {
+      "1": "Absalón quiere ser rey",
+      "13": "David huye de Jerusalén"
+    },
+    "16": {
+      "1": "David y Sibá",
+      "5": "Simí insulta a David",
+      "15": "Absalón entra en Jerusalén"
+    },
+    "17": {
+      "1": "Husai deshace el plan de Ahitófel",
+      "24": "David en Mahanaim"
+    },
+    "18": {
+      "1": "Muerte de Absalón",
+      "19": "Noticia de la muerte de Absalón",
+      "33": "David llora por su hijo"
+    },
+    "19": {
+      "8": "David regresa a Jerusalén",
+      "31": "Barzilai se despide de David"
+    },
+    "20": {
+      "1": "Sebá se rebela contra David",
+      "23": "Los asistentes de David"
+    },
+    "21": {
+      "1": "David y los gabaonitas",
+      "15": "Guerras contra los filisteos",
+      "18": "Peleas contra gigantes"
+    },
+    "22": {
+      "1": "Canto de victoria"
+    },
+    "23": {
+      "1": "Últimas palabras de David",
+      "8": "Los tres mejores guerreros",
+      "18": "Los treinta más valientes"
+    },
+    "24": {
+      "1": "Dios castiga a su pueblo",
+      "16": "Dios perdona a su pueblo"
+    }
+  },
+  "1 Reyes": {
+    "1": {
+      "1": "El rey David",
+      "5": "Adonías quiere ser rey",
+      "11": "Betsabé habla en favor de Salomón",
+      "28": "David nombra rey a Salomón"
+    },
+    "2": {
+      "1": "Últimas instrucciones de David",
+      "10": "Muerte de David",
+      "13": "Muerte de Adonías",
+      "26": "Expulsión del sacerdote Abiatar",
+      "28": "Muerte de Joab",
+      "36": "Muerte de Simí"
+    },
+    "3": {
+      "1": "Salomón se casa",
+      "3": "Salomón pide sabiduría",
+      "16": "Salomón comienza bien su reinado"
+    },
+    "4": {
+      "1": "Los funcionarios de Salomón",
+      "20": "Sabiduría y riqueza de Salomón"
+    },
+    "5": {
+      "1": "Salomón hace un pacto con Hiram",
+      "13": "Comienza la construcción del templo"
+    },
+    "7": {
+      "1": "Otras construcciones de Salomón",
+      "13": "Hiram realiza los trabajos de bronce",
+      "23": "El gran tanque de agua",
+      "27": "Los diez recipientes",
+      "40": "Hiram termina sus trabajos",
+      "48": "Los utensilios del templo"
+    },
+    "8": {
+      "1": "El cofre del pacto en el templo",
+      "10": "Dios en su templo",
+      "14": "Salomón habla al pueblo",
+      "22": "Salomón ora por el templo",
+      "54": "Salomón ora por el pueblo",
+      "62": "Salomón dedica el templo a Dios"
+    },
+    "9": {
+      "1": "Dios habla con Salomón",
+      "10": "Otras actividades de Salomón"
+    },
+    "10": {
+      "1": "La reina de Sabá conoce a Salomón",
+      "14": "Sabiduría y riqueza de Salomón",
+      "26": "Salomón compra y vende carros y caballos"
+    },
+    "11": {
+      "1": "Salomón desobedece a Dios",
+      "14": "Los enemigos de Salomón",
+      "41": "Salomón muere"
+    },
+    "12": {
+      "1": "Israel se divide en dos reinos",
+      "25": "Los dos toros de oro"
+    },
+    "13": {
+      "1": "El profeta de Judá"
+    },
+    "14": {
+      "1": "Muerte del hijo de Jeroboam",
+      "21": "Roboam, rey de Judá"
+    },
+    "15": {
+      "1": "Abiam, rey de Judá",
+      "9": "Asá, rey de Judá",
+      "25": "Nadab, rey de Israel",
+      "32": "Baasá, rey de Israel"
+    },
+    "16": {
+      "8": "Elá y Zimrí, reyes de Israel",
+      "21": "Omrí, rey de Israel",
+      "29": "Ahab, rey de Israel"
+    },
+    "17": {
+      "1": "El profeta Elías y la sequía",
+      "8": "Una viuda le da comida a Elías"
+    },
+    "18": {
+      "1": "Elías habla con Ahab",
+      "20": "El Dios verdadero",
+      "41": "Elías ora para que llueva"
+    },
+    "19": {
+      "1": "Elías se escapa de Jezabel",
+      "19": "Elías llama a Eliseo"
+    },
+    "20": {
+      "1": "El rey de Siria ataca Samaria",
+      "13": "Ahab derrota a Ben-hadad",
+      "35": "Un profeta reprende a Ahab"
+    },
+    "21": {
+      "1": "Ahab y el viñedo"
+    },
+    "22": {
+      "1": "Micaías anuncia la derrota de Ahab",
+      "29": "Los sirios vencen a Ahab",
+      "41": "Josafat, rey de Judá",
+      "51": "Ocozías, rey de Israel"
+    }
+  },
+  "2 Reyes": {
+    "1": {
+      "1": "Elías anuncia la muerte del rey Ocozías"
+    },
+    "2": {
+      "1": "Elías es llevado al cielo",
+      "12": "Eliseo continúa con el trabajo de Elías",
+      "19": "Eliseo purifica el agua de la ciudad",
+      "23": "Unos muchachos se burlan de Eliseo"
+    },
+    "3": {
+      "1": "Joram, rey de Israel",
+      "4": "Moab se rebela contra Israel"
+    },
+    "4": {
+      "1": "Una mujer necesitada",
+      "8": "Una mujer valiente",
+      "38": "Eliseo da comida a los profetas"
+    },
+    "5": {
+      "1": "Eliseo sana a Naamán"
+    },
+    "6": {
+      "1": "Eliseo y el hacha que cayó al río",
+      "8": "Eliseo y el ejército de Siria",
+      "24": "Hambre en Samaria"
+    },
+    "7": {
+      "3": "Los sirios escapan"
+    },
+    "8": {
+      "1": "La mujer de Sunem recupera sus bienes",
+      "7": "Hazael mata a Ben-hadad",
+      "16": "Joram, rey de Judá",
+      "25": "Ocozías, rey de Judá"
+    },
+    "9": {
+      "1": "Dios elige a Jehú para ser rey de Israel",
+      "14": "Jehú se rebela en contra de Joram",
+      "27": "Jehú mata a Ocozías",
+      "30": "Muerte de Jezabel"
+    },
+    "10": {
+      "1": "Jehú mata a toda la familia de Ahab",
+      "18": "Jehú combate el culto a Baal"
+    },
+    "11": {
+      "1": "Atalía, reina de Judá",
+      "21": "Joás, rey de Judá"
+    },
+    "13": {
+      "1": "Joacaz, rey de Israel",
+      "10": "Joás, rey de Israel",
+      "14": "Muerte de Eliseo"
+    },
+    "14": {
+      "1": "Amasías, rey de Judá",
+      "23": "Jeroboam II, rey de Israel"
+    },
+    "15": {
+      "1": "Azarías, rey de Judá",
+      "8": "Zacarías, rey de Israel",
+      "13": "Salum, rey de Israel",
+      "16": "Menahem, rey de Israel",
+      "23": "Pecahías, rey de Israel",
+      "27": "Pécah, rey de Israel",
+      "32": "Jotam, rey de Judá"
+    },
+    "16": {
+      "1": "Ahaz, rey de Judá"
+    },
+    "17": {
+      "1": "Los asirios vencen a los israelitas",
+      "24": "El rey de Asiria envía habitantes a Samaria"
+    },
+    "18": {
+      "1": "Ezequías, rey de Judá",
+      "9": "Los asirios conquistan Samaria",
+      "13": "El rey de Asiria invade Judá"
+    },
+    "19": {
+      "1": "Dios salva a Judá"
+    },
+    "20": {
+      "1": "Dios prolonga la vida de Ezequías",
+      "12": "Los mensajeros de Babilonia",
+      "20": "Muerte de Ezequías"
+    },
+    "21": {
+      "1": "Manasés, rey de Judá",
+      "19": "Amón, rey de Judá"
+    },
+    "22": {
+      "1": "Josías, rey de Judá",
+      "3": "El libro de la Ley"
+    },
+    "23": {
+      "4": "Josías sigue las enseñanzas de la Ley",
+      "28": "La muerte de Josías",
+      "31": "Joacaz, rey de Judá",
+      "35": "Joacín, rey de Judá"
+    },
+    "24": {
+      "8": "Joaquín, rey de Judá",
+      "18": "Sedequías, rey de Judá",
+      "20": "Babilonia vence a Judá"
+    },
+    "25": {
+      "8": "Nebuzaradán destruye el templo",
+      "22": "El resto de la gente huye a Egipto",
+      "27": "El rey Joaquín queda en libertad"
+    }
+  },
+  "1 Cronicas": {
+    "1": {
+      "1": "Los descendientes de Noé",
+      "17": "Los descendientes de Sem",
+      "28": "La familia de Ismael",
+      "34": "Los descendientes de Isaac",
+      "35": "Los descendientes de Esaú",
+      "43": "Los reyes de Edom"
+    },
+    "2": {
+      "1": "La familia de Jacob",
+      "3": "Los descendientes de Judá",
+      "18": "La familia de Hesrón, nieto de Judá",
+      "25": "Los descendientes de Jerahmeel",
+      "42": "Los descendientes de Caleb"
+    },
+    "3": {
+      "1": "Los hijos de David",
+      "10": "Los reyes descendientes de Salomón"
+    },
+    "4": {
+      "1": "Los descendientes de Judá",
+      "24": "Los descendientes de Simeón"
+    },
+    "5": {
+      "1": "Los descendientes de Rubén",
+      "11": "Los descendientes de Gad",
+      "23": "La media tribu de Manasés"
+    },
+    "6": {
+      "1": "Los sacerdotes hijos de Leví",
+      "31": "David nombra cantores para el templo",
+      "50": "Los descendientes de Aarón",
+      "54": "Lugares asignados a los descendientes de Aarón",
+      "64": "Las ciudades asignadas en cada tribu"
+    },
+    "7": {
+      "1": "Los descendientes de Isacar",
+      "6": "Los descendientes de Benjamín",
+      "13": "Los descendientes de Neftalí",
+      "14": "Los descendientes de Manasés",
+      "20": "Los descendientes de Efraín",
+      "30": "Los descendientes de Aser"
+    },
+    "8": {
+      "1": "Otros descendientes de Benjamín",
+      "29": "La familia del rey Saúl"
+    },
+    "9": {
+      "1": "Los que regresaron de Babilonia a Jerusalén",
+      "35": "Los descendientes de Saúl"
+    },
+    "10": {
+      "1": "Muerte de Saúl y de sus hijos"
+    },
+    "11": {
+      "1": "David, rey de Israel",
+      "4": "David conquista Jerusalén",
+      "10": "Los soldados más valientes del ejército de David"
+    },
+    "12": {
+      "1": "Los aliados de David",
+      "23": "El ejército de David"
+    },
+    "13": {
+      "1": "David intenta llevar el cofre a Jerusalén"
+    },
+    "14": {
+      "1": "Hiram envía sus representantes a David",
+      "3": "David tiene más hijos",
+      "8": "David vence a los filisteos"
+    },
+    "15": {
+      "1": "David lleva el cofre de Dios a Jerusalén",
+      "25": "El cofre llega a Jerusalén"
+    },
+    "16": {
+      "7": "David da gracias a Dios",
+      "37": "Los encargados del culto"
+    },
+    "17": {
+      "1": "Dios hace un pacto con David",
+      "16": "David le da gracias a Dios"
+    },
+    "18": {
+      "1": "David vence a sus enemigos",
+      "15": "Los asistentes de David"
+    },
+    "19": {
+      "1": "David vence a los sirios y a los amonitas"
+    },
+    "20": {
+      "1": "David conquista Rabá",
+      "4": "Batallas contra los filisteos"
+    },
+    "21": {
+      "1": "David hace una lista de sus militares",
+      "28": "El lugar para el templo"
+    },
+    "22": {
+      "2": "Preparativos para construir el templo",
+      "6": "La responsabilidad de Salomón",
+      "17": "La responsabilidad de los jefes de Israel"
+    },
+    "23": {
+      "1": "Los ayudantes de los sacerdotes",
+      "2": "Nuevo trabajo de los ayudantes"
+    },
+    "24": {
+      "1": "El trabajo de los sacerdotes",
+      "20": "Otra lista de ayudantes"
+    },
+    "25": {
+      "1": "Los músicos del templo"
+    },
+    "26": {
+      "1": "Organización de los vigilantes",
+      "20": "Los tesoreros",
+      "29": "Otros trabajos fuera del templo"
+    },
+    "27": {
+      "1": "Organización del ejército",
+      "16": "Organización de las tribus de Israel",
+      "25": "Administradores del rey David",
+      "32": "Otros ayudantes de David"
+    },
+    "28": {
+      "1": "Últimas instrucciones de David"
+    },
+    "29": {
+      "1": "David habla a todo el pueblo de Israel",
+      "6": "Ofrendas del pueblo",
+      "10": "Oración de David",
+      "21": "Israel reconoce a Salomón como su rey",
+      "26": "Muerte de David"
+    }
+  },
+  "2 Cronicas": {
+    "1": {
+      "1": "Salomón le pide sabiduría a Dios",
+      "14": "Las riquezas de Salomón"
+    },
+    "2": {
+      "1": "Salomón le pide ayuda al rey Hiram"
+    },
+    "3": {
+      "1": "Salomón construye el templo",
+      "15": "Las dos columnas"
+    },
+    "4": {
+      "1": "Muebles y utensilios del templo"
+    },
+    "5": {
+      "2": "Salomón lleva el cofre del pacto al templo",
+      "11": "Dios llena el templo con su presencia"
+    },
+    "6": {
+      "1": "Salomón ora a Dios"
+    },
+    "7": {
+      "1": "Consagración del templo",
+      "11": "Dios hace un pacto con Salomón"
+    },
+    "8": {
+      "1": "Otras actividades de Salomón"
+    },
+    "9": {
+      "1": "La reina de Sabá visita a Salomón",
+      "13": "Sabiduría y riqueza de Salomón",
+      "25": "Salomón comercia con carros y caballos",
+      "29": "Muerte de Salomón"
+    },
+    "10": {
+      "1": "Israel se divide en dos reinos"
+    },
+    "11": {
+      "5": "Roboam protege sus ciudades",
+      "13": "Los sacerdotes y levitas se unen a Roboam",
+      "18": "La familia de Roboam"
+    },
+    "12": {
+      "1": "El rey de Egipto conquista Judá",
+      "15": "Muerte de Roboam"
+    },
+    "13": {
+      "1": "Abiam, rey de Judá"
+    },
+    "14": {
+      "1": "Asá, rey de Judá",
+      "8": "Guerra de Asá contra Zérah"
+    },
+    "15": {
+      "1": "Asá es fiel a Dios"
+    },
+    "16": {
+      "1": "Guerra entre Asá y Baasá",
+      "7": "Los pecados de Asá",
+      "11": "Muerte de Asá"
+    },
+    "17": {
+      "1": "Josafat, rey de Judá"
+    },
+    "18": {
+      "1": "Micaías anuncia que Ahab será vencido",
+      "28": "Los sirios vencen a Ahab"
+    },
+    "19": {
+      "1": "El profeta Jehú reprende a Josafat",
+      "4": "Josafat habla a su pueblo y nombra jueces"
+    },
+    "20": {
+      "1": "Josafat vence a Moab y a Amón",
+      "31": "Resumen del reinado de Josafat"
+    },
+    "21": {
+      "2": "Joram, rey de Judá",
+      "12": "El profeta Elías reprende a Joram"
+    },
+    "22": {
+      "1": "Ocozías, un mal rey de Judá",
+      "7": "Jehú mata a Ocozías",
+      "10": "Atalía, reina de Judá"
+    },
+    "23": {
+      "1": "Rebelión de Joiadá contra Atalía",
+      "16": "Joiadá hace cambios"
+    },
+    "24": {
+      "1": "Joás es rey de Judá",
+      "17": "Joás se aleja de Dios",
+      "23": "Muerte de Joás"
+    },
+    "25": {
+      "1": "Amasías, rey de Judá",
+      "5": "Amasías derrota a Edom"
+    },
+    "26": {
+      "1": "Ozías, rey de Judá",
+      "16": "Ozías desobedece a Dios"
+    },
+    "27": {
+      "1": "Jotam, rey de Judá"
+    },
+    "28": {
+      "1": "Ahaz, rey de Judá"
+    },
+    "29": {
+      "1": "Ezequías, rey de Judá",
+      "12": "Los levitas preparan el templo"
+    },
+    "30": {
+      "1": "Ezequías celebra la Pascua"
+    },
+    "31": {
+      "2": "Ofrendas para los sacerdotes y sus ayudantes"
+    },
+    "32": {
+      "1": "Senaquerib ataca Judá",
+      "24": "Ezequías se enferma gravemente",
+      "27": "Las riquezas de Ezequías",
+      "31": "Ezequías recibe a los enviados de Babilonia",
+      "32": "Muerte de Ezequías"
+    },
+    "33": {
+      "1": "Manasés, rey de Judá",
+      "11": "Castigo y arrepentimiento de Manasés",
+      "14": "Manasés hace cambios",
+      "18": "Muerte de Manasés",
+      "21": "Amón, rey de Judá"
+    },
+    "34": {
+      "1": "Josías, rey de Judá",
+      "8": "Se encuentra el libro de la Ley"
+    },
+    "35": {
+      "1": "Josías celebra la Pascua",
+      "20": "La muerte de Josías"
+    },
+    "36": {
+      "1": "Joacaz, rey de Judá",
+      "5": "Joacín, rey de Judá",
+      "9": "Joaquín, rey de Judá",
+      "11": "Sedequías, rey de Judá",
+      "17": "Dios castiga a su pueblo",
+      "22": "El emperador Ciro permite el regreso a Jerusalén"
+    }
+  },
+  "Esdras": {
+    "1": {
+      "1": "Ciro permite el regreso de los judíos"
+    },
+    "2": {
+      "1": "De regreso a Jerusalén"
+    },
+    "3": {
+      "1": "Construcción del altar",
+      "7": "Comienza la reconstrucción del templo"
+    },
+    "4": {
+      "1": "Los enemigos se oponen a la reconstrucción"
+    },
+    "5": {
+      "1": "Continúa la reconstrucción"
+    },
+    "6": {
+      "1": "Aparece la orden de Ciro",
+      "6": "Darío aprueba la reconstrucción",
+      "13": "Dedicación del templo",
+      "19": "Celebración de la Pascua"
+    },
+    "7": {
+      "1": "Esdras llega a Jerusalén",
+      "6": "Carta del rey Artajerjes a Esdras",
+      "27": "Esdras alaba a Dios"
+    },
+    "8": {
+      "1": "Los que regresaron con Esdras",
+      "15": "Esdras ordena buscar servidores del templo",
+      "21": "Esdras ordena un ayuno",
+      "31": "El regreso a Jerusalén"
+    },
+    "9": {
+      "1": "El pecado del pueblo"
+    },
+    "10": {
+      "1": "El pueblo reconoce su pecado",
+      "18": "Los que tenían esposas extranjeras"
+    }
+  },
+  "Nehemias": {
+    "1": {
+      "1": "Nehemías ora por la gente de Jerusalén"
+    },
+    "2": {
+      "1": "Nehemías va a Jerusalén",
+      "11": "Nehemías llega a Jerusalén"
+    },
+    "3": {
+      "1": "Comienza la reconstrucción",
+      "17": "Los colaboradores de la tribu de Leví",
+      "22": "Los sacerdotes también reconstruyeron",
+      "27": "Otros colaboradores"
+    },
+    "4": {
+      "1": "Oposición a la obra"
+    },
+    "5": {
+      "1": "Problemas entre el pueblo",
+      "14": "Generosidad de Nehemías"
+    },
+    "6": {
+      "1": "Plan contra Nehemías"
+    },
+    "7": {
+      "1": "Nehemías organiza la defensa de la ciudad",
+      "4": "Los que volvieron de Babilonia",
+      "73": "Esdras lee el libro de la Ley frente a todo el pueblo"
+    },
+    "9": {
+      "1": "Confesión de pecado",
+      "38": "Los israelitas se comprometen"
+    },
+    "10": {
+      "28": "Compromiso del pueblo"
+    },
+    "11": {
+      "1": "Otros informes"
+    },
+    "12": {
+      "31": "Nehemías continúa su relato",
+      "44": "Provisiones para el templo de Dios"
+    },
+    "13": {
+      "1": "Nehemías hace cambios"
+    }
+  },
+  "Ester": {
+    "1": {
+      "1": "La gran fiesta del rey Asuero",
+      "10": "La reina Vasti desobedece al rey"
+    },
+    "2": {
+      "1": "Asuero busca una nueva reina",
+      "5": "Ester llega al palacio",
+      "15": "Ester es elegida reina",
+      "19": "Mardoqueo descubre un plan para matar al rey"
+    },
+    "3": {
+      "1": "Mardoqueo y Amán",
+      "7": "Amán convence al rey",
+      "12": "La orden para destruir a los judíos"
+    },
+    "4": {
+      "1": "La tristeza de los judíos",
+      "4": "Mardoqueo le pide ayuda a Ester",
+      "15": "Ester decide ayudar"
+    },
+    "5": {
+      "1": "Ester se presenta ante el rey",
+      "9": "El odio de Amán contra Mardoqueo"
+    },
+    "6": {
+      "1": "Mardoqueo recibe su recompensa"
+    },
+    "7": {
+      "1": "Ester ofrece otro banquete",
+      "8": "Amán muere en la horca"
+    },
+    "8": {
+      "1": "Ester suplica al rey por los judíos",
+      "11": "La orden que salvaría a los judíos"
+    },
+    "9": {
+      "1": "Victoria de los judíos",
+      "20": "La fiesta de Purim"
+    },
+    "10": {
+      "1": "Conclusión"
+    }
+  },
+  "Job": {
+    "1": {
+      "1": "¿Quién era Job?",
+      "6": "El ángel acusador",
+      "13": "Primeras pruebas de Job"
+    },
+    "2": {
+      "1": "Más pruebas para Job",
+      "11": "Los tres amigos de Job"
+    },
+    "3": {
+      "1": "Las quejas de Job"
+    },
+    "4": {
+      "1": "Primera respuesta de Elifaz"
+    },
+    "6": {
+      "1": "Primera respuesta de Job"
+    },
+    "8": {
+      "1": "Primera participación de Bildad"
+    },
+    "9": {
+      "1": "Segunda respuesta de Job"
+    },
+    "11": {
+      "1": "Primera participación de Zofar"
+    },
+    "12": {
+      "1": "Tercera respuesta de Job"
+    },
+    "15": {
+      "1": "Segunda participación de Elifaz"
+    },
+    "16": {
+      "1": "Cuarta respuesta de Job"
+    },
+    "18": {
+      "1": "Segunda participación de Bildad"
+    },
+    "19": {
+      "1": "Quinta respuesta de Job"
+    },
+    "20": {
+      "1": "Segunda participación de Zofar"
+    },
+    "21": {
+      "1": "Sexta respuesta de Job"
+    },
+    "22": {
+      "1": "Tercera participación de Elifaz"
+    },
+    "23": {
+      "1": "Séptima respuesta de Job"
+    },
+    "24": {
+      "18": "Zofar interrumpe a Job"
+    },
+    "25": {
+      "1": "Tercera participación de Bildad"
+    },
+    "26": {
+      "1": "Job interrumpe a Bildad",
+      "5": "Bildad continúa su discurso"
+    },
+    "27": {
+      "1": "Octava respuesta de Job",
+      "13": "Tercera participación de Zofar"
+    },
+    "28": {
+      "1": "El canto de la sabiduría"
+    },
+    "29": {
+      "1": "Fin de la discusión"
+    },
+    "32": {
+      "1": "Presentación de Elihú",
+      "6": "Primera participación de Elihú"
+    },
+    "34": {
+      "1": "Segunda participación de Elihú"
+    },
+    "35": {
+      "1": "Tercera participación de Elihú"
+    },
+    "36": {
+      "1": "Cuarta participación de Elihú"
+    },
+    "38": {
+      "1": "Dios responde a Job"
+    },
+    "42": {
+      "1": "Respuesta final de Job",
+      "7": "Un final feliz"
+    }
+  },
+  "Salmos": {
+    "1": {
+      "1": "Éxito y fracaso"
+    },
+    "2": {
+      "1": "Dios y su rey"
+    },
+    "3": {
+      "1": "Confiando en Dios"
+    },
+    "4": {
+      "1": "Dios nos da paz"
+    },
+    "5": {
+      "1": "La protección de Dios"
+    },
+    "6": {
+      "1": "Dios mío, ayúdame"
+    },
+    "7": {
+      "1": "Oración pidiendo justicia"
+    },
+    "8": {
+      "1": "Grandeza divina, grandeza humana"
+    },
+    "9": {
+      "1": "La justicia de Dios"
+    },
+    "10": {
+      "1": "Oración por la victoria"
+    },
+    "11": {
+      "1": "Dios lo controla todo"
+    },
+    "12": {
+      "1": "Tú siempre nos proteges"
+    },
+    "13": {
+      "1": "Mírame y respóndeme"
+    },
+    "14": {
+      "1": "Los malos rechazan a Dios"
+    },
+    "15": {
+      "1": "Requisitos para vivir con Dios"
+    },
+    "16": {
+      "1": "Tus enseñanzas son mi guía"
+    },
+    "17": {
+      "1": "Escúchame y respóndeme"
+    },
+    "18": {
+      "1": "Gracias Dios mío"
+    },
+    "19": {
+      "1": "Creación y palabra"
+    },
+    "20": {
+      "1": "Dios ayuda al rey"
+    },
+    "21": {
+      "1": "Dios le da la victoria al rey"
+    },
+    "22": {
+      "1": "Alabanza en medio del sufrimiento"
+    },
+    "23": {
+      "1": "Dios cuida de mí"
+    },
+    "24": {
+      "1": "El Rey del universo"
+    },
+    "25": {
+      "1": "Ayúdanos y protégenos"
+    },
+    "26": {
+      "1": "Siempre te seré fiel"
+    },
+    "27": {
+      "1": "Tú proteges mi vida"
+    },
+    "28": {
+      "1": "Tú eres la fuerza de tu pueblo"
+    },
+    "29": {
+      "1": "La poderosa voz de Dios"
+    },
+    "30": {
+      "1": "Cambiaste mi tristeza en baile"
+    },
+    "31": {
+      "1": "Tú eres quien me protege"
+    },
+    "32": {
+      "1": "La bendición del perdón"
+    },
+    "33": {
+      "1": "Alabanzas al Dios creador"
+    },
+    "34": {
+      "1": "Dios cuida de los suyos"
+    },
+    "35": {
+      "1": "Dios escucha la oración"
+    },
+    "36": {
+      "1": "La inmensa bondad de Dios"
+    },
+    "37": {
+      "1": "Triunfo del bueno, fracaso del malvado"
+    },
+    "38": {
+      "1": "¡Ven en mi ayuda!"
+    },
+    "39": {
+      "1": "La vida es corta"
+    },
+    "40": {
+      "1": "Dios es mi libertador"
+    },
+    "41": {
+      "1": "Devuélveme la salud"
+    },
+    "42": {
+      "1": "Pongo mi confianza en Dios"
+    },
+    "44": {
+      "1": "¡Entra ya en acción!"
+    },
+    "45": {
+      "1": "Al rey, en sus bodas"
+    },
+    "46": {
+      "1": "Dios nos brinda protección"
+    },
+    "47": {
+      "1": "Dios es rey de toda la tierra"
+    },
+    "48": {
+      "1": "La ciudad de Dios"
+    },
+    "49": {
+      "1": "No confíes en las riquezas"
+    },
+    "50": {
+      "1": "Dios acusa al malvado"
+    },
+    "51": {
+      "1": "Perdóname, Dios mío"
+    },
+    "52": {
+      "1": "El futuro del malvado"
+    },
+    "53": {
+      "1": "Los malos rechazan a Dios"
+    },
+    "54": {
+      "1": "Ven a defenderme"
+    },
+    "55": {
+      "1": "Yo siempre confío en Dios"
+    },
+    "56": {
+      "1": "Confío en tus promesas"
+    },
+    "57": {
+      "1": "Quiero que me protejas"
+    },
+    "58": {
+      "1": "Tú eres un Dios de justicia"
+    },
+    "59": {
+      "1": "Tú eres mi protector"
+    },
+    "60": {
+      "1": "¡Danos la victoria!"
+    },
+    "61": {
+      "1": "Protégeme toda la vida"
+    },
+    "62": {
+      "1": "Con Dios, jamás seré derrotado"
+    },
+    "63": {
+      "1": "Tu amor vale más que la vida"
+    },
+    "64": {
+      "1": "El destino del malvado"
+    },
+    "65": {
+      "1": "Dios nos llena de bendiciones"
+    },
+    "66": {
+      "1": "Alabemos a Dios por sus maravillas"
+    },
+    "67": {
+      "1": "Dios, guía de todas las naciones"
+    },
+    "68": {
+      "1": "Dios victorioso"
+    },
+    "69": {
+      "1": "¡Sálvame, Dios mío!"
+    },
+    "70": {
+      "1": "¡Ven pronto en mi ayuda!"
+    },
+    "71": {
+      "1": "Tú eres mi refugio"
+    },
+    "72": {
+      "1": "Himno en honor del rey"
+    },
+    "73": {
+      "1": "¡Qué bueno es Dios!"
+    },
+    "74": {
+      "1": "Dios mío, libera a tu pueblo"
+    },
+    "75": {
+      "1": "Dios hace justicia"
+    },
+    "76": {
+      "1": "Dios es el vencedor"
+    },
+    "77": {
+      "1": "Las maravillas de Dios"
+    },
+    "78": {
+      "1": "Dios cuida y guía a su pueblo"
+    },
+    "79": {
+      "1": "Dios no nos abandona"
+    },
+    "80": {
+      "1": "¡Muéstranos tu bondad!"
+    },
+    "81": {
+      "1": "Dios es bueno con su pueblo"
+    },
+    "82": {
+      "1": "Dios es el gran juez"
+    },
+    "83": {
+      "1": "¡Derrota a nuestros enemigos!"
+    },
+    "84": {
+      "1": "¡Qué bello es tu templo!"
+    },
+    "85": {
+      "1": "¡Devuélvenos la vida!"
+    },
+    "86": {
+      "1": "Tú eres mi Dios"
+    },
+    "87": {
+      "1": "Himno a Jerusalén"
+    },
+    "88": {
+      "1": "Dios mío, no me dejes solo"
+    },
+    "89": {
+      "1": "Dios hace un pacto con David"
+    },
+    "90": {
+      "1": "¡Bendice nuestro trabajo!"
+    },
+    "91": {
+      "1": "Dios nos protege"
+    },
+    "92": {
+      "1": "¡Qué bueno es alabar a Dios!"
+    },
+    "93": {
+      "1": "Dios es el rey"
+    },
+    "94": {
+      "1": "Dios es un juez justo"
+    },
+    "95": {
+      "1": "Cantemos a Dios con alegría"
+    },
+    "96": {
+      "1": "Dios es nuestro rey"
+    },
+    "97": {
+      "1": "Dios es un rey justo"
+    },
+    "98": {
+      "1": "Dios es justo"
+    },
+    "99": {
+      "1": "No hay otro Dios"
+    },
+    "100": {
+      "1": "¡Viva nuestro Dios!"
+    },
+    "101": {
+      "1": "Promesa del rey a Dios"
+    },
+    "102": {
+      "1": "¡Dios mío, tus años no tienen fin!"
+    },
+    "103": {
+      "1": "¡Te alabaré con todas mis fuerzas!"
+    },
+    "104": {
+      "1": "Himno al Creador"
+    },
+    "105": {
+      "1": "Dios de la historia"
+    },
+    "106": {
+      "1": "El pueblo de Dios se arrepiente"
+    },
+    "107": {
+      "1": "Dios es bueno con su pueblo"
+    },
+    "108": {
+      "1": "Con tu ayuda, saldremos victoriosos"
+    },
+    "109": {
+      "1": "¡Dios mío, ayúdame!"
+    },
+    "110": {
+      "1": "Dios da poder al rey"
+    },
+    "111": {
+      "1": "Alabemos a Dios"
+    },
+    "112": {
+      "1": "Dios bendice a la gente buena"
+    },
+    "113": {
+      "1": "La bondad de Dios"
+    },
+    "114": {
+      "1": "Marcha triunfal de los israelitas"
+    },
+    "115": {
+      "1": "Dios merece nuestra alabanza"
+    },
+    "116": {
+      "1": "Ya puedo dormir tranquilo"
+    },
+    "117": {
+      "1": "Alabemos a Dios"
+    },
+    "118": {
+      "1": "Dios nos ama"
+    },
+    "119": {
+      "1": "Himno a la palabra de Dios"
+    },
+    "120": {
+      "1": "¡Líbrame de los mentirosos!"
+    },
+    "121": {
+      "1": "Dios te protegerá"
+    },
+    "122": {
+      "1": "¡Que haya paz en Jerusalén!"
+    },
+    "123": {
+      "1": "De ti dependemos"
+    },
+    "124": {
+      "1": "Dios siempre nos ayuda"
+    },
+    "125": {
+      "1": "Dios protege a su pueblo"
+    },
+    "126": {
+      "1": "De la tristeza a la alegría"
+    },
+    "127": {
+      "1": "Los hijos son un regalo de Dios"
+    },
+    "128": {
+      "1": "Dios bendice a la familia"
+    },
+    "129": {
+      "1": "Dios es justo"
+    },
+    "130": {
+      "1": "Nuestra esperanza está en Dios"
+    },
+    "131": {
+      "1": "Estoy tranquilo y confío en Dios"
+    },
+    "132": {
+      "1": "Las promesas de Dios a David"
+    },
+    "133": {
+      "1": "La unidad entre hermanos"
+    },
+    "134": {
+      "1": "Alabemos a Dios"
+    },
+    "135": {
+      "1": "Alabanzas a Dios"
+    },
+    "136": {
+      "1": "Dios nunca deja de amarnos"
+    },
+    "137": {
+      "1": "Una canción en tierra extraña"
+    },
+    "138": {
+      "1": "Dios es bondadoso"
+    },
+    "139": {
+      "1": "Dios mío, tú me conoces"
+    },
+    "140": {
+      "1": "Dios me protege"
+    },
+    "141": {
+      "1": "¡Protégeme, Dios mío!"
+    },
+    "142": {
+      "1": "Dios es mi refugio"
+    },
+    "143": {
+      "1": "En Dios confío"
+    },
+    "144": {
+      "1": "Dios es mi protector"
+    },
+    "145": {
+      "1": "¡Grande es Dios!"
+    },
+    "146": {
+      "1": "Dios bendice a los que en él confían"
+    },
+    "147": {
+      "1": "Dios es digno de alabanza"
+    },
+    "148": {
+      "1": "Alabanza de toda la creación"
+    },
+    "149": {
+      "1": "Alabemos a Dios, nuestro rey"
+    },
+    "150": {
+      "1": "Invitación a la alabanza"
+    }
+  },
+  "Proverbios": {
+    "1": {
+      "1": "Propósito de este libro",
+      "8": "Consejos contra los falsos amigos",
+      "20": "La sabiduría llama a los jóvenes"
+    },
+    "2": {
+      "1": "La sabiduría y sus ventajas"
+    },
+    "3": {
+      "1": "Otras ventajas de la sabiduría"
+    },
+    "4": {
+      "1": "No hay nada como la sabiduría"
+    },
+    "5": {
+      "1": "Advertencias contra la mujer infiel",
+      "15": "Sé fiel a tu esposa",
+      "20": "Dios mira tu conducta"
+    },
+    "6": {
+      "1": "Piensa antes de actuar",
+      "6": "No seas perezoso",
+      "12": "No seas mentiroso",
+      "16": "No provoques peleas",
+      "20": "Cuidado con la mujer infiel"
+    },
+    "7": {
+      "1": "Invitación de la mujer infiel"
+    },
+    "8": {
+      "1": "Invitación de la sabiduría"
+    },
+    "9": {
+      "1": "La sabiduría y la ignorancia"
+    },
+    "10": {
+      "1": "Los dichos del sabio Salomón"
+    },
+    "11": {
+      "1": "¡Cuidado con lo que haces! ¡Cuidado con lo que dices!"
+    },
+    "12": {
+      "1": "Haz el bien y vivirás"
+    },
+    "13": {
+      "1": "Recompensa de los buenos, castigo de los malos"
+    },
+    "14": {
+      "1": "Mente sana en cuerpo sano"
+    },
+    "15": {
+      "1": "El valor de la humildad"
+    },
+    "16": {
+      "1": "Planes humanos, respuesta de Dios"
+    },
+    "17": {
+      "1": "La sabiduría no tiene precio"
+    },
+    "18": {
+      "1": "Premio o castigo, tú lo decides"
+    },
+    "19": {
+      "1": "El sabio oye consejos"
+    },
+    "20": {
+      "1": "Dios dirige nuestra vida"
+    },
+    "21": {
+      "1": "Ante Dios, humildad"
+    },
+    "22": {
+      "1": "De nada valen las riquezas",
+      "17": "Cucharadas de sabiduría"
+    },
+    "24": {
+      "23": "Otra colección de proverbios"
+    },
+    "25": {
+      "1": "Otros proverbios de Salomón"
+    },
+    "26": {
+      "1": "La necedad",
+      "13": "La pereza"
+    },
+    "27": {
+      "1": "¡Nadie controla el futuro!"
+    },
+    "28": {
+      "1": "Haz el bien y bien te irá"
+    },
+    "29": {
+      "1": "Hacer el bien trae alegría"
+    },
+    "30": {
+      "1": "La sabiduría de Agur"
+    },
+    "31": {
+      "1": "Dichos del rey Lemuel",
+      "10": "La mujer ejemplar"
+    }
+  },
+  "Eclesiastes": {
+    "1": {
+      "1": "Nada tiene sentido",
+      "12": "Nada vale la pena"
+    },
+    "2": {
+      "12": "Nada nos llevamos de este mundo"
+    },
+    "3": {
+      "1": "Hay un tiempo para todo",
+      "9": "Los regalos de Dios",
+      "16": "Todo vuelve al polvo"
+    },
+    "4": {
+      "7": "La unión hace la fuerza",
+      "13": "Juventud y sabiduría"
+    },
+    "5": {
+      "1": "Cumple lo que prometes",
+      "8": "De nada sirven las riquezas"
+    },
+    "6": {
+      "1": "La vida no tiene sentido"
+    },
+    "7": {
+      "1": "Nueva escala de valores",
+      "23": "El por qué de las cosas"
+    },
+    "8": {
+      "2": "La obediencia al rey",
+      "9": "La vida es difícil de entender"
+    },
+    "9": {
+      "1": "Un destino común",
+      "11": "Más vale maña que fuerza"
+    },
+    "10": {
+      "1": "Otros dichos sabios"
+    },
+    "11": {
+      "9": "Acuérdate de tu creador"
+    },
+    "12": {
+      "9": "Palabras finales"
+    }
+  },
+  "Cantares": {
+    "1": {
+      "2": "Primer canto"
+    },
+    "2": {
+      "8": "Segundo canto"
+    },
+    "3": {
+      "6": "Tercer canto"
+    },
+    "5": {
+      "2": "Cuarto canto"
+    },
+    "6": {
+      "4": "Quinto canto"
+    },
+    "8": {
+      "5": "Sexto canto"
+    }
+  },
+  "Isaias": {
+    "1": {
+      "1": "Introducción",
+      "2": "Dios acusa a su pueblo",
+      "7": "El país está en ruinas",
+      "10": "Israel no sabe adorar a Dios",
+      "21": "Dios castigará a los rebeldes"
+    },
+    "2": {
+      "1": "El mundo vivirá en paz",
+      "6": "Los muchos pecados de Israel",
+      "10": "Dios castigará a los orgullosos",
+      "19": "Dios castigará a su pueblo"
+    },
+    "3": {
+      "1": "Judá y Jerusalén serán castigadas",
+      "12": "Los malos gobernantes",
+      "16": "Dios castiga a las mujeres orgullosas"
+    },
+    "4": {
+      "2": "Dios perdonará a Israel"
+    },
+    "5": {
+      "1": "El canto de la viña",
+      "8": "Seis amenazas",
+      "25": "El enojo de Dios",
+      "26": "La invasión del enemigo"
+    },
+    "6": {
+      "1": "Isaías tiene una visión en el templo"
+    },
+    "7": {
+      "1": "Primer mensaje para el rey Ahaz",
+      "10": "Segundo mensaje para el rey Ahaz"
+    },
+    "8": {
+      "1": "El hijo de Isaías recibe un nombre simbólico",
+      "11": "Solo a Dios hay que temer",
+      "16": "Instrucciones de Isaías a sus discípulos"
+    },
+    "9": {
+      "1": "El reinado del Príncipe de paz",
+      "8": "El enojo de Dios contra el reino de Israel"
+    },
+    "10": {
+      "1": "Mensaje para los jefes de Israel",
+      "5": "Dios enviará a los asirios",
+      "20": "Unos cuantos se volverán a Dios",
+      "24": "La destrucción de Asiria"
+    },
+    "11": {
+      "1": "Un reinado de paz y justicia"
+    },
+    "12": {
+      "1": "Canto de gratitud"
+    },
+    "13": {
+      "1": "Mensaje contra Babilonia"
+    },
+    "14": {
+      "1": "Dios tendrá compasión de Israel",
+      "3": "Israel se burlará del rey de Babilonia",
+      "24": "Amenaza de Dios contra Asiria",
+      "28": "Amenaza de Dios contra los filisteos"
+    },
+    "15": {
+      "1": "Mensaje contra Moab"
+    },
+    "16": {
+      "1": "La gente de Moab se refugia en Judá",
+      "6": "El orgullo de Moab desaparecerá"
+    },
+    "17": {
+      "1": "Mensaje contra Damasco",
+      "4": "El castigo de Israel",
+      "7": "El fin de la idolatría"
+    },
+    "18": {
+      "1": "Mensaje contra Egipto"
+    },
+    "19": {
+      "5": "El río Nilo se secará",
+      "11": "Los consejeros de Egipto fallan",
+      "16": "Israel, Egipto y Asiria vivirán en paz"
+    },
+    "20": {
+      "1": "Asiria conquistará a Egipto y a Etiopía"
+    },
+    "21": {
+      "1": "La destrucción de Babilonia",
+      "11": "Anuncio de Dios contra el país de Edom",
+      "13": "Mensaje contra Arabia"
+    },
+    "22": {
+      "1": "Mensaje contra Jerusalén",
+      "12": "No hay perdón para Jerusalén",
+      "15": "Cambio de funcionarios"
+    },
+    "23": {
+      "1": "Mensaje contra Tiro y Sidón"
+    },
+    "24": {
+      "1": "Dios castiga la tierra",
+      "14": "El triunfo de Dios"
+    },
+    "25": {
+      "1": "Canto de acción de gracias",
+      "6": "El banquete de Dios",
+      "10": "La derrota del pueblo de Moab"
+    },
+    "26": {
+      "1": "Canto de victoria del pueblo de Dios"
+    },
+    "27": {
+      "1": "El castigo del monstruo del mar",
+      "2": "El canto a Israel",
+      "6": "Israel quedará libre de sus pecados",
+      "12": "Los israelitas vuelven a su patria"
+    },
+    "28": {
+      "1": "Anuncio de la destrucción de Samaria",
+      "7": "Amenaza y promesas a Jerusalén",
+      "14": "Amenazas a los gobernantes",
+      "23": "La parábola del agricultor"
+    },
+    "29": {
+      "1": "Ataque contra Jerusalén",
+      "9": "Israel parece estar ciego",
+      "15": "Advertencia de Isaías",
+      "17": "Promesa de salvación a Israel"
+    },
+    "30": {
+      "1": "Contra los que confían en Egipto",
+      "6": "La ayuda de Egipto no servirá de nada",
+      "9": "El castigo de la rebeldía",
+      "18": "Promesas de salvación",
+      "27": "El castigo de Asiria"
+    },
+    "31": {
+      "1": "Reproches a los que buscan ayuda en Egipto",
+      "4": "Dios protege a Jerusalén",
+      "6": "El pueblo debe arrepentirse"
+    },
+    "32": {
+      "1": "El reino de justicia",
+      "9": "Mujeres irresponsables",
+      "15": "Promesas de paz y seguridad"
+    },
+    "33": {
+      "1": "Confianza en Dios",
+      "7": "Dios ayuda en el sufrimiento",
+      "15": "¿Quién se salvará en el juicio de Dios?",
+      "17": "La gloria futura de Jerusalén"
+    },
+    "34": {
+      "1": "Dios juzgará a las naciones",
+      "5": "Dios castigará al reino de Edom"
+    },
+    "35": {
+      "1": "Los israelitas volverán a Jerusalén"
+    },
+    "36": {
+      "1": "El rey de Asiria invade Judá"
+    },
+    "37": {
+      "1": "Dios salva a Judá"
+    },
+    "38": {
+      "1": "Escrito de Ezequías"
+    },
+    "39": {
+      "1": "Los mensajeros de Babilonia"
+    },
+    "40": {
+      "1": "Dios consuela a Jerusalén",
+      "3": "El camino de Dios en el desierto",
+      "6": "El poder de la palabra de Dios",
+      "9": "¡Dios llega con poder!",
+      "12": "Nadie es más grande que Dios",
+      "18": "Los ídolos no son Dios",
+      "21": "El poder de Dios",
+      "25": "La grandeza de Dios"
+    },
+    "41": {
+      "1": "El rey Ciro, un enviado de Dios",
+      "8": "La confianza en Dios",
+      "17": "Dios hace grandes maravillas",
+      "21": "Dios desafía a los falsos dioses",
+      "25": "La incapacidad de los dioses falsos"
+    },
+    "42": {
+      "1": "El elegido de Dios",
+      "10": "Gracias a Dios por la salvación",
+      "18": "Israel, pueblo ciego y sordo"
+    },
+    "43": {
+      "1": "Solo Dios salva",
+      "8": "Israel, único testigo de Dios",
+      "14": "Babilonia será destruida",
+      "16": "Liberación de los israelitas"
+    },
+    "44": {
+      "1": "Dios es fiel",
+      "9": "Crítica contra la idolatría",
+      "21": "Dios perdona y salva a su pueblo Israel",
+      "23": "Dios es el libertador de su pueblo",
+      "24": "La ciudad de Jerusalén volverá a ser habitada"
+    },
+    "45": {
+      "8": "Isaías pide la salvación del pueblo",
+      "9": "El misterioso poder de Dios",
+      "15": "La humillación de los idólatras",
+      "18": "Dios desafía a los ídolos"
+    },
+    "46": {
+      "1": "La derrota de los dioses de Babilonia"
+    },
+    "47": {
+      "1": "La caída de Babilonia"
+    },
+    "48": {
+      "1": "Dios cumple su palabra",
+      "6": "Dios anuncia cosas nuevas",
+      "12": "Dios salvará a su pueblo",
+      "17": "Dios guía a su pueblo",
+      "20": "Dios da la libertad a su pueblo"
+    },
+    "49": {
+      "1": "La luz de las naciones",
+      "7": "Una promesa de Dios a su pueblo",
+      "8": "Restauración de Israel",
+      "9": "La alegría de los que vuelven a su patria",
+      "14": "La reconstrucción de Jerusalén"
+    },
+    "51": {
+      "1": "Salvación para Jerusalén",
+      "17": "El enojo de Dios"
+    },
+    "52": {
+      "13": "Sufrimiento y gloria del fiel servidor"
+    },
+    "54": {
+      "1": "Dios es el esposo de su pueblo",
+      "9": "El amor de Dios es eterno",
+      "11": "La nueva Jerusalén"
+    },
+    "55": {
+      "1": "Dios se unirá a su pueblo",
+      "10": "El poder de la palabra de Dios",
+      "12": "Últimas palabras de consuelo"
+    },
+    "56": {
+      "1": "Dios premia a los que son fieles",
+      "9": "Dios reprende a los jefes malos"
+    },
+    "57": {
+      "1": "La muerte de la gente buena",
+      "3": "Contra el culto de los ídolos",
+      "14": "Castigo y curación de Israel"
+    },
+    "58": {
+      "1": "El ayuno que no agrada a Dios",
+      "6": "El ayuno que a Dios le agrada",
+      "13": "Instrucciones sobre el día de descanso"
+    },
+    "59": {
+      "1": "La maldad de Israel",
+      "9": "Confesión de pecados",
+      "14": "Dios hace justicia",
+      "21": "Anuncio de la salvación"
+    },
+    "60": {
+      "1": "La nueva Jerusalén"
+    },
+    "61": {
+      "1": "Anuncio de la salvación a Israel",
+      "10": "La alegría de los que habitan en Jerusalén"
+    },
+    "62": {
+      "1": "La nueva Jerusalén"
+    },
+    "63": {
+      "1": "La victoria de Dios sobre Edom",
+      "7": "Dios es bondadoso con su pueblo",
+      "15": "Israel pide ayuda a Dios"
+    },
+    "65": {
+      "1": "Dios condena la idolatría",
+      "8": "Dios da a cada uno su merecido",
+      "17": "El cielo nuevo y la tierra nueva"
+    },
+    "66": {
+      "1": "Dios es el creador",
+      "2": "El culto que desagrada a Dios",
+      "5": "La nueva Jerusalén",
+      "10": "La felicidad de Israel"
+    }
+  },
+  "Jeremias": {
+    "1": {
+      "1": "Introducción",
+      "4": "Dios llama a Jeremías"
+    },
+    "2": {
+      "1": "Israel se rebela contra su Dios"
+    },
+    "3": {
+      "6": "Israel es como una esposa infiel",
+      "14": "Israel es como un hijo rebelde"
+    },
+    "4": {
+      "3": "Peligro en el norte",
+      "19": "Queja de Jeremías",
+      "27": "Destrucción de Jerusalén",
+      "31": "Habla el profeta"
+    },
+    "5": {
+      "1": "Pecado de Jerusalén",
+      "7": "Respuesta de Dios"
+    },
+    "6": {
+      "1": "Jerusalén está en peligro"
+    },
+    "7": {
+      "1": "La religión que no sirve",
+      "29": "Dios advierte a Jerusalén"
+    },
+    "8": {
+      "4": "Pecado y castigo",
+      "17": "Jeremías sufre por su pueblo"
+    },
+    "9": {
+      "12": "Dios castigará a Judá y a las naciones"
+    },
+    "10": {
+      "1": "Dios rechaza los ídolos",
+      "6": "El Dios verdadero",
+      "11": "Los ídolos no sirven para nada",
+      "17": "La destrucción no tarda en llegar"
+    },
+    "11": {
+      "1": "Judá no respeta el pacto",
+      "18": "Planes contra Jeremías"
+    },
+    "12": {
+      "1": "Jeremías se queja",
+      "5": "Dios le responde a Jeremías",
+      "14": "Restauración futura de Judá"
+    },
+    "13": {
+      "1": "El calzoncillo de lino",
+      "12": "Vasijas rotas",
+      "15": "Tengan cuidado"
+    },
+    "14": {
+      "1": "Sequía, hambre y guerra",
+      "7": "Súplica de Jeremías",
+      "19": "Respuesta de Jeremías"
+    },
+    "15": {
+      "1": "Los cuatro castigos",
+      "5": "Morirán los habitantes de Jerusalén",
+      "10": "Lamento de Jeremías",
+      "12": "Esclavizados en un país ajeno",
+      "15": "Queja de Jeremías",
+      "19": "Dios acompaña a Jeremías"
+    },
+    "16": {
+      "1": "Jeremías no debe casarse",
+      "19": "Oración de Jeremías"
+    },
+    "17": {
+      "1": "Dios castigará a Judá por su pecado",
+      "12": "Jeremías pide protección",
+      "19": "El día de descanso"
+    },
+    "18": {
+      "1": "Parábola del alfarero",
+      "11": "Dios abandonará a su pueblo",
+      "18": "Planes contra Jeremías",
+      "19": "Oración de Jeremías"
+    },
+    "19": {
+      "1": "La vasija rota"
+    },
+    "20": {
+      "1": "Jeremías y el sacerdote Pashur",
+      "7": "Protesta de Jeremías"
+    },
+    "21": {
+      "1": "La oración de Sedequías"
+    },
+    "22": {
+      "1": "Dios castigará a los jefes de Judá",
+      "13": "Advertencia contra el rey Joacín",
+      "20": "Advertencia contra Jerusalén",
+      "24": "Advertencia contra Joaquín"
+    },
+    "23": {
+      "1": "El rey justo y sabio",
+      "9": "Los profetas mentirosos",
+      "33": "Profetas falsos"
+    },
+    "24": {
+      "1": "Las dos canastas de higos"
+    },
+    "25": {
+      "1": "Los años de esclavitud",
+      "15": "El castigo a las naciones"
+    },
+    "26": {
+      "1": "Jeremías recibe amenazas de muerte"
+    },
+    "27": {
+      "1": "¡Es mejor rendirse!"
+    },
+    "28": {
+      "1": "Hananías, el profeta mentiroso"
+    },
+    "29": {
+      "1": "Carta de Jeremías",
+      "24": "Mensaje para Semaías"
+    },
+    "30": {
+      "1": "Restauración de Israel"
+    },
+    "31": {
+      "1": "Israel volverá de Babilonia",
+      "23": "El sueño de Jeremías",
+      "27": "Responsabilidad personal",
+      "31": "El nuevo pacto",
+      "35": "El gran poder de Dios",
+      "38": "Jerusalén será reconstruida"
+    },
+    "32": {
+      "1": "Un plan maravilloso"
+    },
+    "33": {
+      "1": "Promesas de restauración",
+      "19": "Dios es fiel"
+    },
+    "34": {
+      "1": "Advertencia al rey Sedequías",
+      "8": "Los esclavos son liberados"
+    },
+    "35": {
+      "1": "Los descendientes de Recab"
+    },
+    "36": {
+      "1": "El libro dictado por Jeremías"
+    },
+    "37": {
+      "1": "Jeremías en la cárcel"
+    },
+    "38": {
+      "1": "Jeremías es arrojado en un pozo",
+      "14": "Sedequías vuelve a interrogar a Jeremías"
+    },
+    "39": {
+      "1": "La derrota de Jerusalén"
+    },
+    "40": {
+      "1": "Jeremías sale de la cárcel",
+      "7": "Plan para matar a Guedalías"
+    },
+    "41": {
+      "1": "Muerte de Guedalías",
+      "16": "El pueblo quiere escaparse a Egipto"
+    },
+    "43": {
+      "1": "Babilonia derrota a Egipto"
+    },
+    "44": {
+      "1": "No adoren a dioses falsos"
+    },
+    "45": {
+      "1": "Mensaje para Baruc"
+    },
+    "46": {
+      "1": "Advertencia contra los egipcios",
+      "25": "Esperanza para el pueblo de Dios"
+    },
+    "47": {
+      "1": "Advertencia contra los filisteos"
+    },
+    "48": {
+      "1": "Advertencia contra Moab"
+    },
+    "49": {
+      "1": "Advertencia contra Amón",
+      "7": "Advertencia contra Edom",
+      "23": "Advertencia contra Damasco",
+      "28": "Advertencia contra Quedar y Hasor",
+      "34": "Advertencia contra Elam"
+    },
+    "50": {
+      "1": "Advertencia contra Babilonia"
+    },
+    "51": {
+      "15": "Canción de alabanza a Dios",
+      "20": "Mi arma de guerra",
+      "24": "Castigo final de Babilonia",
+      "27": "Destrucción de Babilonia",
+      "59": "El rollo de cuero"
+    },
+    "52": {
+      "1": "Nabucodonosor destruye a Jerusalén",
+      "31": "El rey Joaquín es liberado"
+    }
+  },
+  "Lamentaciones": {
+    "1": {
+      "1": "Primer lamento acróstico"
+    },
+    "2": {
+      "1": "Segundo lamento acróstico"
+    },
+    "3": {
+      "1": "Tercer lamento acróstico"
+    },
+    "4": {
+      "1": "Cuarto lamento acróstico"
+    },
+    "5": {
+      "1": "Quinto lamento"
+    }
+  },
+  "Ezequiel": {
+    "3": {
+      "16": "Dios pone a Ezequiel como vigilante",
+      "22": "Ezequiel se queda mudo"
+    },
+    "4": {
+      "1": "La destrucción de Jerusalén"
+    },
+    "6": {
+      "1": "Mensaje contra los que adoran ídolos"
+    },
+    "7": {
+      "1": "El fin está cerca"
+    },
+    "8": {
+      "1": "Dios acusa a Jerusalén"
+    },
+    "9": {
+      "1": "Dios castigará a Jerusalén"
+    },
+    "10": {
+      "1": "Dios abandona el templo"
+    },
+    "11": {
+      "1": "Los líderes de Israel serán juzgados",
+      "22": "La presencia de Dios se aleja de Jerusalén"
+    },
+    "12": {
+      "1": "Drama: El pueblo será llevado prisionero",
+      "17": "El mensaje del castigo se cumplirá"
+    },
+    "13": {
+      "1": "Mensaje contra los falsos profetas",
+      "17": "Mensaje contra las hechiceras"
+    },
+    "14": {
+      "1": "Mensaje contra los que adoran ídolos",
+      "12": "El castigo será inevitable"
+    },
+    "15": {
+      "1": "Jerusalén no vale nada"
+    },
+    "16": {
+      "1": "Jerusalén es como una esposa infiel"
+    },
+    "17": {
+      "1": "La vid y las dos águilas"
+    },
+    "18": {
+      "1": "El que peque, morirá",
+      "5": "Cualidades del justo",
+      "10": "Defectos del pecador",
+      "14": "A cada quien su merecido",
+      "21": "Esperanza y peligro"
+    },
+    "19": {
+      "1": "Lamento por los jefes de Israel",
+      "10": "Lamento por Jerusalén"
+    },
+    "20": {
+      "1": "Historia de un pueblo infiel",
+      "45": "Un mensaje contra el bosque del sur"
+    },
+    "21": {
+      "1": "Dios castiga a Jerusalén",
+      "28": "Dios castigará también a los amonitas",
+      "30": "Dios castigará a Babilonia"
+    },
+    "22": {
+      "1": "Los delitos de Jerusalén",
+      "17": "El castigo de Jerusalén",
+      "23": "Israel no tiene quien la defienda"
+    },
+    "23": {
+      "1": "Historia de dos prostitutas",
+      "2": "La historia de Oholá",
+      "11": "La historia de Oholibá",
+      "36": "Ezequiel acusa a las dos hermanas"
+    },
+    "24": {
+      "1": "El ejemplo de la olla hirviendo",
+      "15": "Muerte de la esposa de Ezequiel"
+    },
+    "25": {
+      "1": "Mensajes contra las naciones"
+    },
+    "27": {
+      "1": "Lamento por la ciudad de Tiro"
+    },
+    "28": {
+      "1": "Mensaje contra el rey de Tiro",
+      "11": "Lamento por el rey de Tiro",
+      "20": "Mensaje contra la ciudad de Sidón"
+    },
+    "29": {
+      "1": "Mensaje contra Egipto",
+      "17": "Nabucodonosor conquistará Egipto"
+    },
+    "30": {
+      "1": "Lamento por Egipto",
+      "20": "Mensaje sobre la derrota de Egipto"
+    },
+    "31": {
+      "1": "El rey de Egipto es comparado a un árbol"
+    },
+    "32": {
+      "1": "Lamento por el rey de Egipto",
+      "17": "Lamento por la caída de Egipto"
+    },
+    "33": {
+      "1": "El profeta debe vigilar a su pueblo",
+      "21": "La destrucción de Jerusalén"
+    },
+    "34": {
+      "1": "Los malos gobernantes de Israel",
+      "12": "El buen pastor de Israel"
+    },
+    "35": {
+      "1": "Mensaje contra Edom"
+    },
+    "36": {
+      "1": "Las naciones se burlan de Israel",
+      "16": "Dios defiende su buen nombre"
+    },
+    "37": {
+      "1": "El valle de los huesos secos",
+      "15": "Israel y Judá volverán a ser un solo reino"
+    },
+    "38": {
+      "1": "Mensaje contra Gog",
+      "18": "El castigo de Gog"
+    },
+    "39": {
+      "1": "Dios derrota a Gog",
+      "11": "El entierro de Gog y su ejército",
+      "21": "Dios se compadece de Israel"
+    },
+    "40": {
+      "1": "El templo del futuro",
+      "5": "Las entradas de la muralla",
+      "28": "Las entradas del patio interior del templo"
+    },
+    "41": {
+      "1": "El Lugar Santo",
+      "3": "El Lugar Santísimo",
+      "5": "Los cuartos del templo",
+      "12": "El edificio al oeste del templo",
+      "13": "Medidas del templo",
+      "15": "Otras partes del templo"
+    },
+    "42": {
+      "1": "Los cuartos de los sacerdotes"
+    },
+    "43": {
+      "1": "Dios vuelve al templo con gran poder",
+      "13": "El altar",
+      "18": "Las ofrendas para consagrar el altar"
+    },
+    "44": {
+      "1": "La puerta cerrada",
+      "4": "Los que pueden entrar al templo",
+      "13": "Los ayudantes de los sacerdotes",
+      "15": "Los sacerdotes"
+    },
+    "45": {
+      "1": "El terreno para el templo",
+      "7": "El terreno para el gobernador",
+      "9": "Leyes para el gobernador",
+      "13": "Las ofrendas para el culto",
+      "18": "La fiesta de la Pascua",
+      "25": "La fiesta de las enramadas"
+    },
+    "46": {
+      "1": "Las ofrendas del gobernador y del pueblo",
+      "16": "Las obligaciones del gobernador",
+      "19": "Las cocinas del templo"
+    },
+    "47": {
+      "1": "El río que salía del templo",
+      "13": "Límites de la tierra de Israel"
+    },
+    "48": {
+      "1": "Cómo se debe repartir la tierra",
+      "8": "El terreno apartado para Dios",
+      "21": "El terreno del gobernador",
+      "23": "El terreno de las otras tribus",
+      "30": "Los portones de Jerusalén"
+    }
+  },
+  "Daniel": {
+    "1": {
+      "1": "Comienzo de la historia",
+      "6": "Daniel y sus amigos en el palacio del rey"
+    },
+    "2": {
+      "1": "El sueño de Nabucodonosor",
+      "14": "Daniel le explica al rey su sueño"
+    },
+    "3": {
+      "1": "La gente adora la estatua de oro",
+      "19": "Dios salva del fuego a los tres jóvenes"
+    },
+    "4": {
+      "1": "Nabucodonosor se vuelve loco",
+      "34": "Nabucodonosor sana de su locura"
+    },
+    "5": {
+      "1": "La fiesta de Belsasar",
+      "5": "Dios escribe en la pared"
+    },
+    "6": {
+      "1": "Daniel en la cueva de los leones"
+    },
+    "7": {
+      "2": "Los cuatro monstruos"
+    },
+    "8": {
+      "1": "El carnero y el chivo"
+    },
+    "9": {
+      "1": "Daniel le pide a Dios por su gente"
+    },
+    "10": {
+      "1": "Daniel sueña con ángeles"
+    },
+    "11": {
+      "1": "Guerras entre norte y sur"
+    },
+    "12": {
+      "1": "Los días finales"
+    }
+  },
+  "Oseas": {
+    "1": {
+      "1": "Oseas se casa con una prostituta"
+    },
+    "2": {
+      "2": "Gómer representa a Israel",
+      "14": "Dios perdonará a su pueblo"
+    },
+    "3": {
+      "1": "Oseas y su esposa infiel"
+    },
+    "4": {
+      "1": "Pecados de los israelitas",
+      "11": "Israel adora a los ídolos"
+    },
+    "5": {
+      "1": "Mensaje contra Israel",
+      "8": "Dios castiga a Israel"
+    },
+    "6": {
+      "1": "Los israelitas se arrepienten",
+      "4": "Dios responde a Israel"
+    },
+    "7": {
+      "1": "Dios quiere ayudar a su pueblo",
+      "8": "El pueblo abandona a Dios"
+    },
+    "9": {
+      "1": "Dios castigará a Israel",
+      "14": "Oración de Oseas",
+      "15": "Respuesta de Dios",
+      "17": "Habla el profeta"
+    },
+    "10": {
+      "9": "Dios reprende a Israel",
+      "12": "Habla el profeta"
+    },
+    "11": {
+      "1": "El amor de Dios por su pueblo",
+      "12": "Los pecados del pueblo de Dios"
+    },
+    "12": {
+      "2": "Habla el profeta",
+      "7": "Habla Dios",
+      "12": "Habla el profeta"
+    },
+    "13": {
+      "1": "Dios castigará a Israel"
+    },
+    "14": {
+      "1": "Habla el profeta",
+      "4": "Dios promete bendecir a su pueblo",
+      "9": "Mensaje final del libro"
+    }
+  },
+  "Joel": {
+    "1": {
+      "1": "El ataque de los saltamontes"
+    },
+    "2": {
+      "1": "La invasión de un ejército enemigo",
+      "12": "El pueblo de Dios debe arrepentirse",
+      "18": "Dios ama a los que se arrepienten",
+      "26": "Dios promete enviar su espíritu"
+    },
+    "3": {
+      "1": "Dios juzgará a las naciones",
+      "9": "El profeta anuncia el juicio",
+      "17": "Habla Dios"
+    }
+  },
+  "Amos": {
+    "1": {
+      "1": "De ganadero a profeta",
+      "3": "Mensajes contra las naciones"
+    },
+    "3": {
+      "3": "Hay una razón para todo",
+      "9": "Samaria será destruida"
+    },
+    "4": {
+      "1": "Las mujeres ricas de Samaria",
+      "3": "Israel no se arrepiente"
+    },
+    "5": {
+      "1": "Israel debe arrepentirse",
+      "16": "El llanto de Israel"
+    },
+    "6": {
+      "1": "Dios castigará a Israel"
+    },
+    "7": {
+      "1": "Los saltamontes",
+      "4": "El fuego",
+      "7": "La plomada",
+      "10": "Amós y Amasías"
+    },
+    "8": {
+      "1": "La canasta con fruta"
+    },
+    "9": {
+      "1": "Dios juzgará a su pueblo",
+      "5": "El gran poder de Dios",
+      "7": "Israel será castigado",
+      "11": "Dios reconstruirá a Israel"
+    }
+  },
+  "Abdias": {
+    "1": {
+      "1": "Mensaje de Dios contra Edom",
+      "10": "El pecado de Edom",
+      "16": "Dios juzgará a todas las naciones"
+    }
+  },
+  "Jonas": {
+    "1": {
+      "1": "Jonás desobedece a Dios"
+    },
+    "2": {
+      "1": "Jonás ora a Dios"
+    },
+    "3": {
+      "1": "Jonás obedece a Dios"
+    },
+    "4": {
+      "1": "Jonás discute con Dios"
+    }
+  },
+  "Miqueas": {
+    "1": {
+      "2": "Juicio contra Samaria",
+      "8": "Lamento de Miqueas"
+    },
+    "2": {
+      "1": "La maldad de los poderosos",
+      "12": "Dios da esperanza a su pueblo"
+    },
+    "3": {
+      "1": "Los malos gobernantes",
+      "5": "Los profetas mentirosos",
+      "9": "La derrota de Jerusalén"
+    },
+    "4": {
+      "1": "Paz a las naciones",
+      "6": "Dios salvará a Israel"
+    },
+    "5": {
+      "1": "Grandeza de la pequeña Belén",
+      "7": "Judá entre las naciones",
+      "10": "Destrucción total"
+    },
+    "6": {
+      "1": "Pleito de Dios contra Israel",
+      "5": "Lo que Dios espera de su pueblo",
+      "9": "El castigo de Jerusalén"
+    },
+    "7": {
+      "1": "Lamento del profeta",
+      "8": "Dios salvará a su pueblo",
+      "14": "Oración a favor del pueblo"
+    }
+  },
+  "Nahum": {
+    "1": {
+      "1": "Mensaje contra Nínive, la capital de Asiria",
+      "12": "Mensaje al pueblo de Dios"
+    },
+    "2": {
+      "1": "Asiria será destruida"
+    },
+    "3": {
+      "1": "Un canto fúnebre"
+    }
+  },
+  "Habacuc": {
+    "1": {
+      "2": "Habacuc habla con Dios"
+    },
+    "3": {
+      "1": "Oración final de Habacuc"
+    }
+  },
+  "Sofonias": {
+    "1": {
+      "2": "Dios destruirá a Judá"
+    },
+    "2": {
+      "1": "Obedezcan a Dios",
+      "4": "Mensaje contra los filisteos",
+      "8": "Mensaje contra Moab y Amón",
+      "12": "Mensaje contra los etíopes",
+      "13": "Mensaje contra los asirios"
+    },
+    "3": {
+      "1": "Los pecados de Jerusalén",
+      "9": "Dios salvará a las naciones",
+      "14": "Dios hará volver a su pueblo"
+    }
+  },
+  "Hageo": {
+    "1": {
+      "1": "Reconstrucción del templo",
+      "12": "Respuesta al profeta"
+    },
+    "2": {
+      "1": "Segundo mensaje de Hageo",
+      "10": "Promesa de Dios",
+      "20": "Promesas para los últimos días"
+    }
+  },
+  "Zacarias": {
+    "1": {
+      "1": "Dios está dispuesto a perdonar",
+      "7": "Los caballos de colores",
+      "18": "Los cuernos y los herreros"
+    },
+    "2": {
+      "1": "El hombre que medía Jerusalén"
+    },
+    "3": {
+      "1": "Dios perdona a su pueblo"
+    },
+    "4": {
+      "1": "El candelero de oro y los dos olivos"
+    },
+    "5": {
+      "1": "El libro que volaba",
+      "5": "La maldad"
+    },
+    "6": {
+      "1": "Los cuatro carros de guerra",
+      "9": "Josué recibe la corona"
+    },
+    "7": {
+      "1": "Lo que Dios quiere de su pueblo"
+    },
+    "8": {
+      "1": "Dios bendecirá a su pueblo"
+    },
+    "9": {
+      "1": "Mensajes de Dios contra las naciones",
+      "9": "Llegada del rey de Jerusalén",
+      "11": "Dios renovará a su pueblo"
+    },
+    "10": {
+      "1": "Dios promete bendecir a su pueblo"
+    },
+    "11": {
+      "4": "Los dos pastores",
+      "15": "Los malos pastores"
+    },
+    "12": {
+      "1": "Dios destruirá a los enemigos de Jerusalén"
+    },
+    "13": {
+      "1": "Dios purificará a su pueblo",
+      "7": "Castigo y perdón"
+    },
+    "14": {
+      "1": "La victoria final de Dios"
+    }
+  },
+  "Malaquias": {
+    "1": {
+      "1": "Dios ama a su pueblo",
+      "6": "Mensaje contra los sacerdotes"
+    },
+    "2": {
+      "1": "Dios castigará a los sacerdotes",
+      "10": "Los matrimonios mixtos"
+    },
+    "3": {
+      "1": "Dios enviará a su mensajero",
+      "5": "Dios juzgará a su pueblo",
+      "16": "El libro de Dios"
+    },
+    "4": {
+      "1": "Dios juzga a su pueblo",
+      "4": "Un consejo final"
+    }
+  },
+  "Mateo": {
+    "1": {
+      "1": "Los antepasados de Jesús",
+      "18": "El nacimiento de Jesús"
+    },
+    "2": {
+      "1": "Los sabios",
+      "13": "La familia de Jesús huye a Egipto",
+      "16": "Herodes intenta matar a Jesús",
+      "19": "Viaje a Nazaret"
+    },
+    "3": {
+      "1": "Juan el Bautista",
+      "13": "Juan bautiza a Jesús"
+    },
+    "4": {
+      "1": "Jesús vence al diablo",
+      "12": "Jesús comienza su trabajo",
+      "18": "Jesús elige a cuatro pescadores"
+    },
+    "5": {
+      "1": "Bendiciones",
+      "13": "La sal y la luz del mundo",
+      "17": "La ley y los profetas",
+      "21": "El enojo",
+      "27": "El matrimonio",
+      "31": "El divorcio",
+      "33": "Las promesas",
+      "38": "La venganza",
+      "43": "Amar a los enemigos"
+    },
+    "6": {
+      "1": "Dar",
+      "5": "Jesús enseña a orar",
+      "16": "El ayuno",
+      "19": "La riqueza verdadera",
+      "24": "El dinero",
+      "25": "Las preocupaciones"
+    },
+    "7": {
+      "1": "No juzguen a los demás",
+      "7": "Pedir, buscar y llamar",
+      "13": "La entrada estrecha",
+      "15": "El árbol y su fruto",
+      "21": "¡Cuidado!",
+      "24": "Dos clases de personas"
+    },
+    "8": {
+      "1": "Jesús sana a un hombre",
+      "5": "Un capitán romano",
+      "14": "Jesús sana a mucha gente",
+      "18": "Los que querían seguir a Jesús",
+      "23": "La gran tormenta",
+      "28": "Dos hombres con muchos demonios"
+    },
+    "9": {
+      "1": "El hombre que no podía caminar",
+      "9": "Jesús llama a Mateo",
+      "14": "Jesús enseña sobre el ayuno",
+      "18": "Una niña muerta y una mujer enferma",
+      "27": "Jesús sana a dos ciegos",
+      "32": "Jesús sana a un mudo",
+      "35": "Jesús tiene compasión de la gente"
+    },
+    "10": {
+      "1": "Los doce discípulos",
+      "5": "Jesús envía a los doce",
+      "16": "Advertencia sobre el peligro",
+      "26": "Consejos",
+      "32": "Hablar de Jesús",
+      "34": "Jesús advierte a sus discípulos",
+      "40": "Los premios"
+    },
+    "11": {
+      "1": "Juan el Bautista",
+      "20": "La gente que no cree",
+      "25": "Jesús alaba a Dios"
+    },
+    "12": {
+      "1": "Los discípulos arrancan espigas de trigo",
+      "9": "Jesús sana a un hombre en sábado",
+      "15": "Jesús, servidor de Dios",
+      "22": "Jesús y el jefe de los demonios",
+      "33": "El fruto bueno y el fruto malo",
+      "38": "Una señal milagrosa",
+      "43": "El espíritu malo que regresa",
+      "46": "La madre y los hermanos de Jesús"
+    },
+    "13": {
+      "1": "El ejemplo de las semillas",
+      "10": "¿Por qué Jesús enseña con ejemplos?",
+      "18": "Jesús explica el ejemplo de las semillas",
+      "24": "La mala hierba y el trigo",
+      "31": "La semilla de mostaza",
+      "33": "La levadura",
+      "34": "Jesús cumple lo dicho por medio de un profeta",
+      "36": "Jesús explica el ejemplo de la cizaña",
+      "44": "El tesoro escondido",
+      "45": "La joya fina",
+      "47": "La red de pescar",
+      "51": "Cosas nuevas y cosas viejas",
+      "53": "Jesús viaja a Nazaret"
+    },
+    "14": {
+      "1": "La muerte de Juan el Bautista",
+      "13": "Jesús da de comer a mucha gente",
+      "22": "Jesús camina sobre el agua",
+      "34": "Jesús sana a los enfermos en Genesaret"
+    },
+    "15": {
+      "1": "Las enseñanzas de los antepasados",
+      "10": "Lo que realmente contamina",
+      "21": "Una mujer no judía confía en Dios",
+      "29": "Jesús sana a muchos enfermos",
+      "32": "Jesús da de comer a mucha gente"
+    },
+    "16": {
+      "1": "La señal de Jonás",
+      "5": "Las enseñanzas de los fariseos",
+      "13": "¿Quién es Jesús?",
+      "21": "Jesús habla de su muerte"
+    },
+    "17": {
+      "1": "Jesús se transforma",
+      "14": "Jesús sana a un muchacho",
+      "22": "Jesús habla otra vez de su muerte",
+      "24": "El impuesto para el templo"
+    },
+    "18": {
+      "1": "¿Quién es el más importante?",
+      "12": "La oveja",
+      "15": "Perdonar es importante",
+      "23": "El que no quiso perdonar"
+    },
+    "19": {
+      "1": "Enseñanza sobre el divorcio",
+      "13": "Jesús bendice a los niños",
+      "16": "El joven rico"
+    },
+    "20": {
+      "1": "Los trabajadores en la viña",
+      "17": "Jesús habla otra vez de su muerte",
+      "20": "La petición de una madre",
+      "29": "Jesús sana a dos ciegos"
+    },
+    "21": {
+      "1": "Jesús entra en Jerusalén",
+      "12": "Jesús y los comerciantes del templo",
+      "18": "Jesús y la higuera",
+      "23": "La autoridad de Jesús",
+      "28": "Los dos hijos",
+      "33": "La viña alquilada"
+    },
+    "22": {
+      "1": "La fiesta de bodas",
+      "15": "Una trampa para Jesús",
+      "23": "Los saduceos hablan con Jesús",
+      "34": "Los dos mandamientos más importantes",
+      "41": "La pregunta acerca del Mesías"
+    },
+    "23": {
+      "1": "Advertencias de Jesús",
+      "13": "¡Qué mal les va a ir!",
+      "37": "Jesús sufre por la gente de Jerusalén"
+    },
+    "24": {
+      "1": "El templo será destruido",
+      "3": "Prepárense para el fin",
+      "15": "Una señal para huir",
+      "29": "El regreso del Hijo del hombre",
+      "32": "La lección de la higuera",
+      "45": "Los sirvientes"
+    },
+    "25": {
+      "1": "Las diez muchachas",
+      "14": "Los tres empleados",
+      "31": "El juicio final"
+    },
+    "26": {
+      "1": "Un plan contra Jesús",
+      "6": "Una mujer perfuma a Jesús",
+      "14": "Judas traiciona a Jesús",
+      "17": "Una cena inolvidable",
+      "31": "Pedro promete no dejar a Jesús",
+      "36": "Jesús ora con mucha tristeza",
+      "47": "Los enemigos apresan a Jesús",
+      "57": "El juicio contra Jesús",
+      "69": "Pedro niega conocer a Jesús"
+    },
+    "27": {
+      "1": "Jesús en el palacio de Pilato",
+      "3": "Judas se mata",
+      "11": "Jesús y Pilato",
+      "15": "¡Que lo claven en una cruz!",
+      "27": "Todos se burlaron de Jesús",
+      "45": "Jesús muere",
+      "57": "El entierro de Jesús"
+    },
+    "28": {
+      "1": "¡Él está vivo!",
+      "11": "La mentira que contaron los soldados",
+      "16": "La misión de los discípulos"
+    }
+  },
+  "Marcos": {
+    "1": {
+      "1": "Juan el Bautista",
+      "9": "Juan bautiza a Jesús",
+      "12": "Jesús vence al diablo",
+      "14": "Jesús comienza su trabajo",
+      "16": "Jesús elige a cuatro pescadores",
+      "21": "El hombre con un espíritu malo",
+      "29": "Jesús sana a mucha gente",
+      "35": "Jesús anuncia las buenas noticias",
+      "40": "Jesús sana a un leproso"
+    },
+    "2": {
+      "1": "Jesús y el paralítico",
+      "13": "Jesús llama a Mateo",
+      "18": "Jesús enseña sobre el ayuno",
+      "23": "Los discípulos arrancan espigas de trigo"
+    },
+    "3": {
+      "1": "Jesús sana a un hombre en sábado",
+      "7": "Jesús enseña y sana",
+      "13": "Jesús elige a doce apóstoles",
+      "20": "Jesús y el jefe de los demonios",
+      "31": "La madre y los hermanos de Jesús"
+    },
+    "4": {
+      "1": "El ejemplo de las semillas",
+      "10": "¿Por qué Jesús enseña con ejemplos?",
+      "13": "Jesús explica el ejemplo de las semillas",
+      "21": "El ejemplo de la luz",
+      "26": "La comparación de la semilla que crece",
+      "30": "La semilla de mostaza",
+      "33": "Las comparaciones que usaba Jesús",
+      "35": "La gran tormenta"
+    },
+    "5": {
+      "1": "El hombre con muchos espíritus malos",
+      "21": "Una niña muerta y una mujer enferma"
+    },
+    "6": {
+      "1": "Jesús en Nazaret",
+      "6": "Jesús envía a los doce apóstoles",
+      "14": "La muerte de Juan el Bautista",
+      "30": "Jesús da de comer a mucha gente",
+      "45": "Jesús camina sobre el agua",
+      "53": "Jesús en Genesaret"
+    },
+    "7": {
+      "1": "Lo que realmente ensucia",
+      "24": "Una mujer no judía confía en Dios",
+      "31": "Jesús sana a un hombre sordo y tartamudo"
+    },
+    "8": {
+      "1": "Jesús alimenta a mucha gente",
+      "11": "Una señal milagrosa",
+      "14": "Las enseñanzas de los fariseos",
+      "22": "Jesús sana a un ciego en Betsaida",
+      "27": "¿Quién es Jesús?",
+      "31": "Jesús habla de su muerte"
+    },
+    "9": {
+      "2": "Jesús se transforma",
+      "14": "Jesús sana a un muchacho",
+      "30": "Jesús habla otra vez de su muerte",
+      "33": "¿Quién es el más importante?",
+      "38": "Los que están a favor de Jesús",
+      "42": "Las tentaciones"
+    },
+    "10": {
+      "1": "Jesús enseña sobre el divorcio",
+      "13": "Jesús bendice a los niños",
+      "17": "El hombre rico",
+      "32": "Jesús habla otra vez de su muerte",
+      "35": "La petición de Santiago y de Juan",
+      "46": "Jesús y el ciego Bartimeo"
+    },
+    "11": {
+      "1": "Jesús entra en Jerusalén",
+      "12": "Jesús y la higuera",
+      "15": "Jesús y los comerciantes del templo",
+      "20": "La lección de la higuera",
+      "27": "La autoridad de Jesús"
+    },
+    "12": {
+      "1": "La viña alquilada",
+      "13": "Una trampa para Jesús",
+      "18": "Los saduceos hablan con Jesús",
+      "28": "Los dos mandamientos más importantes",
+      "35": "La pregunta acerca del Mesías",
+      "38": "Jesús advierte a la gente y a sus discípulos",
+      "41": "La ofrenda de la viuda pobre"
+    },
+    "13": {
+      "1": "El templo será destruido",
+      "3": "Prepárense para el fin",
+      "14": "Una señal para huir",
+      "24": "El regreso del Hijo del hombre",
+      "28": "La lección de la higuera"
+    },
+    "14": {
+      "1": "Un plan contra Jesús",
+      "3": "Una mujer derrama perfume sobre Jesús",
+      "10": "Judas traiciona a Jesús",
+      "12": "Una cena inolvidable",
+      "26": "Pedro promete no dejar a Jesús",
+      "32": "Jesús ora con mucha tristeza",
+      "43": "Los enemigos apresan a Jesús",
+      "53": "El juicio contra Jesús",
+      "66": "Pedro niega que conoce a Jesús"
+    },
+    "15": {
+      "1": "Jesús y Pilato",
+      "6": "¡Que lo claven en una cruz!",
+      "16": "Todos se burlan de Jesús",
+      "33": "Jesús muere",
+      "42": "El entierro de Jesús"
+    },
+    "16": {
+      "1": "¡Él está vivo!",
+      "9": "Jesús se le aparece a María Magdalena",
+      "12": "Jesús se les aparece a dos discípulos",
+      "14": "La misión de los discípulos",
+      "19": "Jesús sube al cielo",
+      "20": "Otra manera de finalizar el libro de Marcos"
+    }
+  },
+  "Lucas": {
+    "1": {
+      "5": "El ángel Gabriel y Zacarías",
+      "26": "El ángel Gabriel y María",
+      "39": "María visita a Isabel",
+      "46": "María alaba a Dios",
+      "57": "El nacimiento de Juan el Bautista",
+      "67": "Zacarías alaba a Dios"
+    },
+    "2": {
+      "1": "El nacimiento de Jesús",
+      "22": "Jesús y Simeón",
+      "36": "Jesús y la profetisa Ana",
+      "41": "Jesús en el templo"
+    },
+    "3": {
+      "1": "Juan el Bautista",
+      "21": "Juan bautiza a Jesús",
+      "23": "Los antepasados de Jesús"
+    },
+    "4": {
+      "1": "Jesús vence al diablo",
+      "14": "Jesús comienza su trabajo",
+      "31": "El hombre con un espíritu malo",
+      "38": "Jesús sana a mucha gente",
+      "42": "Jesús anuncia las buenas noticias"
+    },
+    "5": {
+      "1": "Una pesca milagrosa",
+      "12": "Jesús sana a un hombre",
+      "17": "El hombre que no podía caminar",
+      "27": "Jesús llama a Mateo",
+      "33": "Jesús enseña sobre el ayuno"
+    },
+    "6": {
+      "1": "Los discípulos arrancan espigas de trigo",
+      "6": "Jesús sana a un hombre en sábado",
+      "12": "Jesús elige a doce apóstoles",
+      "17": "Jesús enseña y sana",
+      "20": "Bendiciones",
+      "24": "Maldiciones",
+      "27": "Amar a los enemigos",
+      "37": "No juzguen a los demás",
+      "43": "El árbol y su fruto",
+      "46": "Dos clases de personas"
+    },
+    "7": {
+      "1": "Un capitán romano",
+      "11": "El hijo de una viuda",
+      "18": "Juan el Bautista",
+      "36": "Simón el fariseo"
+    },
+    "8": {
+      "1": "Mujeres que ayudaban a Jesús",
+      "4": "El ejemplo de las semillas",
+      "9": "¿Por qué Jesús enseña con ejemplos?",
+      "11": "Jesús explica el ejemplo de las semillas",
+      "16": "El ejemplo de la luz",
+      "19": "La madre y los hermanos de Jesús",
+      "22": "La gran tormenta",
+      "26": "El hombre con muchos demonios",
+      "40": "Una niña muerta y una mujer enferma"
+    },
+    "9": {
+      "1": "Jesús envía a los doce discípulos",
+      "7": "Herodes no sabe quién es Jesús",
+      "10": "Jesús da de comer a mucha gente",
+      "18": "¿Quién es Jesús?",
+      "22": "Jesús habla de su muerte",
+      "28": "Jesús se transforma",
+      "37": "Jesús sana a un muchacho",
+      "43": "Jesús habla otra vez de su muerte",
+      "46": "¿Quién es el más importante?",
+      "49": "Los que están a favor de Jesús",
+      "51": "Jesús regaña a Santiago y a Juan",
+      "57": "Los que querían seguir a Jesús"
+    },
+    "10": {
+      "1": "Jesús envía a setenta y dos discípulos",
+      "13": "La gente que no cree",
+      "17": "Los setenta y dos discípulos regresan",
+      "21": "Jesús alaba a Dios",
+      "25": "Un extranjero compasivo",
+      "38": "Marta y María"
+    },
+    "11": {
+      "1": "Jesús enseña a orar",
+      "14": "Jesús y el jefe de los demonios",
+      "24": "El espíritu malo que regresa",
+      "27": "¿Para quién es la bendición?",
+      "29": "Una señal milagrosa",
+      "32": "La luz del cuerpo",
+      "37": "¡Qué mal les va a ir!"
+    },
+    "12": {
+      "1": "Consejos",
+      "4": "A quién debemos tenerle miedo",
+      "8": "Hablar de Jesús",
+      "13": "El rico tonto",
+      "22": "Las preocupaciones",
+      "32": "La riqueza verdadera",
+      "35": "Los sirvientes",
+      "49": "Jesús advierte a sus discípulos",
+      "54": "Las señales de Dios",
+      "57": "Paz con el enemigo"
+    },
+    "13": {
+      "1": "Cambiar de vida",
+      "6": "La higuera",
+      "10": "Jesús sana a una mujer",
+      "18": "La semilla de mostaza",
+      "20": "La levadura",
+      "22": "La entrada estrecha",
+      "31": "Jesús y Herodes",
+      "34": "Jesús llora por la gente de Jerusalén"
+    },
+    "14": {
+      "1": "Jesús sana a un enfermo",
+      "7": "Los invitados a la cena",
+      "15": "La gran cena",
+      "25": "Condiciones para ser discípulo de Jesús",
+      "34": "La sal del mundo"
+    },
+    "15": {
+      "1": "La oveja",
+      "8": "La moneda",
+      "11": "El padre amoroso"
+    },
+    "16": {
+      "1": "El empleado astuto",
+      "14": "Otras enseñanzas de Jesús",
+      "18": "Lázaro y el hombre rico"
+    },
+    "17": {
+      "1": "¡Cuidado!",
+      "5": "Confianza en el poder de Dios",
+      "7": "Sirvientes inútiles",
+      "11": "El extranjero agradecido",
+      "20": "¿Cuándo comenzará el reino de Dios?"
+    },
+    "18": {
+      "1": "La viuda y el juez",
+      "9": "El hombre orgulloso y el hombre humilde",
+      "15": "Jesús bendice a los niños",
+      "18": "El hombre rico",
+      "31": "Jesús habla otra vez de su muerte",
+      "35": "Jesús sana a un ciego"
+    },
+    "19": {
+      "1": "Zaqueo",
+      "11": "Los diez empleados",
+      "28": "Jesús entra en Jerusalén",
+      "45": "Jesús y los comerciantes del templo"
+    },
+    "20": {
+      "1": "La autoridad de Jesús",
+      "9": "La viña alquilada",
+      "20": "Una trampa para Jesús",
+      "27": "Los saduceos hablan con Jesús",
+      "41": "La pregunta acerca del Mesías",
+      "45": "Advertencia"
+    },
+    "21": {
+      "1": "La ofrenda de la viuda pobre",
+      "5": "El templo será destruido",
+      "7": "Prepárense para el fin",
+      "25": "El regreso del Hijo del hombre",
+      "29": "La lección de la higuera",
+      "34": "Jesús advierte a sus discípulos"
+    },
+    "22": {
+      "1": "Un plan contra Jesús",
+      "7": "Una cena inolvidable",
+      "24": "El más importante de todos",
+      "31": "¡Manténganse firmes!",
+      "35": "Los discípulos no entienden a Jesús",
+      "39": "Jesús ora con mucha tristeza",
+      "47": "Los enemigos apresan a Jesús",
+      "54": "Pedro niega que conoce a Jesús",
+      "66": "El juicio contra Jesús"
+    },
+    "23": {
+      "1": "Jesús y Pilato",
+      "8": "Jesús y Herodes",
+      "13": "¡Que lo claven en una cruz!",
+      "26": "Jesús es clavado en la cruz",
+      "44": "Jesús muere",
+      "50": "El entierro de Jesús"
+    },
+    "24": {
+      "1": "¡Él está vivo!",
+      "13": "¡Quédate con nosotros!",
+      "36": "Jesús se aparece a los discípulos",
+      "50": "Jesús sube al cielo"
+    }
+  },
+  "Juan": {
+    "1": {
+      "1": "La Palabra, luz y vida",
+      "19": "Juan el Bautista habla de Jesús",
+      "29": "El Cordero de Dios",
+      "35": "Los primeros discípulos de Jesús",
+      "43": "Jesús llama a Felipe y a Natanael"
+    },
+    "2": {
+      "1": "Jesús convierte agua en vino",
+      "13": "Jesús va al templo",
+      "23": "Jesús conoce a todos"
+    },
+    "3": {
+      "1": "Jesús y Nicodemo",
+      "22": "Juan el Bautista y Jesús"
+    },
+    "4": {
+      "1": "La samaritana y Jesús",
+      "43": "Jesús sana al hijo de un oficial"
+    },
+    "5": {
+      "1": "Jesús sana a un paralítico",
+      "19": "La autoridad del Hijo de Dios",
+      "30": "Pruebas de la autoridad de Jesús"
+    },
+    "6": {
+      "1": "Jesús alimenta a más de cinco mil",
+      "16": "Jesús camina sobre el agua",
+      "22": "El pan que da vida",
+      "60": "Palabras que dan vida eterna"
+    },
+    "7": {
+      "1": "Los hermanos de Jesús no creían en él",
+      "10": "Jesús en la fiesta de las enramadas",
+      "25": "¿Quién es Jesús?",
+      "32": "Los fariseos quieren arrestar a Jesús",
+      "37": "Ríos de agua viva",
+      "40": "¿Realmente quién es Jesús?",
+      "45": "Los jefes judíos no creían en Jesús"
+    },
+    "8": {
+      "2": "¡No vuelvas a pecar!",
+      "12": "Jesús es la luz",
+      "21": "Los jefes judíos y Jesús",
+      "31": "La verdad los hará libres",
+      "48": "Jesús y Abraham"
+    },
+    "9": {
+      "1": "Jesús sana a un ciego",
+      "13": "Los fariseos y el ciego sanado"
+    },
+    "10": {
+      "1": "El ejemplo del pastor de ovejas",
+      "7": "Jesús es el buen pastor",
+      "22": "Los jefes judíos quieren matar a Jesús"
+    },
+    "11": {
+      "1": "La muerte de Lázaro",
+      "17": "Jesús es la vida",
+      "28": "Jesús llora por su amigo",
+      "38": "Lázaro vuelve a vivir",
+      "45": "El plan para matar a Jesús"
+    },
+    "12": {
+      "1": "Una mujer perfuma los pies de Jesús",
+      "9": "El plan para matar a Lázaro",
+      "12": "Jesús entra en Jerusalén",
+      "20": "Jesús anuncia su muerte",
+      "37": "La gente no creía en Jesús",
+      "44": "Jesús vino a salvar al mundo"
+    },
+    "13": {
+      "1": "Jesús lava los pies de sus discípulos",
+      "21": "Jesús anuncia que será traicionado",
+      "31": "El nuevo mandamiento",
+      "36": "Pedro niega conocer a Jesús"
+    },
+    "14": {
+      "15": "Jesús promete enviar al Espíritu Santo"
+    },
+    "15": {
+      "1": "Jesús, Dios y nosotros",
+      "18": "El odio de la gente"
+    },
+    "16": {
+      "4": "El trabajo del Espíritu Santo",
+      "17": "Serán muy felices",
+      "25": "Jesús ha vencido al mundo"
+    },
+    "17": {
+      "1": "Jesús ora por sus discípulos"
+    },
+    "18": {
+      "1": "Traición y arresto",
+      "15": "Pedro asegura no conocer a Jesús",
+      "19": "Jesús y el jefe de los sacerdotes",
+      "25": "Pedro insiste en no conocer a Jesús",
+      "28": "Jesús y Pilato",
+      "38": "Pilato permite la muerte de Jesús"
+    },
+    "19": {
+      "17": "Jesús es clavado en una cruz",
+      "28": "La muerte de Jesús",
+      "31": "La lanza en el costado de Jesús",
+      "38": "Jesús es sepultado"
+    },
+    "20": {
+      "11": "Jesús se aparece a María Magdalena",
+      "19": "Jesús aparece a sus discípulos",
+      "24": "Jesús y Tomás",
+      "30": "La razón por la que se escribió este libro"
+    },
+    "21": {
+      "1": "Jesús se aparece a siete de sus discípulos",
+      "15": "Jesús y Pedro",
+      "20": "Jesús y el discípulo favorito"
+    }
+  },
+  "Hechos": {
+    "1": {
+      "1": "Jesús anuncia la venida del Espíritu Santo",
+      "9": "Jesús sube al cielo",
+      "12": "Matías ocupa el lugar de Judas"
+    },
+    "2": {
+      "1": "Jesús cumple su promesa",
+      "40": "Los primeros cristianos"
+    },
+    "3": {
+      "1": "Pedro sana a un hombre que no podía caminar",
+      "11": "Pedro habla frente al templo"
+    },
+    "4": {
+      "1": "Pedro y Juan hablan ante la Junta Suprema",
+      "23": "Los seguidores de Jesús oran a Dios",
+      "32": "La vida de los seguidores de Jesús"
+    },
+    "5": {
+      "1": "Ananías y Safira",
+      "12": "Dios hace cosas maravillosas",
+      "17": "Los apóstoles y la Junta Suprema",
+      "33": "Un buen consejo"
+    },
+    "6": {
+      "1": "Los siete servidores",
+      "8": "Arresto de Esteban"
+    },
+    "7": {
+      "1": "Esteban ante la Junta Suprema",
+      "54": "Esteban muere apedreado"
+    },
+    "8": {
+      "1": "La iglesia empieza a sufrir",
+      "4": "Felipe en Samaria",
+      "14": "Pedro y Juan viajan a Samaria",
+      "26": "Felipe y un oficial etíope"
+    },
+    "9": {
+      "1": "Saulo, seguidor de Jesús",
+      "19": "Saulo huye de Damasco",
+      "26": "Saulo en Jerusalén",
+      "32": "Pedro sana a Eneas",
+      "36": "Tabitá vuelve a vivir"
+    },
+    "10": {
+      "1": "Cornelio recibe un mensaje especial",
+      "9": "Pedro recibe un mensaje especial",
+      "24": "Pedro habla en la casa de Cornelio"
+    },
+    "11": {
+      "1": "Pedro regresa a Jerusalén",
+      "19": "La buena noticia llega a Antioquía"
+    },
+    "12": {
+      "1": "Matan a Santiago y encarcelan a Pedro",
+      "5": "El Señor libera a Pedro",
+      "20": "Dios castiga a Herodes Agripa"
+    },
+    "13": {
+      "1": "Una misión especial",
+      "4": "Bernabé y Saulo en Chipre",
+      "13": "Pablo y Bernabé en Pisidia"
+    },
+    "14": {
+      "1": "Pablo y Bernabé en Iconio",
+      "8": "Problemas en Listra",
+      "21": "Pablo y Bernabé vuelven a Antioquía"
+    },
+    "15": {
+      "1": "Una decisión bien pensada",
+      "22": "La carta",
+      "36": "Pablo y Bernabé se separan"
+    },
+    "16": {
+      "1": "Timoteo acompaña a Pablo y a Silas",
+      "6": "Pablo tiene una visión",
+      "11": "Pablo en Filipos",
+      "16": "Pablo y Silas en la cárcel"
+    },
+    "17": {
+      "1": "Alboroto en Tesalónica",
+      "10": "Pablo y Silas en Berea",
+      "16": "Pablo en Atenas"
+    },
+    "18": {
+      "1": "Pablo en Corinto",
+      "18": "Pablo regresa a Antioquía",
+      "24": "Priscila, Áquila y Apolo"
+    },
+    "19": {
+      "1": "Pablo va a Éfeso",
+      "11": "Los hijos de Esceva",
+      "21": "Alboroto en Éfeso"
+    },
+    "20": {
+      "1": "Pablo en Macedonia y Grecia",
+      "7": "Pablo viaja a Tróade",
+      "13": "Pablo en Mileto",
+      "17": "Pablo y los líderes de Éfeso"
+    },
+    "21": {
+      "1": "Pablo viaja a Jerusalén",
+      "17": "Pablo visita a Santiago",
+      "26": "Pablo en la cárcel",
+      "37": "Pablo habla en Jerusalén"
+    },
+    "22": {
+      "24": "Pablo y el jefe de los soldados",
+      "30": "Pablo y la Junta Suprema"
+    },
+    "23": {
+      "12": "El plan para matar a Pablo",
+      "23": "Pablo ante el gobernador Félix"
+    },
+    "24": {
+      "1": "Pablo habla ante Félix"
+    },
+    "25": {
+      "1": "Pablo ante Festo",
+      "13": "Pablo ante el rey Agripa"
+    },
+    "26": {
+      "1": "Discurso de Pablo ante el rey Agripa",
+      "24": "Agripa le responde a Pablo"
+    },
+    "27": {
+      "1": "Pablo es llevado a Roma",
+      "13": "Tempestad en el mar",
+      "39": "El barco se hace pedazos"
+    },
+    "28": {
+      "1": "Pablo en la isla de Malta",
+      "10": "Pablo llega a Roma",
+      "17": "Pablo en Roma"
+    }
+  },
+  "Romanos": {
+    "1": {
+      "1": "Pablo saluda a los hermanos en Roma",
+      "8": "Agradecimiento",
+      "16": "La buena noticia es poderosa",
+      "18": "Todos somos culpables"
+    },
+    "2": {
+      "1": "Dios es justo",
+      "17": "Los judíos y la ley"
+    },
+    "3": {
+      "9": "Nadie es justo",
+      "21": "La confianza en Jesucristo"
+    },
+    "4": {
+      "1": "El ejemplo de Abraham",
+      "13": "Promesa a los que confían en Dios"
+    },
+    "5": {
+      "1": "Vivimos en paz con Dios"
+    },
+    "6": {
+      "1": "Vivimos gracias a Cristo",
+      "15": "Al servicio de Dios"
+    },
+    "7": {
+      "1": "Ahora pertenecemos a Cristo",
+      "7": "La lucha contra el pecado"
+    },
+    "8": {
+      "1": "El Espíritu de Dios nos da vida",
+      "18": "Un futuro maravilloso",
+      "31": "¡Cuánto nos ama Dios!"
+    },
+    "9": {
+      "1": "El pueblo de Dios",
+      "19": "El enojo y la compasión de Dios",
+      "30": "Israel y Cristo"
+    },
+    "10": {
+      "5": "Todos pueden ser salvos"
+    },
+    "11": {
+      "1": "Dios no ha rechazado a su pueblo",
+      "11": "La salvación de los no judíos",
+      "25": "Dios salvará a su pueblo",
+      "33": "Dios merece nuestra alabanza"
+    },
+    "12": {
+      "1": "La nueva vida",
+      "9": "Cómo vivir la vida cristiana"
+    },
+    "13": {
+      "1": "Dios y las autoridades",
+      "8": "El amor",
+      "11": "El regreso de Cristo"
+    },
+    "14": {
+      "1": "No critiquen a los demás",
+      "13": "No hagan daño a otros"
+    },
+    "15": {
+      "1": "Ayudar a los más débiles",
+      "7": "La buena noticia es para todos",
+      "14": "El trabajo de Pablo como apóstol",
+      "22": "Pablo piensa visitar Roma"
+    },
+    "16": {
+      "1": "Saludos personales",
+      "17": "Instrucciones finales",
+      "25": "Oración final"
+    }
+  },
+  "1 Corintios": {
+    "1": {
+      "1": "Saludo",
+      "4": "La oración de Pablo",
+      "10": "¡Vivamos unidos!",
+      "18": "¡Cristo es poderoso!"
+    },
+    "2": {
+      "1": "Los planes secretos de Dios",
+      "6": "Dios da a conocer sus planes"
+    },
+    "3": {
+      "1": "Servidores de Dios"
+    },
+    "4": {
+      "1": "Servidores de Cristo"
+    },
+    "5": {
+      "1": "Disciplina en la iglesia"
+    },
+    "6": {
+      "1": "Arreglemos los problemas entre nosotros",
+      "12": "Agrademos a Dios con todo lo que somos"
+    },
+    "7": {
+      "1": "Consejos para los casados",
+      "17": "Lo importante es obedecer a Dios",
+      "25": "Consejos para los solteros"
+    },
+    "8": {
+      "1": "No hagamos pecar a los más débiles"
+    },
+    "9": {
+      "1": "Los derechos de los servidores de Dios",
+      "19": "Esforcémonos para recibir nuestro premio"
+    },
+    "10": {
+      "1": "Obedezcamos y adoremos solo a Dios",
+      "23": "Busquemos el bien de los demás"
+    },
+    "11": {
+      "1": "Cómo participar en las reuniones de la iglesia",
+      "17": "La Cena del Señor",
+      "27": "Cómo participar en la Cena del Señor"
+    },
+    "12": {
+      "1": "Las capacidades que da el Espíritu Santo",
+      "12": "Todos son necesarios e importantes en la iglesia"
+    },
+    "13": {
+      "1": "El amor verdadero"
+    },
+    "14": {
+      "1": "Las capacidades más importantes",
+      "26": "Las reuniones de la iglesia"
+    },
+    "15": {
+      "1": "¡Cristo ha resucitado!",
+      "12": "Nosotros también resucitaremos",
+      "35": "Cómo resucitarán los muertos"
+    },
+    "16": {
+      "1": "Una ayuda para los hermanos de otra iglesia",
+      "5": "Los planes de Pablo",
+      "13": "Consejos finales",
+      "19": "Saludo y despedida"
+    }
+  },
+  "2 Corintios": {
+    "1": {
+      "1": "Saludo",
+      "3": "Dios nos ayuda en las dificultades y sufrimientos",
+      "12": "Cambio de planes"
+    },
+    "2": {
+      "5": "Perdonemos al que nos ofendió",
+      "14": "Pablo da gracias a Dios"
+    },
+    "3": {
+      "1": "Una nueva forma de relacionarnos con Dios"
+    },
+    "4": {
+      "1": "Un tesoro en una vasija de barro"
+    },
+    "5": {
+      "1": "¡Queremos estar en el hogar de Dios!",
+      "11": "¡Seamos amigos de Dios!"
+    },
+    "6": {
+      "3": "Pablo sufre por servir a Dios",
+      "14": "La unión desigual"
+    },
+    "7": {
+      "2": "Los corintios alegran a Pablo"
+    },
+    "8": {
+      "1": "Demos con amor",
+      "16": "Ideas para recoger la ayuda"
+    },
+    "9": {
+      "6": "Demos con alegría"
+    },
+    "10": {
+      "1": "Dios le dio autoridad a Pablo"
+    },
+    "11": {
+      "1": "Pablo y los falsos apóstoles",
+      "16": "Pablo sufre por ser apóstol"
+    },
+    "12": {
+      "1": "La fuerza y el orgullo de Pablo",
+      "11": "Pablo se preocupa por los hermanos"
+    },
+    "13": {
+      "1": "Advertencia final",
+      "11": "Despedida"
+    }
+  },
+  "Galatas": {
+    "1": {
+      "1": "Saludo",
+      "6": "Un solo mensaje verdadero",
+      "10": "Pablo fue llamado por Cristo"
+    },
+    "2": {
+      "1": "Pablo y los otros apóstoles",
+      "11": "Pablo corrige a Pedro",
+      "15": "La salvación viene solo por confiar en Jesucristo"
+    },
+    "3": {
+      "1": "Obedecer la ley o confiar en Jesucristo",
+      "6": "El ejemplo de Abraham",
+      "15": "La ley y la promesa",
+      "21": "¿Para qué sirvió la ley?"
+    },
+    "4": {
+      "1": "Ahora somos hijos de Dios",
+      "8": "Pablo se preocupa por los gálatas",
+      "21": "El ejemplo de Agar y Sara"
+    },
+    "5": {
+      "1": "Libertad por medio de Jesucristo",
+      "16": "Obedecer al Espíritu de Dios"
+    },
+    "6": {
+      "1": "Ayúdense unos a otros",
+      "11": "Advertencia y saludo final"
+    }
+  },
+  "Efesios": {
+    "1": {
+      "1": "Saludo",
+      "3": "Pablo da gracias a Dios",
+      "15": "Pablo ora por la iglesia en Éfeso"
+    },
+    "2": {
+      "1": "Dios nos da vida",
+      "11": "Cristo nos une a todos"
+    },
+    "3": {
+      "1": "La misión de Pablo",
+      "14": "El amor de Jesucristo"
+    },
+    "4": {
+      "1": "Unidad en la iglesia",
+      "17": "Una nueva vida",
+      "25": "Cómo vivir ahora"
+    },
+    "5": {
+      "6": "Vivir obedeciendo a Dios"
+    },
+    "6": {
+      "1": "Los padres y los hijos",
+      "5": "Los esclavos y sus amos",
+      "10": "La armadura de Dios",
+      "21": "Saludos finales"
+    }
+  },
+  "Filipenses": {
+    "1": {
+      "1": "Saludo",
+      "3": "Pablo ora por los miembros de la iglesia",
+      "12": "Lo que Pablo piensa de la vida",
+      "27": "Vivir confiando en Cristo"
+    },
+    "2": {
+      "1": "Ser como Jesucristo",
+      "12": "Cómo vivir en este mundo",
+      "19": "Timoteo",
+      "25": "Epafrodito"
+    },
+    "3": {
+      "1": "Lo más importante es conocer a Cristo",
+      "12": "Hacia la meta"
+    },
+    "4": {
+      "1": "Instrucciones para la iglesia",
+      "10": "Pablo da gracias a los filipenses",
+      "21": "Saludos finales"
+    }
+  },
+  "Colosenses": {
+    "1": {
+      "1": "Saludo",
+      "3": "Pablo da gracias a Dios",
+      "9": "Pablo pide fortaleza para la iglesia de Colosas",
+      "15": "La obra de Cristo",
+      "21": "Cristo nos hace amigos de Dios",
+      "24": "El trabajo de Pablo para la Iglesia"
+    },
+    "2": {
+      "6": "La vida nueva que Cristo da",
+      "20": "Vivir como Dios quiere"
+    },
+    "3": {
+      "5": "Cómo deben vivir ahora",
+      "18": "La familia cristiana"
+    },
+    "4": {
+      "2": "Otras enseñanzas",
+      "7": "Saludos finales"
+    }
+  },
+  "1 Tesalonicenses": {
+    "1": {
+      "1": "Saludo",
+      "2": "Los tesalonicenses son un ejemplo"
+    },
+    "2": {
+      "1": "El trabajo de Pablo en Tesalónica",
+      "17": "Pablo deseaba visitar a los tesalonicenses"
+    },
+    "3": {
+      "11": "Oración de Pablo y de sus compañeros"
+    },
+    "4": {
+      "1": "Vivamos como a Dios le agrada",
+      "13": "El regreso del Señor"
+    },
+    "5": {
+      "12": "Instrucciones finales",
+      "25": "Despedida"
+    }
+  },
+  "2 Tesalonicenses": {
+    "1": {
+      "1": "Saludo",
+      "3": "Pablo ora por los tesalonicenses"
+    },
+    "2": {
+      "1": "El hombre malvado",
+      "13": "Confiar en Dios"
+    },
+    "3": {
+      "1": "Pablo pide que oren",
+      "6": "Todos tienen que trabajar",
+      "16": "Despedida"
+    }
+  },
+  "1 Timoteo": {
+    "1": {
+      "1": "Saludo",
+      "3": "¡Cuidado con las falsas enseñanzas!",
+      "12": "Pablo da gracias a Jesucristo"
+    },
+    "2": {
+      "1": "Cómo orar en la iglesia"
+    },
+    "3": {
+      "1": "Los líderes de la iglesia",
+      "8": "Los diáconos de la iglesia",
+      "14": "La gran verdad"
+    },
+    "4": {
+      "1": "Las falsas enseñanzas",
+      "6": "Instrucciones para Timoteo"
+    },
+    "5": {
+      "1": "Cómo tratar a los demás"
+    },
+    "6": {
+      "2": "Las falsas enseñanzas y el dinero",
+      "11": "Recomendaciones y despedida"
+    }
+  },
+  "2 Timoteo": {
+    "1": {
+      "1": "Saludos",
+      "3": "Oración de agradecimiento",
+      "6": "No hay que avergonzarse"
+    },
+    "2": {
+      "1": "El fiel soldado de Jesucristo",
+      "14": "El sirviente aprobado"
+    },
+    "3": {
+      "1": "Cómo será todo antes del fin del mundo",
+      "10": "Últimas instrucciones para Timoteo"
+    },
+    "4": {
+      "9": "Instrucciones personales",
+      "19": "Despedida"
+    }
+  },
+  "Tito": {
+    "1": {
+      "1": "Saludo",
+      "5": "Lo que Tito debía hacer en Creta"
+    },
+    "2": {
+      "1": "Instrucciones para distintos grupos de personas",
+      "11": "Dios es bueno y nos da una nueva vida"
+    },
+    "3": {
+      "1": "Responsabilidades de los miembros",
+      "12": "Instrucciones para Tito",
+      "15": "Despedida"
+    }
+  },
+  "Filemon": {
+    "1": {
+      "1": "Saludo",
+      "4": "Pablo ora por Filemón",
+      "7": "Pablo pide un favor para Onésimo",
+      "23": "Saludos finales"
+    }
+  },
+  "Hebreos": {
+    "1": {
+      "1": "Introducción",
+      "4": "El Hijo de Dios es superior a los ángeles"
+    },
+    "2": {
+      "1": "La salvación es importante",
+      "5": "Jesús nos salva"
+    },
+    "3": {
+      "1": "Jesús y Moisés",
+      "7": "La obediencia"
+    },
+    "4": {
+      "14": "Jesús es el Jefe de sacerdotes"
+    },
+    "5": {
+      "11": "Aprendamos más acerca de Dios"
+    },
+    "6": {
+      "13": "La promesa de Dios"
+    },
+    "7": {
+      "1": "Jesús y Melquisedec",
+      "11": "Dos clases de sacerdotes",
+      "20": "El mejor sacerdote"
+    },
+    "8": {
+      "1": "Nuestro Jefe de sacerdotes es mejor",
+      "7": "El antiguo pacto"
+    },
+    "9": {
+      "1": "Los antiguos sacrificios",
+      "11": "El nuevo sacrificio",
+      "15": "El nuevo pacto",
+      "24": "El mejor sacrificio"
+    },
+    "10": {
+      "1": "La ley antigua ya no sirve",
+      "19": "Amistad con Dios"
+    },
+    "11": {
+      "1": "La confianza en Dios"
+    },
+    "12": {
+      "1": "Los sufrimientos y nuestra confianza en Dios",
+      "14": "Advertencia"
+    },
+    "13": {
+      "1": "¿Cómo debe vivir el cristiano?",
+      "20": "Despedida"
+    }
+  },
+  "Santiago": {
+    "1": {
+      "1": "Saludo",
+      "2": "Confianza en Dios",
+      "9": "Los pobres y los ricos",
+      "12": "Las tentaciones",
+      "19": "Obediencia al mensaje de Dios"
+    },
+    "2": {
+      "1": "¡No tengan favoritos!",
+      "14": "Confianza y buenas acciones"
+    },
+    "3": {
+      "1": "La lengua",
+      "13": "La sabiduría que Dios da"
+    },
+    "4": {
+      "1": "Las guerras y los pleitos",
+      "11": "No critiquen a los demás",
+      "13": "No sean orgullosos"
+    },
+    "5": {
+      "1": "¡Advertencia a los ricos!",
+      "7": "Paciencia y valor",
+      "12": "Otros consejos"
+    }
+  },
+  "1 Pedro": {
+    "1": {
+      "1": "Saludo",
+      "3": "Alabemos a Dios",
+      "6": "Confiar en Dios",
+      "14": "Vivan como hijos obedientes"
+    },
+    "2": {
+      "4": "El nuevo pueblo de Dios",
+      "11": "El buen ejemplo",
+      "13": "El respeto a las autoridades",
+      "18": "Responsabilidades de los esclavos"
+    },
+    "3": {
+      "1": "El esposo y la esposa",
+      "8": "Deberes cristianos"
+    },
+    "4": {
+      "1": "Vivir como Dios quiere",
+      "7": "El servicio a los demás",
+      "12": "El sufrimiento del cristiano"
+    },
+    "5": {
+      "1": "Los líderes de la iglesia",
+      "5": "Los miembros de la iglesia",
+      "12": "Despedida"
+    }
+  },
+  "2 Pedro": {
+    "1": {
+      "1": "Saludo",
+      "3": "Vivir como Dios quiere",
+      "12": "La verdadera enseñanza"
+    },
+    "2": {
+      "1": "Enseñanzas falsas"
+    },
+    "3": {
+      "1": "El regreso del Señor Jesús",
+      "17": "Conclusión"
+    }
+  },
+  "1 Juan": {
+    "1": {
+      "1": "La Palabra de vida",
+      "5": "Amigos de Dios"
+    },
+    "2": {
+      "1": "Jesucristo, nuestro defensor",
+      "7": "Un nuevo mandamiento",
+      "18": "El Enemigo de Cristo",
+      "29": "Hijos de Dios"
+    },
+    "4": {
+      "1": "Los verdaderos hijos de Dios",
+      "7": "Debemos amarnos"
+    },
+    "5": {
+      "1": "Confianza victoriosa",
+      "6": "Quién es Jesucristo",
+      "13": "Conclusión"
+    }
+  },
+  "2 Juan": {
+    "1": {
+      "1": "Saludo",
+      "4": "El amor verdadero",
+      "7": "¡Cuidado con los falsos maestros!",
+      "12": "Despedida"
+    }
+  },
+  "3 Juan": {
+    "1": {
+      "1": "Saludo",
+      "3": "La buena conducta de Gayo",
+      "9": "Diótrefes y Demetrio",
+      "13": "Despedida"
+    }
+  },
+  "Judas": {
+    "1": {
+      "1": "Saludo",
+      "3": "Advertencia contra la mentira",
+      "17": "Algunos consejos",
+      "24": "Alabanza final a Dios"
+    }
+  },
+  "Apocalipsis": {
+    "1": {
+      "1": "Bendiciones para el lector",
+      "4": "Saludo",
+      "9": "Visión sobre Jesucristo"
+    },
+    "2": {
+      "1": "El mensaje a la iglesia de Éfeso",
+      "8": "El mensaje a la iglesia de Esmirna",
+      "12": "El mensaje a la iglesia de Pérgamo",
+      "18": "El mensaje a la iglesia de Tiatira"
+    },
+    "3": {
+      "1": "El mensaje a la iglesia de Sardes",
+      "7": "El mensaje a la iglesia de Filadelfia",
+      "14": "El mensaje a la iglesia de Laodicea"
+    },
+    "4": {
+      "1": "La alabanza en el cielo"
+    },
+    "5": {
+      "1": "El rollo y el Cordero"
+    },
+    "6": {
+      "1": "Los primeros cuatro sellos",
+      "9": "El quinto sello",
+      "12": "El sexto sello"
+    },
+    "7": {
+      "1": "Dios salvará a su pueblo"
+    },
+    "8": {
+      "1": "El séptimo sello y las siete trompetas",
+      "7": "Las primeras cuatro trompetas"
+    },
+    "9": {
+      "1": "La quinta trompeta",
+      "13": "La sexta trompeta"
+    },
+    "10": {
+      "1": "El ángel y el librito"
+    },
+    "11": {
+      "1": "Los dos profetas",
+      "15": "La séptima trompeta"
+    },
+    "12": {
+      "1": "La mujer y el dragón",
+      "7": "Miguel y el dragón"
+    },
+    "13": {
+      "1": "El monstruo del mar",
+      "11": "El monstruo de la tierra"
+    },
+    "14": {
+      "1": "Una canción nueva",
+      "6": "El mensaje de los tres ángeles",
+      "14": "El juicio final"
+    },
+    "15": {
+      "1": "Siete ángeles"
+    },
+    "16": {
+      "1": "Las siete copas"
+    },
+    "17": {
+      "1": "La mujer y el monstruo"
+    },
+    "18": {
+      "1": "La destrucción de Babilonia"
+    },
+    "19": {
+      "1": "Alegría en el cielo",
+      "6": "Alabanza",
+      "11": "La victoria del jinete"
+    },
+    "20": {
+      "1": "Los mil años",
+      "7": "Derrota de Satanás",
+      "11": "El juicio final"
+    },
+    "21": {
+      "1": "Un mundo nuevo",
+      "9": "La nueva Jerusalén"
+    },
+    "22": {
+      "6": "Jesús promete volver pronto"
+    }
+  }
+}

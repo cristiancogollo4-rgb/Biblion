@@ -73,7 +73,8 @@ object BibleRepository {
             BibleVersionOption("rv1960", "Reina Valera 1960"),
             BibleVersionOption("nvi", "Nueva Versión Internacional (NVI)"),
             BibleVersionOption("dhh", "Dios Habla Hoy (DHH)"),
-            BibleVersionOption("pdt", "Palabra de Dios para Todos (PDT)")
+            BibleVersionOption("pdt", "Palabra de Dios para Todos (PDT)"),
+            BibleVersionOption("tla", "Traducción en Lenguaje Actual (TLA)")
         )
 
         val knownAvailable = known.filter { "${it.key}.json" in availableAssets }
