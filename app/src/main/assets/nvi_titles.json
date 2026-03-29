@@ -3525,5 +3525,826 @@
     "22": {
       "6": "La venida de Cristo está cerca"
     }
+  },
+   "1 Samuel": {
+    "1": {
+      "1": "El nacimiento de Samuel"
+    },
+    "2": {
+      "1": "El cántico de Ana",
+      "12": "Los malvados hijos de Elí",
+      "27": "Profecía contra la casa de Elí"
+    },
+    "3": {
+      "1": "El Señor llama a Samuel"
+    },
+    "4": {
+      "1": "Los filisteos capturan el arca"
+    },
+    "5": {
+      "1": "El arca en territorio filisteo"
+    },
+    "6": {
+      "1": "Los filisteos devuelven el arca"
+    },
+    "7": {
+      "2": "Samuel juzga a Israel"
+    },
+    "8": {
+      "1": "Israel pide rey"
+    },
+    "9": {
+      "1": "Saúl busca las asnas de su padre"
+    },
+    "10": {
+      "1": "Samuel unge a Saúl",
+      "17": "Saúl es proclamado rey"
+    },
+    "11": {
+      "1": "Saúl derrota a los amonitas"
+    },
+    "12": {
+      "1": "Discurso de despedida de Samuel"
+    },
+    "13": {
+      "1": "Guerra contra los filisteos",
+      "8": "Saúl es rechazado por el Señor"
+    },
+    "14": {
+      "1": "Jonatán ataca a los filisteos"
+    },
+    "15": {
+      "1": "El Señor rechaza a Saúl"
+    },
+    "16": {
+      "1": "Samuel unge a David",
+      "14": "David al servicio de Saúl"
+    },
+    "17": {
+      "1": "David y Goliat"
+    },
+    "18": {
+      "1": "Saúl tiene celos de David"
+    },
+    "19": {
+      "1": "Saúl intenta matar a David"
+    },
+    "20": {
+      "1": "Amistad de David y Jonatán"
+    },
+    "21": {
+      "1": "David en Nob",
+      "10": "David en Gat"
+    },
+    "22": {
+      "1": "David en Adulán y Mizpa",
+      "6": "Saúl mata a los sacerdotes de Nob"
+    },
+    "23": {
+      "1": "Saúl persigue a David"
+    },
+    "24": {
+      "1": "David perdona la vida a Saúl"
+    },
+    "25": {
+      "1": "Muerte de Samuel",
+      "2": "David, Nabal y Abigail"
+    },
+    "26": {
+      "1": "David vuelve a perdonar la vida a Saúl"
+    },
+    "27": {
+      "1": "David entre los filisteos"
+    },
+    "28": {
+      "1": "Saúl y la adivina de Endor"
+    },
+    "29": {
+      "1": "Los filisteos desconfían de David"
+    },
+    "30": {
+      "1": "David derrota a los amalequitas"
+    },
+    "31": {
+      "1": "Muerte de Saúl y de sus hijos"
+    }
+  },
+  "2 Samuel": {
+    "1": {
+      "1": "David se entera de la muerte de Saúl",
+      "17": "Lamento de David por Saúl y Jonatán"
+    },
+    "2": {
+      "1": "David es ungido rey de Judá",
+      "8": "Guerra entre las casas de David y Saúl"
+    },
+    "3": {
+      "6": "Abner se une a David",
+      "22": "Joab mata a Abner"
+    },
+    "4": {
+      "1": "Asesinato de Isboset"
+    },
+    "5": {
+      "1": "David es ungido rey de Israel",
+      "6": "David conquista Jerusalén",
+      "17": "David derrota a los filisteos"
+    },
+    "6": {
+      "1": "El arca es llevada a Jerusalén"
+    },
+    "7": {
+      "1": "Pacto de Dios con David"
+    },
+    "8": {
+      "1": "Victorias militares de David"
+    },
+    "9": {
+      "1": "David y Mefiboset"
+    },
+    "10": {
+      "1": "David derrota a los amonitas"
+    },
+    "11": {
+      "1": "David y Betsabé"
+    },
+    "12": {
+      "1": "Natán reprende a David"
+    },
+    "13": {
+      "1": "Amnón y Tamar",
+      "23": "Venganza de Absalón"
+    },
+    "14": {
+      "1": "Absalón regresa a Jerusalén"
+    },
+    "15": {
+      "1": "Absalón se rebela contra David",
+      "13": "David huye de Jerusalén"
+    },
+    "16": {
+      "1": "David y Siba",
+      "5": "Simei maldice a David"
+    },
+    "17": {
+      "1": "Consejos de Ahitofel y de Husay"
+    },
+    "18": {
+      "1": "Derrota y muerte de Absalón"
+    },
+    "19": {
+      "1": "David regresa a Jerusalén"
+    },
+    "20": {
+      "1": "Rebelión de Seba"
+    },
+    "21": {
+      "1": "Los gabaonitas se vengan de Saúl",
+      "15": "Batallas contra los filisteos"
+    },
+    "22": {
+      "1": "Cántico de victoria de David"
+    },
+    "23": {
+      "1": "Últimas palabras de David",
+      "8": "Los valientes de David"
+    },
+    "24": {
+      "1": "David ordena un censo"
+    }
+  },
+  "1 Reyes": {
+    "1": {
+      "1": "Adonías intenta hacerse rey",
+      "28": "Salomón es proclamado rey"
+    },
+    "2": {
+      "1": "Instrucciones finales de David",
+      "10": "Muerte de David",
+      "13": "Salomón consolida su reino"
+    },
+    "3": {
+      "1": "Salomón pide sabiduría",
+      "16": "Un juicio sabio"
+    },
+    "4": {
+      "1": "Los funcionarios de Salomón",
+      "20": "Prosperidad y sabiduría de Salomón"
+    },
+    "5": {
+      "1": "Preparativos para el templo"
+    },
+    "6": {
+      "1": "Salomón construye el templo"
+    },
+    "7": {
+      "1": "El palacio de Salomón",
+      "13": "El mobiliario del templo"
+    },
+    "8": {
+      "1": "El arca es llevada al templo",
+      "22": "Oración de Salomón",
+      "62": "Dedicación del templo"
+    },
+    "9": {
+      "1": "El Señor se aparece a Salomón",
+      "10": "Otros proyectos de Salomón"
+    },
+    "10": {
+      "1": "La reina de Sabá visita a Salomón",
+      "14": "Riquezas de Salomón"
+    },
+    "11": {
+      "1": "El pecado de Salomón",
+      "14": "Adversarios de Salomón",
+      "41": "Muerte de Salomón"
+    },
+    "12": {
+      "1": "Israel se rebela contra Roboam",
+      "25": "Jeroboam construye ídolos de oro"
+    },
+    "13": {
+      "1": "Un profeta reprende a Jeroboam"
+    },
+    "14": {
+      "1": "Ahías profetiza contra Jeroboam",
+      "21": "Roboam, rey de Judá"
+    },
+    "15": {
+      "1": "Abiam, rey de Judá",
+      "9": "Asa, rey de Judá",
+      "25": "Nadab, rey de Israel",
+      "33": "Basá, rey de Israel"
+    },
+    "16": {
+      "8": "Elá, rey de Israel",
+      "15": "Zimrí, rey de Israel",
+      "21": "Omrí, rey de Israel",
+      "29": "Acab, rey de Israel"
+    },
+    "17": {
+      "1": "Elías y la sequía"
+    },
+    "18": {
+      "1": "Elías y los profetas de Baal"
+    },
+    "19": {
+      "1": "Elías huye al monte Horeb",
+      "19": "El llamamiento de Eliseo"
+    },
+    "20": {
+      "1": "Acab derrota a los sirios"
+    },
+    "21": {
+      "1": "La viña de Nabot"
+    },
+    "22": {
+      "1": "Micaías profetiza contra Acab",
+      "29": "Muerte de Acab",
+      "41": "Josafat, rey de Judá",
+      "51": "Ocozías, rey de Israel"
+    }
+  },
+  "2 Reyes": {
+    "1": {
+      "1": "Elías y el rey Ocozías"
+    },
+    "2": {
+      "1": "Elías es llevado al cielo",
+      "13": "Eliseo sucede a Elías"
+    },
+    "3": {
+      "1": "Joram, rey de Israel",
+      "4": "Guerra contra Moab"
+    },
+    "4": {
+      "1": "El aceite de la viuda",
+      "8": "Eliseo y la mujer de Sunem",
+      "38": "Eliseo y el guisado envenenado"
+    },
+    "5": {
+      "1": "Eliseo sana a Naamán"
+    },
+    "6": {
+      "1": "Eliseo hace flotar el hacha",
+      "8": "Eliseo y los sirios",
+      "24": "El sitio de Samaria"
+    },
+    "8": {
+      "1": "La mujer de Sunem recupera su propiedad",
+      "7": "Hazael, rey de Siria",
+      "16": "Joram, rey de Judá",
+      "25": "Ocozías, rey de Judá"
+    },
+    "9": {
+      "1": "Jehú es ungido rey de Israel",
+      "14": "Jehú mata a Joram y a Ocozías",
+      "30": "Muerte de Jezabel"
+    },
+    "10": {
+      "1": "Jehú mata a la familia de Acab",
+      "18": "Jehú mata a los profetas de Baal"
+    },
+    "11": {
+      "1": "Atalía y Joás"
+    },
+    "12": {
+      "1": "Joás repara el templo"
+    },
+    "13": {
+      "1": "Joacaz, rey de Israel",
+      "10": "Joás, rey de Israel",
+      "14": "Muerte de Eliseo"
+    },
+    "14": {
+      "1": "Amasías, rey de Judá",
+      "23": "Jeroboam II, rey de Israel"
+    },
+    "15": {
+      "1": "Azarías, rey de Judá",
+      "8": "Zacarías, rey de Israel",
+      "13": "Salún, rey de Israel",
+      "17": "Menajem, rey de Israel",
+      "23": "Pecajías, rey de Israel",
+      "27": "Pecaj, rey de Israel",
+      "32": "Jotán, rey de Judá"
+    },
+    "16": {
+      "1": "Acaz, rey de Judá"
+    },
+    "17": {
+      "1": "Caída de Samaria",
+      "24": "Los asirios se establecen en Samaria"
+    },
+    "18": {
+      "1": "Reinado de Ezequías",
+      "13": "Senaquerib amenaza a Jerusalén"
+    },
+    "19": {
+      "1": "Ezequías consulta a Isaías",
+      "14": "Oración de Ezequías",
+      "35": "Derrota de Senaquerib"
+    },
+    "20": {
+      "1": "Enfermedad de Ezequías"
+    },
+    "21": {
+      "1": "Manasés, rey de Judá",
+      "19": "Amón, rey de Judá"
+    },
+    "22": {
+      "1": "Hallazgo del libro de la Ley"
+    },
+    "23": {
+      "1": "Reformas de Josías",
+      "31": "Joacaz y Joacim, reyes de Judá"
+    },
+    "24": {
+      "1": "Joaquín y Sedequías, reyes de Judá"
+    },
+    "25": {
+      "1": "Caída de Jerusalén"
+    }
+  },
+  "1 Crónicas": {
+    "1": {
+      "1": "Genealogías: De Adán a Abraham"
+    },
+    "2": {
+      "1": "Los hijos de Israel"
+    },
+    "3": {
+      "1": "La descendencia de David"
+    },
+    "9": {
+      "1": "Los que regresaron del cautiverio"
+    },
+    "10": {
+      "1": "Muerte de Saúl"
+    },
+    "11": {
+      "1": "David es ungido rey de Israel",
+      "10": "Los valientes de David"
+    },
+    "12": {
+      "1": "Los que se unieron a David"
+    },
+    "13": {
+      "1": "Traslado del arca"
+    },
+    "14": {
+      "1": "David se establece en Jerusalén"
+    },
+    "15": {
+      "1": "El arca llega a Jerusalén"
+    },
+    "16": {
+      "1": "El arca es puesta en una tienda",
+      "7": "Salmo de acción de gracias"
+    },
+    "17": {
+      "1": "Promesa de Dios a David"
+    },
+    "18": {
+      "1": "Victorias de David"
+    },
+    "19": {
+      "1": "David derrota a los amonitas"
+    },
+    "21": {
+      "1": "David ordena un censo"
+    },
+    "22": {
+      "1": "Preparativos para el templo"
+    },
+    "23": {
+      "1": "Los levitas"
+    },
+    "24": {
+      "1": "Los sacerdotes"
+    },
+    "25": {
+      "1": "Los músicos"
+    },
+    "26": {
+      "1": "Los porteros"
+    },
+    "27": {
+      "1": "Oficiales del ejército y de la administración"
+    },
+    "28": {
+      "1": "Instrucciones de David para el templo"
+    },
+    "29": {
+      "1": "Ofrendas para el templo",
+      "10": "Oración de David",
+      "21": "Salomón es proclamado rey",
+      "26": "Muerte de David"
+    }
+  },
+  "2 Crónicas": {
+    "1": {
+      "1": "Salomón pide sabiduría"
+    },
+    "2": {
+      "1": "Preparativos para el templo"
+    },
+    "3": {
+      "1": "Salomón construye el templo"
+    },
+    "4": {
+      "1": "El mobiliario del templo"
+    },
+    "5": {
+      "1": "El arca llega al templo"
+    },
+    "6": {
+      "1": "Dedicación del templo",
+      "12": "Oración de Salomón"
+    },
+    "7": {
+      "1": "La gloria de Dios en el templo",
+      "11": "El Señor se aparece a Salomón"
+    },
+    "8": {
+      "1": "Otros proyectos de Salomón"
+    },
+    "9": {
+      "1": "La reina de Sabá visita a Salomón",
+      "29": "Muerte de Salomón"
+    },
+    "10": {
+      "1": "Rebelión de Israel"
+    },
+    "11": {
+      "1": "Roboam fortifica a Judá"
+    },
+    "12": {
+      "1": "Reinado de Roboam"
+    },
+    "13": {
+      "1": "Abías, rey de Judá"
+    },
+    "14": {
+      "1": "Asa, rey de Judá"
+    },
+    "15": {
+      "1": "Reformas de Asa"
+    },
+    "17": {
+      "1": "Josafat, rey de Judá"
+    },
+    "18": {
+      "1": "Josafat y Acab contra Siria"
+    },
+    "20": {
+      "1": "Josafat derrota a Moab y Amón"
+    },
+    "21": {
+      "1": "Joram, rey de Judá"
+    },
+    "22": {
+      "1": "Ocozías, rey de Judá",
+      "10": "Atalía y Joás"
+    },
+    "24": {
+      "1": "Reinado de Joás"
+    },
+    "25": {
+      "1": "Amasías, rey de Judá"
+    },
+    "26": {
+      "1": "Uzías, rey de Judá"
+    },
+    "27": {
+      "1": "Jotán, rey de Judá"
+    },
+    "28": {
+      "1": "Acaz, rey de Judá"
+    },
+    "29": {
+      "1": "Ezequías purifica el templo"
+    },
+    "30": {
+      "1": "Celebración de la Pascua"
+    },
+    "31": {
+      "1": "Reformas religiosas de Ezequías"
+    },
+    "32": {
+      "1": "Senaquerib invade Judá",
+      "24": "Últimos años de Ezequías"
+    },
+    "33": {
+      "1": "Manasés, rey de Judá",
+      "21": "Amón, rey de Judá"
+    },
+    "34": {
+      "1": "Reformas de Josías",
+      "8": "Hallazgo del libro de la Ley"
+    },
+    "35": {
+      "1": "Josías celebra la Pascua",
+      "20": "Muerte de Josías"
+    },
+    "36": {
+      "1": "Últimos reyes de Judá",
+      "15": "Caída de Jerusalén",
+      "22": "El decreto de Ciro"
+    }
+  },
+  "1 Corintios": {
+    "1": {
+      "10": "Divisiones en la iglesia",
+      "18": "Cristo, sabiduría y poder de Dios"
+    },
+    "2": {
+      "1": "La proclamación de Cristo crucificado",
+      "6": "Sabiduría revelada por el Espíritu"
+    },
+    "3": {
+      "1": "El problema de la inmadurez"
+    },
+    "4": {
+      "1": "Los apóstoles de Cristo"
+    },
+    "5": {
+      "1": "Un caso de inmoralidad sexual"
+    },
+    "6": {
+      "1": "Pleitos ante los no creyentes",
+      "12": "La inmoralidad sexual"
+    },
+    "7": {
+      "1": "Instrucciones sobre el matrimonio"
+    },
+    "8": {
+      "1": "Lo sacrificado a los ídolos"
+    },
+    "9": {
+      "1": "Los derechos de un apóstol"
+    },
+    "10": {
+      "1": "Advertencias basadas en la historia de Israel",
+      "14": "Advertencia contra la idolatría",
+      "23": "La libertad del creyente"
+    },
+    "11": {
+      "2": "El uso del velo",
+      "17": "La Cena del Señor"
+    },
+    "12": {
+      "1": "Los dones espirituales",
+      "12": "Un solo cuerpo con muchos miembros"
+    },
+    "13": {
+      "1": "El amor"
+    },
+    "14": {
+      "1": "El don de lenguas y el de profecía",
+      "26": "El orden en el culto"
+    },
+    "15": {
+      "1": "La resurrección de Cristo",
+      "12": "La resurrección de los muertos",
+      "35": "El cuerpo resucitado",
+      "50": "El misterio de la resurrección"
+    },
+    "16": {
+      "1": "La ofrenda para los creyentes"
+    }
+  },
+  "2 Corintios": {
+    "1": {
+      "3": "El Dios de toda consolación",
+      "12": "Cambio de planes de Pablo"
+    },
+    "2": {
+      "5": "Perdón para el ofensor",
+      "12": "Ministros del nuevo pacto"
+    },
+    "4": {
+      "1": "Tesoros en vasijas de barro"
+    },
+    "5": {
+      "1": "Nuestra morada celestial",
+      "11": "El ministerio de la reconciliación"
+    },
+    "6": {
+      "14": "No se unan a los incrédulos"
+    },
+    "7": {
+      "2": "Regocijo de Pablo por el arrepentimiento de los corintios"
+    },
+    "8": {
+      "1": "La generosidad de los macedonios"
+    },
+    "9": {
+      "1": "La ofrenda para los creyentes de Jerusalén"
+    },
+    "10": {
+      "1": "Pablo defiende su autoridad"
+    },
+    "11": {
+      "1": "Pablo y los falsos apóstoles",
+      "16": "Sufrimientos de Pablo como apóstol"
+    },
+    "12": {
+      "1": "La visión de Pablo y su espina",
+      "11": "Preocupación de Pablo por los corintios"
+    },
+    "13": {
+      "1": "Advertencias finales"
+    }
+  },
+  "1 Tesalonicenses": {
+    "1": {
+      "2": "Ejemplo de los tesalonicenses"
+    },
+    "2": {
+      "1": "El ministerio de Pablo en Tesalónica",
+      "17": "El deseo de Pablo de volver a verlos"
+    },
+    "3": {
+      "1": "La misión de Timoteo"
+    },
+    "4": {
+      "1": "La vida que agrada a Dios",
+      "13": "La venida del Señor"
+    },
+    "5": {
+      "1": "El día del Señor",
+      "12": "Instrucciones finales"
+    }
+  },
+  "2 Tesalonicenses": {
+    "1": {
+      "3": "Acción de gracias y oración",
+      "5": "El juicio en la venida de Cristo"
+    },
+    "2": {
+      "1": "El hombre de pecado"
+    },
+    "3": {
+      "1": "Oración por el evangelio",
+      "6": "Advertencia contra la ociosidad"
+    }
+  },
+  "1 Timoteo": {
+    "1": {
+      "3": "Advertencia contra los falsos maestros",
+      "12": "Gratitud de Pablo por la misericordia de Dios"
+    },
+    "2": {
+      "1": "Instrucciones sobre la oración"
+    },
+    "3": {
+      "1": "Requisitos de los obispos",
+      "8": "Requisitos de los diáconos",
+      "14": "El misterio de la piedad"
+    },
+    "4": {
+      "1": "Advertencia contra la apostasía",
+      "6": "Un buen ministro de Jesucristo"
+    },
+    "5": {
+      "1": "El cuidado de los diversos grupos"
+    },
+    "6": {
+      "3": "Falsas doctrinas y el amor al dinero",
+      "11": "El buen combate de la fe",
+      "17": "Instrucciones para los ricos"
+    }
+  },
+  "2 Timoteo": {
+    "1": {
+      "3": "Exhortación a la fidelidad"
+    },
+    "2": {
+      "1": "Un buen soldado de Jesucristo",
+      "14": "Un obrero aprobado por Dios"
+    },
+    "3": {
+      "1": "La impiedad en los últimos días",
+      "10": "La importancia de las Sagradas Escrituras"
+    },
+    "4": {
+      "1": "Encargo de Pablo a Timoteo",
+      "6": "El final de la carrera de Pablo"
+    }
+  },
+  "1 Pedro": {
+    "1": {
+      "3": "Una esperanza viva",
+      "13": "Llamado a una vida santa"
+    },
+    "2": {
+      "4": "La piedra viva y el pueblo escogido",
+      "11": "Viviendo como extranjeros",
+      "13": "Sumisión a las autoridades"
+    },
+    "3": {
+      "1": "Esposas y esposos",
+      "8": "El sufrimiento por hacer el bien"
+    },
+    "4": {
+      "1": "Viviendo para Dios",
+      "12": "Sufrimiento por ser cristiano"
+    },
+    "5": {
+      "1": "Consejos para los ancianos y los jóvenes"
+    }
+  },
+  "2 Pedro": {
+    "1": {
+      "3": "Partícipes de la naturaleza divina",
+      "12": "La importancia de la memoria",
+      "16": "La gloria de Cristo y la palabra profética"
+    },
+    "2": {
+      "1": "Los falsos maestros"
+    },
+    "3": {
+      "1": "La venida del día del Señor"
+    }
+  },
+  "1 Juan": {
+    "1": {
+      "1": "La Palabra de vida",
+      "5": "Dios es luz"
+    },
+    "2": {
+      "1": "Cristo, nuestro abogado",
+      "7": "El nuevo mandamiento",
+      "15": "No amen al mundo",
+      "18": "El anticristo"
+    },
+    "3": {
+      "1": "Hijos de Dios",
+      "11": "Amémonos unos a otros"
+    },
+    "4": {
+      "1": "El Espíritu de Dios y el espíritu del anticristo",
+      "7": "Dios es amor"
+    },
+    "5": {
+      "1": "La fe que vence al mundo",
+      "6": "El testimonio acerca del Hijo",
+      "13": "Conclusión"
+    }
+  },
+  "2 Juan": {
+    "1": {
+      "1": "Saludo",
+      "4": "Permanezcan en la verdad"
+    }
+  },
+  "3 Juan": {
+    "1": {
+      "1": "Saludo",
+      "5": "Elogio a Gayo",
+      "9": "Advertencia contra Diótrefes"
+    }
   }
+  
 }

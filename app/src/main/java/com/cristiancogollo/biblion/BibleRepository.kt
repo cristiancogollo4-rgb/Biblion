@@ -16,7 +16,7 @@ import java.util.Locale
 object BibleRepository {
     private const val PREFS_NAME = "BiblionAppPrefs"
     private const val KEY_SELECTED_BIBLE_VERSION = "selectedBibleVersion"
-    private const val DEFAULT_BIBLE_VERSION = "rvr1960"
+    private const val DEFAULT_BIBLE_VERSION = "rv1960"
 
     @Volatile
     private var cachedBibleByVersion: MutableMap<String, JSONObject> = mutableMapOf()
@@ -70,8 +70,7 @@ object BibleRepository {
     fun getAvailableVersions(context: Context): List<BibleVersionOption> {
         val availableAssets = context.assets.list("")?.toSet().orEmpty()
         val known = listOf(
-            BibleVersionOption("rvr1960", "Reina Valera 1960"),
-            BibleVersionOption("rvr1960s", "Reina Valera 1960S"),
+            BibleVersionOption("rv1960", "Reina Valera 1960"),
             BibleVersionOption("nvi", "Nueva Versión Internacional (NVI)"),
             BibleVersionOption("dhh", "Dios Habla Hoy (DHH)"),
             BibleVersionOption("pdt", "Palabra de Dios para Todos (PDT)")
@@ -167,8 +166,25 @@ object BibleRepository {
     ): ChapterContent = withContext(Dispatchers.IO) {
         val bible = getBible(context)
         val titlesJsonRoot = getTitles(context)
-        val bookJson = bible.optJSONObject(bookName)
-        val bookTitlesJson = titlesJsonRoot.optJSONObject(bookName)
+
+        // Función interna para normalizar nombres (quita tildes, espacios y pasa a minúsculas)
+        fun String.normalize(): String {
+            val accents = mapOf('á' to 'a', 'é' to 'e', 'í' to 'i', 'ó' to 'o', 'ú' to 'u', 'ñ' to 'n')
+            return this.lowercase(Locale.ROOT)
+                .replace(" ", "")
+                .map { accents[it] ?: it }
+                .joinToString("")
+        }
+
+        val searchNormalized = bookName.normalize()
+
+        // 1. Buscar la llave correcta en el JSON de la Biblia
+        val bibleKey = bible.keys().asSequence().find { it.normalize() == searchNormalized } ?: bookName
+        val bookJson = bible.optJSONObject(bibleKey)
+
+        // 2. Buscar la llave correcta en el JSON de Títulos (independientemente)
+        val titlesKey = titlesJsonRoot.keys().asSequence().find { it.normalize() == searchNormalized } ?: bibleKey
+        val bookTitlesJson = titlesJsonRoot.optJSONObject(titlesKey)
 
         val chapterCount = bookJson?.length() ?: 0
         val chapterJson = bookJson?.optJSONObject(chapterNumber.toString())
