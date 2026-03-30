@@ -159,11 +159,9 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
                     .verticalScroll(rememberScrollState()) // Para que la pantalla pueda hacer scroll si el contenido crece
             ) {
                 // *** CORRECCIÓN CLAVE: Pasar "ANTIGUO_TESTAMENTO" como estado inicial ***
-                var selectedTestamentArg by rememberSaveable { mutableStateOf<String?>(null) }
-                val selectedTestament = selectedTestamentArg?.let { Testament.fromRouteArg(it) }
 
-                TestamentSelector(selectedTab = selectedTestament) { testament ->
-                    selectedTestamentArg = testament.toRouteArg()
+                TestamentSelector(selectedTab = null) { testament ->
+                    // Navega directamente sin guardar el estado en esta pantalla
                     navController.navigateSingleTop(Screen.Books.createRoute(testament))
                 }
 
