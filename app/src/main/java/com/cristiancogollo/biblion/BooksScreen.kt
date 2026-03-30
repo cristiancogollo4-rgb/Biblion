@@ -177,7 +177,10 @@ fun BiblionDrawerContent(
                 onClick = {
                     onClose()
                     when (titulo) {
-                        "Inicio" -> navController.navigateTopLevel(Screen.Home.route)
+                        "Inicio" -> navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Home.route) { inclusive = false }
+                            launchSingleTop = true
+                        }
                         "Elegir Versión" -> onPickVersion()
                         "Modo Estudio" -> {
                             navController.navigateSingleTop(Screen.Reader.createRoute(studyMode = true))

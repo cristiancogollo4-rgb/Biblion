@@ -244,6 +244,7 @@ fun ReaderContent(
     var showCitationInsertDialog by remember { mutableStateOf(false) }
     var selectedVerseActions by remember { mutableStateOf<Map<String, VerseAction>>(emptyMap()) }
     var horizontalDrag by remember { mutableFloatStateOf(0f) }
+    var pendingTargetVerse by remember(bookName, targetVerse) { mutableStateOf(targetVerse) }
     val lazyListState = rememberLazyListState()
 
     fun verseKey(verseNumber: String): String = "${bookName ?: ""}|$selectedChapter|$verseNumber"
@@ -292,11 +293,20 @@ fun ReaderContent(
         }
     }
 
-    LaunchedEffect(verses, targetVerse, selectedChapter, bookName) {
-        if (bookName.isNullOrBlank() || targetVerse.isNullOrBlank() || verses.isEmpty()) return@LaunchedEffect
-        val index = verses.indexOfFirst { it.first == targetVerse }
-        if (index >= 0) {
-            lazyListState.animateScrollToItem(index)
+    LaunchedEffect(verses, selectedChapter, bookName) {
+        if (bookName.isNullOrBlank() || verses.isEmpty()) return@LaunchedEffect
+
+        val target = pendingTargetVerse
+        if (!target.isNullOrBlank()) {
+            val index = verses.indexOfFirst { it.first == target }
+            if (index >= 0) {
+                lazyListState.animateScrollToItem(index)
+            } else {
+                lazyListState.scrollToItem(0)
+            }
+            pendingTargetVerse = null
+        } else {
+            lazyListState.scrollToItem(0)
         }
     }
 
@@ -364,11 +374,11 @@ fun ReaderContent(
                                 return@detectHorizontalDragGestures
                             }
                             when {
-                                horizontalDrag <= -80f && selectedChapter < chapterCount -> {
+                                horizontalDrag <= -40f && selectedChapter < chapterCount -> {
                                     selectedChapter += 1
                                     loadChapter(bookName, selectedChapter)
                                 }
-                                horizontalDrag >= 80f && selectedChapter > 1 -> {
+                                horizontalDrag >= 40f && selectedChapter > 1 -> {
                                     selectedChapter -= 1
                                     loadChapter(bookName, selectedChapter)
                                 }

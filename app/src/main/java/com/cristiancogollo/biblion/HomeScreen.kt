@@ -97,6 +97,12 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
                         onClick = {
                             scope.launch { drawerState.close() }
                             when (titulo) {
+                                "Inicio" -> {
+                                    navController.navigate(Screen.Home.route) {
+                                        popUpTo(Screen.Home.route) { inclusive = false }
+                                        launchSingleTop = true
+                                    }
+                                }
                                 "Mis Enseñanzas" -> {
                                     navController.navigateSingleTop(Screen.Ensenanzas.route)
                                 }
