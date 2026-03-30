@@ -10,8 +10,10 @@ import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.focusable
@@ -32,6 +34,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -95,7 +98,9 @@ fun Context.findActivity(): Activity? {
 fun ReaderScreen(
     navController: NavController,
     bookName: String?,
-    initialStudyMode: Boolean = false
+    initialStudyMode: Boolean = false,
+    initialChapter: Int = 1,
+    targetVerse: String? = null
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -138,7 +143,14 @@ fun ReaderScreen(
             }
         }
     } else {
-        ReaderContent(navController, bookName, isStudyModeActive = false, viewModel = studyViewModel)
+        ReaderContent(
+            navController = navController,
+            bookName = bookName,
+            isStudyModeActive = false,
+            viewModel = studyViewModel,
+            initialChapter = initialChapter,
+            targetVerse = targetVerse
+        )
     }
 }
 
@@ -167,16 +179,22 @@ private fun StudyModeNavigation(initialBook: String?) {
             route = Screen.ReaderWithBook.route,
             arguments = listOf(
                 navArgument("bookName") { type = NavType.StringType },
-                navArgument("studyMode") { type = NavType.BoolType; defaultValue = true }
+                navArgument("studyMode") { type = NavType.BoolType; defaultValue = true },
+                navArgument("chapter") { type = NavType.IntType; defaultValue = 1 },
+                navArgument("verse") { type = NavType.StringType; defaultValue = "" }
             )
         ) { backStackEntry ->
             val encodedBook = backStackEntry.arguments?.getString("bookName") ?: ""
             val book = decodeArg(encodedBook).ifBlank { null }
+            val initialChapter = backStackEntry.arguments?.getInt("chapter") ?: 1
+            val targetVerse = decodeArg(backStackEntry.arguments?.getString("verse") ?: "").ifBlank { null }
             ReaderContent(
                 navController = splitNavController,
                 bookName = book,
                 isStudyModeActive = true,
-                viewModel = studyViewModel
+                viewModel = studyViewModel,
+                initialChapter = initialChapter,
+                targetVerse = targetVerse
             )
         }
     }
@@ -205,7 +223,9 @@ fun ReaderContent(
     navController: NavController,
     bookName: String?,
     isStudyModeActive: Boolean,
-    viewModel: StudyViewModel
+    viewModel: StudyViewModel,
+    initialChapter: Int = 1,
+    targetVerse: String? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -216,13 +236,15 @@ fun ReaderContent(
     val fontSize = fontSizeValue.sp
 
     var chapterCount by remember { mutableIntStateOf(0) }
-    var selectedChapter by remember { mutableIntStateOf(1) }
+    var selectedChapter by remember(bookName) { mutableIntStateOf(initialChapter.coerceAtLeast(1)) }
     var verses by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var chapterTitles by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var verseHighlights by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var showDialog by remember { mutableStateOf(false) }
     var showCitationInsertDialog by remember { mutableStateOf(false) }
     var selectedVerseActions by remember { mutableStateOf<Map<String, VerseAction>>(emptyMap()) }
+    var horizontalDrag by remember { mutableFloatStateOf(0f) }
+    val lazyListState = rememberLazyListState()
 
     fun verseKey(verseNumber: String): String = "${bookName ?: ""}|$selectedChapter|$verseNumber"
 
@@ -267,6 +289,14 @@ fun ReaderContent(
     LaunchedEffect(bookName, selectedChapter, verses) {
         if (bookName != null && verses.isNotEmpty()) {
             loadHighlightsForChapter()
+        }
+    }
+
+    LaunchedEffect(verses, targetVerse, selectedChapter, bookName) {
+        if (bookName.isNullOrBlank() || targetVerse.isNullOrBlank() || verses.isEmpty()) return@LaunchedEffect
+        val index = verses.indexOfFirst { it.first == targetVerse }
+        if (index >= 0) {
+            lazyListState.animateScrollToItem(index)
         }
     }
 
@@ -322,7 +352,32 @@ fun ReaderContent(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
+                .padding(padding)
+                .pointerInput(bookName, selectedChapter, chapterCount) {
+                    detectHorizontalDragGestures(
+                        onHorizontalDrag = { _, dragAmount ->
+                            horizontalDrag += dragAmount
+                        },
+                        onDragEnd = {
+                            if (bookName.isNullOrBlank() || chapterCount <= 1) {
+                                horizontalDrag = 0f
+                                return@detectHorizontalDragGestures
+                            }
+                            when {
+                                horizontalDrag <= -80f && selectedChapter < chapterCount -> {
+                                    selectedChapter += 1
+                                    loadChapter(bookName, selectedChapter)
+                                }
+                                horizontalDrag >= 80f && selectedChapter > 1 -> {
+                                    selectedChapter -= 1
+                                    loadChapter(bookName, selectedChapter)
+                                }
+                            }
+                            horizontalDrag = 0f
+                        }
+                    )
+                },
+            state = lazyListState,
             contentPadding = PaddingValues(16.dp)
         ) {
             items(verses) { (verseNumber, verseText) ->

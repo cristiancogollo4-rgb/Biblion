@@ -25,7 +25,7 @@ data class CitationInsertRequest(
     val id: String,
     val reference: String,
     val text: String,
-    val version: String = "rvr1960",
+    val version: String = "rv1960",
     val includeFullText: Boolean = true
 )
 
@@ -45,7 +45,7 @@ data class StudyUiState(
     val hasActiveSelection: Boolean = false,
     val selectionFontSizeSp: Float = 18f,
     val pendingCitations: List<CitationInsertRequest> = emptyList(),
-    val globalVersion: String = "rvr1960"
+    val globalVersion: String = "rv1960"
 )
 
 sealed interface StudyIntent {
@@ -76,6 +76,13 @@ sealed interface StudyIntent {
 class StudyViewModel(application: Application) : AndroidViewModel(application) {
     private val dao = StudyDatabase.getInstance(application).studyDao()
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; classDiscriminator = "nodeType" }
+
+    private fun normalizeVersion(version: String): String {
+        return when (version.trim().lowercase()) {
+            "rvr1960" -> "rv1960"
+            else -> version.trim().lowercase().ifBlank { "rv1960" }
+        }
+    }
 
     private val _state = MutableStateFlow(StudyUiState())
     val state: StateFlow<StudyUiState> = _state.asStateFlow()
@@ -159,7 +166,7 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             is StudyIntent.ChangeVersion -> {
-                _state.value = _state.value.copy(globalVersion = intent.version)
+                _state.value = _state.value.copy(globalVersion = normalizeVersion(intent.version))
             }
             StudyIntent.Undo -> if (undoStack.isNotEmpty()) {
                 val previous = undoStack.removeLast()
@@ -255,7 +262,7 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
             title = study.title,
             richHtml = firstRich?.html ?: "",
             blocks = doc.blocks,
-            globalVersion = doc.globalVersion
+            globalVersion = normalizeVersion(doc.globalVersion)
         )
         lastSavedSignature = buildSignature(_state.value)
     }

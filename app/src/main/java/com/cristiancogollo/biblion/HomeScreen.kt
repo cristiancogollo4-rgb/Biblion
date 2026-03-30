@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -97,11 +98,10 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
                             scope.launch { drawerState.close() }
                             when (titulo) {
                                 "Mis Enseñanzas" -> {
-                                    navController.navigate(Screen.Ensenanzas.route)
+                                    navController.navigateSingleTop(Screen.Ensenanzas.route)
                                 }
                                 "Modo Estudio" -> {
-                                    // Navegamos a un libro por defecto (ej: Genesis) con modo estudio activado
-                                    navController.navigate(Screen.Reader.createRoute(studyMode = true))
+                                    navController.navigateSingleTop(Screen.Reader.createRoute(studyMode = true))
                                 }
                                 "Elegir Versión" -> {
                                     showVersionDialog = true
@@ -140,7 +140,7 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
                         scope.launch { drawerState.open() }
                     },
                     onSearchIconClick = {
-                        navController.navigate(Screen.Search.route)
+                        navController.navigateSingleTop(Screen.Search.route)
                     },
                     logoResId = R.drawable.logobiblionsinletras
                 )
@@ -153,11 +153,12 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
                     .verticalScroll(rememberScrollState()) // Para que la pantalla pueda hacer scroll si el contenido crece
             ) {
                 // *** CORRECCIÓN CLAVE: Pasar "ANTIGUO_TESTAMENTO" como estado inicial ***
-                var selectedTestament by remember { mutableStateOf(Testament.OLD) }
+                var selectedTestamentArg by rememberSaveable { mutableStateOf<String?>(null) }
+                val selectedTestament = selectedTestamentArg?.let { Testament.fromRouteArg(it) }
 
                 TestamentSelector(selectedTab = selectedTestament) { testament ->
-                    selectedTestament = testament
-                    navController.navigate(Screen.Books.createRoute(testament))
+                    selectedTestamentArg = testament.toRouteArg()
+                    navController.navigateSingleTop(Screen.Books.createRoute(testament))
                 }
 
                 HorizontalDivider(thickness = 0.5.dp)

@@ -102,7 +102,7 @@ fun BiblionTopAppBar(
 // 2. TestamentSelector: Selector tipo pestañas (Antiguo / Nuevo)
 @Composable
 fun TestamentSelector(
-    selectedTab: Testament,
+    selectedTab: Testament?,
     onTabSelected: (Testament) -> Unit
 ) {
     val tabs = listOf(Testament.OLD, Testament.NEW)
@@ -142,11 +142,18 @@ fun TestamentSelector(
 
 // 3. DailyVerseCard: Muestra el versículo del día
 @Composable
-fun DailyVerseCard(verse: String, reference: String) {
+fun DailyVerseCard(
+    verse: String,
+    reference: String,
+    onClick: (() -> Unit)? = null
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp)
+            .then(
+                if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+            ),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)

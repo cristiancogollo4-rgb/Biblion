@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -50,7 +51,8 @@ fun BooksScreen(navController: NavController, selectedTestament: Testament, open
     var availableVersions by remember { mutableStateOf<List<BibleVersionOption>>(emptyList()) }
     var showVersionDialog by remember { mutableStateOf(false) }
 
-    var currentSelectedTestament by remember { mutableStateOf(selectedTestament) }
+    var currentSelectedTestamentArg by rememberSaveable { mutableStateOf(selectedTestament.toRouteArg()) }
+    val currentSelectedTestament = Testament.fromRouteArg(currentSelectedTestamentArg)
 
     LaunchedEffect(Unit) {
         availableVersions = BibleRepository.getAvailableVersions(context)
@@ -80,7 +82,7 @@ fun BooksScreen(navController: NavController, selectedTestament: Testament, open
             topBar = {
                 BiblionTopAppBar(
                     onNavigationIconClick = { scope.launch { drawerState.open() } },
-                    onSearchIconClick = { navController.navigate(Screen.Search.route) },
+                    onSearchIconClick = { navController.navigateSingleTop(Screen.Search.route) },
                     logoResId = R.drawable.logobiblionsinletras
                 )
             }
@@ -93,7 +95,7 @@ fun BooksScreen(navController: NavController, selectedTestament: Testament, open
             ) {
                 TestamentSelector(
                     selectedTab = currentSelectedTestament,
-                    onTabSelected = { currentSelectedTestament = it }
+                    onTabSelected = { currentSelectedTestamentArg = it.toRouteArg() }
                 )
 
                 HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray)
@@ -122,7 +124,9 @@ fun BooksScreen(navController: NavController, selectedTestament: Testament, open
                         BookCard(
                             bookName = bookName,
                             onClick = {
-                                navController.navigate(Screen.Reader.createRoute(bookName = bookName, studyMode = openInStudyMode))
+                                navController.navigateSingleTop(
+                                    Screen.Reader.createRoute(bookName = bookName, studyMode = openInStudyMode)
+                                )
                             }
                         )
                     }
@@ -173,10 +177,10 @@ fun BiblionDrawerContent(
                 onClick = {
                     onClose()
                     when (titulo) {
-                        "Inicio" -> navController.navigate(Screen.Home.route)
+                        "Inicio" -> navController.navigateTopLevel(Screen.Home.route)
                         "Elegir Versión" -> onPickVersion()
                         "Modo Estudio" -> {
-                            navController.navigate(Screen.Reader.createRoute(studyMode = true))
+                            navController.navigateSingleTop(Screen.Reader.createRoute(studyMode = true))
                         }
                     }
                 }

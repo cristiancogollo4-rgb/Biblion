@@ -229,7 +229,15 @@ object BibleRepository {
                     val verseText = chapter.getString(verseNum)
 
                     if (verseText.contains(query, ignoreCase = true)) {
-                        results.add(SearchResult("$bookName $chapterNum:$verseNum", verseText))
+                        results.add(
+                            SearchResult(
+                                reference = "$bookName $chapterNum:$verseNum",
+                                text = verseText,
+                                bookName = bookName,
+                                chapter = chapterNum.toIntOrNull() ?: 1,
+                                verse = verseNum
+                            )
+                        )
                     }
                 }
             }

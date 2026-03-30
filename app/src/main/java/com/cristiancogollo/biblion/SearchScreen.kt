@@ -34,7 +34,13 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
 
-data class SearchResult(val reference: String, val text: String)
+data class SearchResult(
+    val reference: String,
+    val text: String,
+    val bookName: String,
+    val chapter: Int,
+    val verse: String
+)
 
 sealed interface SearchUiState {
     data object Idle : SearchUiState
@@ -128,7 +134,19 @@ fun SearchScreen(navController: NavController) {
                 is SearchUiState.Success -> {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(state.results) { result ->
-                            DailyVerseCard(verse = result.text, reference = result.reference)
+                            DailyVerseCard(
+                                verse = result.text,
+                                reference = result.reference,
+                                onClick = {
+                                    navController.navigateSingleTop(
+                                        Screen.Reader.createRoute(
+                                            bookName = result.bookName,
+                                            chapter = result.chapter,
+                                            verse = result.verse
+                                        )
+                                    )
+                                }
+                            )
                         }
                     }
                 }

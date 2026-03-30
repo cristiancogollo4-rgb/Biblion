@@ -38,17 +38,29 @@ fun AppNavigation() {
                 navArgument("studyMode") {
                     type = NavType.BoolType
                     defaultValue = false
+                },
+                navArgument("chapter") {
+                    type = NavType.IntType
+                    defaultValue = 1
+                },
+                navArgument("verse") {
+                    type = NavType.StringType
+                    defaultValue = ""
                 }
             )
         ) { backStackEntry ->
             val encodedBookName = backStackEntry.arguments?.getString("bookName") ?: ""
             val studyMode = backStackEntry.arguments?.getBoolean("studyMode") ?: false
+            val initialChapter = backStackEntry.arguments?.getInt("chapter") ?: 1
+            val initialVerse = decodeArg(backStackEntry.arguments?.getString("verse") ?: "").ifBlank { null }
             val decodedBookName = decodeArg(encodedBookName).ifBlank { null }
 
             ReaderScreen(
                 navController = navController,
                 bookName = decodedBookName,
-                initialStudyMode = studyMode
+                initialStudyMode = studyMode,
+                initialChapter = initialChapter,
+                targetVerse = initialVerse
             )
         }
 
@@ -58,14 +70,26 @@ fun AppNavigation() {
                 navArgument("studyMode") {
                     type = NavType.BoolType
                     defaultValue = true
+                },
+                navArgument("chapter") {
+                    type = NavType.IntType
+                    defaultValue = 1
+                },
+                navArgument("verse") {
+                    type = NavType.StringType
+                    defaultValue = ""
                 }
             )
         ) { backStackEntry ->
             val studyMode = backStackEntry.arguments?.getBoolean("studyMode") ?: true
+            val initialChapter = backStackEntry.arguments?.getInt("chapter") ?: 1
+            val initialVerse = decodeArg(backStackEntry.arguments?.getString("verse") ?: "").ifBlank { null }
             ReaderScreen(
                 navController = navController,
                 bookName = null,
-                initialStudyMode = studyMode
+                initialStudyMode = studyMode,
+                initialChapter = initialChapter,
+                targetVerse = initialVerse
             )
         }
 

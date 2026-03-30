@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion
 
+import androidx.navigation.NavController
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -15,15 +16,22 @@ sealed class Screen(val route: String) {
         fun createRoute(testament: Testament): String = "books/${testament.toRouteArg()}"
     }
 
-    data object ReaderWithBook : Screen("reader/{bookName}?studyMode={studyMode}")
-    data object ReaderWithoutBook : Screen("reader?studyMode={studyMode}")
+    data object ReaderWithBook : Screen("reader/{bookName}?studyMode={studyMode}&chapter={chapter}&verse={verse}")
+    data object ReaderWithoutBook : Screen("reader?studyMode={studyMode}&chapter={chapter}&verse={verse}")
 
     data object Reader {
-        fun createRoute(bookName: String? = null, studyMode: Boolean = false): String {
+        fun createRoute(
+            bookName: String? = null,
+            studyMode: Boolean = false,
+            chapter: Int? = null,
+            verse: String? = null
+        ): String {
+            val chapterArg = chapter ?: 1
+            val verseArg = encodeArg(verse.orEmpty())
             return if (bookName.isNullOrBlank()) {
-                "reader?studyMode=$studyMode"
+                "reader?studyMode=$studyMode&chapter=$chapterArg&verse=$verseArg"
             } else {
-                "reader/${encodeArg(bookName)}?studyMode=$studyMode"
+                "reader/${encodeArg(bookName)}?studyMode=$studyMode&chapter=$chapterArg&verse=$verseArg"
             }
         }
     }
@@ -39,3 +47,20 @@ sealed class Screen(val route: String) {
 fun encodeArg(value: String): String = URLEncoder.encode(value, utf8)
 
 fun decodeArg(value: String): String = URLDecoder.decode(value, utf8)
+
+fun NavController.navigateSingleTop(route: String) {
+    navigate(route) {
+        launchSingleTop = true
+        restoreState = true
+    }
+}
+
+fun NavController.navigateTopLevel(route: String) {
+    navigate(route) {
+        popUpTo(graph.startDestinationId) {
+            saveState = true
+        }
+        launchSingleTop = true
+        restoreState = true
+    }
+}
