@@ -10,6 +10,7 @@ import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,10 +19,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.focusable
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -46,6 +51,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavType
@@ -241,11 +247,15 @@ fun ReaderContent(
     var chapterTitles by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var verseHighlights by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var showDialog by remember { mutableStateOf(false) }
+    var showVersionDialog by remember { mutableStateOf(false) }
+    var selectedVersionKey by remember { mutableStateOf(BibleRepository.getSelectedVersionKey(context)) }
+    var availableVersions by remember { mutableStateOf<List<BibleVersionOption>>(emptyList()) }
     var showCitationInsertDialog by remember { mutableStateOf(false) }
     var selectedVerseActions by remember { mutableStateOf<Map<String, VerseAction>>(emptyMap()) }
     var horizontalDrag by remember { mutableFloatStateOf(0f) }
     var pendingTargetVerse by remember(bookName, targetVerse) { mutableStateOf(targetVerse) }
     val lazyListState = rememberLazyListState()
+    var floatingButtonOffset by remember { mutableStateOf(IntOffset(0, 0)) }
 
     fun verseKey(verseNumber: String): String = "${bookName ?: ""}|$selectedChapter|$verseNumber"
 
@@ -285,6 +295,11 @@ fun ReaderContent(
 
     LaunchedEffect(bookName) {
         bookName?.let { loadChapter(it, selectedChapter) }
+    }
+
+    LaunchedEffect(Unit) {
+        availableVersions = BibleRepository.getAvailableVersions(context)
+        selectedVersionKey = BibleRepository.getSelectedVersionKey(context)
     }
 
     LaunchedEffect(bookName, selectedChapter, verses) {
@@ -359,72 +374,95 @@ fun ReaderContent(
             )
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .pointerInput(bookName, selectedChapter, chapterCount) {
-                    detectHorizontalDragGestures(
-                        onHorizontalDrag = { _, dragAmount ->
-                            horizontalDrag += dragAmount
-                        },
-                        onDragEnd = {
-                            if (bookName.isNullOrBlank() || chapterCount <= 1) {
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(bookName, selectedChapter, chapterCount) {
+                        detectHorizontalDragGestures(
+                            onHorizontalDrag = { _, dragAmount ->
+                                horizontalDrag += dragAmount
+                            },
+                            onDragEnd = {
+                                if (bookName.isNullOrBlank() || chapterCount <= 1) {
+                                    horizontalDrag = 0f
+                                    return@detectHorizontalDragGestures
+                                }
+                                when {
+                                    horizontalDrag <= -40f && selectedChapter < chapterCount -> {
+                                        selectedChapter += 1
+                                        loadChapter(bookName, selectedChapter)
+                                    }
+                                    horizontalDrag >= 40f && selectedChapter > 1 -> {
+                                        selectedChapter -= 1
+                                        loadChapter(bookName, selectedChapter)
+                                    }
+                                }
                                 horizontalDrag = 0f
-                                return@detectHorizontalDragGestures
                             }
-                            when {
-                                horizontalDrag <= -40f && selectedChapter < chapterCount -> {
-                                    selectedChapter += 1
-                                    loadChapter(bookName, selectedChapter)
-                                }
-                                horizontalDrag >= 40f && selectedChapter > 1 -> {
-                                    selectedChapter -= 1
-                                    loadChapter(bookName, selectedChapter)
-                                }
-                            }
-                            horizontalDrag = 0f
-                        }
-                    )
-                },
-            state = lazyListState,
-            contentPadding = PaddingValues(16.dp)
-        ) {
-            items(verses) { (verseNumber, verseText) ->
-                val chapterTitle = chapterTitles[verseNumber]
-                if (!chapterTitle.isNullOrBlank()) {
-                    Text(
-                        text = chapterTitle,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 6.dp, bottom = 10.dp)
-                    )
-                }
-
-                VerseItem(
-                    verseNumber = verseNumber,
-                    verseText = verseText,
-                    fontSize = fontSize,
-                    highlightColor = highlightPalette[verseHighlights[verseNumber] ?: 0],
-                    isSelected = selectedVerseActions.containsKey(verseNumber),
-                    isSelectionMode = selectedVerseActions.isNotEmpty(),
-                    onShowActions = {
-                        selectedVerseActions = if (selectedVerseActions.containsKey(verseNumber)) {
-                            selectedVerseActions - verseNumber
-                        } else {
-                            selectedVerseActions + (verseNumber to VerseAction(verseNumber, verseText))
                         }
                     },
-                    onToggleSelection = {
-                        if (selectedVerseActions.isNotEmpty()) {
+                state = lazyListState,
+                contentPadding = PaddingValues(16.dp)
+            ) {
+                items(verses) { (verseNumber, verseText) ->
+                    val chapterTitle = chapterTitles[verseNumber]
+                    if (!chapterTitle.isNullOrBlank()) {
+                        Text(
+                            text = chapterTitle,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 6.dp, bottom = 10.dp)
+                        )
+                    }
+
+                    VerseItem(
+                        verseNumber = verseNumber,
+                        verseText = verseText,
+                        fontSize = fontSize,
+                        highlightColor = highlightPalette[verseHighlights[verseNumber] ?: 0],
+                        isSelected = selectedVerseActions.containsKey(verseNumber),
+                        isSelectionMode = selectedVerseActions.isNotEmpty(),
+                        onShowActions = {
                             selectedVerseActions = if (selectedVerseActions.containsKey(verseNumber)) {
                                 selectedVerseActions - verseNumber
                             } else {
                                 selectedVerseActions + (verseNumber to VerseAction(verseNumber, verseText))
                             }
+                        },
+                        onToggleSelection = {
+                            if (selectedVerseActions.isNotEmpty()) {
+                                selectedVerseActions = if (selectedVerseActions.containsKey(verseNumber)) {
+                                    selectedVerseActions - verseNumber
+                                } else {
+                                    selectedVerseActions + (verseNumber to VerseAction(verseNumber, verseText))
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+
+            FloatingActionButton(
+                onClick = { showVersionDialog = true },
+                modifier = Modifier
+                    .offset { floatingButtonOffset }
+                    .align(Alignment.BottomEnd)
+                    .padding(20.dp)
+                    .pointerInput(Unit) {
+                        detectDragGestures { change, dragAmount ->
+                            change.consume()
+                            floatingButtonOffset = IntOffset(
+                                x = floatingButtonOffset.x + dragAmount.x.roundToInt(),
+                                y = floatingButtonOffset.y + dragAmount.y.roundToInt()
+                            )
                         }
                     }
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MenuBook,
+                    contentDescription = "Cambiar versión de Biblia"
                 )
             }
         }
@@ -490,6 +528,20 @@ fun ReaderContent(
                         showCitationInsertDialog = false
                     }) { Text("Solo referencia") }
                 }
+            )
+        }
+
+        if (showVersionDialog) {
+            BibleVersionDialog(
+                versions = availableVersions,
+                selectedVersionKey = selectedVersionKey,
+                onVersionSelected = { selected ->
+                    BibleRepository.setSelectedVersionKey(context, selected.key)
+                    selectedVersionKey = selected.key
+                    bookName?.let { loadChapter(it, selectedChapter) }
+                    showVersionDialog = false
+                },
+                onDismiss = { showVersionDialog = false }
             )
         }
     }

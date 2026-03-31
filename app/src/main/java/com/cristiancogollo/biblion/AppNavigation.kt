@@ -110,5 +110,9 @@ fun AppNavigation() {
         composable(Screen.Search.route) {
             SearchScreen(navController)
         }
+
+        composable(Screen.BiblionComingSoon.route) {
+            BiblionComingSoonScreen(navController)
+        }
     }
 }

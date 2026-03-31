@@ -1,12 +1,18 @@
 package com.cristiancogollo.biblion
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -14,7 +20,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 
 @Composable
 fun BibleVersionDialog(
@@ -23,36 +32,68 @@ fun BibleVersionDialog(
     onVersionSelected: (BibleVersionOption) -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Elegir versión") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                versions.forEach { version ->
-                    val isSelected = version.key == selectedVersionKey
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onVersionSelected(version) }
-                            .padding(vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = isSelected,
-                            onClick = { onVersionSelected(version) }
-                        )
-                        Text(
-                            text = version.label,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 500.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column {
+                Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 20.dp)) {
+                    Text(
+                        text = "Elegir versión",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = BiblionNavy
+                    )
+                    Text(
+                        text = "Selecciona la traducción para continuar leyendo.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray
+                    )
+                }
+
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .padding(horizontal = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(versions, key = { it.key }) { version ->
+                        val isSelected = version.key == selectedVersionKey
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onVersionSelected(version) }
+                                .background(
+                                    color = if (isSelected) BiblionNavy.copy(alpha = 0.08f) else Color.Transparent,
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .padding(vertical = 8.dp, horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = { onVersionSelected(version) }
+                            )
+                            Text(
+                                text = version.label,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(8.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("CERRAR", color = BiblionNavy)
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cerrar")
-            }
         }
-    )
+    }
 }

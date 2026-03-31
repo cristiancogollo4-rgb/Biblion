@@ -12,9 +12,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -29,9 +33,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 import kotlinx.coroutines.launch
 
 data class SearchResult(
@@ -77,36 +84,62 @@ fun SearchScreen(navController: NavController) {
                 .padding(16.dp)
                 .fillMaxSize()
         ) {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                label = { Text("Introduce una palabra o frase") },
+            Card(
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = {
-                    if (searchQuery.isBlank()) return@Button
-                    scope.launch {
-                        uiState = SearchUiState.Loading
-                        runCatching {
-                            BibleRepository.searchVerses(context, searchQuery)
-                        }.onSuccess { results ->
-                            uiState = if (results.isEmpty()) {
-                                SearchUiState.Empty(searchQuery)
-                            } else {
-                                SearchUiState.Success(results)
-                            }
-                        }.onFailure { error ->
-                            uiState = SearchUiState.Error(error.message ?: "Ocurrió un error inesperado")
-                        }
-                    }
-                },
-                enabled = uiState !is SearchUiState.Loading,
-                modifier = Modifier.align(Alignment.End)
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                Text("Buscar")
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = "Encuentra un versículo",
+                        style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+                        color = BiblionNavy,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        label = { Text("Introduce una palabra o frase") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = null)
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    FilledTonalButton(
+                        onClick = {
+                            if (searchQuery.isBlank()) return@FilledTonalButton
+                            scope.launch {
+                                uiState = SearchUiState.Loading
+                                runCatching {
+                                    BibleRepository.searchVerses(context, searchQuery)
+                                }.onSuccess { results ->
+                                    uiState = if (results.isEmpty()) {
+                                        SearchUiState.Empty(searchQuery)
+                                    } else {
+                                        SearchUiState.Success(results)
+                                    }
+                                }.onFailure { error ->
+                                    uiState = SearchUiState.Error(error.message ?: "Ocurrió un error inesperado")
+                                }
+                            }
+                        },
+                        enabled = uiState !is SearchUiState.Loading,
+                        modifier = Modifier.align(Alignment.End),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = BiblionNavy.copy(alpha = 0.12f),
+                            contentColor = BiblionNavy
+                        )
+                    ) {
+                        Text("Buscar")
+                    }
+                }
             }
             Spacer(modifier = Modifier.height(16.dp))
 

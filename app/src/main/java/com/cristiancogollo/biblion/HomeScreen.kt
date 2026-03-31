@@ -11,13 +11,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -26,9 +30,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
@@ -65,6 +71,7 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
     var selectedVersionKey by remember { mutableStateOf(BibleRepository.getSelectedVersionKey(context)) }
     var availableVersions by remember { mutableStateOf<List<BibleVersionOption>>(emptyList()) }
     var showVersionDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
 
     // Cargar el versículo del día al entrar en la pantalla
     LaunchedEffect(Unit) {
@@ -111,6 +118,12 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
                                 }
                                 "Elegir Versión" -> {
                                     showVersionDialog = true
+                                }
+                                "Biblion" -> {
+                                    navController.navigateSingleTop(Screen.BiblionComingSoon.route)
+                                }
+                                "Sobre Nosotros" -> {
+                                    showAboutDialog = true
                                 }
                                 //navegación para otras opciones si es necesario
                             }
@@ -213,6 +226,10 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
             onDismiss = { showVersionDialog = false }
         )
     }
+
+    if (showAboutDialog) {
+        AboutBiblionDialog(onDismiss = { showAboutDialog = false })
+    }
 }
 
 /**
@@ -272,4 +289,86 @@ fun BiblionMenuItem(text: String, onClick: () -> Unit) {
             .padding(vertical = 16.dp, horizontal = 24.dp),
         style = MaterialTheme.typography.bodyLarge
     )
+}
+
+@Composable
+private fun AboutBiblionDialog(onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Info, contentDescription = null)
+                    Text("Sobre nosotros", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                }
+                Text(
+                    "Biblion es una app cristiana enfocada en facilitar la lectura bíblica, la búsqueda de versículos y el estudio personal con herramientas simples y claras."
+                )
+                Text("Creador: Cristian Felipe Cogollo Rodríguez.", fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Estado actual: Biblion se encuentra en desarrollo activo. Seguimos mejorando funciones, diseño y experiencia para la comunidad."
+                )
+                Text(
+                    "Importante: la app se encuentra en desarrollo y puede seguir cambiando con nuevas actualizaciones.",
+                    fontWeight = FontWeight.Bold
+                )
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("CERRAR")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun BiblionComingSoonScreen(navController: NavController) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Biblion") },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.logobiblionsinletras),
+                contentDescription = "Logo de Biblion",
+                modifier = Modifier.size(96.dp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                "Muy pronto estará disponible esta opción ✨",
+                style = MaterialTheme.typography.headlineSmall,
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                "Gracias por caminar con Biblion. ¡Lo mejor para tu tiempo con Dios está en camino!",
+                textAlign = TextAlign.Center
+            )
+        }
+    }
 }
