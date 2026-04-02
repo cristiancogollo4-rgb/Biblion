@@ -95,7 +95,10 @@ object BibleRepository {
     }
 
     private fun getBible(context: Context): JSONObject {
-        val versionKey = getSelectedVersionKey(context)
+        return getBibleForVersion(context, getSelectedVersionKey(context))
+    }
+
+    private fun getBibleForVersion(context: Context, versionKey: String): JSONObject {
         val assetName = "$versionKey.json"
         val now = System.currentTimeMillis()
         if (isCacheValid(versionKey, now)) {
@@ -108,7 +111,13 @@ object BibleRepository {
                 return@synchronized cachedBibleByVersion[versionKey]!!
             }
 
-            val jsonString = context.assets.open(assetName).bufferedReader().use { it.readText() }
+            val jsonString = try {
+                context.assets.open(assetName).bufferedReader().use { it.readText() }
+            } catch (e: Exception) {
+                // Fallback a versión por defecto si no se encuentra el asset
+                context.assets.open("$DEFAULT_BIBLE_VERSION.json").bufferedReader().use { it.readText() }
+            }
+            
             JSONObject(jsonString).also {
                 cachedBibleByVersion[versionKey] = it
                 cacheLoadedAtMsByVersion[versionKey] = nowInLock
@@ -159,6 +168,55 @@ object BibleRepository {
         DailyVerse(
             text = verseText,
             reference = "$randomBookName $randomChapterNum:$randomVerseNum"
+        )
+    }
+
+    /**
+     * Obtiene una referencia aleatoria (Libro, Capítulo, Versículo).
+     */
+    suspend fun getRandomVerseReference(context: Context): Triple<String, String, String> = withContext(Dispatchers.IO) {
+        val bible = getBible(context)
+        val books = bible.keys().asSequence().toList()
+        val bookName = books.random()
+        val book = bible.getJSONObject(bookName)
+        val chapters = book.keys().asSequence().toList()
+        val chapterNum = chapters.random()
+        val chapter = book.getJSONObject(chapterNum)
+        val verses = chapter.keys().asSequence().toList()
+        val verseNum = verses.random()
+        Triple(bookName, chapterNum, verseNum)
+    }
+
+    /**
+     * Obtiene el texto de un versículo específico para una versión dada.
+     */
+    suspend fun getVerseText(
+        context: Context,
+        versionKey: String,
+        bookName: String,
+        chapter: String,
+        verse: String
+    ): DailyVerse = withContext(Dispatchers.IO) {
+        val bible = getBibleForVersion(context, versionKey)
+        
+        fun String.normalize(): String {
+            val accents = mapOf('á' to 'a', 'é' to 'e', 'í' to 'i', 'ó' to 'o', 'ú' to 'u', 'ñ' to 'n')
+            return this.lowercase(Locale.ROOT)
+                .replace(" ", "")
+                .map { accents[it] ?: it }
+                .joinToString("")
+        }
+
+        val searchNormalized = bookName.normalize()
+        val bibleKey = bible.keys().asSequence().find { it.normalize() == searchNormalized } ?: bookName
+        
+        val bookJson = bible.optJSONObject(bibleKey)
+        val chapterJson = bookJson?.optJSONObject(chapter)
+        val verseText = chapterJson?.optString(verse) ?: ""
+
+        DailyVerse(
+            text = verseText,
+            reference = "$bibleKey $chapter:$verse"
         )
     }
 

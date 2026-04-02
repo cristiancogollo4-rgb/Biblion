@@ -51,6 +51,8 @@ fun BooksScreen(navController: NavController, selectedTestament: Testament, open
     var selectedVersionKey by remember { mutableStateOf(BibleRepository.getSelectedVersionKey(context)) }
     var availableVersions by remember { mutableStateOf<List<BibleVersionOption>>(emptyList()) }
     var showVersionDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
+    var showComingSoonDialog by remember { mutableStateOf(false) }
 
     var currentSelectedTestamentArg by rememberSaveable { mutableStateOf(selectedTestament.toRouteArg()) }
     val currentSelectedTestament = Testament.fromRouteArg(currentSelectedTestamentArg)
@@ -75,7 +77,9 @@ fun BooksScreen(navController: NavController, selectedTestament: Testament, open
             BiblionDrawerContent(
                 navController = navController,
                 onClose = { scope.launch { drawerState.close() } },
-                onPickVersion = { showVersionDialog = true }
+                onPickVersion = { showVersionDialog = true },
+                onShowAbout = { showAboutDialog = true },
+                onShowComingSoon = { showComingSoonDialog = true }
             )
         }
     ) {
@@ -149,6 +153,14 @@ fun BooksScreen(navController: NavController, selectedTestament: Testament, open
             onDismiss = { showVersionDialog = false }
         )
     }
+
+    if (showAboutDialog) {
+        AboutBiblionDialog(onDismiss = { showAboutDialog = false })
+    }
+
+    if (showComingSoonDialog) {
+        BiblionComingSoonDialog(onDismiss = { showComingSoonDialog = false })
+    }
 }
 
 @Composable
@@ -161,7 +173,9 @@ fun BooksScreen(navController: NavController, selectedTestament: Testament, open
 fun BiblionDrawerContent(
     navController: NavController,
     onClose: () -> Unit,
-    onPickVersion: () -> Unit
+    onPickVersion: () -> Unit,
+    onShowAbout: () -> Unit,
+    onShowComingSoon: () -> Unit
 ) {
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
@@ -187,8 +201,8 @@ fun BiblionDrawerContent(
                         }
                         "Elegir Versión" -> onPickVersion()
                         "Mis Enseñanzas" -> navController.navigateSingleTop(Screen.Ensenanzas.route)
-                        "Biblion" -> navController.navigateSingleTop(Screen.BiblionComingSoon.route)
-                        "Sobre Nosotros" -> navController.navigateSingleTop(Screen.About.route)
+                        "Doctrinas", "Biblion" -> onShowComingSoon()
+                        "Sobre Nosotros" -> onShowAbout()
                         "Modo Estudio" -> {
                             navController.navigateSingleTop(Screen.Reader.createRoute(studyMode = true))
                         }

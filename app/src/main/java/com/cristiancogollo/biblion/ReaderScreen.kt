@@ -28,6 +28,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
@@ -393,6 +394,7 @@ fun ReaderContent(
                                         selectedChapter += 1
                                         loadChapter(bookName, selectedChapter)
                                     }
+
                                     horizontalDrag >= 40f && selectedChapter > 1 -> {
                                         selectedChapter -= 1
                                         loadChapter(bookName, selectedChapter)
@@ -400,7 +402,7 @@ fun ReaderContent(
                                 }
                                 horizontalDrag = 0f
                             }
-                        }
+                        )
                     },
                 state = lazyListState,
                 contentPadding = PaddingValues(16.dp)
