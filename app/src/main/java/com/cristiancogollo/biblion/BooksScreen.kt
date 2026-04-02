@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 import kotlinx.coroutines.launch
 
@@ -162,6 +163,8 @@ fun BiblionDrawerContent(
     onClose: () -> Unit,
     onPickVersion: () -> Unit
 ) {
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+
     ModalDrawerSheet(
         modifier = Modifier.fillMaxHeight().width(300.dp),
         drawerContainerColor = Color.White,
@@ -177,11 +180,15 @@ fun BiblionDrawerContent(
                 onClick = {
                     onClose()
                     when (titulo) {
-                        "Inicio" -> navController.navigate(Screen.Home.route) {
-                            popUpTo(Screen.Home.route) { inclusive = false }
-                            launchSingleTop = true
+                        "Inicio" -> {
+                            if (currentRoute != Screen.Home.route) {
+                                navController.navigateSingleTop(Screen.Home.route)
+                            }
                         }
                         "Elegir Versión" -> onPickVersion()
+                        "Mis Enseñanzas" -> navController.navigateSingleTop(Screen.Ensenanzas.route)
+                        "Biblion" -> navController.navigateSingleTop(Screen.BiblionComingSoon.route)
+                        "Sobre Nosotros" -> navController.navigateSingleTop(Screen.About.route)
                         "Modo Estudio" -> {
                             navController.navigateSingleTop(Screen.Reader.createRoute(studyMode = true))
                         }

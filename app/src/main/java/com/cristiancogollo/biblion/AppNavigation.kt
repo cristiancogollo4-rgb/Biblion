@@ -114,5 +114,9 @@ fun AppNavigation() {
         composable(Screen.BiblionComingSoon.route) {
             BiblionComingSoonScreen(navController)
         }
+
+        composable(Screen.About.route) {
+            AboutBiblionScreen(navController)
+        }
     }
 }
