@@ -73,6 +73,7 @@ sealed interface StudyIntent {
     data class SaveStudyWithMetadata(val title: String, val tags: List<String>) : StudyIntent
     data object Save : StudyIntent
     data object CreateNewStudy : StudyIntent
+    data object StartNewDraft : StudyIntent
 }
 
 class StudyViewModel(application: Application) : AndroidViewModel(application) {
@@ -115,7 +116,6 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
                 _state.value = _state.value.copy(allStudies = all)
             }
         }
-        startAutoSaveObserver()
     }
 
     fun process(intent: StudyIntent) {
@@ -197,6 +197,17 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
                     val newId = dao.insertStudy(StudyEntity(title = "Nueva Enseñanza", notebookId = notebookId, contentSerialized = emptyDoc, createdAt = now, updatedAt = now))
                     loadStudy(newId)
                 }
+            }
+            StudyIntent.StartNewDraft -> {
+                _state.value = _state.value.copy(
+                    selectedStudyId = null,
+                    title = "",
+                    richHtml = "",
+                    blocks = emptyList(),
+                    tags = emptyList(),
+                    pendingCitations = emptyList()
+                )
+                lastSavedSignature = null
             }
         }
     }
@@ -361,7 +372,7 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
         dao.updateStudy(
             StudyEntity(
                 id = studyId,
-                title = s.title.ifBlank { "Nuevo estudio" },
+                title = s.title.ifBlank { "Sin título" },
                 notebookId = notebookId,
                 contentSerialized = json.encodeToString(document),
                 createdAt = existing?.createdAt ?: now,

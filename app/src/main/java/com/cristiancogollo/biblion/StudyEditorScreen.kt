@@ -54,7 +54,7 @@ fun StudyEditorScreen(
     }
 
     fun handleSave() {
-        if (ui.title.isBlank() || ui.tags.isEmpty()) {
+        if (ui.title.isBlank() && ui.tags.isEmpty()) {
             openMetadataDialog()
             return
         }
@@ -260,9 +260,9 @@ fun StudyEditorScreen(
                         .filter { it.isNotBlank() }
                         .distinct()
                     saveError = when {
-                        cleanedTitle.isBlank() -> "Debes agregar un título para guardar."
                         !validateNonEmptyContent() -> "No puedes guardar una enseñanza vacía."
-                        parsedTags.isEmpty() -> "Agrega al menos una etiqueta."
+                        cleanedTitle.isBlank() && parsedTags.isEmpty() ->
+                            "Debes agregar al menos un título o una etiqueta para guardar."
                         else -> null
                     }
 

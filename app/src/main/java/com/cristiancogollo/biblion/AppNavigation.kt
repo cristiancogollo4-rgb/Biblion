@@ -122,5 +122,13 @@ fun AppNavigation() {
         composable(Screen.Search.route) {
             SearchScreen(navController)
         }
+
+        composable(
+            route = Screen.StudyRead.route,
+            arguments = listOf(navArgument("studyId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val studyId = backStackEntry.arguments?.getLong("studyId") ?: return@composable
+            StudyReadScreen(navController = navController, studyId = studyId)
+        }
     }
 }

@@ -127,7 +127,7 @@ fun ReaderScreen(
             if (initialStudyId != null) {
                 studyViewModel.process(StudyIntent.SelectStudy(initialStudyId))
             } else {
-                studyViewModel.process(StudyIntent.CreateNewStudy)
+                studyViewModel.process(StudyIntent.StartNewDraft)
             }
         }
     }

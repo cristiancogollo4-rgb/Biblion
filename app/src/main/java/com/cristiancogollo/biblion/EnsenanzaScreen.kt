@@ -9,7 +9,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -39,7 +39,6 @@ fun EnsenanzaScreen(navController: NavController) {
     val state by viewModel.state.collectAsState()
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()) }
     val json = remember { Json { ignoreUnknownKeys = true; classDiscriminator = "nodeType" } }
-    var readStudy by remember { mutableStateOf<StudyEntity?>(null) }
     var metadataStudy by remember { mutableStateOf<StudyEntity?>(null) }
     var metadataTitle by remember { mutableStateOf("") }
     var metadataTagsInput by remember { mutableStateOf("") }
@@ -86,7 +85,7 @@ fun EnsenanzaScreen(navController: NavController) {
                         study = study,
                         dateText = dateFormat.format(Date(study.updatedAt)),
                         onOpen = {
-                            readStudy = study
+                            navController.navigateSingleTop(Screen.StudyRead.createRoute(study.id))
                         },
                         onEdit = {
                             val preferredBook = viewModel.preferredBookForStudy(study)
@@ -101,7 +100,7 @@ fun EnsenanzaScreen(navController: NavController) {
                         onDelete = {
                             viewModel.process(StudyIntent.DeleteStudy(study.id))
                         },
-                        onSettings = {
+                        onEditMetadata = {
                             val preview = buildStudyPreview(study.contentSerialized, json)
                             metadataStudy = study
                             metadataTitle = study.title
@@ -112,34 +111,6 @@ fun EnsenanzaScreen(navController: NavController) {
                 }
             }
         }
-    }
-
-    readStudy?.let { study ->
-        val preview = buildStudyPreview(study.contentSerialized, json)
-        AlertDialog(
-            onDismissRequest = { readStudy = null },
-            title = { Text(study.title.ifBlank { "Sin título" }) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (preview.tags.isNotEmpty()) {
-                        Text(
-                            text = "Etiquetas: ${preview.tags.joinToString(", ")}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Text(
-                        text = preview.content.ifBlank { "Esta enseñanza no tiene contenido aún." },
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { readStudy = null }) {
-                    Text("Cerrar")
-                }
-            }
-        )
     }
 
     metadataStudy?.let { study ->
@@ -211,9 +182,10 @@ fun EnsenanzaCard(
     dateText: String,
     onOpen: () -> Unit,
     onEdit: () -> Unit,
-    onSettings: () -> Unit,
+    onEditMetadata: () -> Unit,
     onDelete: () -> Unit
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -243,28 +215,39 @@ fun EnsenanzaCard(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
                 )
             }
-            
-            IconButton(onClick = onSettings) {
+            IconButton(onClick = { menuExpanded = true }) {
                 Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "Configuración",
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "Más opciones",
                     tint = BiblionNavy
                 )
             }
-
-            IconButton(onClick = onDelete) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Eliminar",
-                    tint = BiblionGoldPrimary
+            DropdownMenu(
+                expanded = menuExpanded,
+                onDismissRequest = { menuExpanded = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Editar") },
+                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                    onClick = {
+                        menuExpanded = false
+                        onEdit()
+                    }
                 )
-            }
-            
-            IconButton(onClick = onEdit) {
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = "Editar",
-                    tint = BiblionNavy
+                DropdownMenuItem(
+                    text = { Text("Título y etiquetas") },
+                    onClick = {
+                        menuExpanded = false
+                        onEditMetadata()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Eliminar") },
+                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = BiblionGoldPrimary) },
+                    onClick = {
+                        menuExpanded = false
+                        onDelete()
+                    }
                 )
             }
         }
