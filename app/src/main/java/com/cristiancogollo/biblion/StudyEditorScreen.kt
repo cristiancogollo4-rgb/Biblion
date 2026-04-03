@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
 import com.mohamedrejeb.richeditor.model.rememberRichTextState
 import com.mohamedrejeb.richeditor.ui.material3.RichTextEditor
 import com.mohamedrejeb.richeditor.ui.material3.RichTextEditorDefaults
@@ -221,7 +222,7 @@ fun StudyEditorScreen(
     if (showSaveDialog) {
         AlertDialog(
             onDismissRequest = { showSaveDialog = false },
-            containerColor = BiblionGoldSoft.copy(alpha = 0.18f),
+            containerColor = Color.White,
             titleContentColor = BiblionNavy,
             textContentColor = MaterialTheme.colorScheme.onSurface,
             title = { Text("Guardar enseñanza") },
@@ -287,14 +288,14 @@ fun StudyEditorScreen(
                         viewModel.process(StudyIntent.SaveStudyWithMetadata(cleanedTitle, parsedTags))
                         showSaveDialog = false
                     }
-                }, colors = ButtonDefaults.textButtonColors(contentColor = BiblionNavy)) {
+                }, colors = ButtonDefaults.textButtonColors(contentColor = BiblionGoldPrimary)) {
                     Text("Guardar")
                 }
             },
             dismissButton = {
                 TextButton(
                     onClick = { showSaveDialog = false },
-                    colors = ButtonDefaults.textButtonColors(contentColor = BiblionGoldPrimary)
+                    colors = ButtonDefaults.textButtonColors(contentColor = BiblionBluePrimary)
                 ) {
                     Text("Cancelar")
                 }

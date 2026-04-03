@@ -81,6 +81,7 @@ fun StudyReadScreen(
                         TextView(context).apply {
                             textSize = 18f
                             setLineSpacing(0f, 1.2f)
+                            setTextColor(android.graphics.Color.BLACK)
                         }
                     },
                     update = { view ->

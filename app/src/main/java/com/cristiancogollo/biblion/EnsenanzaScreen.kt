@@ -23,9 +23,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
@@ -118,7 +120,7 @@ fun EnsenanzaScreen(navController: NavController) {
     metadataStudy?.let { study ->
         AlertDialog(
             onDismissRequest = { metadataStudy = null },
-            containerColor = BiblionGoldSoft.copy(alpha = 0.18f),
+            containerColor = Color.White,
             titleContentColor = BiblionNavy,
             textContentColor = MaterialTheme.colorScheme.onSurface,
             title = { Text("Editar título y etiquetas") },
@@ -182,7 +184,7 @@ fun EnsenanzaScreen(navController: NavController) {
                         metadataStudy = null
                     }
                 },
-                    colors = ButtonDefaults.textButtonColors(contentColor = BiblionNavy)
+                    colors = ButtonDefaults.textButtonColors(contentColor = BiblionGoldPrimary)
                 ) {
                     Text("Guardar")
                 }
@@ -190,7 +192,7 @@ fun EnsenanzaScreen(navController: NavController) {
             dismissButton = {
                 TextButton(
                     onClick = { metadataStudy = null },
-                    colors = ButtonDefaults.textButtonColors(contentColor = BiblionGoldPrimary)
+                    colors = ButtonDefaults.textButtonColors(contentColor = BiblionBluePrimary)
                 ) {
                     Text("Cancelar")
                 }
@@ -238,51 +240,57 @@ fun EnsenanzaCard(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
                 )
             }
-            IconButton(onClick = { menuExpanded = true }) {
-                Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = "Más opciones",
-                    tint = BiblionNavy
-                )
-            }
-            DropdownMenu(
-                expanded = menuExpanded,
-                onDismissRequest = { menuExpanded = false },
-                containerColor = Color.White
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+            Box {
+                IconButton(onClick = { menuExpanded = true }) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Más opciones",
+                        tint = BiblionNavy
+                    )
+                }
+
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                    containerColor = Color.White,
+                    offset = DpOffset(x = 0.dp, y = 6.dp) // aparece debajo del icono
                 ) {
-                    IconButton(onClick = {
-                        menuExpanded = false
-                        onEdit()
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Editar",
-                            tint = BiblionGoldPrimary
-                        )
-                    }
-                    IconButton(onClick = {
-                        menuExpanded = false
-                        onEditMetadata()
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Configurar",
-                            tint = BiblionGoldPrimary
-                        )
-                    }
-                    IconButton(onClick = {
-                        menuExpanded = false
-                        onDelete()
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Eliminar",
-                            tint = BiblionGoldPrimary
-                        )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        IconButton(onClick = {
+                            menuExpanded = false
+                            onEdit()
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Editar",
+                                tint = BiblionGoldPrimary
+                            )
+                        }
+
+                        IconButton(onClick = {
+                            menuExpanded = false
+                            onEditMetadata()
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Configurar",
+                                tint = BiblionGoldPrimary
+                            )
+                        }
+
+                        IconButton(onClick = {
+                            menuExpanded = false
+                            onDelete()
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Eliminar",
+                                tint = BiblionGoldPrimary
+                            )
+                        }
                     }
                 }
             }
