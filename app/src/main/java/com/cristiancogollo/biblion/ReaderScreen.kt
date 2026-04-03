@@ -205,6 +205,12 @@ private fun StudyModeNavigation(initialBook: String?) {
             val book = decodeArg(encodedBook).ifBlank { null }
             val initialChapter = backStackEntry.arguments?.getInt("chapter") ?: 1
             val targetVerse = decodeArg(backStackEntry.arguments?.getString("verse") ?: "").ifBlank { null }
+            val studyId = backStackEntry.arguments?.getLong("studyId")?.takeIf { it > 0 }
+            LaunchedEffect(studyId) {
+                if (studyId != null) {
+                    studyViewModel.process(StudyIntent.SelectStudy(studyId))
+                }
+            }
             ReaderContent(
                 navController = splitNavController,
                 bookName = book,
@@ -225,6 +231,12 @@ private fun StudyModeNavigation(initialBook: String?) {
         ) { backStackEntry ->
             val initialChapter = backStackEntry.arguments?.getInt("chapter") ?: 1
             val targetVerse = decodeArg(backStackEntry.arguments?.getString("verse") ?: "").ifBlank { null }
+            val studyId = backStackEntry.arguments?.getLong("studyId")?.takeIf { it > 0 }
+            LaunchedEffect(studyId) {
+                if (studyId != null) {
+                    studyViewModel.process(StudyIntent.SelectStudy(studyId))
+                }
+            }
             ReaderContent(
                 navController = splitNavController,
                 bookName = null,
