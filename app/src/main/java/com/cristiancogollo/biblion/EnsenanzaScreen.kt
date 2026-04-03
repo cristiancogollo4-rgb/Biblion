@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -19,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -245,31 +247,44 @@ fun EnsenanzaCard(
             }
             DropdownMenu(
                 expanded = menuExpanded,
-                onDismissRequest = { menuExpanded = false }
+                onDismissRequest = { menuExpanded = false },
+                containerColor = Color.White
             ) {
-                DropdownMenuItem(
-                    text = { Text("Editar") },
-                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                    onClick = {
+                Row(
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    IconButton(onClick = {
                         menuExpanded = false
                         onEdit()
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Editar",
+                            tint = BiblionGoldPrimary
+                        )
                     }
-                )
-                DropdownMenuItem(
-                    text = { Text("Título y etiquetas") },
-                    onClick = {
+                    IconButton(onClick = {
                         menuExpanded = false
                         onEditMetadata()
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Configurar",
+                            tint = BiblionGoldPrimary
+                        )
                     }
-                )
-                DropdownMenuItem(
-                    text = { Text("Eliminar") },
-                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = BiblionGoldPrimary) },
-                    onClick = {
+                    IconButton(onClick = {
                         menuExpanded = false
                         onDelete()
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Eliminar",
+                            tint = BiblionGoldPrimary
+                        )
                     }
-                )
+                }
             }
         }
     }
