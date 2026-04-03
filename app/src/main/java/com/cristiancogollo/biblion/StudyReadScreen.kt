@@ -1,9 +1,11 @@
 package com.cristiancogollo.biblion
 
+import android.widget.TextView
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,8 +25,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import androidx.core.text.HtmlCompat
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,12 +43,6 @@ fun StudyReadScreen(
     LaunchedEffect(studyId) {
         viewModel.process(StudyIntent.SelectStudy(studyId))
     }
-
-    val plainContent = state.richHtml
-        .replace(Regex("<[^>]*>"), " ")
-        .replace("&nbsp;", " ")
-        .replace(Regex("\\s+"), " ")
-        .trim()
 
     Scaffold(
         topBar = {
@@ -77,9 +75,18 @@ fun StudyReadScreen(
             }
             item {
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = plainContent.ifBlank { "Esta enseñanza no tiene contenido aún." },
-                    style = MaterialTheme.typography.bodyLarge
+                AndroidView(
+                    modifier = Modifier.fillMaxWidth(),
+                    factory = { context ->
+                        TextView(context).apply {
+                            textSize = 18f
+                            setLineSpacing(0f, 1.2f)
+                        }
+                    },
+                    update = { view ->
+                        val html = state.richHtml.ifBlank { "<p>Esta enseñanza no tiene contenido aún.</p>" }
+                        view.text = HtmlCompat.fromHtml(html, HtmlCompat.FROM_HTML_MODE_COMPACT)
+                    }
                 )
             }
         }
