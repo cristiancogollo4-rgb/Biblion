@@ -116,6 +116,9 @@ fun EnsenanzaScreen(navController: NavController) {
     metadataStudy?.let { study ->
         AlertDialog(
             onDismissRequest = { metadataStudy = null },
+            containerColor = BiblionGoldSoft.copy(alpha = 0.18f),
+            titleContentColor = BiblionNavy,
+            textContentColor = MaterialTheme.colorScheme.onSurface,
             title = { Text("Editar título y etiquetas") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -126,7 +129,13 @@ fun EnsenanzaScreen(navController: NavController) {
                             metadataError = null
                         },
                         singleLine = true,
-                        label = { Text("Título") }
+                        label = { Text("Título") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = BiblionNavy,
+                            unfocusedBorderColor = BiblionGoldPrimary,
+                            focusedLabelColor = BiblionNavy,
+                            cursorColor = BiblionNavy
+                        )
                     )
                     OutlinedTextField(
                         value = metadataTagsInput,
@@ -136,7 +145,13 @@ fun EnsenanzaScreen(navController: NavController) {
                         },
                         singleLine = true,
                         label = { Text("Etiquetas") },
-                        supportingText = { Text("Separadas por comas") }
+                        supportingText = { Text("Separadas por comas") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = BiblionNavy,
+                            unfocusedBorderColor = BiblionGoldPrimary,
+                            focusedLabelColor = BiblionNavy,
+                            cursorColor = BiblionNavy
+                        )
                     )
                     metadataError?.let {
                         Text(
@@ -148,7 +163,8 @@ fun EnsenanzaScreen(navController: NavController) {
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(
+                    onClick = {
                     val cleanTitle = metadataTitle.trim()
                     val cleanTags = metadataTagsInput.split(",")
                         .map { it.trim().removePrefix("#") }
@@ -163,12 +179,17 @@ fun EnsenanzaScreen(navController: NavController) {
                         viewModel.updateStudyMetadata(study.id, cleanTitle, cleanTags)
                         metadataStudy = null
                     }
-                }) {
+                },
+                    colors = ButtonDefaults.textButtonColors(contentColor = BiblionNavy)
+                ) {
                     Text("Guardar")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { metadataStudy = null }) {
+                TextButton(
+                    onClick = { metadataStudy = null },
+                    colors = ButtonDefaults.textButtonColors(contentColor = BiblionGoldPrimary)
+                ) {
                     Text("Cancelar")
                 }
             }

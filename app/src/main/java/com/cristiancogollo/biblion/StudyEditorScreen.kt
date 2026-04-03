@@ -18,6 +18,8 @@ import androidx.compose.ui.unit.sp
 import com.mohamedrejeb.richeditor.model.rememberRichTextState
 import com.mohamedrejeb.richeditor.ui.material3.RichTextEditor
 import com.mohamedrejeb.richeditor.ui.material3.RichTextEditorDefaults
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 import kotlinx.coroutines.launch
 
@@ -219,6 +221,9 @@ fun StudyEditorScreen(
     if (showSaveDialog) {
         AlertDialog(
             onDismissRequest = { showSaveDialog = false },
+            containerColor = BiblionGoldSoft.copy(alpha = 0.18f),
+            titleContentColor = BiblionNavy,
+            textContentColor = MaterialTheme.colorScheme.onSurface,
             title = { Text("Guardar enseñanza") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -230,7 +235,13 @@ fun StudyEditorScreen(
                         },
                         singleLine = true,
                         label = { Text("Título") },
-                        placeholder = { Text("Ej: La fe en tiempos difíciles") }
+                        placeholder = { Text("Ej: La fe en tiempos difíciles") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = BiblionNavy,
+                            unfocusedBorderColor = BiblionGoldPrimary,
+                            focusedLabelColor = BiblionNavy,
+                            cursorColor = BiblionNavy
+                        )
                     )
                     OutlinedTextField(
                         value = saveTagsInput,
@@ -241,7 +252,13 @@ fun StudyEditorScreen(
                         singleLine = true,
                         label = { Text("Etiquetas") },
                         placeholder = { Text("Ej: fe, oración, esperanza") },
-                        supportingText = { Text("Separa las etiquetas por comas.") }
+                        supportingText = { Text("Separa las etiquetas por comas.") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = BiblionNavy,
+                            unfocusedBorderColor = BiblionGoldPrimary,
+                            focusedLabelColor = BiblionNavy,
+                            cursorColor = BiblionNavy
+                        )
                     )
                     saveError?.let { error ->
                         Text(
@@ -270,12 +287,15 @@ fun StudyEditorScreen(
                         viewModel.process(StudyIntent.SaveStudyWithMetadata(cleanedTitle, parsedTags))
                         showSaveDialog = false
                     }
-                }) {
+                }, colors = ButtonDefaults.textButtonColors(contentColor = BiblionNavy)) {
                     Text("Guardar")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showSaveDialog = false }) {
+                TextButton(
+                    onClick = { showSaveDialog = false },
+                    colors = ButtonDefaults.textButtonColors(contentColor = BiblionGoldPrimary)
+                ) {
                     Text("Cancelar")
                 }
             }
