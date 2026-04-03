@@ -46,7 +46,8 @@ data class StudyUiState(
     val selectionFontSizeSp: Float = 18f,
     val pendingCitations: List<CitationInsertRequest> = emptyList(),
     val globalVersion: String = "rv1960",
-    val tags: List<String> = emptyList()
+    val tags: List<String> = emptyList(),
+    val isDraftMode: Boolean = false
 )
 
 sealed interface StudyIntent {
@@ -185,7 +186,8 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
             is StudyIntent.SaveStudyWithMetadata -> {
                 _state.value = _state.value.copy(
                     title = intent.title.trim(),
-                    tags = intent.tags
+                    tags = intent.tags,
+                    isDraftMode = false
                 )
                 saveStudyNow()
             }
@@ -205,7 +207,8 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
                     richHtml = "",
                     blocks = emptyList(),
                     tags = emptyList(),
-                    pendingCitations = emptyList()
+                    pendingCitations = emptyList(),
+                    isDraftMode = true
                 )
                 lastSavedSignature = null
             }
@@ -286,7 +289,11 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun observeStudies(notebookId: Long) {
         dao.observeStudies(notebookId).collect { studies ->
-            val currentSelected = _state.value.selectedStudyId?.takeIf { id -> studies.any { it.id == id } } ?: studies.firstOrNull()?.id
+            val currentSelected = if (_state.value.isDraftMode) {
+                null
+            } else {
+                _state.value.selectedStudyId?.takeIf { id -> studies.any { it.id == id } } ?: studies.firstOrNull()?.id
+            }
             _state.value = _state.value.copy(studies = studies, selectedStudyId = currentSelected)
             currentSelected?.let { loadStudy(it) }
         }
@@ -303,7 +310,8 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
             richHtml = firstRich?.html ?: "",
             blocks = doc.blocks,
             globalVersion = normalizeVersion(doc.globalVersion),
-            tags = doc.tags
+            tags = doc.tags,
+            isDraftMode = false
         )
         lastSavedSignature = buildSignature(_state.value)
     }
@@ -363,7 +371,7 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             dao.replaceCitations(newId, citations)
-            _state.value = _state.value.copy(selectedStudyId = newId, selectedNotebookId = notebookId)
+            _state.value = _state.value.copy(selectedStudyId = newId, selectedNotebookId = notebookId, isDraftMode = false)
             lastSavedSignature = buildSignature(_state.value)
             return true
         }
