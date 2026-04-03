@@ -18,22 +18,24 @@ sealed class Screen(val route: String) {
         fun createRoute(testament: Testament): String = "books/${testament.toRouteArg()}"
     }
 
-    data object ReaderWithBook : Screen("reader/{bookName}?studyMode={studyMode}&chapter={chapter}&verse={verse}")
-    data object ReaderWithoutBook : Screen("reader?studyMode={studyMode}&chapter={chapter}&verse={verse}")
+    data object ReaderWithBook : Screen("reader/{bookName}?studyMode={studyMode}&chapter={chapter}&verse={verse}&studyId={studyId}")
+    data object ReaderWithoutBook : Screen("reader?studyMode={studyMode}&chapter={chapter}&verse={verse}&studyId={studyId}")
 
     data object Reader {
         fun createRoute(
             bookName: String? = null,
             studyMode: Boolean = false,
             chapter: Int? = null,
-            verse: String? = null
+            verse: String? = null,
+            studyId: Long? = null
         ): String {
             val chapterArg = chapter ?: 1
             val verseArg = encodeArg(verse.orEmpty())
+            val studyIdArg = studyId ?: -1L
             return if (bookName.isNullOrBlank()) {
-                "reader?studyMode=$studyMode&chapter=$chapterArg&verse=$verseArg"
+                "reader?studyMode=$studyMode&chapter=$chapterArg&verse=$verseArg&studyId=$studyIdArg"
             } else {
-                "reader/${encodeArg(bookName)}?studyMode=$studyMode&chapter=$chapterArg&verse=$verseArg"
+                "reader/${encodeArg(bookName)}?studyMode=$studyMode&chapter=$chapterArg&verse=$verseArg&studyId=$studyIdArg"
             }
         }
     }

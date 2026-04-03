@@ -46,6 +46,10 @@ fun AppNavigation() {
                 navArgument("verse") {
                     type = NavType.StringType
                     defaultValue = ""
+                },
+                navArgument("studyId") {
+                    type = NavType.LongType
+                    defaultValue = -1L
                 }
             )
         ) { backStackEntry ->
@@ -53,6 +57,7 @@ fun AppNavigation() {
             val studyMode = backStackEntry.arguments?.getBoolean("studyMode") ?: false
             val initialChapter = backStackEntry.arguments?.getInt("chapter") ?: 1
             val initialVerse = decodeArg(backStackEntry.arguments?.getString("verse") ?: "").ifBlank { null }
+            val studyId = backStackEntry.arguments?.getLong("studyId")?.takeIf { it > 0 }
             val decodedBookName = decodeArg(encodedBookName).ifBlank { null }
 
             ReaderScreen(
@@ -60,7 +65,8 @@ fun AppNavigation() {
                 bookName = decodedBookName,
                 initialStudyMode = studyMode,
                 initialChapter = initialChapter,
-                targetVerse = initialVerse
+                targetVerse = initialVerse,
+                initialStudyId = studyId
             )
         }
 
@@ -78,18 +84,24 @@ fun AppNavigation() {
                 navArgument("verse") {
                     type = NavType.StringType
                     defaultValue = ""
+                },
+                navArgument("studyId") {
+                    type = NavType.LongType
+                    defaultValue = -1L
                 }
             )
         ) { backStackEntry ->
             val studyMode = backStackEntry.arguments?.getBoolean("studyMode") ?: true
             val initialChapter = backStackEntry.arguments?.getInt("chapter") ?: 1
             val initialVerse = decodeArg(backStackEntry.arguments?.getString("verse") ?: "").ifBlank { null }
+            val studyId = backStackEntry.arguments?.getLong("studyId")?.takeIf { it > 0 }
             ReaderScreen(
                 navController = navController,
                 bookName = null,
                 initialStudyMode = studyMode,
                 initialChapter = initialChapter,
-                targetVerse = initialVerse
+                targetVerse = initialVerse,
+                initialStudyId = studyId
             )
         }
 

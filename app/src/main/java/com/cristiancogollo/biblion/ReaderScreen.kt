@@ -111,7 +111,8 @@ fun ReaderScreen(
     bookName: String?,
     initialStudyMode: Boolean = false,
     initialChapter: Int = 1,
-    targetVerse: String? = null
+    targetVerse: String? = null,
+    initialStudyId: Long? = null
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -120,6 +121,16 @@ fun ReaderScreen(
 
     var isStudyModeEnabled by remember { mutableStateOf(initialStudyMode) }
     val studyUi by studyViewModel.state.collectAsState()
+
+    LaunchedEffect(initialStudyMode, initialStudyId) {
+        if (initialStudyMode) {
+            if (initialStudyId != null) {
+                studyViewModel.process(StudyIntent.SelectStudy(initialStudyId))
+            } else {
+                studyViewModel.process(StudyIntent.CreateNewStudy)
+            }
+        }
+    }
 
     // EFECTO DE ENTRADA: Forza horizontal solo si el modo estudio está activo
     LaunchedEffect(isStudyModeEnabled, isLandscape) {
@@ -192,7 +203,8 @@ private fun StudyModeNavigation(initialBook: String?) {
                 navArgument("bookName") { type = NavType.StringType },
                 navArgument("studyMode") { type = NavType.BoolType; defaultValue = true },
                 navArgument("chapter") { type = NavType.IntType; defaultValue = 1 },
-                navArgument("verse") { type = NavType.StringType; defaultValue = "" }
+                navArgument("verse") { type = NavType.StringType; defaultValue = "" },
+                navArgument("studyId") { type = NavType.LongType; defaultValue = -1L }
             )
         ) { backStackEntry ->
             val encodedBook = backStackEntry.arguments?.getString("bookName") ?: ""

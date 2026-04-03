@@ -9,14 +9,16 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -27,6 +29,8 @@ import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,6 +38,12 @@ fun EnsenanzaScreen(navController: NavController) {
     val viewModel: StudyViewModel = viewModel()
     val state by viewModel.state.collectAsState()
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()) }
+    val json = remember { Json { ignoreUnknownKeys = true; classDiscriminator = "nodeType" } }
+    var readStudy by remember { mutableStateOf<StudyEntity?>(null) }
+    var metadataStudy by remember { mutableStateOf<StudyEntity?>(null) }
+    var metadataTitle by remember { mutableStateOf("") }
+    var metadataTagsInput by remember { mutableStateOf("") }
+    var metadataError by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
         topBar = {
@@ -76,19 +86,122 @@ fun EnsenanzaScreen(navController: NavController) {
                         study = study,
                         dateText = dateFormat.format(Date(study.updatedAt)),
                         onOpen = {
-                            viewModel.process(StudyIntent.SelectStudy(study.id))
+                            readStudy = study
+                        },
+                        onEdit = {
                             val preferredBook = viewModel.preferredBookForStudy(study)
                             navController.navigateSingleTop(
-                                Screen.Reader.createRoute(bookName = preferredBook, studyMode = true)
+                                Screen.Reader.createRoute(
+                                    bookName = preferredBook,
+                                    studyMode = true,
+                                    studyId = study.id
+                                )
                             )
                         },
                         onDelete = {
                             viewModel.process(StudyIntent.DeleteStudy(study.id))
+                        },
+                        onSettings = {
+                            val preview = buildStudyPreview(study.contentSerialized, json)
+                            metadataStudy = study
+                            metadataTitle = study.title
+                            metadataTagsInput = preview.tags.joinToString(", ")
+                            metadataError = null
                         }
                     )
                 }
             }
         }
+    }
+
+    readStudy?.let { study ->
+        val preview = buildStudyPreview(study.contentSerialized, json)
+        AlertDialog(
+            onDismissRequest = { readStudy = null },
+            title = { Text(study.title.ifBlank { "Sin título" }) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (preview.tags.isNotEmpty()) {
+                        Text(
+                            text = "Etiquetas: ${preview.tags.joinToString(", ")}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        text = preview.content.ifBlank { "Esta enseñanza no tiene contenido aún." },
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { readStudy = null }) {
+                    Text("Cerrar")
+                }
+            }
+        )
+    }
+
+    metadataStudy?.let { study ->
+        AlertDialog(
+            onDismissRequest = { metadataStudy = null },
+            title = { Text("Editar título y etiquetas") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = metadataTitle,
+                        onValueChange = {
+                            metadataTitle = it
+                            metadataError = null
+                        },
+                        singleLine = true,
+                        label = { Text("Título") }
+                    )
+                    OutlinedTextField(
+                        value = metadataTagsInput,
+                        onValueChange = {
+                            metadataTagsInput = it
+                            metadataError = null
+                        },
+                        singleLine = true,
+                        label = { Text("Etiquetas") },
+                        supportingText = { Text("Separadas por comas") }
+                    )
+                    metadataError?.let {
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val cleanTitle = metadataTitle.trim()
+                    val cleanTags = metadataTagsInput.split(",")
+                        .map { it.trim().removePrefix("#") }
+                        .filter { it.isNotBlank() }
+                        .distinct()
+                    metadataError = when {
+                        cleanTitle.isBlank() -> "El título es obligatorio."
+                        cleanTags.isEmpty() -> "Debes agregar al menos una etiqueta."
+                        else -> null
+                    }
+                    if (metadataError == null) {
+                        viewModel.updateStudyMetadata(study.id, cleanTitle, cleanTags)
+                        metadataStudy = null
+                    }
+                }) {
+                    Text("Guardar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { metadataStudy = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }
 
@@ -97,6 +210,8 @@ fun EnsenanzaCard(
     study: StudyEntity,
     dateText: String,
     onOpen: () -> Unit,
+    onEdit: () -> Unit,
+    onSettings: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
@@ -129,6 +244,14 @@ fun EnsenanzaCard(
                 )
             }
             
+            IconButton(onClick = onSettings) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Configuración",
+                    tint = BiblionNavy
+                )
+            }
+
             IconButton(onClick = onDelete) {
                 Icon(
                     imageVector = Icons.Default.Delete,
@@ -137,7 +260,7 @@ fun EnsenanzaCard(
                 )
             }
             
-            IconButton(onClick = onOpen) {
+            IconButton(onClick = onEdit) {
                 Icon(
                     imageVector = Icons.Default.Edit,
                     contentDescription = "Editar",
@@ -146,4 +269,23 @@ fun EnsenanzaCard(
             }
         }
     }
+}
+
+private data class StudyPreview(
+    val content: String,
+    val tags: List<String>
+)
+
+private fun buildStudyPreview(serialized: String, json: Json): StudyPreview {
+    val doc = runCatching { json.decodeFromString<SerializedStudyDocument>(serialized) }.getOrNull()
+    val html = doc?.blocks?.filterIsInstance<StudyBlockNode.RichText>()?.firstOrNull()?.html.orEmpty()
+    val plainContent = html
+        .replace(Regex("<[^>]*>"), " ")
+        .replace("&nbsp;", " ")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+    return StudyPreview(
+        content = plainContent,
+        tags = doc?.tags ?: emptyList()
+    )
 }

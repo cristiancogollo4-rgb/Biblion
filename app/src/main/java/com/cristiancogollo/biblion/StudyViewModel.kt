@@ -237,6 +237,26 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun updateStudyMetadata(studyId: Long, title: String, tags: List<String>) {
+        viewModelScope.launch {
+            val existing = dao.getStudy(studyId) ?: return@launch
+            val document = runCatching {
+                json.decodeFromString<SerializedStudyDocument>(existing.contentSerialized)
+            }.getOrDefault(SerializedStudyDocument())
+            val updatedDoc = document.copy(tags = tags)
+            dao.updateStudy(
+                existing.copy(
+                    title = title,
+                    contentSerialized = json.encodeToString(updatedDoc),
+                    updatedAt = System.currentTimeMillis()
+                )
+            )
+            if (_state.value.selectedStudyId == studyId) {
+                _state.value = _state.value.copy(title = title, tags = tags)
+            }
+        }
+    }
+
     fun saveStudyNow(onComplete: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
             val saved = persistCurrentStudy()
