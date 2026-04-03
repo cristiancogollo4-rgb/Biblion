@@ -27,6 +27,15 @@ object BibleRepository {
     @Volatile
     private var cachedTitlesByVersion: MutableMap<String, JSONObject> = mutableMapOf()
 
+    @Volatile
+    private var cachedBookKeyMapByVersion: MutableMap<String, Map<String, String>> = mutableMapOf()
+
+    @Volatile
+    private var cachedTitleKeyMapByVersion: MutableMap<String, Map<String, String>> = mutableMapOf()
+
+    @Volatile
+    private var cachedSearchIndexByVersion: MutableMap<String, List<SearchIndexEntry>> = mutableMapOf()
+
     /**
      * Si es null, la cache vive durante todo el proceso.
      * Si se define, invalida cache al superar el tiempo.
@@ -46,6 +55,9 @@ object BibleRepository {
             cachedBibleByVersion.clear()
             cacheLoadedAtMsByVersion.clear()
             cachedTitlesByVersion.clear()
+            cachedBookKeyMapByVersion.clear()
+            cachedTitleKeyMapByVersion.clear()
+            cachedSearchIndexByVersion.clear()
         }
     }
 
@@ -121,6 +133,8 @@ object BibleRepository {
             JSONObject(jsonString).also {
                 cachedBibleByVersion[versionKey] = it
                 cacheLoadedAtMsByVersion[versionKey] = nowInLock
+                cachedBookKeyMapByVersion.remove(versionKey)
+                cachedSearchIndexByVersion.remove(versionKey)
             }
         }
     }
@@ -146,7 +160,76 @@ object BibleRepository {
             }
 
             cachedTitlesByVersion[versionKey] = titlesJson
+            cachedTitleKeyMapByVersion.remove(versionKey)
             titlesJson
+        }
+    }
+
+    private fun String.normalizeBookName(): String {
+        val accents = mapOf('á' to 'a', 'é' to 'e', 'í' to 'i', 'ó' to 'o', 'ú' to 'u', 'ñ' to 'n')
+        return lowercase(Locale.ROOT)
+            .replace(" ", "")
+            .map { accents[it] ?: it }
+            .joinToString("")
+    }
+
+    private fun getBibleBookKeyMap(versionKey: String, bible: JSONObject): Map<String, String> {
+        cachedBookKeyMapByVersion[versionKey]?.let { return it }
+        return synchronized(this) {
+            cachedBookKeyMapByVersion[versionKey]?.let { return@synchronized it }
+            val built = bible.keys().asSequence().associateBy(
+                keySelector = { it.normalizeBookName() },
+                valueTransform = { it }
+            )
+            cachedBookKeyMapByVersion[versionKey] = built
+            built
+        }
+    }
+
+    private fun getTitleBookKeyMap(versionKey: String, titlesJson: JSONObject): Map<String, String> {
+        cachedTitleKeyMapByVersion[versionKey]?.let { return it }
+        return synchronized(this) {
+            cachedTitleKeyMapByVersion[versionKey]?.let { return@synchronized it }
+            val built = titlesJson.keys().asSequence().associateBy(
+                keySelector = { it.normalizeBookName() },
+                valueTransform = { it }
+            )
+            cachedTitleKeyMapByVersion[versionKey] = built
+            built
+        }
+    }
+
+    private fun getSearchIndex(versionKey: String, bible: JSONObject): List<SearchIndexEntry> {
+        cachedSearchIndexByVersion[versionKey]?.let { return it }
+        return synchronized(this) {
+            cachedSearchIndexByVersion[versionKey]?.let { return@synchronized it }
+            val index = buildList {
+                val books = bible.keys()
+                while (books.hasNext()) {
+                    val bookName = books.next()
+                    val book = bible.getJSONObject(bookName)
+                    val chapters = book.keys()
+                    while (chapters.hasNext()) {
+                        val chapterNum = chapters.next()
+                        val chapter = book.getJSONObject(chapterNum)
+                        val verses = chapter.keys()
+                        while (verses.hasNext()) {
+                            val verseNum = verses.next()
+                            val verseText = chapter.getString(verseNum)
+                            add(
+                                SearchIndexEntry(
+                                    bookName = bookName,
+                                    chapter = chapterNum.toIntOrNull() ?: 1,
+                                    verse = verseNum,
+                                    verseText = verseText
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+            cachedSearchIndexByVersion[versionKey] = index
+            index
         }
     }
 
@@ -198,17 +281,8 @@ object BibleRepository {
         verse: String
     ): DailyVerse = withContext(Dispatchers.IO) {
         val bible = getBibleForVersion(context, versionKey)
-        
-        fun String.normalize(): String {
-            val accents = mapOf('á' to 'a', 'é' to 'e', 'í' to 'i', 'ó' to 'o', 'ú' to 'u', 'ñ' to 'n')
-            return this.lowercase(Locale.ROOT)
-                .replace(" ", "")
-                .map { accents[it] ?: it }
-                .joinToString("")
-        }
-
-        val searchNormalized = bookName.normalize()
-        val bibleKey = bible.keys().asSequence().find { it.normalize() == searchNormalized } ?: bookName
+        val normalizedBook = bookName.normalizeBookName()
+        val bibleKey = getBibleBookKeyMap(versionKey, bible)[normalizedBook] ?: bookName
         
         val bookJson = bible.optJSONObject(bibleKey)
         val chapterJson = bookJson?.optJSONObject(chapter)
@@ -225,26 +299,18 @@ object BibleRepository {
         bookName: String,
         chapterNumber: Int
     ): ChapterContent = withContext(Dispatchers.IO) {
+        val versionKey = getSelectedVersionKey(context)
         val bible = getBible(context)
         val titlesJsonRoot = getTitles(context)
 
-        // Función interna para normalizar nombres (quita tildes, espacios y pasa a minúsculas)
-        fun String.normalize(): String {
-            val accents = mapOf('á' to 'a', 'é' to 'e', 'í' to 'i', 'ó' to 'o', 'ú' to 'u', 'ñ' to 'n')
-            return this.lowercase(Locale.ROOT)
-                .replace(" ", "")
-                .map { accents[it] ?: it }
-                .joinToString("")
-        }
-
-        val searchNormalized = bookName.normalize()
+        val searchNormalized = bookName.normalizeBookName()
 
         // 1. Buscar la llave correcta en el JSON de la Biblia
-        val bibleKey = bible.keys().asSequence().find { it.normalize() == searchNormalized } ?: bookName
+        val bibleKey = getBibleBookKeyMap(versionKey, bible)[searchNormalized] ?: bookName
         val bookJson = bible.optJSONObject(bibleKey)
 
         // 2. Buscar la llave correcta en el JSON de Títulos (independientemente)
-        val titlesKey = titlesJsonRoot.keys().asSequence().find { it.normalize() == searchNormalized } ?: bibleKey
+        val titlesKey = getTitleBookKeyMap(versionKey, titlesJsonRoot)[searchNormalized] ?: bibleKey
         val bookTitlesJson = titlesJsonRoot.optJSONObject(titlesKey)
 
         val chapterCount = bookJson?.length() ?: 0
@@ -270,42 +336,30 @@ object BibleRepository {
     }
 
     suspend fun searchVerses(context: Context, query: String): List<SearchResult> = withContext(Dispatchers.IO) {
-        val bible = getBible(context)
-        val results = mutableListOf<SearchResult>()
-
-        val books = bible.keys()
-        while (books.hasNext()) {
-            val bookName = books.next()
-            val book = bible.getJSONObject(bookName)
-
-            val chapters = book.keys()
-            while (chapters.hasNext()) {
-                val chapterNum = chapters.next()
-                val chapter = book.getJSONObject(chapterNum)
-
-                val verses = chapter.keys()
-                while (verses.hasNext()) {
-                    val verseNum = verses.next()
-                    val verseText = chapter.getString(verseNum)
-
-                    if (verseText.contains(query, ignoreCase = true)) {
-                        results.add(
-                            SearchResult(
-                                reference = "$bookName $chapterNum:$verseNum",
-                                text = verseText,
-                                bookName = bookName,
-                                chapter = chapterNum.toIntOrNull() ?: 1,
-                                verse = verseNum
-                            )
-                        )
-                    }
-                }
+        val versionKey = getSelectedVersionKey(context)
+        val bible = getBibleForVersion(context, versionKey)
+        getSearchIndex(versionKey, bible)
+            .asSequence()
+            .filter { it.verseText.contains(query, ignoreCase = true) }
+            .map { entry ->
+                SearchResult(
+                    reference = "${entry.bookName} ${entry.chapter}:${entry.verse}",
+                    text = entry.verseText,
+                    bookName = entry.bookName,
+                    chapter = entry.chapter,
+                    verse = entry.verse
+                )
             }
-        }
-
-        results
+            .toList()
     }
 }
+
+private data class SearchIndexEntry(
+    val bookName: String,
+    val chapter: Int,
+    val verse: String,
+    val verseText: String
+)
 
 data class ChapterContent(
     val chapterCount: Int,

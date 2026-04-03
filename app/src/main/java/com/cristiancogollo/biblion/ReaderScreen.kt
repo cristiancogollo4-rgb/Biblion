@@ -299,27 +299,50 @@ fun ReaderContent(
     var pendingTargetVerse by remember(bookName, targetVerse) { mutableStateOf(targetVerse) }
     val lazyListState = rememberLazyListState()
     var floatingButtonOffset by remember { mutableStateOf(IntOffset(0, 0)) }
+    var highlightsRawCache by remember { mutableStateOf<String?>(null) }
+    var highlightsJsonCache by remember { mutableStateOf(JSONObject()) }
+    val highlightsByChapterCache = remember { mutableStateMapOf<String, Map<String, Int>>() }
 
     fun verseKey(verseNumber: String): String = "${bookName ?: ""}|$selectedChapter|$verseNumber"
+    fun chapterHighlightKey(book: String?, chapter: Int): String = "${book ?: ""}|$chapter"
 
     fun loadHighlightsForChapter() {
+        val chapterKey = chapterHighlightKey(bookName, selectedChapter)
+        highlightsByChapterCache[chapterKey]?.let {
+            verseHighlights = it
+            return
+        }
         val raw = prefs.getString(KEY_VERSE_HIGHLIGHTS, "{}") ?: "{}"
-        val json = JSONObject(raw)
+        if (raw != highlightsRawCache) {
+            highlightsJsonCache = JSONObject(raw)
+            highlightsRawCache = raw
+            highlightsByChapterCache.clear()
+        }
         val map = mutableMapOf<String, Int>()
         verses.forEach { (verseNumber, _) ->
-            val saved = json.optInt(verseKey(verseNumber), 0)
+            val saved = highlightsJsonCache.optInt(verseKey(verseNumber), 0)
             if (saved in highlightPalette.indices) {
                 map[verseNumber] = saved
             }
         }
+        highlightsByChapterCache[chapterKey] = map
         verseHighlights = map
     }
 
     fun saveHighlight(verseNumber: String, colorIndex: Int) {
         val raw = prefs.getString(KEY_VERSE_HIGHLIGHTS, "{}") ?: "{}"
-        val json = JSONObject(raw)
-        json.put(verseKey(verseNumber), colorIndex)
-        prefs.edit { putString(KEY_VERSE_HIGHLIGHTS, json.toString()) }
+        if (raw != highlightsRawCache) {
+            highlightsJsonCache = JSONObject(raw)
+            highlightsRawCache = raw
+            highlightsByChapterCache.clear()
+        }
+        highlightsJsonCache.put(verseKey(verseNumber), colorIndex)
+        val updatedRaw = highlightsJsonCache.toString()
+        prefs.edit { putString(KEY_VERSE_HIGHLIGHTS, updatedRaw) }
+        highlightsRawCache = updatedRaw
+        val chapterKey = chapterHighlightKey(bookName, selectedChapter)
+        val updatedMap = (highlightsByChapterCache[chapterKey] ?: verseHighlights) + (verseNumber to colorIndex)
+        highlightsByChapterCache[chapterKey] = updatedMap
         verseHighlights = verseHighlights + (verseNumber to colorIndex)
     }
 

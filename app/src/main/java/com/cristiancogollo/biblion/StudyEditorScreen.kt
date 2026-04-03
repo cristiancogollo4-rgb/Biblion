@@ -22,6 +22,9 @@ import com.mohamedrejeb.richeditor.ui.material3.RichTextEditorDefaults
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -80,8 +83,13 @@ fun StudyEditorScreen(
     }
 
     // Guardar cambios del Editor al ViewModel
-    LaunchedEffect(richState.toHtml()) {
-        viewModel.process(StudyIntent.UpdateRichHtml(richState.toHtml()))
+    LaunchedEffect(richState) {
+        snapshotFlow { richState.toHtml() }
+            .debounce(250)
+            .distinctUntilChanged()
+            .collect { html ->
+                viewModel.process(StudyIntent.UpdateRichHtml(html))
+            }
     }
 
     LaunchedEffect(hasSelection) {

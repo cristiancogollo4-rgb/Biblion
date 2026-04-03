@@ -4,17 +4,20 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -109,8 +112,23 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
                 val selected = _state.value.selectedNotebookId ?: notebooks.firstOrNull()?.id
                 _state.value = _state.value.copy(notebooks = notebooks, selectedNotebookId = selected)
                 selectedNotebookFlow.value = selected
-                selected?.let { observeStudies(it) }
             }
+        }
+        viewModelScope.launch {
+            selectedNotebookFlow
+                .filter { it != null }
+                .map { it!! }
+                .distinctUntilChanged()
+                .flatMapLatest { notebookId -> dao.observeStudies(notebookId) }
+                .collect { studies ->
+                    val currentSelected = if (_state.value.isDraftMode) {
+                        null
+                    } else {
+                        _state.value.selectedStudyId?.takeIf { id -> studies.any { it.id == id } } ?: studies.firstOrNull()?.id
+                    }
+                    _state.value = _state.value.copy(studies = studies, selectedStudyId = currentSelected)
+                    currentSelected?.let { loadStudy(it) }
+                }
         }
         viewModelScope.launch {
             dao.observeAllStudies().collect { all ->
@@ -124,13 +142,14 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
             is StudyIntent.SelectNotebook -> {
                 _state.value = _state.value.copy(selectedNotebookId = intent.notebookId, selectedStudyId = null)
                 selectedNotebookFlow.value = intent.notebookId
-                viewModelScope.launch { observeStudies(intent.notebookId) }
             }
             is StudyIntent.SelectStudy -> viewModelScope.launch { loadStudy(intent.studyId) }
             is StudyIntent.DeleteStudy -> {
                 viewModelScope.launch {
-                    dao.deleteStudy(intent.studyId)
-                    dao.deleteCitationsForStudy(intent.studyId)
+                    withContext(Dispatchers.IO) {
+                        dao.deleteStudy(intent.studyId)
+                        dao.deleteCitationsForStudy(intent.studyId)
+                    }
                 }
             }
             is StudyIntent.UpdateTitle -> {
@@ -194,9 +213,13 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
             StudyIntent.CreateNewStudy -> {
                 viewModelScope.launch {
                     val now = System.currentTimeMillis()
-                    val notebookId = _state.value.selectedNotebookId ?: dao.observeNotebooks().firstOrNull()?.firstOrNull()?.id ?: return@launch
+                    val notebookId = _state.value.selectedNotebookId ?: withContext(Dispatchers.IO) {
+                        dao.observeNotebooks().firstOrNull()?.firstOrNull()?.id
+                    } ?: return@launch
                     val emptyDoc = json.encodeToString(SerializedStudyDocument())
-                    val newId = dao.insertStudy(StudyEntity(title = "Nueva Enseñanza", notebookId = notebookId, contentSerialized = emptyDoc, createdAt = now, updatedAt = now))
+                    val newId = withContext(Dispatchers.IO) {
+                        dao.insertStudy(StudyEntity(title = "Nueva Enseñanza", notebookId = notebookId, contentSerialized = emptyDoc, createdAt = now, updatedAt = now))
+                    }
                     loadStudy(newId)
                 }
             }
@@ -253,18 +276,20 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateStudyMetadata(studyId: Long, title: String, tags: List<String>) {
         viewModelScope.launch {
-            val existing = dao.getStudy(studyId) ?: return@launch
-            val document = runCatching {
-                json.decodeFromString<SerializedStudyDocument>(existing.contentSerialized)
-            }.getOrDefault(SerializedStudyDocument())
-            val updatedDoc = document.copy(tags = tags)
-            dao.updateStudy(
-                existing.copy(
-                    title = title,
-                    contentSerialized = json.encodeToString(updatedDoc),
-                    updatedAt = System.currentTimeMillis()
+            withContext(Dispatchers.IO) {
+                val existing = dao.getStudy(studyId) ?: return@withContext
+                val document = runCatching {
+                    json.decodeFromString<SerializedStudyDocument>(existing.contentSerialized)
+                }.getOrDefault(SerializedStudyDocument())
+                val updatedDoc = document.copy(tags = tags)
+                dao.updateStudy(
+                    existing.copy(
+                        title = title,
+                        contentSerialized = json.encodeToString(updatedDoc),
+                        updatedAt = System.currentTimeMillis()
+                    )
                 )
-            )
+            }
             if (_state.value.selectedStudyId == studyId) {
                 _state.value = _state.value.copy(title = title, tags = tags)
             }
@@ -279,28 +304,18 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun ensureSeedData() {
-        if (dao.getNotebookCount() == 0) {
-            val now = System.currentTimeMillis()
-            val notebookId = dao.insertNotebook(StudyNotebookEntity(title = "Mis Notas de Estudio", createdAt = now, updatedAt = now))
-            val emptyDoc = json.encodeToString(SerializedStudyDocument())
-            dao.insertStudy(StudyEntity(title = "Nueva Enseñanza", notebookId = notebookId, contentSerialized = emptyDoc, createdAt = now, updatedAt = now))
-        }
-    }
-
-    private suspend fun observeStudies(notebookId: Long) {
-        dao.observeStudies(notebookId).collect { studies ->
-            val currentSelected = if (_state.value.isDraftMode) {
-                null
-            } else {
-                _state.value.selectedStudyId?.takeIf { id -> studies.any { it.id == id } } ?: studies.firstOrNull()?.id
+        withContext(Dispatchers.IO) {
+            if (dao.getNotebookCount() == 0) {
+                val now = System.currentTimeMillis()
+                val notebookId = dao.insertNotebook(StudyNotebookEntity(title = "Mis Notas de Estudio", createdAt = now, updatedAt = now))
+                val emptyDoc = json.encodeToString(SerializedStudyDocument())
+                dao.insertStudy(StudyEntity(title = "Nueva Enseñanza", notebookId = notebookId, contentSerialized = emptyDoc, createdAt = now, updatedAt = now))
             }
-            _state.value = _state.value.copy(studies = studies, selectedStudyId = currentSelected)
-            currentSelected?.let { loadStudy(it) }
         }
     }
 
     private suspend fun loadStudy(studyId: Long) {
-        val study = dao.getStudy(studyId) ?: return
+        val study = withContext(Dispatchers.IO) { dao.getStudy(studyId) } ?: return
         val doc = runCatching { json.decodeFromString<SerializedStudyDocument>(study.contentSerialized) }
             .getOrDefault(SerializedStudyDocument())
         val firstRich = doc.blocks.filterIsInstance<StudyBlockNode.RichText>().firstOrNull()
@@ -341,7 +356,9 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun persistCurrentStudy(): Boolean {
         val s = _state.value
-        val notebookId = s.selectedNotebookId ?: dao.observeNotebooks().firstOrNull()?.firstOrNull()?.id ?: return false
+        val notebookId = s.selectedNotebookId ?: withContext(Dispatchers.IO) {
+            dao.observeNotebooks().firstOrNull()?.firstOrNull()?.id
+        } ?: return false
         val now = System.currentTimeMillis()
         val document = SerializedStudyDocument(
             blocks = s.blocks,
@@ -350,15 +367,17 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
         )
         val studyId = s.selectedStudyId
         if (studyId == null) {
-            val newId = dao.insertStudy(
-                StudyEntity(
-                    title = s.title.ifBlank { "Nueva Enseñanza" },
-                    notebookId = notebookId,
-                    contentSerialized = json.encodeToString(document),
-                    createdAt = now,
-                    updatedAt = now
+            val newId = withContext(Dispatchers.IO) {
+                dao.insertStudy(
+                    StudyEntity(
+                        title = s.title.ifBlank { "Nueva Enseñanza" },
+                        notebookId = notebookId,
+                        contentSerialized = json.encodeToString(document),
+                        createdAt = now,
+                        updatedAt = now
+                    )
                 )
-            )
+            }
             val citations = s.blocks.filterIsInstance<StudyBlockNode.Citation>().map {
                 LinkedCitationEntity(
                     estudioId = newId,
@@ -370,23 +389,25 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
                     positionMetadata = "inline"
                 )
             }
-            dao.replaceCitations(newId, citations)
+            withContext(Dispatchers.IO) { dao.replaceCitations(newId, citations) }
             _state.value = _state.value.copy(selectedStudyId = newId, selectedNotebookId = notebookId, isDraftMode = false)
             lastSavedSignature = buildSignature(_state.value)
             return true
         }
 
-        val existing = dao.getStudy(studyId)
-        dao.updateStudy(
-            StudyEntity(
-                id = studyId,
-                title = s.title.ifBlank { "Sin título" },
-                notebookId = notebookId,
-                contentSerialized = json.encodeToString(document),
-                createdAt = existing?.createdAt ?: now,
-                updatedAt = now
+        withContext(Dispatchers.IO) {
+            val existing = dao.getStudy(studyId)
+            dao.updateStudy(
+                StudyEntity(
+                    id = studyId,
+                    title = s.title.ifBlank { "Sin título" },
+                    notebookId = notebookId,
+                    contentSerialized = json.encodeToString(document),
+                    createdAt = existing?.createdAt ?: now,
+                    updatedAt = now
+                )
             )
-        )
+        }
         val citations = s.blocks.filterIsInstance<StudyBlockNode.Citation>().map {
             LinkedCitationEntity(
                 estudioId = studyId,
@@ -398,7 +419,7 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
                 positionMetadata = "inline"
             )
         }
-        dao.replaceCitations(studyId, citations)
+        withContext(Dispatchers.IO) { dao.replaceCitations(studyId, citations) }
         lastSavedSignature = buildSignature(_state.value)
         return true
     }
