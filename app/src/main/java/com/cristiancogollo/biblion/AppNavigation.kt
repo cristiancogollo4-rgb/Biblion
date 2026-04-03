@@ -12,24 +12,7 @@ fun AppNavigation() {
     val navController = rememberNavController()
 
     NavHost(navController = navController, startDestination = Screen.Home.route) {
-        composable(Screen.Home.route) {
-            HomeScreen(navController)
-        }
-
-        composable(Screen.Ensenanzas.route) {
-            EnsenanzaScreen(navController)
-        }
-
-        composable(
-            route = Screen.Books.route,
-            arguments = listOf(navArgument("testament") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val testament = Testament.fromRouteArg(backStackEntry.arguments?.getString("testament"))
-            BooksScreen(
-                navController = navController,
-                selectedTestament = testament
-            )
-        }
+        addSharedPrimaryDestinations(navController = navController)
 
         composable(
             route = Screen.ReaderWithBook.route,
@@ -117,18 +100,6 @@ fun AppNavigation() {
             val encodedName = entry.arguments?.getString("bookName") ?: ""
             val bookName = decodeArg(encodedName).ifBlank { null }
             ReaderScreen(navController, bookName, initialStudyMode = true)
-        }
-
-        composable(Screen.Search.route) {
-            SearchScreen(navController)
-        }
-
-        composable(
-            route = Screen.StudyRead.route,
-            arguments = listOf(navArgument("studyId") { type = NavType.LongType })
-        ) { backStackEntry ->
-            val studyId = backStackEntry.arguments?.getLong("studyId") ?: return@composable
-            StudyReadScreen(navController = navController, studyId = studyId)
         }
     }
 }

@@ -187,16 +187,10 @@ private fun StudyModeNavigation(initialBook: String?) {
     val studyViewModel: StudyViewModel = viewModel()
 
     NavHost(navController = splitNavController, startDestination = Screen.Home.route) {
-        composable(Screen.Home.route) { HomeScreen(splitNavController) }
-        composable(Screen.Search.route) { SearchScreen(splitNavController) }
-        composable(
-            route = Screen.Books.route,
-            arguments = listOf(navArgument("testament") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val testamentStr = backStackEntry.arguments?.getString("testament")
-            val testament = Testament.fromRouteArg(testamentStr)
-            BooksScreen(navController = splitNavController, selectedTestament = testament, openInStudyMode = true)
-        }
+        addSharedPrimaryDestinations(
+            navController = splitNavController,
+            openBooksInStudyMode = true
+        )
         composable(
             route = Screen.ReaderWithBook.route,
             arguments = listOf(
