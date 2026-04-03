@@ -302,18 +302,45 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun persistCurrentStudy(): Boolean {
         val s = _state.value
-        val id = s.selectedStudyId ?: return false
-        val notebookId = s.selectedNotebookId ?: return false
+        val notebookId = s.selectedNotebookId ?: dao.observeNotebooks().firstOrNull()?.firstOrNull()?.id ?: return false
         val now = System.currentTimeMillis()
-        val existing = dao.getStudy(id)
         val document = SerializedStudyDocument(
             blocks = s.blocks,
             globalVersion = s.globalVersion,
             tags = s.tags
         )
+        val studyId = s.selectedStudyId
+        if (studyId == null) {
+            val newId = dao.insertStudy(
+                StudyEntity(
+                    title = s.title.ifBlank { "Nueva Enseñanza" },
+                    notebookId = notebookId,
+                    contentSerialized = json.encodeToString(document),
+                    createdAt = now,
+                    updatedAt = now
+                )
+            )
+            val citations = s.blocks.filterIsInstance<StudyBlockNode.Citation>().map {
+                LinkedCitationEntity(
+                    estudioId = newId,
+                    book = it.reference.book,
+                    chapter = it.reference.chapter,
+                    verseStart = it.reference.verseStart,
+                    verseEnd = it.reference.verseEnd,
+                    version = it.version,
+                    positionMetadata = "inline"
+                )
+            }
+            dao.replaceCitations(newId, citations)
+            _state.value = _state.value.copy(selectedStudyId = newId, selectedNotebookId = notebookId)
+            lastSavedSignature = buildSignature(_state.value)
+            return true
+        }
+
+        val existing = dao.getStudy(studyId)
         dao.updateStudy(
             StudyEntity(
-                id = id,
+                id = studyId,
                 title = s.title.ifBlank { "Nuevo estudio" },
                 notebookId = notebookId,
                 contentSerialized = json.encodeToString(document),
@@ -323,7 +350,7 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
         )
         val citations = s.blocks.filterIsInstance<StudyBlockNode.Citation>().map {
             LinkedCitationEntity(
-                estudioId = id,
+                estudioId = studyId,
                 book = it.reference.book,
                 chapter = it.reference.chapter,
                 verseStart = it.reference.verseStart,
@@ -332,7 +359,7 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
                 positionMetadata = "inline"
             )
         }
-        dao.replaceCitations(id, citations)
+        dao.replaceCitations(studyId, citations)
         lastSavedSignature = buildSignature(_state.value)
         return true
     }

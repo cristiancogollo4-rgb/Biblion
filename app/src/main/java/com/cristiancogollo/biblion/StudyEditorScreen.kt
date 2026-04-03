@@ -19,6 +19,7 @@ import com.mohamedrejeb.richeditor.model.rememberRichTextState
 import com.mohamedrejeb.richeditor.ui.material3.RichTextEditor
 import com.mohamedrejeb.richeditor.ui.material3.RichTextEditorDefaults
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,11 +31,39 @@ fun StudyEditorScreen(
     val ui by viewModel.state.collectAsState()
     val richState = rememberRichTextState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     var menuOffset by remember { mutableStateOf(IntOffset(0, -120)) }
     var showSaveDialog by remember { mutableStateOf(false) }
     var saveTitle by remember { mutableStateOf("") }
     var saveTagsInput by remember { mutableStateOf("") }
     var saveError by remember { mutableStateOf<String?>(null) }
+
+    fun openMetadataDialog() {
+        saveTitle = ui.title
+        saveTagsInput = ui.tags.joinToString(", ")
+        saveError = null
+        showSaveDialog = true
+    }
+
+    fun validateNonEmptyContent(): Boolean {
+        val plainContent = ui.richHtml
+            .replace(Regex("<[^>]*>"), " ")
+            .replace("&nbsp;", " ")
+            .trim()
+        return plainContent.isNotBlank()
+    }
+
+    fun handleSave() {
+        if (ui.title.isBlank() || ui.tags.isEmpty()) {
+            openMetadataDialog()
+            return
+        }
+        if (!validateNonEmptyContent()) {
+            scope.launch { snackbarHostState.showSnackbar("No puedes guardar una enseñanza vacía.") }
+            return
+        }
+        viewModel.process(StudyIntent.SaveStudy)
+    }
 
     val selection = richState.selection
     val hasSelection = selection.start != selection.end
@@ -100,10 +129,7 @@ fun StudyEditorScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         // Botón de Guardar Enseñanza
                         IconButton(onClick = {
-                            saveTitle = ui.title
-                            saveTagsInput = ui.tags.joinToString(", ")
-                            saveError = null
-                            showSaveDialog = true
+                            handleSave()
                         }) {
                             Icon(Icons.Default.Save, contentDescription = "Guardar Enseñanza", tint = BiblionNavy)
                         }
@@ -136,10 +162,7 @@ fun StudyEditorScreen(
                             richState.toggleSpanStyle(SpanStyle(fontStyle = FontStyle.Italic)); true
                         }
                         Key.S -> {
-                            saveTitle = ui.title
-                            saveTagsInput = ui.tags.joinToString(", ")
-                            saveError = null
-                            showSaveDialog = true
+                            handleSave()
                             true
                         }
                         else -> false
@@ -236,14 +259,9 @@ fun StudyEditorScreen(
                         .map { it.trim().removePrefix("#") }
                         .filter { it.isNotBlank() }
                         .distinct()
-                    val plainContent = ui.richHtml
-                        .replace(Regex("<[^>]*>"), " ")
-                        .replace("&nbsp;", " ")
-                        .trim()
-
                     saveError = when {
                         cleanedTitle.isBlank() -> "Debes agregar un título para guardar."
-                        plainContent.isBlank() -> "No puedes guardar una enseñanza vacía."
+                        !validateNonEmptyContent() -> "No puedes guardar una enseñanza vacía."
                         parsedTags.isEmpty() -> "Agrega al menos una etiqueta."
                         else -> null
                     }
