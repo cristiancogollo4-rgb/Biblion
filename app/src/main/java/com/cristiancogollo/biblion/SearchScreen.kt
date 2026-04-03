@@ -38,8 +38,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 import kotlinx.coroutines.launch
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.graphics.Color
 
 data class SearchResult(
     val reference: String,
@@ -109,7 +113,16 @@ fun SearchScreen(navController: NavController) {
                         singleLine = true,
                         leadingIcon = {
                             Icon(Icons.Default.Search, contentDescription = null)
-                        }
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFFC9A227),   // borde cuando está activo
+                            unfocusedBorderColor = Color(0xFFBFA76A), // borde normal
+                            focusedLabelColor = Color(0xFFC9A227),
+                            unfocusedLabelColor = Color(0xFF8A7A4A),
+                            cursorColor = Color(0xFFC9A227),
+                            focusedLeadingIconColor = Color(0xFFC9A227),
+                            unfocusedLeadingIconColor = Color(0xFF8A7A4A)
+                        )
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     FilledTonalButton(
@@ -133,8 +146,8 @@ fun SearchScreen(navController: NavController) {
                         enabled = uiState !is SearchUiState.Loading,
                         modifier = Modifier.align(Alignment.End),
                         colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = BiblionNavy.copy(alpha = 0.12f),
-                            contentColor = BiblionNavy
+                            containerColor = BiblionGoldSoft.copy(alpha = 0.12f),
+                            contentColor = BiblionGoldPrimary
                         )
                     ) {
                         Text("Buscar")

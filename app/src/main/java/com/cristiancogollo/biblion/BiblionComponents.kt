@@ -45,6 +45,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 
@@ -59,43 +61,51 @@ fun BiblionTopAppBar(
 ) {
     CenterAlignedTopAppBar(
         title = {
-            Text(
-                text = "Biblion",
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontFamily = FontFamily.Serif,
-                    fontWeight = FontWeight.Bold
-                ),
-                color = BiblionNavy
-            )
-        },
-        navigationIcon = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(start = 4.dp)
+                horizontalArrangement = Arrangement.Center
             ) {
                 if (logoResId != null) {
                     Image(
                         painter = painterResource(id = logoResId),
                         contentDescription = logoContentDescription,
                         modifier = Modifier
-                            .size(30.dp)
-                            .padding(end = 6.dp),
+                            .size(80.dp)
+                            .padding(end = 10.dp),
                         contentScale = ContentScale.Fit
                     )
                 }
 
-                IconButton(onClick = onNavigationIconClick) {
-                    Icon(imageVector = Icons.Default.Menu, contentDescription = "Menú", tint = BiblionNavy)
-                }
+                Text(
+                    text = "BIBLION",
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontFamily = FontFamily.Serif,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = BiblionNavy
+                )
+            }
+        },
+        navigationIcon = {
+            IconButton(onClick = onNavigationIconClick) {
+                Icon(
+                    imageVector = Icons.Default.Menu,
+                    contentDescription = "Menú",
+                    tint = BiblionNavy
+                )
             }
         },
         actions = {
             IconButton(onClick = onSearchIconClick) {
-                Icon(imageVector = Icons.Default.Search, contentDescription = "Buscar", tint = BiblionNavy)
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Buscar",
+                    tint = BiblionNavy
+                )
             }
         },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = Color.White
         )
     )
 }
@@ -174,7 +184,7 @@ fun DailyVerseCard(
             Text(
                 text = reference,
                 style = MaterialTheme.typography.labelLarge,
-                color = BiblionNavy,
+                color = BiblionGoldPrimary,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -190,7 +200,7 @@ fun BookCard(bookName: String, onClick: () -> Unit) {
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = BiblionGoldSoft.copy(alpha = 0.2f)),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFDFBF0)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Box(
@@ -254,7 +264,7 @@ fun BiblionSelectionDialog(
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("CANCELAR", color = BiblionNavy)
+                        Text("CANCELAR", color = BiblionGoldPrimary)
                     }
                 }
             }
@@ -352,7 +362,7 @@ fun BiblionReaderTopAppBar(
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                         letterSpacing = 1.sp
                     ),
-                    color = if (isSelected) BiblionNavy else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+                    color = if (isSelected) BiblionGoldPrimary else BiblionBluePrimary.copy(alpha = 0.75f),
                     modifier = Modifier
                         .clickable { onChapterClick(chapter) }
                         .padding(vertical = 4.dp)

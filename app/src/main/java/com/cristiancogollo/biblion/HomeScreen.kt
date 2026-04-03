@@ -164,7 +164,7 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
                     onSearchIconClick = {
                         navController.navigateSingleTop(Screen.Search.route)
                     },
-                    logoResId = R.drawable.logobiblionsinletras
+                    logoResId = R.drawable.logobiblion
                 )
             }
         ) { innerPadding ->

@@ -24,6 +24,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
+import androidx.compose.material3.RadioButtonDefaults
 
 @Composable
 fun BibleVersionDialog(
@@ -67,7 +70,8 @@ fun BibleVersionDialog(
                                 .fillMaxWidth()
                                 .clickable { onVersionSelected(version) }
                                 .background(
-                                    color = if (isSelected) BiblionNavy.copy(alpha = 0.08f) else Color.Transparent,
+                                    //color = if (isSelected) BiblionNavy.copy(alpha = 0.08f) else Color.Transparent,
+                                    color = if (isSelected) BiblionGoldSoft.copy(alpha = 0.22f) else Color.Transparent,
                                     shape = RoundedCornerShape(12.dp)
                                 )
                                 .padding(vertical = 8.dp, horizontal = 12.dp),
@@ -75,7 +79,11 @@ fun BibleVersionDialog(
                         ) {
                             RadioButton(
                                 selected = isSelected,
-                                onClick = { onVersionSelected(version) }
+                                onClick = { onVersionSelected(version) },
+                                colors = RadioButtonDefaults.colors(
+                                    selectedColor = BiblionGoldPrimary,
+                                    unselectedColor = BiblionGoldSoft.copy(alpha = 0.7f)
+                                )
                             )
                             Text(
                                 text = version.label,
@@ -90,7 +98,8 @@ fun BibleVersionDialog(
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("CERRAR", color = BiblionNavy)
+                        //Text("CERRAR", color = BiblionNavy)
+                        Text("CERRAR", color = BiblionGoldPrimary)
                     }
                 }
             }

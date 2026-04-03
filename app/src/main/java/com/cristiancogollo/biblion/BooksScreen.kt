@@ -89,7 +89,7 @@ fun BooksScreen(navController: NavController, selectedTestament: Testament, open
                 BiblionTopAppBar(
                     onNavigationIconClick = { scope.launch { drawerState.open() } },
                     onSearchIconClick = { navController.navigateSingleTop(Screen.Search.route) },
-                    logoResId = R.drawable.logobiblionsinletras
+                    logoResId = R.drawable.logobiblion,
                 )
             }
         ) { innerPadding ->

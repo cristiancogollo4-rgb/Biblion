@@ -11,10 +11,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 
 @Composable
 fun AboutBiblionDialog(onDismiss: () -> Unit) {
@@ -29,26 +35,66 @@ fun AboutBiblionDialog(onDismiss: () -> Unit) {
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Default.Info, contentDescription = null)
-                    Text("Sobre nosotros", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Default.Info, contentDescription = null, tint = BiblionGoldPrimary)
+                    Text(
+                        "Sobre nosotros",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
+
                 Text(
                     "Biblion es una app cristiana enfocada en facilitar la lectura bíblica, la búsqueda de versículos y el estudio personal con herramientas simples y claras."
                 )
-                Text("Creador: Cristian Felipe Cogollo Rodríguez.", fontWeight = FontWeight.SemiBold)
+
+                Text("Equipo:", fontWeight = FontWeight.SemiBold)
+
+                Text("Cristian Felipe Cogollo Rodríguez — Co-fundador & Lead Developer")
+                Text("Anderson Geovanny Duarte Largo — Co-fundador & Estrategia / Alianzas")
                 Text(
-                    "Estado actual: Biblion se encuentra en desarrollo activo. Seguimos mejorando funciones, diseño y experiencia para la comunidad."
+                    buildAnnotatedString {
+                        withStyle(
+                            style = SpanStyle(
+                                fontWeight = FontWeight.Bold,
+                                color = BiblionBluePrimary
+                            )
+                        ) {
+                            append("Estado Actual: ")
+                        }
+
+                        append("Biblion se encuentra en desarrollo activo. Seguimos mejorando funciones, diseño y experiencia para la comunidad.")
+                    }
                 )
+
                 Text(
-                    "Importante: la app se encuentra en desarrollo y puede seguir cambiando con nuevas actualizaciones.",
-                    fontWeight = FontWeight.Bold
+                    buildAnnotatedString {
+                        withStyle(
+                            style = SpanStyle(
+                                fontWeight = FontWeight.Bold,
+                                color = BiblionGoldPrimary
+                            )
+                        ) {
+                            append("IMPORTANTE: ")
+                        }
+                        withStyle(
+                            style = SpanStyle(
+                                color = BiblionGoldSoft
+                            )
+                        ) {
+                            append("La app se encuentra en desarrollo y puede seguir cambiando con nuevas actualizaciones.")
+                        }
+                    }
                 )
+
                 TextButton(
                     onClick = onDismiss,
                     modifier = Modifier.align(Alignment.End)
                 ) {
-                    Text("CERRAR")
+                    Text("CERRAR", color = BiblionGoldPrimary)
                 }
             }
         }
@@ -92,7 +138,7 @@ fun BiblionComingSoonDialog(onDismiss: () -> Unit) {
                     onClick = onDismiss,
                     modifier = Modifier.align(Alignment.End)
                 ) {
-                    Text("ENTENDIDO")
+                    Text("ENTENDIDO", color = BiblionGoldPrimary)
                 }
             }
         }

@@ -63,6 +63,10 @@ import androidx.navigation.navArgument
 import androidx.core.content.edit
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
+import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
+import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 
 private const val PREFS_NAME = "BiblionReaderPrefs"
 private const val KEY_FONT_SIZE = "fontSize"
@@ -413,6 +417,7 @@ fun ReaderContent(
                         Text(
                             text = chapterTitle,
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = BiblionGoldPrimary,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 6.dp, bottom = 10.dp)
@@ -448,6 +453,8 @@ fun ReaderContent(
 
             FloatingActionButton(
                 onClick = { showVersionDialog = true },
+                containerColor = BiblionGoldSoft,
+                contentColor = Color.White, // o Color.White si lo prefieres
                 modifier = Modifier
                     .offset { floatingButtonOffset }
                     .align(Alignment.BottomEnd)
@@ -608,7 +615,7 @@ fun VerseItem(
                     fontSize = (fontSize.value * 0.6).sp,
                     fontWeight = FontWeight.Bold,
                     baselineShift = BaselineShift.Superscript,
-                    color = MaterialTheme.colorScheme.primary
+                    color = BiblionGoldPrimary
                 )
             ) {
                 append(verseNumber)
