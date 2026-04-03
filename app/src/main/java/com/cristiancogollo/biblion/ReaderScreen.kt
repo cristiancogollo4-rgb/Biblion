@@ -214,6 +214,26 @@ private fun StudyModeNavigation(initialBook: String?) {
                 targetVerse = targetVerse
             )
         }
+        composable(
+            route = Screen.ReaderWithoutBook.route,
+            arguments = listOf(
+                navArgument("studyMode") { type = NavType.BoolType; defaultValue = true },
+                navArgument("chapter") { type = NavType.IntType; defaultValue = 1 },
+                navArgument("verse") { type = NavType.StringType; defaultValue = "" },
+                navArgument("studyId") { type = NavType.LongType; defaultValue = -1L }
+            )
+        ) { backStackEntry ->
+            val initialChapter = backStackEntry.arguments?.getInt("chapter") ?: 1
+            val targetVerse = decodeArg(backStackEntry.arguments?.getString("verse") ?: "").ifBlank { null }
+            ReaderContent(
+                navController = splitNavController,
+                bookName = null,
+                isStudyModeActive = true,
+                viewModel = studyViewModel,
+                initialChapter = initialChapter,
+                targetVerse = targetVerse
+            )
+        }
     }
 
     LaunchedEffect(initialBook) {
