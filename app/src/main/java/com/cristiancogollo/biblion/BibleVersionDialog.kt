@@ -38,7 +38,7 @@ fun BibleVersionDialog(
                 .fillMaxWidth()
                 .heightIn(max = 500.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column {
                 Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 20.dp)) {
@@ -50,7 +50,7 @@ fun BibleVersionDialog(
                     Text(
                         text = "Selecciona la traducción para continuar leyendo.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
                     )
                 }
 

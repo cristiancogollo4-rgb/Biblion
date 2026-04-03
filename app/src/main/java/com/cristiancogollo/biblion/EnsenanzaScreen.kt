@@ -22,6 +22,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 import java.text.SimpleDateFormat
 import java.util.*
@@ -42,7 +44,7 @@ fun EnsenanzaScreen(navController: NavController) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás", tint = BiblionNavy)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         },
         floatingActionButton = {
@@ -52,16 +54,16 @@ fun EnsenanzaScreen(navController: NavController) {
                     navController.navigateSingleTop(Screen.Reader.createRoute(studyMode = true))
                 },
                 containerColor = BiblionNavy,
-                contentColor = Color.White
+                contentColor = MaterialTheme.colorScheme.surface
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Nueva Enseñanza")
             }
         },
-        containerColor = Color(0xFFFDFBF0)
+        containerColor = BiblionGoldSoft.copy(alpha = 0.2f)
     ) { padding ->
         if (state.allStudies.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("No tienes enseñanzas guardadas aún.", color = Color.Gray)
+                Text("No tienes enseñanzas guardadas aún.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f))
             }
         } else {
             LazyColumn(
@@ -100,7 +102,7 @@ fun EnsenanzaCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -123,7 +125,7 @@ fun EnsenanzaCard(
                 Text(
                     text = "Última edición: $dateText",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
                 )
             }
             
@@ -131,7 +133,7 @@ fun EnsenanzaCard(
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = "Eliminar",
-                    tint = Color.Red.copy(alpha = 0.6f)
+                    tint = BiblionGoldPrimary
                 )
             }
             

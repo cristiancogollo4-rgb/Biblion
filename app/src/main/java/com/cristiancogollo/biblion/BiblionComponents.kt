@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 
 // 1. BiblionTopAppBar: Usado en HomeScreen y BooksScreen
@@ -94,7 +95,7 @@ fun BiblionTopAppBar(
             }
         },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-            containerColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surface
         )
     )
 }
@@ -126,7 +127,7 @@ fun TestamentSelector(
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (selected) BiblionNavy else Color.Transparent,
-                    contentColor = if (selected) Color.White else Color.Gray
+                    contentColor = if (selected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
                 ),
                 contentPadding = PaddingValues(0.dp)
             ) {
@@ -155,7 +156,7 @@ fun DailyVerseCard(
                 if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
             ),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -166,7 +167,7 @@ fun DailyVerseCard(
             Text(
                 text = verse,
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color.Black,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontFamily = FontFamily.Serif
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -189,7 +190,7 @@ fun BookCard(bookName: String, onClick: () -> Unit) {
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFDFBF0)),
+        colors = CardDefaults.cardColors(containerColor = BiblionGoldSoft.copy(alpha = 0.2f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Box(
@@ -224,12 +225,12 @@ fun BiblionSelectionDialog(
                 .fillMaxWidth()
                 .heightIn(max = 500.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column {
                 Column(modifier = Modifier.padding(24.dp)) {
                     Text(text = title, style = MaterialTheme.typography.headlineSmall, color = BiblionNavy)
-                    Text(text = subtitle, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                    Text(text = subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f))
                 }
 
                 LazyColumn(modifier = Modifier.weight(1f)) {
@@ -279,7 +280,7 @@ fun BiblionReaderTopAppBar(
 ) {
     Column(
         modifier = modifier
-            .background(Color.White)
+            .background(MaterialTheme.colorScheme.surface)
             .statusBarsPadding() // Evita que se solape con la barra de estado
     ) {
         CenterAlignedTopAppBar(
@@ -351,7 +352,7 @@ fun BiblionReaderTopAppBar(
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                         letterSpacing = 1.sp
                     ),
-                    color = if (isSelected) BiblionNavy else Color.Gray,
+                    color = if (isSelected) BiblionNavy else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
                     modifier = Modifier
                         .clickable { onChapterClick(chapter) }
                         .padding(vertical = 4.dp)
@@ -360,7 +361,7 @@ fun BiblionReaderTopAppBar(
         }
 
         // Línea divisoria sutil
-        HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray.copy(alpha = 0.5f))
+        HorizontalDivider(thickness = 0.5.dp, color = BiblionGoldSoft.copy(alpha = 0.5f))
     }
 }
 
@@ -412,7 +413,7 @@ fun VerseActionsFloatingMenu(
                             text = "$selectedCount",
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
                             style = MaterialTheme.typography.labelLarge,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.surface,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -427,7 +428,7 @@ fun VerseActionsFloatingMenu(
                         Icon(
                             imageVector = Icons.Default.HighlightOff,
                             contentDescription = "Limpiar",
-                            tint = Color.Gray
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
                         )
                     }
                 }
@@ -435,7 +436,7 @@ fun VerseActionsFloatingMenu(
                 if (showHighlightOptions) {
                     HorizontalDivider(
                         modifier = Modifier.width(60.dp).padding(vertical = 4.dp),
-                        color = Color.LightGray.copy(alpha = 0.2f)
+                        color = BiblionGoldSoft.copy(alpha = 0.2f)
                     )
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -446,10 +447,10 @@ fun VerseActionsFloatingMenu(
                                 modifier = Modifier
                                     .size(26.dp)
                                     .background(
-                                        color = if (index == 0) Color.White else color,
+                                        color = if (index == 0) MaterialTheme.colorScheme.surface else color,
                                         shape = RoundedCornerShape(13.dp)
                                     )
-                                    .border(1.dp, Color.LightGray.copy(alpha = 0.5f), RoundedCornerShape(13.dp))
+                                    .border(1.dp, BiblionGoldSoft.copy(alpha = 0.5f), RoundedCornerShape(13.dp))
                                     .clickable { onHighlight(index) }
                             )
                         }

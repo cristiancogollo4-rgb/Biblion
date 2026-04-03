@@ -93,7 +93,7 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
                 modifier = Modifier
                     .fillMaxHeight()
                     .width(300.dp),
-                drawerContainerColor = Color.White,
+                drawerContainerColor = MaterialTheme.colorScheme.surface,
                 drawerShape = RectangleShape
             ) {
                 Spacer(modifier = Modifier.height(48.dp))
@@ -147,9 +147,9 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
                     OutlinedButton(
                         onClick = {},
                         shape = RoundedCornerShape(50),
-                        border = BorderStroke(1.dp, Color.Black)
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface)
                     ) {
-                        Text("Iniciar Sesión", color = Color.Black)
+                        Text("Iniciar Sesión", color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
             }
@@ -186,7 +186,7 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
                     text = "VERSÍCULO DEL DÍA",
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontFamily = FontFamily.Serif,
-                        color = Color.Black,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold
                     ),
                     modifier = Modifier

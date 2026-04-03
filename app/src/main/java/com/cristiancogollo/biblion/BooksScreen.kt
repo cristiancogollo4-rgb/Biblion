@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 import kotlinx.coroutines.launch
 
@@ -96,14 +97,14 @@ fun BooksScreen(navController: NavController, selectedTestament: Testament, open
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .background(Color.White)
+                    .background(MaterialTheme.colorScheme.surface)
             ) {
                 TestamentSelector(
                     selectedTab = currentSelectedTestament,
                     onTabSelected = { currentSelectedTestamentArg = it.toRouteArg() }
                 )
 
-                HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray)
+                HorizontalDivider(thickness = 0.5.dp, color = BiblionGoldSoft.copy(alpha = 0.35f))
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -181,7 +182,7 @@ fun BiblionDrawerContent(
 
     ModalDrawerSheet(
         modifier = Modifier.fillMaxHeight().width(300.dp),
-        drawerContainerColor = Color.White,
+        drawerContainerColor = MaterialTheme.colorScheme.surface,
         drawerShape = RectangleShape
     ) {
         Spacer(modifier = Modifier.height(48.dp))

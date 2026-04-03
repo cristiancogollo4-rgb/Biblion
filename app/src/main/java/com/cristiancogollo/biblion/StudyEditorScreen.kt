@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.sp
 import com.mohamedrejeb.richeditor.model.rememberRichTextState
 import com.mohamedrejeb.richeditor.ui.material3.RichTextEditor
 import com.mohamedrejeb.richeditor.ui.material3.RichTextEditorDefaults
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,12 +68,12 @@ fun StudyEditorScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = Color(0xFFFDFBF0),
+        containerColor = BiblionGoldSoft.copy(alpha = 0.2f),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Surface(
                 tonalElevation = 2.dp,
-                color = Color.White
+                color = MaterialTheme.colorScheme.surface
             ) {
                 Row(
                     modifier = Modifier
@@ -84,7 +85,7 @@ fun StudyEditorScreen(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onClose) {
-                            Icon(Icons.Default.Close, contentDescription = "Cerrar Modo Estudio", tint = Color.Gray)
+                            Icon(Icons.Default.Close, contentDescription = "Cerrar Modo Estudio", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f))
                         }
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
