@@ -77,6 +77,7 @@ fun BooksScreen(navController: NavController, selectedTestament: Testament, open
         drawerContent = {
             BiblionDrawerContent(
                 navController = navController,
+                drawerState = drawerState,
                 onClose = { scope.launch { drawerState.close() } },
                 onPickVersion = { showVersionDialog = true },
                 onShowAbout = { showAboutDialog = true },
@@ -173,6 +174,7 @@ fun BooksScreen(navController: NavController, selectedTestament: Testament, open
  */
 fun BiblionDrawerContent(
     navController: NavController,
+    drawerState: DrawerState,
     onClose: () -> Unit,
     onPickVersion: () -> Unit,
     onShowAbout: () -> Unit,
@@ -193,6 +195,7 @@ fun BiblionDrawerContent(
             BiblionMenuItem(
                 text = titulo,
                 onClick = {
+                    if (!drawerState.isOpen) return@BiblionMenuItem
                     onClose()
                     when (titulo) {
                         "Inicio" -> {
