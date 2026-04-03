@@ -1,6 +1,5 @@
 package com.cristiancogollo.biblion
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -19,7 +18,6 @@ import androidx.compose.ui.unit.sp
 import com.mohamedrejeb.richeditor.model.rememberRichTextState
 import com.mohamedrejeb.richeditor.ui.material3.RichTextEditor
 import com.mohamedrejeb.richeditor.ui.material3.RichTextEditorDefaults
-import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,8 +30,11 @@ fun StudyEditorScreen(
     val ui by viewModel.state.collectAsState()
     val richState = rememberRichTextState()
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
     var menuOffset by remember { mutableStateOf(IntOffset(0, -120)) }
+    var showSaveDialog by remember { mutableStateOf(false) }
+    var saveTitle by remember { mutableStateOf("") }
+    var saveTagsInput by remember { mutableStateOf("") }
+    var saveError by remember { mutableStateOf<String?>(null) }
 
     val selection = richState.selection
     val hasSelection = selection.start != selection.end
@@ -68,12 +69,12 @@ fun StudyEditorScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = BiblionGoldSoft.copy(alpha = 0.2f),
+        containerColor = Color(0xFFFDFBF0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Surface(
                 tonalElevation = 2.dp,
-                color = MaterialTheme.colorScheme.surface
+                color = Color.White
             ) {
                 Row(
                     modifier = Modifier
@@ -85,7 +86,7 @@ fun StudyEditorScreen(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onClose) {
-                            Icon(Icons.Default.Close, contentDescription = "Cerrar Modo Estudio", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f))
+                            Icon(Icons.Default.Close, contentDescription = "Cerrar Modo Estudio", tint = Color.Gray)
                         }
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
@@ -98,9 +99,11 @@ fun StudyEditorScreen(
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         // Botón de Guardar Enseñanza
-                        IconButton(onClick = { 
-                            viewModel.process(StudyIntent.SaveStudy)
-                            // Opcional: Mostrar feedback al guardar
+                        IconButton(onClick = {
+                            saveTitle = ui.title
+                            saveTagsInput = ui.tags.joinToString(", ")
+                            saveError = null
+                            showSaveDialog = true
                         }) {
                             Icon(Icons.Default.Save, contentDescription = "Guardar Enseñanza", tint = BiblionNavy)
                         }
@@ -133,7 +136,11 @@ fun StudyEditorScreen(
                             richState.toggleSpanStyle(SpanStyle(fontStyle = FontStyle.Italic)); true
                         }
                         Key.S -> {
-                            viewModel.process(StudyIntent.SaveStudy); true
+                            saveTitle = ui.title
+                            saveTagsInput = ui.tags.joinToString(", ")
+                            saveError = null
+                            showSaveDialog = true
+                            true
                         }
                         else -> false
                     }
@@ -184,5 +191,76 @@ fun StudyEditorScreen(
                 }
             )
         }
+    }
+
+    if (showSaveDialog) {
+        AlertDialog(
+            onDismissRequest = { showSaveDialog = false },
+            title = { Text("Guardar enseñanza") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = saveTitle,
+                        onValueChange = {
+                            saveTitle = it
+                            saveError = null
+                        },
+                        singleLine = true,
+                        label = { Text("Título") },
+                        placeholder = { Text("Ej: La fe en tiempos difíciles") }
+                    )
+                    OutlinedTextField(
+                        value = saveTagsInput,
+                        onValueChange = {
+                            saveTagsInput = it
+                            saveError = null
+                        },
+                        singleLine = true,
+                        label = { Text("Etiquetas") },
+                        placeholder = { Text("Ej: fe, oración, esperanza") },
+                        supportingText = { Text("Separa las etiquetas por comas.") }
+                    )
+                    saveError?.let { error ->
+                        Text(
+                            text = error,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val cleanedTitle = saveTitle.trim()
+                    val parsedTags = saveTagsInput.split(",")
+                        .map { it.trim().removePrefix("#") }
+                        .filter { it.isNotBlank() }
+                        .distinct()
+                    val plainContent = ui.richHtml
+                        .replace(Regex("<[^>]*>"), " ")
+                        .replace("&nbsp;", " ")
+                        .trim()
+
+                    saveError = when {
+                        cleanedTitle.isBlank() -> "Debes agregar un título para guardar."
+                        plainContent.isBlank() -> "No puedes guardar una enseñanza vacía."
+                        parsedTags.isEmpty() -> "Agrega al menos una etiqueta."
+                        else -> null
+                    }
+
+                    if (saveError == null) {
+                        viewModel.process(StudyIntent.SaveStudyWithMetadata(cleanedTitle, parsedTags))
+                        showSaveDialog = false
+                    }
+                }) {
+                    Text("Guardar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSaveDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }

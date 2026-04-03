@@ -54,7 +54,8 @@ data class LinkedCitationEntity(
 @Serializable
 data class SerializedStudyDocument(
     val blocks: List<StudyBlockNode> = emptyList(),
-    val globalVersion: String = "rv1960"
+    val globalVersion: String = "rv1960",
+    val tags: List<String> = emptyList()
 )
 
 @Serializable

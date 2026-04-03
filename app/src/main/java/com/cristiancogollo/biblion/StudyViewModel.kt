@@ -45,7 +45,8 @@ data class StudyUiState(
     val hasActiveSelection: Boolean = false,
     val selectionFontSizeSp: Float = 18f,
     val pendingCitations: List<CitationInsertRequest> = emptyList(),
-    val globalVersion: String = "rv1960"
+    val globalVersion: String = "rv1960",
+    val tags: List<String> = emptyList()
 )
 
 sealed interface StudyIntent {
@@ -69,6 +70,7 @@ sealed interface StudyIntent {
     data object Redo : StudyIntent
     data object ExportPdf : StudyIntent
     data object SaveStudy : StudyIntent
+    data class SaveStudyWithMetadata(val title: String, val tags: List<String>) : StudyIntent
     data object Save : StudyIntent
     data object CreateNewStudy : StudyIntent
 }
@@ -180,6 +182,13 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
             }
             StudyIntent.ExportPdf -> exportPdfStub()
             StudyIntent.SaveStudy, StudyIntent.Save -> saveStudyNow()
+            is StudyIntent.SaveStudyWithMetadata -> {
+                _state.value = _state.value.copy(
+                    title = intent.title.trim(),
+                    tags = intent.tags
+                )
+                saveStudyNow()
+            }
             StudyIntent.CreateNewStudy -> {
                 viewModelScope.launch {
                     val now = System.currentTimeMillis()
@@ -262,7 +271,8 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
             title = study.title,
             richHtml = firstRich?.html ?: "",
             blocks = doc.blocks,
-            globalVersion = normalizeVersion(doc.globalVersion)
+            globalVersion = normalizeVersion(doc.globalVersion),
+            tags = doc.tags
         )
         lastSavedSignature = buildSignature(_state.value)
     }
@@ -272,7 +282,11 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
             state
                 .map { current ->
                     val selectedId = current.selectedStudyId ?: return@map ""
-                    val document = SerializedStudyDocument(blocks = current.blocks, globalVersion = current.globalVersion)
+                    val document = SerializedStudyDocument(
+                        blocks = current.blocks,
+                        globalVersion = current.globalVersion,
+                        tags = current.tags
+                    )
                     "$selectedId|${current.title}|${json.encodeToString(document)}"
                 }
                 .filter { it.isNotBlank() }
@@ -292,7 +306,11 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
         val notebookId = s.selectedNotebookId ?: return false
         val now = System.currentTimeMillis()
         val existing = dao.getStudy(id)
-        val document = SerializedStudyDocument(blocks = s.blocks, globalVersion = s.globalVersion)
+        val document = SerializedStudyDocument(
+            blocks = s.blocks,
+            globalVersion = s.globalVersion,
+            tags = s.tags
+        )
         dao.updateStudy(
             StudyEntity(
                 id = id,
@@ -336,7 +354,11 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun buildSignature(state: StudyUiState): String {
         val studyId = state.selectedStudyId ?: return ""
-        val document = SerializedStudyDocument(blocks = state.blocks, globalVersion = state.globalVersion)
+        val document = SerializedStudyDocument(
+            blocks = state.blocks,
+            globalVersion = state.globalVersion,
+            tags = state.tags
+        )
         return "$studyId|${state.title}|${json.encodeToString(document)}"
     }
 
