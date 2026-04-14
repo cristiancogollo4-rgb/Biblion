@@ -37,6 +37,33 @@ class BibleRepositoryConcurrencyTest {
         assertEquals(1, identities.size)
     }
 
+
+    @Test
+    fun getBibleForVersion_stressConcurrentRequests_sameAndDifferentVersionKeys_singleInstancePerKey() =
+        runBlocking {
+            BibleRepository.clearCache()
+            val context = ApplicationProvider.getApplicationContext<Application>()
+            val availableKeys = BibleRepository.getAvailableVersions(context).map { it.key }
+            val keysToTest = (availableKeys.take(3) + listOf("missing_a", "missing_b")).distinct()
+
+            val resultsByKey = coroutineScope {
+                keysToTest.associateWith { versionKey ->
+                    List(64) {
+                        async(Dispatchers.Default) {
+                            invokeGetBibleForVersion(context, versionKey)
+                        }
+                    }
+                }.mapValues { (_, deferreds) -> deferreds.awaitAll() }
+            }
+
+            assertTrue(resultsByKey.isNotEmpty())
+            resultsByKey.forEach { (_, results) ->
+                assertTrue(results.isNotEmpty())
+                val identities = results.map { System.identityHashCode(it) }.toSet()
+                assertEquals(1, identities.size)
+            }
+        }
+
     private fun invokeGetBibleForVersion(context: Context, versionKey: String): JSONObject {
         val method = BibleRepository::class.java.getDeclaredMethod(
             "getBibleForVersion",

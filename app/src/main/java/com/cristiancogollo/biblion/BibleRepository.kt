@@ -7,6 +7,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.FileNotFoundException
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Repositorio centralizado para acceso a Biblia local.
@@ -26,6 +27,7 @@ object BibleRepository {
     private val cachedBookKeyMapByVersion = BibleLruCache<String, Map<String, String>>(MAX_CACHED_VERSIONS)
     private val cachedTitleKeyMapByVersion = BibleLruCache<String, Map<String, String>>(MAX_CACHED_VERSIONS)
     private val cachedSearchIndexByVersion = BibleLruCache<String, List<SearchIndexEntry>>(MAX_CACHED_VERSIONS)
+    private val versionLocks = ConcurrentHashMap<String, Any>()
 
     /**
      * Si es null, la cache vive durante todo el proceso.
@@ -106,22 +108,29 @@ object BibleRepository {
         }
     }
 
+    private inline fun <K, V> ConcurrentHashMap<K, V>.safeGetOrPut(key: K, defaultValue: () -> V): V {
+        return computeIfAbsent(key) { defaultValue() }
+    }
+
     private fun getBible(context: Context): JSONObject {
         return getBibleForVersion(context, getSelectedVersionKey(context))
     }
 
     private fun getBibleForVersion(context: Context, versionKey: String): JSONObject {
         val assetName = "$versionKey.json"
+        val versionLock = versionLocks.safeGetOrPut(versionKey) { Any() }
 
-        return synchronized(this) {
+        // Estrategia de sincronización: lock por versión para que leer cache, cargar y escribir
+        // ocurra en una única sección crítica y se eviten cargas duplicadas concurrentes.
+        return synchronized(versionLock) {
             val nowInLock = System.currentTimeMillis()
             if (isCacheValid(versionKey, nowInLock)) {
-                cachedBibleByVersion[versionKey]?.let { return@synchronized it }
+                return@synchronized checkNotNull(cachedBibleByVersion[versionKey])
             }
 
             val jsonString = try {
                 context.assets.open(assetName).bufferedReader().use { it.readText() }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 // Fallback a versión por defecto si no se encuentra el asset
                 context.assets.open("$DEFAULT_BIBLE_VERSION.json").bufferedReader().use { it.readText() }
             }
