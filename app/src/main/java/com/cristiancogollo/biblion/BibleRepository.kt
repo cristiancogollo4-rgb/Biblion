@@ -112,15 +112,11 @@ object BibleRepository {
 
     private fun getBibleForVersion(context: Context, versionKey: String): JSONObject {
         val assetName = "$versionKey.json"
-        val now = System.currentTimeMillis()
-        if (isCacheValid(versionKey, now)) {
-            return cachedBibleByVersion[versionKey]!!
-        }
 
         return synchronized(this) {
             val nowInLock = System.currentTimeMillis()
             if (isCacheValid(versionKey, nowInLock)) {
-                return@synchronized cachedBibleByVersion[versionKey]!!
+                cachedBibleByVersion[versionKey]?.let { return@synchronized it }
             }
 
             val jsonString = try {
@@ -129,7 +125,7 @@ object BibleRepository {
                 // Fallback a versión por defecto si no se encuentra el asset
                 context.assets.open("$DEFAULT_BIBLE_VERSION.json").bufferedReader().use { it.readText() }
             }
-            
+
             JSONObject(jsonString).also {
                 cachedBibleByVersion[versionKey] = it
                 cacheLoadedAtMsByVersion[versionKey] = nowInLock
