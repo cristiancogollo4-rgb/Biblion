@@ -63,6 +63,29 @@ class StudyViewModelTest {
         assertEquals(0, dao.updateStudyCalls)
     }
 
+    @Test
+    fun load_study_when_build_signature_fails_does_not_publish_partial_study() = runTest {
+        val dao = FakeStudyDao()
+        val viewModel = buildViewModel(dao)
+
+        advanceUntilIdle()
+        viewModel.process(StudyIntent.UpdateTitle("Estado previo"))
+        advanceUntilIdle()
+        val before = viewModel.state.value
+
+        viewModel.buildSignatureOverride = {
+            throw IllegalStateException("forced buildSignature failure")
+        }
+        viewModel.process(StudyIntent.SelectStudy(7L))
+        advanceUntilIdle()
+
+        val after = viewModel.state.value
+        assertEquals(before.selectedStudyId, after.selectedStudyId)
+        assertEquals(before.title, after.title)
+        assertEquals(before.richHtml, after.richHtml)
+        assertEquals("No se pudo cargar el estudio.", after.loadErrorMessage)
+    }
+
     private fun buildViewModel(dao: FakeStudyDao): StudyViewModel {
         val application = ApplicationProvider.getApplicationContext<Application>()
         return StudyViewModel(

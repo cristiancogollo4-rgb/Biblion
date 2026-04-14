@@ -1,6 +1,7 @@
 package com.cristiancogollo.biblion
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import java.util.UUID
@@ -50,7 +51,8 @@ data class StudyUiState(
     val pendingCitations: List<CitationInsertRequest> = emptyList(),
     val globalVersion: String = "rv1960",
     val tags: List<String> = emptyList(),
-    val isDraftMode: Boolean = false
+    val isDraftMode: Boolean = false,
+    val loadErrorMessage: String? = null
 )
 
 sealed interface StudyIntent {
@@ -85,6 +87,10 @@ class StudyViewModel(
     private val dao: StudyDao = StudyDatabase.getInstance(application).studyDao(),
     private val autoSaveDebounceMs: Long = AUTOSAVE_DEBOUNCE_MS
 ) : AndroidViewModel(application) {
+    companion object {
+        private const val TAG = "StudyViewModel"
+    }
+
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; classDiscriminator = "nodeType" }
 
     private fun normalizeVersion(version: String): String {
@@ -104,6 +110,7 @@ class StudyViewModel(
     private val selectedNotebookFlow = MutableStateFlow<Long?>(null)
 
     private var lastSavedSignature: String? = null
+    internal var buildSignatureOverride: ((StudyUiState) -> String)? = null
 
     init {
         startAutoSaveObserver()
@@ -319,19 +326,27 @@ class StudyViewModel(
 
     private suspend fun loadStudy(studyId: Long) {
         val study = withContext(Dispatchers.IO) { dao.getStudy(studyId) } ?: return
-        val doc = runCatching { json.decodeFromString<SerializedStudyDocument>(study.contentSerialized) }
-            .getOrDefault(SerializedStudyDocument())
-        val firstRich = doc.blocks.filterIsInstance<StudyBlockNode.RichText>().firstOrNull()
-        _state.value = _state.value.copy(
-            selectedStudyId = study.id,
-            title = study.title,
-            richHtml = firstRich?.html ?: "",
-            blocks = doc.blocks,
-            globalVersion = normalizeVersion(doc.globalVersion),
-            tags = doc.tags,
-            isDraftMode = false
-        )
-        lastSavedSignature = buildSignature(_state.value)
+        try {
+            val doc = runCatching { json.decodeFromString<SerializedStudyDocument>(study.contentSerialized) }
+                .getOrDefault(SerializedStudyDocument())
+            val firstRich = doc.blocks.filterIsInstance<StudyBlockNode.RichText>().firstOrNull()
+            val newState = _state.value.copy(
+                selectedStudyId = study.id,
+                title = study.title,
+                richHtml = firstRich?.html ?: "",
+                blocks = doc.blocks,
+                globalVersion = normalizeVersion(doc.globalVersion),
+                tags = doc.tags,
+                isDraftMode = false,
+                loadErrorMessage = null
+            )
+            val newSignature = buildSignature(newState)
+            _state.value = newState
+            lastSavedSignature = newSignature
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading study: $studyId", e)
+            _state.value = _state.value.copy(loadErrorMessage = "No se pudo cargar el estudio.")
+        }
     }
 
     private fun startAutoSaveObserver() {
@@ -443,6 +458,7 @@ class StudyViewModel(
     }
 
     private fun buildSignature(state: StudyUiState): String {
+        buildSignatureOverride?.let { return it(state) }
         val studyId = state.selectedStudyId ?: return ""
         val document = SerializedStudyDocument(
             blocks = state.blocks,
