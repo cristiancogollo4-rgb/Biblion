@@ -108,7 +108,7 @@ object BibleRepository {
         }
     }
 
-    private inline fun <K, V> ConcurrentHashMap<K, V>.safeGetOrPut(key: K, defaultValue: () -> V): V {
+    private inline fun <K: Any, V: Any> ConcurrentHashMap<K, V>.safeGetOrPut(key: K, crossinline defaultValue: () -> V): V {
         return computeIfAbsent(key) { defaultValue() }
     }
 
