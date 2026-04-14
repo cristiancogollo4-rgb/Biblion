@@ -80,8 +80,11 @@ sealed interface StudyIntent {
     data object StartNewDraft : StudyIntent
 }
 
-class StudyViewModel(application: Application) : AndroidViewModel(application) {
-    private val dao = StudyDatabase.getInstance(application).studyDao()
+class StudyViewModel(
+    application: Application,
+    private val dao: StudyDao = StudyDatabase.getInstance(application).studyDao(),
+    private val autoSaveDebounceMs: Long = AUTOSAVE_DEBOUNCE_MS
+) : AndroidViewModel(application) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; classDiscriminator = "nodeType" }
 
     private fun normalizeVersion(version: String): String {
@@ -100,10 +103,10 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
     private val notebooksFlow = dao.observeNotebooks().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     private val selectedNotebookFlow = MutableStateFlow<Long?>(null)
 
-    private val autosaveDebounceMs = 2500L
     private var lastSavedSignature: String? = null
 
     init {
+        startAutoSaveObserver()
         viewModelScope.launch {
             ensureSeedData()
         }
@@ -344,7 +347,7 @@ class StudyViewModel(application: Application) : AndroidViewModel(application) {
                     "$selectedId|${current.title}|${json.encodeToString(document)}"
                 }
                 .filter { it.isNotBlank() }
-                .debounce(autosaveDebounceMs)
+                .debounce(autoSaveDebounceMs)
                 .distinctUntilChanged()
                 .collect { signature ->
                     if (signature != lastSavedSignature) {
