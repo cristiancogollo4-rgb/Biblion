@@ -1,6 +1,7 @@
 package com.cristiancogollo.biblion
 
 import android.content.Context
+import com.cristiancogollo.biblion.data.repository.cache.BibleLruCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -17,24 +18,14 @@ object BibleRepository {
     private const val PREFS_NAME = "BiblionAppPrefs"
     private const val KEY_SELECTED_BIBLE_VERSION = "selectedBibleVersion"
     private const val DEFAULT_BIBLE_VERSION = "rv1960"
+    private const val MAX_CACHED_VERSIONS = 3
 
-    @Volatile
-    private var cachedBibleByVersion: MutableMap<String, JSONObject> = mutableMapOf()
-
-    @Volatile
-    private var cacheLoadedAtMsByVersion: MutableMap<String, Long> = mutableMapOf()
-
-    @Volatile
-    private var cachedTitlesByVersion: MutableMap<String, JSONObject> = mutableMapOf()
-
-    @Volatile
-    private var cachedBookKeyMapByVersion: MutableMap<String, Map<String, String>> = mutableMapOf()
-
-    @Volatile
-    private var cachedTitleKeyMapByVersion: MutableMap<String, Map<String, String>> = mutableMapOf()
-
-    @Volatile
-    private var cachedSearchIndexByVersion: MutableMap<String, List<SearchIndexEntry>> = mutableMapOf()
+    private val cachedBibleByVersion = BibleLruCache<String, JSONObject>(MAX_CACHED_VERSIONS)
+    private val cacheLoadedAtMsByVersion = BibleLruCache<String, Long>(MAX_CACHED_VERSIONS)
+    private val cachedTitlesByVersion = BibleLruCache<String, JSONObject>(MAX_CACHED_VERSIONS)
+    private val cachedBookKeyMapByVersion = BibleLruCache<String, Map<String, String>>(MAX_CACHED_VERSIONS)
+    private val cachedTitleKeyMapByVersion = BibleLruCache<String, Map<String, String>>(MAX_CACHED_VERSIONS)
+    private val cachedSearchIndexByVersion = BibleLruCache<String, List<SearchIndexEntry>>(MAX_CACHED_VERSIONS)
 
     /**
      * Si es null, la cache vive durante todo el proceso.
@@ -51,14 +42,23 @@ object BibleRepository {
     }
 
     fun clearCache() {
-        synchronized(this) {
-            cachedBibleByVersion.clear()
-            cacheLoadedAtMsByVersion.clear()
-            cachedTitlesByVersion.clear()
-            cachedBookKeyMapByVersion.clear()
-            cachedTitleKeyMapByVersion.clear()
-            cachedSearchIndexByVersion.clear()
-        }
+        cachedBibleByVersion.clear()
+        cacheLoadedAtMsByVersion.clear()
+        cachedTitlesByVersion.clear()
+        cachedBookKeyMapByVersion.clear()
+        cachedTitleKeyMapByVersion.clear()
+        cachedSearchIndexByVersion.clear()
+    }
+
+    fun clearVersionCache(versionKey: String) {
+        val normalized = versionKey.trim().lowercase(Locale.ROOT)
+        if (normalized.isBlank()) return
+        cachedBibleByVersion.remove(normalized)
+        cacheLoadedAtMsByVersion.remove(normalized)
+        cachedTitlesByVersion.remove(normalized)
+        cachedBookKeyMapByVersion.remove(normalized)
+        cachedTitleKeyMapByVersion.remove(normalized)
+        cachedSearchIndexByVersion.remove(normalized)
     }
 
     fun getSelectedVersionKey(context: Context): String {
