@@ -59,7 +59,17 @@ data class DailyVerse(val text: String, val reference: String)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
+fun HomeScreen(
+    navController: NavController,
+    modifier: Modifier = Modifier,
+    loadAvailableVersions: suspend (Context) -> List<BibleVersionOption> = { ctx ->
+        BibleRepository.getAvailableVersions(ctx)
+    },
+    loadDailyVerse: suspend (Context, String) -> DailyVerse = { ctx, versionKey ->
+        getDailyVerse(ctx, versionKey)
+    },
+    onDailyVerseLoaded: (DailyVerse, String) -> Unit = { _, _ -> }
+) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -75,16 +85,18 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
     var showAboutDialog by remember { mutableStateOf(false) }
     var showComingSoonDialog by remember { mutableStateOf(false) }
 
-    // Cargar el versículo del día al entrar en la pantalla
-    LaunchedEffect(Unit) {
-        availableVersions = BibleRepository.getAvailableVersions(context)
-        selectedVersionKey = BibleRepository.getSelectedVersionKey(context)
-        dailyVerse = getDailyVerse(context, selectedVersionKey)
-    }
-
-    LaunchedEffect(selectedVersionKey) {
-        dailyVerse = getDailyVerse(context, selectedVersionKey)
-    }
+    DailyVerseLoaderEffect(
+        context = context,
+        selectedVersionKey = selectedVersionKey,
+        availableVersions = availableVersions,
+        onAvailableVersionsLoaded = { availableVersions = it },
+        onDailyVerseLoaded = { verse, versionKey ->
+            dailyVerse = verse
+            onDailyVerseLoaded(verse, versionKey)
+        },
+        loadAvailableVersions = loadAvailableVersions,
+        loadDailyVerse = loadDailyVerse
+    )
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -227,6 +239,33 @@ fun HomeScreen(navController: NavController, modifier: Modifier=Modifier) {
 
     if (showComingSoonDialog) {
         BiblionComingSoonDialog(onDismiss = { showComingSoonDialog = false })
+    }
+}
+
+@Composable
+internal fun DailyVerseLoaderEffect(
+    context: Context,
+    selectedVersionKey: String,
+    availableVersions: List<BibleVersionOption>,
+    onAvailableVersionsLoaded: (List<BibleVersionOption>) -> Unit,
+    onDailyVerseLoaded: (DailyVerse, String) -> Unit,
+    loadAvailableVersions: suspend (Context) -> List<BibleVersionOption>,
+    loadDailyVerse: suspend (Context, String) -> DailyVerse
+) {
+    val latestLoadAvailableVersions by rememberUpdatedState(loadAvailableVersions)
+    val latestLoadDailyVerse by rememberUpdatedState(loadDailyVerse)
+    val latestOnAvailableVersionsLoaded by rememberUpdatedState(onAvailableVersionsLoaded)
+    val latestOnDailyVerseLoaded by rememberUpdatedState(onDailyVerseLoaded)
+
+    LaunchedEffect(selectedVersionKey) {
+        if (availableVersions.isEmpty()) {
+            val versions = latestLoadAvailableVersions(context)
+            latestOnAvailableVersionsLoaded(versions)
+        }
+
+        val currentVersion = selectedVersionKey
+        val verse = latestLoadDailyVerse(context, currentVersion)
+        latestOnDailyVerseLoaded(verse, currentVersion)
     }
 }
 
