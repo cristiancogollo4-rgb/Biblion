@@ -54,6 +54,7 @@ fun AboutBiblionDialog(onDismiss: () -> Unit) {
                 Text("Equipo:", fontWeight = FontWeight.SemiBold)
 
                 Text("Cristian Felipe Cogollo Rodríguez — Co-fundador & Lead Developer")
+                Text("Luis Eduardo Jaimes Hernandez — Co-fundador & Lead Developer")
                 Text("Anderson Geovanny Duarte Largo — Co-fundador & Estrategia / Alianzas")
                 Text(
                     buildAnnotatedString {

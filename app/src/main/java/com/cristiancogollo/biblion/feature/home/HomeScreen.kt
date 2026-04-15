@@ -163,7 +163,10 @@ fun HomeScreen(
                     Text(stringResource(R.string.reader_label))
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedButton(
-                        onClick = {},
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            showComingSoonDialog = true
+                        },
                         shape = RoundedCornerShape(50),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface)
                     ) {
