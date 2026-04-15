@@ -82,7 +82,7 @@ sealed interface StudyIntent {
     data object StartNewDraft : StudyIntent
 }
 
-class StudyViewModel(
+class StudyViewModel @JvmOverloads constructor(
     application: Application,
     private val dao: StudyDao = StudyDatabase.getInstance(application).studyDao(),
     private val autoSaveDebounceMs: Long = AUTOSAVE_DEBOUNCE_MS
