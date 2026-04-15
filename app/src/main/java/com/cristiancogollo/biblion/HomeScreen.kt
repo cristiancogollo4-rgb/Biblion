@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -19,18 +18,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -110,15 +107,23 @@ fun HomeScreen(
             ) {
                 Spacer(modifier = Modifier.height(48.dp))
 
-                val opciones = listOf("Inicio", "Elegir Versión", "Mis Enseñanzas", "Doctrinas", "Biblion", "Modo Estudio", "Sobre Nosotros")
+                val menuOptions = listOf(
+                    HomeDrawerOption.HOME,
+                    HomeDrawerOption.PICK_VERSION,
+                    HomeDrawerOption.MY_TEACHINGS,
+                    HomeDrawerOption.DOCTRINES,
+                    HomeDrawerOption.BIBLION,
+                    HomeDrawerOption.STUDY_MODE,
+                    HomeDrawerOption.ABOUT_US
+                )
 
-                opciones.forEach { titulo ->
+                menuOptions.forEach { option ->
                     BiblionMenuItem(
-                        text = titulo,
+                        text = stringResource(option.labelRes),
                         onClick = {
                             scope.launch { drawerState.close() }
-                            when (titulo) {
-                                "Inicio" -> {
+                            when (option) {
+                                HomeDrawerOption.HOME -> {
                                     if (currentRoute != Screen.Home.route) {
                                         navController.navigate(Screen.Home.route) {
                                             popUpTo(Screen.Home.route) { inclusive = false }
@@ -126,19 +131,20 @@ fun HomeScreen(
                                         }
                                     }
                                 }
-                                "Mis Enseñanzas" -> {
+                                HomeDrawerOption.MY_TEACHINGS -> {
                                     navController.navigateSingleTop(Screen.Ensenanzas.route)
                                 }
-                                "Modo Estudio" -> {
+                                HomeDrawerOption.STUDY_MODE -> {
                                     navController.navigateSingleTop(Screen.Reader.createRoute(studyMode = true))
                                 }
-                                "Elegir Versión" -> {
+                                HomeDrawerOption.PICK_VERSION -> {
                                     showVersionDialog = true
                                 }
-                                "Doctrinas", "Biblion" -> {
+                                HomeDrawerOption.DOCTRINES,
+                                HomeDrawerOption.BIBLION -> {
                                     showComingSoonDialog = true
                                 }
-                                "Sobre Nosotros" -> {
+                                HomeDrawerOption.ABOUT_US -> {
                                     showAboutDialog = true
                                 }
                             }
@@ -154,14 +160,14 @@ fun HomeScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Icon(Icons.Default.AccountCircle, contentDescription = null, modifier = Modifier.size(80.dp))
-                    Text("Lector")
+                    Text(stringResource(R.string.reader_label))
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedButton(
                         onClick = {},
                         shape = RoundedCornerShape(50),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface)
                     ) {
-                        Text("Iniciar Sesión", color = MaterialTheme.colorScheme.onSurface)
+                        Text(stringResource(R.string.sign_in), color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
             }
@@ -195,7 +201,7 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Text(
-                    text = "VERSÍCULO DEL DÍA",
+                    text = stringResource(R.string.daily_verse_title),
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontFamily = FontFamily.Serif,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -240,6 +246,17 @@ fun HomeScreen(
     if (showComingSoonDialog) {
         BiblionComingSoonDialog(onDismiss = { showComingSoonDialog = false })
     }
+}
+
+
+private enum class HomeDrawerOption(val labelRes: Int) {
+    HOME(R.string.drawer_home),
+    PICK_VERSION(R.string.drawer_pick_version),
+    MY_TEACHINGS(R.string.drawer_my_teachings),
+    DOCTRINES(R.string.drawer_doctrines),
+    BIBLION(R.string.drawer_biblion),
+    STUDY_MODE(R.string.drawer_study_mode),
+    ABOUT_US(R.string.drawer_about_us)
 }
 
 @Composable
@@ -311,21 +328,21 @@ private suspend fun getDailyVerse(context: Context, versionKey: String): DailyVe
         } catch (e: Exception) {
             // Fallback en caso de error
             return DailyVerse(
-                "Porque de tal manera amó Dios al mundo, que ha dado a su Hijo unigénito, para que todo aquel que en él cree, no se pierda, mas tenga vida eterna.",
-                "Juan 3:16"
+                context.getString(R.string.daily_verse_fallback_text),
+                context.getString(R.string.daily_verse_fallback_reference)
             )
         }
     } else {
-        book = prefs.getString(dailyBookKey, "Juan") ?: "Juan"
-        chapter = prefs.getString(dailyChapterKey, "3") ?: "3"
-        verse = prefs.getString(dailyVerseNumKey, "16") ?: "16"
+        book = prefs.getString(dailyBookKey, context.getString(R.string.daily_verse_default_book)) ?: context.getString(R.string.daily_verse_default_book)
+        chapter = prefs.getString(dailyChapterKey, context.getString(R.string.daily_verse_default_chapter)) ?: context.getString(R.string.daily_verse_default_chapter)
+        verse = prefs.getString(dailyVerseNumKey, context.getString(R.string.daily_verse_default_verse)) ?: context.getString(R.string.daily_verse_default_verse)
     }
 
     // Obtener el texto del versículo para la versión actual
     return try {
         BibleRepository.getVerseText(context, versionKey, book, chapter, verse)
     } catch (e: Exception) {
-        DailyVerse("Cargando versículo...", "$book $chapter:$verse")
+        DailyVerse(context.getString(R.string.daily_verse_loading), "$book $chapter:$verse")
     }
 }
 

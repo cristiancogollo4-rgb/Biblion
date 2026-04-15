@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -68,9 +69,10 @@ fun BooksScreen(navController: NavController, selectedTestament: Testament, open
         if (currentSelectedTestament == Testament.OLD) oldTestamentBooks else newTestamentBooks
     }
     
-    val title = remember(currentSelectedTestament) {
-        "Libros del ${currentSelectedTestament.label}"
-    }
+    val title = stringResource(
+        R.string.books_screen_title,
+        stringResource(currentSelectedTestament.labelRes)
+    )
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -165,6 +167,17 @@ fun BooksScreen(navController: NavController, selectedTestament: Testament, open
     }
 }
 
+
+private enum class DrawerOption(val labelRes: Int) {
+    HOME(R.string.drawer_home),
+    PICK_VERSION(R.string.drawer_pick_version),
+    MY_TEACHINGS(R.string.drawer_my_teachings),
+    DOCTRINES(R.string.drawer_doctrines),
+    BIBLION(R.string.drawer_biblion),
+    STUDY_MODE(R.string.drawer_study_mode),
+    ABOUT_US(R.string.drawer_about_us)
+}
+
 @Composable
 /**
  * Contenido del drawer lateral de la app.
@@ -189,25 +202,34 @@ fun BiblionDrawerContent(
     ) {
         Spacer(modifier = Modifier.height(48.dp))
 
-        val opciones = listOf("Inicio", "Elegir Versión", "Mis Enseñanzas", "Doctrinas", "Biblion", "Modo Estudio", "Sobre Nosotros")
+        val menuOptions = listOf(
+            DrawerOption.HOME,
+            DrawerOption.PICK_VERSION,
+            DrawerOption.MY_TEACHINGS,
+            DrawerOption.DOCTRINES,
+            DrawerOption.BIBLION,
+            DrawerOption.STUDY_MODE,
+            DrawerOption.ABOUT_US
+        )
 
-        opciones.forEach { titulo ->
+        menuOptions.forEach { option ->
             BiblionMenuItem(
-                text = titulo,
+                text = stringResource(option.labelRes),
                 onClick = {
                     if (!drawerState.isOpen) return@BiblionMenuItem
                     onClose()
-                    when (titulo) {
-                        "Inicio" -> {
+                    when (option) {
+                        DrawerOption.HOME -> {
                             if (currentRoute != Screen.Home.route) {
                                 navController.navigateSingleTop(Screen.Home.route)
                             }
                         }
-                        "Elegir Versión" -> onPickVersion()
-                        "Mis Enseñanzas" -> navController.navigateSingleTop(Screen.Ensenanzas.route)
-                        "Doctrinas", "Biblion" -> onShowComingSoon()
-                        "Sobre Nosotros" -> onShowAbout()
-                        "Modo Estudio" -> {
+                        DrawerOption.PICK_VERSION -> onPickVersion()
+                        DrawerOption.MY_TEACHINGS -> navController.navigateSingleTop(Screen.Ensenanzas.route)
+                        DrawerOption.DOCTRINES,
+                        DrawerOption.BIBLION -> onShowComingSoon()
+                        DrawerOption.ABOUT_US -> onShowAbout()
+                        DrawerOption.STUDY_MODE -> {
                             navController.navigateSingleTop(Screen.Reader.createRoute(studyMode = true))
                         }
                     }
@@ -221,7 +243,7 @@ fun BiblionDrawerContent(
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Default.AccountCircle, contentDescription = null, modifier = Modifier.size(80.dp))
-                Text("Lector")
+                Text(stringResource(R.string.reader_label))
             }
         }
     }

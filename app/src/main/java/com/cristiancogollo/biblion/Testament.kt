@@ -1,19 +1,19 @@
 package com.cristiancogollo.biblion
 
 enum class Testament(
-    val label: String,
+    val labelRes: Int,
     val routeArg: String,
-    val shortLabel: String
+    val shortLabelRes: Int
 ) {
     OLD(
-        label = "Antiguo Testamento",
+        labelRes = R.string.testament_old_label,
         routeArg = "ANTIGUO TESTAMENTO",
-        shortLabel = "ANTIGUO"
+        shortLabelRes = R.string.testament_old_short_label
     ),
     NEW(
-        label = "Nuevo Testamento",
+        labelRes = R.string.testament_new_label,
         routeArg = "NUEVO TESTAMENTO",
-        shortLabel = "NUEVO"
+        shortLabelRes = R.string.testament_new_short_label
     );
 
     fun toRouteArg(): String = encodeArg(routeArg)
