@@ -3,14 +3,12 @@ workflows:
     name: Android Release
     max_build_duration: 60
     environment:
-      android:
-        build_type: release
       java: "17"
     scripts:
       - name: Set Android SDK path
         script: |
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
-      - name: Build Android
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/local.properties"
+      - name: Build Android release
         script: |
           ./gradlew assembleRelease
     artifacts:
@@ -20,14 +18,12 @@ workflows:
     name: Android Debug
     max_build_duration: 60
     environment:
-      android:
-        build_type: debug
       java: "17"
     scripts:
       - name: Set Android SDK path
         script: |
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
-      - name: Build Android
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/local.properties"
+      - name: Build Android debug
         script: |
           ./gradlew assembleDebug
     artifacts:
