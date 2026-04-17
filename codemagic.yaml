@@ -6,6 +6,8 @@ workflows:
     environment:
       groups:
         - github_credentials
+      android_signing:
+        - biblion_keystore
       java: "17"
 
     triggering:
@@ -26,6 +28,10 @@ workflows:
 
       - name: Build Android release
         script: |
+          : "${CM_KEYSTORE_PATH:?Missing Android keystore. Upload a keystore in Codemagic with reference biblion_keystore.}"
+          : "${CM_KEYSTORE_PASSWORD:?Missing CM_KEYSTORE_PASSWORD from Codemagic Android signing setup.}"
+          : "${CM_KEY_ALIAS:?Missing CM_KEY_ALIAS from Codemagic Android signing setup.}"
+          : "${CM_KEY_PASSWORD:?Missing CM_KEY_PASSWORD from Codemagic Android signing setup.}"
           ./gradlew assembleRelease
 
       - name: Create release notes
