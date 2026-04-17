@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,6 +7,35 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
 }
+
+val keyProperties = Properties()
+val keyPropertiesFile = rootProject.file("key.properties")
+
+if (keyPropertiesFile.exists()) {
+    keyPropertiesFile.inputStream().use(keyProperties::load)
+}
+
+val ciKeystorePath = System.getenv("CM_KEYSTORE_PATH")
+val ciKeystorePassword = System.getenv("CM_KEYSTORE_PASSWORD")
+val ciKeyAlias = System.getenv("CM_KEY_ALIAS")
+val ciKeyPassword = System.getenv("CM_KEY_PASSWORD")
+val hasCiSigning = listOf(
+    ciKeystorePath,
+    ciKeystorePassword,
+    ciKeyAlias,
+    ciKeyPassword
+).all { !it.isNullOrBlank() }
+
+val localKeystorePath = keyProperties.getProperty("storeFile")
+val localKeystorePassword = keyProperties.getProperty("storePassword")
+val localKeyAlias = keyProperties.getProperty("keyAlias")
+val localKeyPassword = keyProperties.getProperty("keyPassword")
+val hasLocalSigning = listOf(
+    localKeystorePath,
+    localKeystorePassword,
+    localKeyAlias,
+    localKeyPassword
+).all { !it.isNullOrBlank() }
 
 android {
     namespace = "com.cristiancogollo.biblion"
@@ -20,9 +51,31 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            when {
+                hasCiSigning -> {
+                    storeFile = file(ciKeystorePath!!)
+                    storePassword = ciKeystorePassword
+                    keyAlias = ciKeyAlias
+                    keyPassword = ciKeyPassword
+                }
+                hasLocalSigning -> {
+                    storeFile = file(localKeystorePath!!)
+                    storePassword = localKeystorePassword
+                    keyAlias = localKeyAlias
+                    keyPassword = localKeyPassword
+                }
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (hasCiSigning || hasLocalSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
