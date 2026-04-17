@@ -2,33 +2,76 @@ workflows:
   android-release:
     name: Android Release
     max_build_duration: 60
+
     environment:
-      android:
-        build_type: release
+      groups:
+        - github_credentials
       java: "17"
+
+    triggering:
+      events:
+        - tag
+      branch_patterns:
+        - pattern: "main"
+          include: true
+          source: true
+      tag_patterns:
+        - pattern: "v*"
+          include: true
+
     scripts:
       - name: Set Android SDK path
         script: |
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
-      - name: Build Android
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/local.properties"
+
+      - name: Build Android release
         script: |
           ./gradlew assembleRelease
+
+      - name: Create release notes
+        script: |
+          cat > release_notes.md <<EOF
+          Automated release for ${CM_TAG}
+          Commit: ${CM_COMMIT}
+          EOF
+
+      - name: Publish to GitHub Release
+        script: |
+          if [ -z "$CM_TAG" ]; then
+            echo "Not a tag build, skipping GitHub release"
+            exit 0
+          fi
+
+          APK_PATH="$(find app/build/outputs/apk/release -name '*.apk' | head -n 1)"
+
+          if [ -z "$APK_PATH" ]; then
+            echo "No release APK found"
+            exit 1
+          fi
+
+          gh release create "${CM_TAG}" \
+            --title "Biblion ${CM_TAG}" \
+            --notes-file release_notes.md \
+            "$APK_PATH"
+
     artifacts:
       - app/build/outputs/apk/release/**/*.apk
 
   android-debug:
     name: Android Debug
     max_build_duration: 60
+
     environment:
-      android:
-        build_type: debug
       java: "17"
+
     scripts:
       - name: Set Android SDK path
         script: |
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
-      - name: Build Android
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/local.properties"
+
+      - name: Build Android debug
         script: |
           ./gradlew assembleDebug
+
     artifacts:
       - app/build/outputs/apk/debug/**/*.apk
