@@ -35,6 +35,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -57,8 +58,11 @@ fun BiblionTopAppBar(
     onNavigationIconClick: () -> Unit = {},
     onSearchIconClick: () -> Unit = {},
     logoResId: Int? = null,
-    logoContentDescription: String = "Logo de la app"
+    logoContentDescription: String = ""
 ) {
+    val resolvedLogoContentDescription =
+        logoContentDescription.ifBlank { stringResource(R.string.cd_app_logo) }
+
     CenterAlignedTopAppBar(
         title = {
             Row(
@@ -68,7 +72,7 @@ fun BiblionTopAppBar(
                 if (logoResId != null) {
                     Image(
                         painter = painterResource(id = logoResId),
-                        contentDescription = logoContentDescription,
+                        contentDescription = resolvedLogoContentDescription,
                         modifier = Modifier
                             .size(80.dp)
                             .padding(end = 10.dp),
@@ -77,7 +81,7 @@ fun BiblionTopAppBar(
                 }
 
                 Text(
-                    text = "BIBLION",
+                    text = stringResource(R.string.biblion_wordmark),
                     style = MaterialTheme.typography.headlineMedium.copy(
                         fontFamily = FontFamily.Serif,
                         fontWeight = FontWeight.Bold
@@ -90,7 +94,7 @@ fun BiblionTopAppBar(
             IconButton(onClick = onNavigationIconClick) {
                 Icon(
                     imageVector = Icons.Default.Menu,
-                    contentDescription = "Menú",
+                    contentDescription = stringResource(R.string.cd_open_menu),
                     tint = BiblionNavy
                 )
             }
@@ -99,7 +103,7 @@ fun BiblionTopAppBar(
             IconButton(onClick = onSearchIconClick) {
                 Icon(
                     imageVector = Icons.Default.Search,
-                    contentDescription = "Buscar",
+                    contentDescription = stringResource(R.string.cd_search),
                     tint = BiblionNavy
                 )
             }
@@ -142,7 +146,7 @@ fun TestamentSelector(
                 contentPadding = PaddingValues(0.dp)
             ) {
                 Text(
-                    text = testament.shortLabel,
+                    text = stringResource(testament.shortLabelRes),
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                     fontSize = 13.sp
                 )
@@ -264,7 +268,7 @@ fun BiblionSelectionDialog(
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("CANCELAR", color = BiblionGoldPrimary)
+                        Text(stringResource(R.string.cancel), color = BiblionGoldPrimary)
                     }
                 }
             }
@@ -309,7 +313,7 @@ fun BiblionReaderTopAppBar(
                 IconButton(onClick = onNavigationIconClick) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
+                        contentDescription = stringResource(R.string.cd_back),
                         tint = BiblionNavy
                     )
                 }
@@ -318,7 +322,7 @@ fun BiblionReaderTopAppBar(
                 IconButton(onClick = onSearchIconClick) {
                     Icon(
                         imageVector = Icons.Default.Search,
-                        contentDescription = "Buscar",
+                        contentDescription = stringResource(R.string.cd_search),
                         tint = BiblionNavy
                     )
                 }
@@ -326,7 +330,7 @@ fun BiblionReaderTopAppBar(
                 IconButton(onClick = onDecreaseFontSize) {
                     Icon(
                         imageVector = Icons.Default.HorizontalRule,
-                        contentDescription = "Menos letra",
+                        contentDescription = stringResource(R.string.cd_decrease_font_size),
                         tint = BiblionNavy
                     )
                 }
@@ -334,7 +338,7 @@ fun BiblionReaderTopAppBar(
                 IconButton(onClick = onIncreaseFontSize) {
                     Icon(
                         imageVector = Icons.Default.Add,
-                        contentDescription = "Más letra",
+                        contentDescription = stringResource(R.string.cd_increase_font_size),
                         tint = BiblionNavy
                     )
                 }

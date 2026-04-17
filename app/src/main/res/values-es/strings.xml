@@ -1,0 +1,39 @@
+<resources>
+    <string name="app_name">Biblion</string>
+    <string name="biblion_wordmark">BIBLION</string>
+
+    <string name="drawer_home">Inicio</string>
+    <string name="drawer_pick_version">Elegir versión</string>
+    <string name="drawer_my_teachings">Mis enseñanzas</string>
+    <string name="drawer_doctrines">Doctrinas</string>
+    <string name="drawer_biblion">Biblion</string>
+    <string name="drawer_study_mode">Modo estudio</string>
+    <string name="drawer_about_us">Sobre nosotros</string>
+
+    <string name="reader_label">Lector</string>
+    <string name="sign_in">Iniciar sesión</string>
+
+    <string name="testament_old_label">Antiguo Testamento</string>
+    <string name="testament_new_label">Nuevo Testamento</string>
+    <string name="testament_old_short_label">ANTIGUO</string>
+    <string name="testament_new_short_label">NUEVO</string>
+
+    <string name="books_screen_title">Libros del %1$s</string>
+
+    <string name="daily_verse_title">VERSÍCULO DEL DÍA</string>
+    <string name="daily_verse_fallback_text">Porque de tal manera amó Dios al mundo, que ha dado a su Hijo unigénito, para que todo aquel que en él cree, no se pierda, mas tenga vida eterna.</string>
+    <string name="daily_verse_fallback_reference">Juan 3:16</string>
+    <string name="daily_verse_default_book">Juan</string>
+    <string name="daily_verse_default_chapter">3</string>
+    <string name="daily_verse_default_verse">16</string>
+    <string name="daily_verse_loading">Cargando versículo…</string>
+
+    <string name="cd_app_logo">Logo de la app</string>
+    <string name="cd_open_menu">Abrir menú</string>
+    <string name="cd_search">Buscar</string>
+    <string name="cd_back">Volver</string>
+    <string name="cd_decrease_font_size">Disminuir tamaño de fuente</string>
+    <string name="cd_increase_font_size">Aumentar tamaño de fuente</string>
+
+    <string name="cancel">CANCELAR</string>
+</resources>

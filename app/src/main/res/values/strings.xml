@@ -1,3 +1,39 @@
 <resources>
     <string name="app_name">Biblion</string>
+    <string name="biblion_wordmark">BIBLION</string>
+
+    <string name="drawer_home">Home</string>
+    <string name="drawer_pick_version">Choose version</string>
+    <string name="drawer_my_teachings">My teachings</string>
+    <string name="drawer_doctrines">Doctrines</string>
+    <string name="drawer_biblion">Biblion</string>
+    <string name="drawer_study_mode">Study mode</string>
+    <string name="drawer_about_us">About us</string>
+
+    <string name="reader_label">Reader</string>
+    <string name="sign_in">Sign in</string>
+
+    <string name="testament_old_label">Old Testament</string>
+    <string name="testament_new_label">New Testament</string>
+    <string name="testament_old_short_label">OLD</string>
+    <string name="testament_new_short_label">NEW</string>
+
+    <string name="books_screen_title">Books of %1$s</string>
+
+    <string name="daily_verse_title">VERSE OF THE DAY</string>
+    <string name="daily_verse_fallback_text">For God so loved the world that He gave His only begotten Son, that whoever believes in Him should not perish but have everlasting life.</string>
+    <string name="daily_verse_fallback_reference">John 3:16</string>
+    <string name="daily_verse_default_book">John</string>
+    <string name="daily_verse_default_chapter">3</string>
+    <string name="daily_verse_default_verse">16</string>
+    <string name="daily_verse_loading">Loading verse…</string>
+
+    <string name="cd_app_logo">App logo</string>
+    <string name="cd_open_menu">Open menu</string>
+    <string name="cd_search">Search</string>
+    <string name="cd_back">Back</string>
+    <string name="cd_decrease_font_size">Decrease font size</string>
+    <string name="cd_increase_font_size">Increase font size</string>
+
+    <string name="cancel">CANCEL</string>
 </resources>

@@ -62,7 +62,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.core.content.edit
 import kotlinx.coroutines.launch
-import org.json.JSONObject
+import com.cristiancogollo.biblion.reader.cache.HighlightsCache
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
@@ -299,51 +299,43 @@ fun ReaderContent(
     var pendingTargetVerse by remember(bookName, targetVerse) { mutableStateOf(targetVerse) }
     val lazyListState = rememberLazyListState()
     var floatingButtonOffset by remember { mutableStateOf(IntOffset(0, 0)) }
-    var highlightsRawCache by remember { mutableStateOf<String?>(null) }
-    var highlightsJsonCache by remember { mutableStateOf(JSONObject()) }
-    val highlightsByChapterCache = remember { mutableStateMapOf<String, Map<String, Int>>() }
+    val highlightsCache = remember {
+        HighlightsCache(
+            maxVersions = 2,
+            maxChaptersPerVersion = 12,
+            entryTtlMillis = 2 * 60 * 1000
+        )
+    }
 
     fun verseKey(verseNumber: String): String = "${bookName ?: ""}|$selectedChapter|$verseNumber"
-    fun chapterHighlightKey(book: String?, chapter: Int): String = "${book ?: ""}|$chapter"
 
     fun loadHighlightsForChapter() {
-        val chapterKey = chapterHighlightKey(bookName, selectedChapter)
-        highlightsByChapterCache[chapterKey]?.let {
-            verseHighlights = it
-            return
-        }
         val raw = prefs.getString(KEY_VERSE_HIGHLIGHTS, "{}") ?: "{}"
-        if (raw != highlightsRawCache) {
-            highlightsJsonCache = JSONObject(raw)
-            highlightsRawCache = raw
-            highlightsByChapterCache.clear()
-        }
-        val map = mutableMapOf<String, Int>()
-        verses.forEach { (verseNumber, _) ->
-            val saved = highlightsJsonCache.optInt(verseKey(verseNumber), 0)
-            if (saved in highlightPalette.indices) {
-                map[verseNumber] = saved
-            }
-        }
-        highlightsByChapterCache[chapterKey] = map
-        verseHighlights = map
+        verseHighlights = highlightsCache.loadChapterHighlights(
+            versionKey = selectedVersionKey,
+            rawHighlights = raw,
+            bookName = bookName,
+            chapter = selectedChapter,
+            verses = verses,
+            verseKeyProvider = ::verseKey,
+            validColorIndices = highlightPalette.indices
+        )
     }
 
     fun saveHighlight(verseNumber: String, colorIndex: Int) {
         val raw = prefs.getString(KEY_VERSE_HIGHLIGHTS, "{}") ?: "{}"
-        if (raw != highlightsRawCache) {
-            highlightsJsonCache = JSONObject(raw)
-            highlightsRawCache = raw
-            highlightsByChapterCache.clear()
-        }
-        highlightsJsonCache.put(verseKey(verseNumber), colorIndex)
-        val updatedRaw = highlightsJsonCache.toString()
-        prefs.edit { putString(KEY_VERSE_HIGHLIGHTS, updatedRaw) }
-        highlightsRawCache = updatedRaw
-        val chapterKey = chapterHighlightKey(bookName, selectedChapter)
-        val updatedMap = (highlightsByChapterCache[chapterKey] ?: verseHighlights) + (verseNumber to colorIndex)
-        highlightsByChapterCache[chapterKey] = updatedMap
-        verseHighlights = verseHighlights + (verseNumber to colorIndex)
+        val result = highlightsCache.saveHighlight(
+            versionKey = selectedVersionKey,
+            rawHighlights = raw,
+            bookName = bookName,
+            chapter = selectedChapter,
+            verseNumber = verseNumber,
+            colorIndex = colorIndex,
+            verseKeyProvider = ::verseKey,
+            currentChapterHighlights = verseHighlights
+        )
+        prefs.edit { putString(KEY_VERSE_HIGHLIGHTS, result.updatedRaw) }
+        verseHighlights = result.updatedChapterHighlights
     }
 
     fun loadChapter(book: String, chapter: Int) {
@@ -371,6 +363,16 @@ fun ReaderContent(
     LaunchedEffect(bookName, selectedChapter, verses) {
         if (bookName != null && verses.isNotEmpty()) {
             loadHighlightsForChapter()
+        }
+    }
+
+    LaunchedEffect(selectedVersionKey) {
+        highlightsCache.clearAll()
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            highlightsCache.clearAll()
         }
     }
 
