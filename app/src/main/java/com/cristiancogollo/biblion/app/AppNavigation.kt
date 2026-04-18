@@ -229,10 +229,52 @@ fun AppNavigation(
         }
 
         composable(Screen.Register.route) {
+            val context = LocalContext.current
+            val activity = context.findActivity()
+            val googleCredentialsAuth = remember(context) { GoogleCredentialsAuth(context) }
+            val scope = rememberCoroutineScope()
+
             RegisterScreen(
                 navController = navController,
                 uiState = authState,
-                onIntent = authViewModel::process
+                onIntent = authViewModel::process,
+                onGoogleSignIn = {
+                    if (activity == null) {
+                        authViewModel.onGoogleSignInUnavailable()
+                        return@RegisterScreen
+                    }
+
+                    authViewModel.beginGoogleSignIn()
+                    scope.launch {
+                        try {
+                            when (val result = googleCredentialsAuth.requestIdToken(activity)) {
+                                is GoogleCredentialsResult.Success -> {
+                                    authViewModel.signInWithGoogleIdToken(result.idToken)
+                                }
+
+                                GoogleCredentialsResult.Cancelled -> {
+                                    authViewModel.onGoogleSignInCancelled()
+                                }
+
+                                is GoogleCredentialsResult.Failure -> {
+                                    Log.w(
+                                        "BiblionAuth",
+                                        "Google sign-in credential request failed",
+                                        result.throwable
+                                    )
+                                    authViewModel.onGoogleSignInUnavailable()
+                                }
+                            }
+                        } catch (exception: Throwable) {
+                            Log.e(
+                                "BiblionAuth",
+                                "Unexpected Google sign-in crash avoided",
+                                exception
+                            )
+                            authViewModel.onGoogleSignInUnavailable()
+                        }
+                    }
+                }
             )
         }
 
