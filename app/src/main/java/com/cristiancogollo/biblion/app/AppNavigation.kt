@@ -23,6 +23,10 @@ fun AppNavigation(
 ) {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel()
+    val authState by authViewModel.state.collectAsState()
+    val context = LocalContext.current
+    val googleCredentialsAuth = remember(context) { GoogleCredentialsAuth(context) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(authViewModel, navController) {
         authViewModel.effects.collect { effect ->
@@ -54,11 +58,6 @@ fun AppNavigation(
 
     NavHost(navController = navController, startDestination = Screen.Home.route) {
         composable(Screen.Home.route) {
-            val authState by authViewModel.state.collectAsState()
-            val context = LocalContext.current
-            val googleCredentialsAuth = remember(context) { GoogleCredentialsAuth(context) }
-            val scope = rememberCoroutineScope()
-
             HomeScreen(
                 navController = navController,
                 isDarkTheme = isDarkTheme,
