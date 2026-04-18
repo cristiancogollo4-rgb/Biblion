@@ -12,15 +12,28 @@ import androidx.navigation.navArgument
 fun NavGraphBuilder.addSharedPrimaryDestinations(
     navController: NavController,
     openBooksInStudyMode: Boolean = false,
+    includeHome: Boolean = true,
     isDarkTheme: Boolean = false,
-    onToggleDarkTheme: (Boolean) -> Unit = {}
+    onToggleDarkTheme: (Boolean) -> Unit = {},
+    currentUserEmail: String? = null,
+    isAuthenticated: Boolean = false,
+    showSignedOutDialog: Boolean = false,
+    onDismissSignedOutDialog: () -> Unit = {},
+    onAuthActionClick: () -> Unit = {}
 ) {
-    composable(Screen.Home.route) {
-        HomeScreen(
-            navController = navController,
-            isDarkTheme = isDarkTheme,
-            onToggleDarkTheme = onToggleDarkTheme
-        )
+    if (includeHome) {
+        composable(Screen.Home.route) {
+            HomeScreen(
+                navController = navController,
+                isDarkTheme = isDarkTheme,
+                onToggleDarkTheme = onToggleDarkTheme,
+                currentUserEmail = currentUserEmail,
+                isAuthenticated = isAuthenticated,
+                showSignedOutDialog = showSignedOutDialog,
+                onDismissSignedOutDialog = onDismissSignedOutDialog,
+                onAuthActionClick = onAuthActionClick
+            )
+        }
     }
 
     composable(Screen.Ensenanzas.route) {

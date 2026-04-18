@@ -1,11 +1,20 @@
 package com.cristiancogollo.biblion
 
+import android.util.Log
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
 
 @Composable
 fun AppNavigation(
@@ -13,13 +22,133 @@ fun AppNavigation(
     onToggleDarkTheme: (Boolean) -> Unit
 ) {
     val navController = rememberNavController()
+    val authViewModel: AuthViewModel = viewModel()
+
+    LaunchedEffect(authViewModel, navController) {
+        authViewModel.effects.collect { effect ->
+            when (effect) {
+                AuthEffect.NavigateHome -> {
+                    val returnedToExistingHome = navController.popBackStack(
+                        Screen.Home.route,
+                        inclusive = false
+                    )
+                    if (!returnedToExistingHome) {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(navController.graph.startDestinationId) {
+                                inclusive = false
+                            }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+
+                AuthEffect.NavigateLogin -> {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Register.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            }
+        }
+    }
 
     NavHost(navController = navController, startDestination = Screen.Home.route) {
+        composable(Screen.Home.route) {
+            val authState by authViewModel.state.collectAsState()
+            val context = LocalContext.current
+            val googleCredentialsAuth = remember(context) { GoogleCredentialsAuth(context) }
+            val scope = rememberCoroutineScope()
+
+            HomeScreen(
+                navController = navController,
+                isDarkTheme = isDarkTheme,
+                onToggleDarkTheme = onToggleDarkTheme,
+                currentUserEmail = authState.currentUser?.email,
+                isAuthenticated = authState.isAuthenticated,
+                showSignedOutDialog = authState.showSignedOutDialog,
+                onDismissSignedOutDialog = {
+                    authViewModel.process(AuthIntent.DismissSignedOutDialog)
+                },
+                onAuthActionClick = {
+                    if (authState.isAuthenticated) {
+                        authViewModel.process(AuthIntent.SignOut)
+                        scope.launch {
+                            googleCredentialsAuth.clearCredentialState()
+                        }
+                    } else {
+                        navController.navigateSingleTop(Screen.Login.route)
+                    }
+                }
+            )
+        }
+
         addSharedPrimaryDestinations(
             navController = navController,
+            includeHome = false,
             isDarkTheme = isDarkTheme,
             onToggleDarkTheme = onToggleDarkTheme
         )
+
+        composable(Screen.Login.route) {
+            val authState by authViewModel.state.collectAsState()
+            val context = LocalContext.current
+            val activity = context.findActivity()
+            val googleCredentialsAuth = remember(context) { GoogleCredentialsAuth(context) }
+            val scope = rememberCoroutineScope()
+
+            LoginScreen(
+                navController = navController,
+                uiState = authState,
+                onIntent = authViewModel::process,
+                onGoogleSignIn = {
+                    if (activity == null) {
+                        authViewModel.onGoogleSignInUnavailable()
+                        return@LoginScreen
+                    }
+
+                    authViewModel.beginGoogleSignIn()
+                    scope.launch {
+                        try {
+                            when (val result = googleCredentialsAuth.requestIdToken(activity)) {
+                                is GoogleCredentialsResult.Success -> {
+                                    authViewModel.signInWithGoogleIdToken(result.idToken)
+                                }
+
+                                GoogleCredentialsResult.Cancelled -> {
+                                    authViewModel.onGoogleSignInCancelled()
+                                }
+
+                                is GoogleCredentialsResult.Failure -> {
+                                    Log.w(
+                                        "BiblionAuth",
+                                        "Google sign-in credential request failed",
+                                        result.throwable
+                                    )
+                                    authViewModel.onGoogleSignInUnavailable()
+                                }
+                            }
+                        } catch (exception: Throwable) {
+                            Log.e(
+                                "BiblionAuth",
+                                "Unexpected Google sign-in crash avoided",
+                                exception
+                            )
+                            authViewModel.onGoogleSignInUnavailable()
+                        }
+                    }
+                }
+            )
+        }
+
+        composable(Screen.Register.route) {
+            val authState by authViewModel.state.collectAsState()
+
+            RegisterScreen(
+                navController = navController,
+                uiState = authState,
+                onIntent = authViewModel::process
+            )
+        }
 
         composable(
             route = Screen.ReaderWithBook.route,
