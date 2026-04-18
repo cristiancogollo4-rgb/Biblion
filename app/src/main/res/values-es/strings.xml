@@ -43,6 +43,7 @@
     <string name="auth_logout_message">Has cerrado sesión correctamente.</string>
     <string name="auth_logout_confirm">Entendido</string>
     <string name="auth_logo_cd">Logo de Biblion</string>
+    <string name="sync_cloud_error">Error al sincronizar los datos en la nube</string>
 
     <string name="testament_old_label">Antiguo Testamento</string>
     <string name="testament_new_label">Nuevo Testamento</string>

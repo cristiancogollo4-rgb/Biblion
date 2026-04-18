@@ -16,8 +16,6 @@ import java.util.concurrent.ConcurrentHashMap
  * - Soporta invalidación manual y TTL opcional para escenarios futuros.
  */
 object BibleRepository {
-    private const val PREFS_NAME = "BiblionAppPrefs"
-    private const val KEY_SELECTED_BIBLE_VERSION = "selectedBibleVersion"
     private const val DEFAULT_BIBLE_VERSION = "rv1960"
     private const val MAX_CACHED_VERSIONS = 3
 
@@ -64,21 +62,11 @@ object BibleRepository {
     }
 
     fun getSelectedVersionKey(context: Context): String {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getString(KEY_SELECTED_BIBLE_VERSION, DEFAULT_BIBLE_VERSION)
-            ?.trim()
-            ?.lowercase(Locale.ROOT)
-            ?.ifBlank { DEFAULT_BIBLE_VERSION }
-            ?: DEFAULT_BIBLE_VERSION
+        return AppPreferencesSyncStore.getSelectedBibleVersion(context)
     }
 
     fun setSelectedVersionKey(context: Context, versionKey: String) {
-        val normalized = versionKey.trim().lowercase(Locale.ROOT)
-        if (normalized.isBlank()) return
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_SELECTED_BIBLE_VERSION, normalized)
-            .apply()
+        AppPreferencesSyncStore.setSelectedBibleVersion(context, versionKey)
     }
 
     fun getAvailableVersions(context: Context): List<BibleVersionOption> {

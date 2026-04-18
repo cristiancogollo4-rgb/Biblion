@@ -43,6 +43,7 @@
     <string name="auth_logout_message">You have signed out successfully.</string>
     <string name="auth_logout_confirm">OK</string>
     <string name="auth_logo_cd">Biblion logo</string>
+    <string name="sync_cloud_error">Error syncing data in the cloud</string>
 
     <string name="testament_old_label">Old Testament</string>
     <string name="testament_new_label">New Testament</string>
