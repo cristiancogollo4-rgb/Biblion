@@ -7,25 +7,39 @@ import androidx.room.PrimaryKey
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-@Entity(tableName = "study_notebooks")
+@Entity(
+    tableName = "study_notebooks",
+    indices = [Index(value = ["remoteId"], unique = true)]
+)
 data class StudyNotebookEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val remoteId: String = CuidGenerator.create(),
     val title: String,
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
+    val ownerUid: String? = null,
+    val deletedAt: Long? = null,
+    val lastSyncedAt: Long? = null,
+    val syncVersion: Long = 0
 )
 
 @Entity(
     tableName = "studies",
-    indices = [Index("notebookId")]
+    indices = [Index("notebookId"), Index(value = ["remoteId"], unique = true)]
 )
 data class StudyEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val remoteId: String = CuidGenerator.create(),
     val title: String,
     val notebookId: Long,
+    val notebookRemoteId: String = "",
     val contentSerialized: String,
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
+    val ownerUid: String? = null,
+    val deletedAt: Long? = null,
+    val lastSyncedAt: Long? = null,
+    val syncVersion: Long = 0
 )
 
 @Entity(

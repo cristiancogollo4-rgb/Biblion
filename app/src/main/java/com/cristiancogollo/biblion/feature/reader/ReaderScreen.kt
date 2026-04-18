@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.ClipData
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.SharedPreferences
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.util.Log
@@ -60,17 +61,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import androidx.core.content.edit
 import kotlinx.coroutines.launch
 import com.cristiancogollo.biblion.reader.cache.HighlightsCache
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
-
-private const val PREFS_NAME = "BiblionReaderPrefs"
-private const val KEY_FONT_SIZE = "fontSize"
-private const val KEY_VERSE_HIGHLIGHTS = "verseHighlights"
 
 private val highlightPalette = listOf(
     Color(0x00000000),
@@ -278,10 +274,14 @@ fun ReaderContent(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+    val prefs = remember {
+        context.getSharedPreferences(AppPreferencesSyncStore.PREFS_NAME, Context.MODE_PRIVATE)
+    }
     val clipboard = LocalClipboard.current
 
-    var fontSizeValue by remember { mutableFloatStateOf(prefs.getInt(KEY_FONT_SIZE, 18).toFloat()) }
+    var fontSizeValue by remember {
+        mutableFloatStateOf(AppPreferencesSyncStore.getReaderFontSizeSp(context).toFloat())
+    }
     val fontSize = fontSizeValue.sp
 
     var chapterCount by remember { mutableIntStateOf(0) }
@@ -310,7 +310,7 @@ fun ReaderContent(
     fun verseKey(verseNumber: String): String = "${bookName ?: ""}|$selectedChapter|$verseNumber"
 
     fun loadHighlightsForChapter() {
-        val raw = prefs.getString(KEY_VERSE_HIGHLIGHTS, "{}") ?: "{}"
+        val raw = AppPreferencesSyncStore.getRawHighlights(context)
         verseHighlights = highlightsCache.loadChapterHighlights(
             versionKey = selectedVersionKey,
             rawHighlights = raw,
@@ -323,7 +323,7 @@ fun ReaderContent(
     }
 
     fun saveHighlight(verseNumber: String, colorIndex: Int) {
-        val raw = prefs.getString(KEY_VERSE_HIGHLIGHTS, "{}") ?: "{}"
+        val raw = AppPreferencesSyncStore.getRawHighlights(context)
         val result = highlightsCache.saveHighlight(
             versionKey = selectedVersionKey,
             rawHighlights = raw,
@@ -334,8 +334,14 @@ fun ReaderContent(
             verseKeyProvider = ::verseKey,
             currentChapterHighlights = verseHighlights
         )
-        prefs.edit { putString(KEY_VERSE_HIGHLIGHTS, result.updatedRaw) }
         verseHighlights = result.updatedChapterHighlights
+        val targetBook = bookName ?: return
+        AppPreferencesSyncStore.updateHighlightChapter(
+            context = context,
+            book = targetBook,
+            chapter = selectedChapter,
+            verses = result.updatedChapterHighlights
+        )
     }
 
     fun loadChapter(book: String, chapter: Int) {
@@ -371,7 +377,30 @@ fun ReaderContent(
     }
 
     DisposableEffect(Unit) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            when (key) {
+                AppPreferencesSyncStore.KEY_FONT_SIZE -> {
+                    fontSizeValue = AppPreferencesSyncStore.getReaderFontSizeSp(context).toFloat()
+                }
+
+                AppPreferencesSyncStore.KEY_VERSE_HIGHLIGHTS -> {
+                    if (bookName != null && verses.isNotEmpty()) {
+                        loadHighlightsForChapter()
+                    }
+                }
+
+                AppPreferencesSyncStore.KEY_SELECTED_BIBLE_VERSION -> {
+                    val updatedVersion = AppPreferencesSyncStore.getSelectedBibleVersion(context)
+                    if (updatedVersion != selectedVersionKey) {
+                        selectedVersionKey = updatedVersion
+                        bookName?.let { loadChapter(it, selectedChapter) }
+                    }
+                }
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose {
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
             highlightsCache.clearAll()
         }
     }
@@ -430,13 +459,13 @@ fun ReaderContent(
                 onIncreaseFontSize = {
                     if (fontSizeValue < 35f) {
                         fontSizeValue++
-                        prefs.edit { putInt(KEY_FONT_SIZE, fontSizeValue.toInt()) }
+                        AppPreferencesSyncStore.setReaderFontSizeSp(context, fontSizeValue.toInt())
                     }
                 },
                 onDecreaseFontSize = {
                     if (fontSizeValue > 12f) {
                         fontSizeValue--
-                        prefs.edit { putInt(KEY_FONT_SIZE, fontSizeValue.toInt()) }
+                        AppPreferencesSyncStore.setReaderFontSizeSp(context, fontSizeValue.toInt())
                     }
                 }
             )
