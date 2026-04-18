@@ -4,6 +4,7 @@
 
     <string name="drawer_home">Inicio</string>
     <string name="drawer_pick_version">Elegir versión</string>
+    <string name="drawer_dark_mode">Modo oscuro</string>
     <string name="drawer_my_teachings">Mis enseñanzas</string>
     <string name="drawer_doctrines">Doctrinas</string>
     <string name="drawer_biblion">Biblion</string>

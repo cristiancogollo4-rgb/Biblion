@@ -8,11 +8,18 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(
+    isDarkTheme: Boolean,
+    onToggleDarkTheme: (Boolean) -> Unit
+) {
     val navController = rememberNavController()
 
     NavHost(navController = navController, startDestination = Screen.Home.route) {
-        addSharedPrimaryDestinations(navController = navController)
+        addSharedPrimaryDestinations(
+            navController = navController,
+            isDarkTheme = isDarkTheme,
+            onToggleDarkTheme = onToggleDarkTheme
+        )
 
         composable(
             route = Screen.ReaderWithBook.route,

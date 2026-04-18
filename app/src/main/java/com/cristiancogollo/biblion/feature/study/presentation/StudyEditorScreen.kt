@@ -109,12 +109,12 @@ fun StudyEditorScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = Color(0xFFFDFBF0),
+        containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Surface(
                 tonalElevation = 2.dp,
-                color = Color.White
+                color = MaterialTheme.colorScheme.surface
             ) {
                 Row(
                     modifier = Modifier
@@ -126,14 +126,14 @@ fun StudyEditorScreen(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onClose) {
-                            Icon(Icons.Default.Close, contentDescription = "Cerrar Modo Estudio", tint = Color.Gray)
+                            Icon(Icons.Default.Close, contentDescription = "Cerrar Modo Estudio", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                         }
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "Editor de Estudio",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = BiblionNavy
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
 
@@ -142,7 +142,7 @@ fun StudyEditorScreen(
                         IconButton(onClick = {
                             handleSave()
                         }) {
-                            Icon(Icons.Default.Save, contentDescription = "Guardar Enseñanza", tint = BiblionNavy)
+                            Icon(Icons.Default.Save, contentDescription = "Guardar Enseñanza", tint = MaterialTheme.colorScheme.onSurface)
                         }
                         
                         // Botón de Modo Enfoque (Ampliar)
@@ -150,7 +150,7 @@ fun StudyEditorScreen(
                             Icon(
                                 imageVector = if (ui.focusMode) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
                                 contentDescription = "Modo Enfoque",
-                                tint = BiblionNavy
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -230,8 +230,8 @@ fun StudyEditorScreen(
     if (showSaveDialog) {
         AlertDialog(
             onDismissRequest = { showSaveDialog = false },
-            containerColor = Color.White,
-            titleContentColor = BiblionNavy,
+            containerColor = MaterialTheme.colorScheme.surface,
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
             textContentColor = MaterialTheme.colorScheme.onSurface,
             title = { Text("Guardar enseñanza") },
             text = {

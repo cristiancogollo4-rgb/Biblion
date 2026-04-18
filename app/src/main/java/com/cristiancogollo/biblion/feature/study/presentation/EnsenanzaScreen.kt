@@ -20,7 +20,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
@@ -51,10 +50,10 @@ fun EnsenanzaScreen(navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Mis Enseñanzas", color = BiblionNavy, fontWeight = FontWeight.Bold) },
+                title = { Text("Mis Enseñanzas", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás", tint = BiblionNavy)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -66,13 +65,13 @@ fun EnsenanzaScreen(navController: NavController) {
                     viewModel.process(StudyIntent.CreateNewStudy)
                     navController.navigateSingleTop(Screen.Reader.createRoute(studyMode = true))
                 },
-                containerColor = BiblionNavy,
-                contentColor = MaterialTheme.colorScheme.surface
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Nueva Enseñanza")
             }
         },
-        containerColor = BiblionGoldSoft.copy(alpha = 0.2f)
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         if (state.allStudies.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
@@ -120,8 +119,8 @@ fun EnsenanzaScreen(navController: NavController) {
     metadataStudy?.let { study ->
         AlertDialog(
             onDismissRequest = { metadataStudy = null },
-            containerColor = Color.White,
-            titleContentColor = BiblionNavy,
+            containerColor = MaterialTheme.colorScheme.surface,
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
             textContentColor = MaterialTheme.colorScheme.onSurface,
             title = { Text("Editar título y etiquetas") },
             text = {
@@ -228,7 +227,7 @@ fun EnsenanzaCard(
                 Text(
                     text = study.title.ifBlank { "Sin título" },
                     style = MaterialTheme.typography.titleLarge,
-                    color = BiblionNavy,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -241,18 +240,18 @@ fun EnsenanzaCard(
                 )
             }
             Box {
-                IconButton(onClick = { menuExpanded = true }) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "Más opciones",
-                        tint = BiblionNavy
-                    )
-                }
+                    IconButton(onClick = { menuExpanded = true }) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "Más opciones",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
 
                 DropdownMenu(
                     expanded = menuExpanded,
                     onDismissRequest = { menuExpanded = false },
-                    containerColor = Color.White,
+                    containerColor = MaterialTheme.colorScheme.surface,
                     offset = DpOffset(x = 0.dp, y = 6.dp) // aparece debajo del icono
                 ) {
                     Row(
