@@ -1,15 +1,20 @@
 package com.cristiancogollo.biblion
 
+import android.util.Log
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
 
 @Composable
 fun AppNavigation(
@@ -50,6 +55,9 @@ fun AppNavigation(
     NavHost(navController = navController, startDestination = Screen.Home.route) {
         composable(Screen.Home.route) {
             val authState by authViewModel.state.collectAsState()
+            val context = LocalContext.current
+            val googleCredentialsAuth = remember(context) { GoogleCredentialsAuth(context) }
+            val scope = rememberCoroutineScope()
 
             HomeScreen(
                 navController = navController,
@@ -64,6 +72,9 @@ fun AppNavigation(
                 onAuthActionClick = {
                     if (authState.isAuthenticated) {
                         authViewModel.process(AuthIntent.SignOut)
+                        scope.launch {
+                            googleCredentialsAuth.clearCredentialState()
+                        }
                     } else {
                         navController.navigateSingleTop(Screen.Login.route)
                     }
@@ -80,11 +91,52 @@ fun AppNavigation(
 
         composable(Screen.Login.route) {
             val authState by authViewModel.state.collectAsState()
+            val context = LocalContext.current
+            val activity = context.findActivity()
+            val googleCredentialsAuth = remember(context) { GoogleCredentialsAuth(context) }
+            val scope = rememberCoroutineScope()
 
             LoginScreen(
                 navController = navController,
                 uiState = authState,
-                onIntent = authViewModel::process
+                onIntent = authViewModel::process,
+                onGoogleSignIn = {
+                    if (activity == null) {
+                        authViewModel.onGoogleSignInUnavailable()
+                        return@LoginScreen
+                    }
+
+                    authViewModel.beginGoogleSignIn()
+                    scope.launch {
+                        try {
+                            when (val result = googleCredentialsAuth.requestIdToken(activity)) {
+                                is GoogleCredentialsResult.Success -> {
+                                    authViewModel.signInWithGoogleIdToken(result.idToken)
+                                }
+
+                                GoogleCredentialsResult.Cancelled -> {
+                                    authViewModel.onGoogleSignInCancelled()
+                                }
+
+                                is GoogleCredentialsResult.Failure -> {
+                                    Log.w(
+                                        "BiblionAuth",
+                                        "Google sign-in credential request failed",
+                                        result.throwable
+                                    )
+                                    authViewModel.onGoogleSignInUnavailable()
+                                }
+                            }
+                        } catch (exception: Throwable) {
+                            Log.e(
+                                "BiblionAuth",
+                                "Unexpected Google sign-in crash avoided",
+                                exception
+                            )
+                            authViewModel.onGoogleSignInUnavailable()
+                        }
+                    }
+                }
             )
         }
 

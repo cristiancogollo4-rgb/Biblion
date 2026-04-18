@@ -82,6 +82,21 @@ class AuthViewModelTest {
         assertEquals(null, viewModel.state.value.currentUser)
     }
 
+    @Test
+    fun google_sign_in_success_updates_authenticated_user() = runTest {
+        val fakeRepository = FakeAuthRepository()
+        val viewModel = buildViewModel(fakeRepository)
+
+        viewModel.beginGoogleSignIn()
+        viewModel.signInWithGoogleIdToken("google-token")
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.isAuthenticated)
+        assertEquals("google.user@biblion.app", viewModel.state.value.currentUser?.email)
+        assertFalse(viewModel.state.value.isLoading)
+        assertEquals(null, viewModel.state.value.errorMessageRes)
+    }
+
     private fun buildViewModel(repository: AuthRepository = FakeAuthRepository()): AuthViewModel {
         val application = ApplicationProvider.getApplicationContext<Application>()
         return AuthViewModel(
@@ -104,6 +119,15 @@ private class FakeAuthRepository(
         val user = AuthUser(
             uid = "uid-$email",
             email = email
+        )
+        authStateFlow.value = user
+        return Result.success(user)
+    }
+
+    override suspend fun signInWithGoogle(idToken: String): Result<AuthUser> {
+        val user = AuthUser(
+            uid = "uid-$idToken",
+            email = "google.user@biblion.app"
         )
         authStateFlow.value = user
         return Result.success(user)

@@ -22,6 +22,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -45,7 +46,8 @@ import androidx.navigation.NavController
 fun LoginScreen(
     navController: NavController,
     uiState: AuthUiState,
-    onIntent: (AuthIntent) -> Unit
+    onIntent: (AuthIntent) -> Unit,
+    onGoogleSignIn: () -> Unit
 ) {
     AuthScreenScaffold(
         navController = navController,
@@ -62,6 +64,7 @@ fun LoginScreen(
             onPasswordChanged = { onIntent(AuthIntent.UpdatePassword(it)) },
             onConfirmPasswordChanged = {},
             onPrimaryAction = { onIntent(AuthIntent.SignIn) },
+            onGoogleSignIn = onGoogleSignIn,
             onSecondaryAction = {
                 onIntent(AuthIntent.ClearError)
                 navController.navigateSingleTop(Screen.Register.route)
@@ -91,6 +94,7 @@ fun RegisterScreen(
             onPasswordChanged = { onIntent(AuthIntent.UpdatePassword(it)) },
             onConfirmPasswordChanged = { onIntent(AuthIntent.UpdateConfirmPassword(it)) },
             onPrimaryAction = { onIntent(AuthIntent.Register) },
+            onGoogleSignIn = null,
             onSecondaryAction = {
                 onIntent(AuthIntent.ClearError)
                 val returnedToLogin = navController.popBackStack()
@@ -174,6 +178,7 @@ private fun AuthForm(
     onPasswordChanged: (String) -> Unit,
     onConfirmPasswordChanged: (String) -> Unit,
     onPrimaryAction: () -> Unit,
+    onGoogleSignIn: (() -> Unit)?,
     onSecondaryAction: () -> Unit
 ) {
     Column(
@@ -257,6 +262,16 @@ private fun AuthForm(
                 }
             } else {
                 Text(primaryButtonText)
+            }
+        }
+
+        if (onGoogleSignIn != null) {
+            OutlinedButton(
+                onClick = onGoogleSignIn,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !uiState.isLoading
+            ) {
+                Text(stringResource(R.string.auth_continue_with_google))
             }
         }
 

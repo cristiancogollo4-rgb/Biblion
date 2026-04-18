@@ -113,6 +113,62 @@ class AuthViewModel @JvmOverloads constructor(
         }
     }
 
+    fun beginGoogleSignIn() {
+        if (_state.value.isLoading) return
+        _state.update {
+            it.copy(
+                isLoading = true,
+                errorMessageRes = null,
+                showSignedOutDialog = false
+            )
+        }
+    }
+
+    fun signInWithGoogleIdToken(idToken: String) {
+        viewModelScope.launch {
+            repository.signInWithGoogle(idToken)
+                .onSuccess { user ->
+                    _state.update {
+                        it.copy(
+                            currentUser = user,
+                            isLoading = false,
+                            errorMessageRes = null,
+                            password = "",
+                            confirmPassword = "",
+                            showSignedOutDialog = false
+                        )
+                    }
+                    _effects.emit(AuthEffect.NavigateHome)
+                }
+                .onFailure { throwable ->
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessageRes = mapFirebaseError(throwable)
+                        )
+                    }
+                }
+        }
+    }
+
+    fun onGoogleSignInCancelled() {
+        _state.update {
+            it.copy(
+                isLoading = false,
+                errorMessageRes = R.string.auth_error_google_cancelled
+            )
+        }
+    }
+
+    fun onGoogleSignInUnavailable() {
+        _state.update {
+            it.copy(
+                isLoading = false,
+                errorMessageRes = R.string.auth_error_google_unavailable
+            )
+        }
+    }
+
     private fun signIn() {
         val current = _state.value
         if (current.isLoading) return

@@ -27,6 +27,7 @@
     <string name="auth_have_account">¿Ya tienes cuenta?</string>
     <string name="auth_go_to_register">Crear cuenta</string>
     <string name="auth_go_to_login">Iniciar sesión</string>
+    <string name="auth_continue_with_google">Continuar con Google</string>
     <string name="auth_error_empty_email">Ingresa tu correo.</string>
     <string name="auth_error_invalid_email">Ingresa un correo válido.</string>
     <string name="auth_error_empty_password">Ingresa tu contraseña.</string>
@@ -36,6 +37,8 @@
     <string name="auth_error_account_exists">Este correo ya está en uso.</string>
     <string name="auth_error_network">Revisa tu conexión a internet e inténtalo de nuevo.</string>
     <string name="auth_error_generic">No pudimos completar la solicitud. Inténtalo otra vez.</string>
+    <string name="auth_error_google_cancelled">Se canceló el acceso con Google.</string>
+    <string name="auth_error_google_unavailable">El acceso con Google no está disponible ahora mismo.</string>
     <string name="auth_logout_title">Sesión cerrada</string>
     <string name="auth_logout_message">Has cerrado sesión correctamente.</string>
     <string name="auth_logout_confirm">Entendido</string>
