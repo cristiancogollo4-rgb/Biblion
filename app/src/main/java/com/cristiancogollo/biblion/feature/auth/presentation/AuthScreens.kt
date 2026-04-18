@@ -77,7 +77,8 @@ fun LoginScreen(
 fun RegisterScreen(
     navController: NavController,
     uiState: AuthUiState,
-    onIntent: (AuthIntent) -> Unit
+    onIntent: (AuthIntent) -> Unit,
+    onGoogleSignIn: () -> Unit
 ) {
     AuthScreenScaffold(
         navController = navController,
@@ -94,7 +95,7 @@ fun RegisterScreen(
             onPasswordChanged = { onIntent(AuthIntent.UpdatePassword(it)) },
             onConfirmPasswordChanged = { onIntent(AuthIntent.UpdateConfirmPassword(it)) },
             onPrimaryAction = { onIntent(AuthIntent.Register) },
-            onGoogleSignIn = null,
+            onGoogleSignIn = onGoogleSignIn,
             onSecondaryAction = {
                 onIntent(AuthIntent.ClearError)
                 val returnedToLogin = navController.popBackStack()
