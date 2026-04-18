@@ -4,7 +4,6 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.flatMapLatest
@@ -157,9 +156,15 @@ class StudyViewModel @JvmOverloads constructor(
             is StudyIntent.DeleteStudy -> {
                 viewModelScope.launch {
                     withContext(Dispatchers.IO) {
-                        dao.deleteStudy(intent.studyId)
-                        dao.deleteCitationsForStudy(intent.studyId)
+                        val existing = dao.getStudy(intent.studyId) ?: return@withContext
+                        dao.updateStudy(
+                            existing.copy(
+                                deletedAt = System.currentTimeMillis(),
+                                updatedAt = System.currentTimeMillis()
+                            )
+                        )
                     }
+                    FirestoreSyncManager.requestStudiesSync()
                 }
             }
             is StudyIntent.UpdateTitle -> {
@@ -226,10 +231,21 @@ class StudyViewModel @JvmOverloads constructor(
                     val notebookId = _state.value.selectedNotebookId ?: withContext(Dispatchers.IO) {
                         dao.observeNotebooks().firstOrNull()?.firstOrNull()?.id
                     } ?: return@launch
+                    val notebook = withContext(Dispatchers.IO) { dao.getNotebook(notebookId) } ?: return@launch
                     val emptyDoc = json.encodeToString(SerializedStudyDocument())
                     val newId = withContext(Dispatchers.IO) {
-                        dao.insertStudy(StudyEntity(title = "Nueva Enseñanza", notebookId = notebookId, contentSerialized = emptyDoc, createdAt = now, updatedAt = now))
+                        dao.insertStudy(
+                            StudyEntity(
+                                title = "Nueva Enseñanza",
+                                notebookId = notebookId,
+                                notebookRemoteId = notebook.remoteId,
+                                contentSerialized = emptyDoc,
+                                createdAt = now,
+                                updatedAt = now
+                            )
+                        )
                     }
+                    FirestoreSyncManager.requestStudiesSync()
                     loadStudy(newId)
                 }
             }
@@ -250,7 +266,7 @@ class StudyViewModel @JvmOverloads constructor(
 
     fun addCitation(reference: String, text: String, includeFullText: Boolean) {
         val parsed = parseReference(reference) ?: return
-        val id = UUID.randomUUID().toString()
+        val id = CuidGenerator.create()
         val citation = StudyBlockNode.Citation(
             citationId = id,
             reference = parsed,
@@ -303,6 +319,7 @@ class StudyViewModel @JvmOverloads constructor(
             if (_state.value.selectedStudyId == studyId) {
                 _state.value = _state.value.copy(title = title, tags = tags)
             }
+            FirestoreSyncManager.requestStudiesSync()
         }
     }
 
@@ -317,9 +334,23 @@ class StudyViewModel @JvmOverloads constructor(
         withContext(Dispatchers.IO) {
             if (dao.getNotebookCount() == 0) {
                 val now = System.currentTimeMillis()
-                val notebookId = dao.insertNotebook(StudyNotebookEntity(title = "Mis Notas de Estudio", createdAt = now, updatedAt = now))
+                val notebook = StudyNotebookEntity(
+                    title = "Mis Notas de Estudio",
+                    createdAt = now,
+                    updatedAt = now
+                )
+                val notebookId = dao.insertNotebook(notebook)
                 val emptyDoc = json.encodeToString(SerializedStudyDocument())
-                dao.insertStudy(StudyEntity(title = "Nueva Enseñanza", notebookId = notebookId, contentSerialized = emptyDoc, createdAt = now, updatedAt = now))
+                dao.insertStudy(
+                    StudyEntity(
+                        title = "Nueva Enseñanza",
+                        notebookId = notebookId,
+                        notebookRemoteId = notebook.remoteId,
+                        contentSerialized = emptyDoc,
+                        createdAt = now,
+                        updatedAt = now
+                    )
+                )
             }
         }
     }
@@ -377,6 +408,7 @@ class StudyViewModel @JvmOverloads constructor(
         val notebookId = s.selectedNotebookId ?: withContext(Dispatchers.IO) {
             dao.observeNotebooks().firstOrNull()?.firstOrNull()?.id
         } ?: return false
+        val notebook = withContext(Dispatchers.IO) { dao.getNotebook(notebookId) } ?: return false
         val now = System.currentTimeMillis()
         val document = SerializedStudyDocument(
             blocks = s.blocks,
@@ -390,6 +422,7 @@ class StudyViewModel @JvmOverloads constructor(
                     StudyEntity(
                         title = s.title.ifBlank { "Nueva Enseñanza" },
                         notebookId = notebookId,
+                        notebookRemoteId = notebook.remoteId,
                         contentSerialized = json.encodeToString(document),
                         createdAt = now,
                         updatedAt = now
@@ -410,18 +443,28 @@ class StudyViewModel @JvmOverloads constructor(
             withContext(Dispatchers.IO) { dao.replaceCitations(newId, citations) }
             _state.value = _state.value.copy(selectedStudyId = newId, selectedNotebookId = notebookId, isDraftMode = false)
             lastSavedSignature = buildSignature(_state.value)
+            FirestoreSyncManager.requestStudiesSync()
             return true
         }
 
         withContext(Dispatchers.IO) {
             val existing = dao.getStudy(studyId)
             dao.updateStudy(
-                StudyEntity(
+                existing?.copy(
+                    title = s.title.ifBlank { "Sin título" },
+                    notebookId = notebookId,
+                    notebookRemoteId = notebook.remoteId,
+                    contentSerialized = json.encodeToString(document),
+                    createdAt = existing.createdAt,
+                    updatedAt = now,
+                    deletedAt = null
+                ) ?: StudyEntity(
                     id = studyId,
                     title = s.title.ifBlank { "Sin título" },
                     notebookId = notebookId,
+                    notebookRemoteId = notebook.remoteId,
                     contentSerialized = json.encodeToString(document),
-                    createdAt = existing?.createdAt ?: now,
+                    createdAt = now,
                     updatedAt = now
                 )
             )
@@ -439,6 +482,7 @@ class StudyViewModel @JvmOverloads constructor(
         }
         withContext(Dispatchers.IO) { dao.replaceCitations(studyId, citations) }
         lastSavedSignature = buildSignature(_state.value)
+        FirestoreSyncManager.requestStudiesSync()
         return true
     }
 

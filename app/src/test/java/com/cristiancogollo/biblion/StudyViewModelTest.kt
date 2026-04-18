@@ -139,6 +139,14 @@ private class FakeStudyDao : StudyDao {
 
     override suspend fun updateNotebook(notebook: StudyNotebookEntity) = Unit
 
+    override suspend fun getNotebook(id: Long): StudyNotebookEntity? = if (id == notebook.id) notebook else null
+
+    override suspend fun getNotebookByRemoteId(remoteId: String): StudyNotebookEntity? {
+        return if (remoteId == notebook.remoteId) notebook else null
+    }
+
+    override suspend fun getAllNotebooksForSync(): List<StudyNotebookEntity> = listOf(notebook)
+
     override suspend fun getNotebookCount(): Int = 1
 
     override fun observeStudies(notebookId: Long): Flow<List<StudyEntity>> = flowOf(listOf(study))
@@ -152,6 +160,12 @@ private class FakeStudyDao : StudyDao {
     }
 
     override suspend fun getStudy(id: Long): StudyEntity? = if (id == study.id) study else null
+
+    override suspend fun getStudyByRemoteId(remoteId: String): StudyEntity? {
+        return if (remoteId == study.remoteId) study else null
+    }
+
+    override suspend fun getAllStudiesForSync(): List<StudyEntity> = listOf(study)
 
     override suspend fun deleteStudy(id: Long) = Unit
 

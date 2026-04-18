@@ -1,13 +1,18 @@
 package com.cristiancogollo.biblion
 
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -23,6 +28,46 @@ fun AppNavigation(
 ) {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel()
+    val authState by authViewModel.state.collectAsState()
+    val appContext = LocalContext.current.applicationContext
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    LaunchedEffect(appContext) {
+        FirestoreSyncManager.initialize(appContext)
+    }
+
+    LaunchedEffect(appContext) {
+        FirestoreSyncManager.syncErrors.collect {
+            Toast.makeText(
+                appContext,
+                appContext.getString(R.string.sync_cloud_error),
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    LaunchedEffect(authState.currentUser?.uid) {
+        val user = authState.currentUser
+        if (user != null) {
+            Log.d("FirestoreSync", "AppNavigation detected authenticated user uid=${user.uid}")
+            FirestoreSyncManager.start(user)
+        } else {
+            Log.d("FirestoreSync", "AppNavigation detected signed-out state")
+            FirestoreSyncManager.stop()
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) {
+                FirestoreSyncManager.refreshNow()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     LaunchedEffect(authViewModel, navController) {
         authViewModel.effects.collect { effect ->
@@ -54,7 +99,6 @@ fun AppNavigation(
 
     NavHost(navController = navController, startDestination = Screen.Home.route) {
         composable(Screen.Home.route) {
-            val authState by authViewModel.state.collectAsState()
             val context = LocalContext.current
             val googleCredentialsAuth = remember(context) { GoogleCredentialsAuth(context) }
             val scope = rememberCoroutineScope()
@@ -90,7 +134,6 @@ fun AppNavigation(
         )
 
         composable(Screen.Login.route) {
-            val authState by authViewModel.state.collectAsState()
             val context = LocalContext.current
             val activity = context.findActivity()
             val googleCredentialsAuth = remember(context) { GoogleCredentialsAuth(context) }
@@ -141,8 +184,6 @@ fun AppNavigation(
         }
 
         composable(Screen.Register.route) {
-            val authState by authViewModel.state.collectAsState()
-
             RegisterScreen(
                 navController = navController,
                 uiState = authState,

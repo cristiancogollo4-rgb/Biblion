@@ -1,6 +1,7 @@
 package com.cristiancogollo.biblion
 
 import android.os.Bundle
+import android.content.SharedPreferences
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -12,9 +13,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Modifier
 import com.cristiancogollo.biblion.ui.theme.BiblionTheme
-import com.cristiancogollo.biblion.ui.theme.ThemePreferences
 
 /**
  * Punto de entrada Android de la aplicación.
@@ -35,6 +36,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        FirestoreSyncManager.initialize(this)
         setContent {
             BiblionApp()
         }
@@ -43,14 +45,33 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun MainActivity.BiblionApp() {
+    val activity = this
     val systemDarkTheme = isSystemInDarkTheme()
     var darkThemeEnabled by remember {
         mutableStateOf(
             ThemePreferences.isDarkModeEnabled(
-                context = this,
+                context = activity,
                 defaultValue = systemDarkTheme
             )
         )
+    }
+    DisposableEffect(systemDarkTheme) {
+        val prefs = activity.getSharedPreferences(
+            AppPreferencesSyncStore.PREFS_NAME,
+            android.content.Context.MODE_PRIVATE
+        )
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == AppPreferencesSyncStore.KEY_DARK_MODE_ENABLED) {
+                darkThemeEnabled = ThemePreferences.isDarkModeEnabled(
+                    context = activity,
+                    defaultValue = systemDarkTheme
+                )
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose {
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
     }
 
     BiblionTheme(darkTheme = darkThemeEnabled) {
@@ -61,7 +82,7 @@ private fun MainActivity.BiblionApp() {
                 isDarkTheme = darkThemeEnabled,
                 onToggleDarkTheme = { enabled ->
                     darkThemeEnabled = enabled
-                    ThemePreferences.setDarkModeEnabled(this, enabled)
+                    ThemePreferences.setDarkModeEnabled(activity, enabled)
                 }
             )
         }
