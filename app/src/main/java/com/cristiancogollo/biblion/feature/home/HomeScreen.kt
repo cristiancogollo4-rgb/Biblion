@@ -1,29 +1,17 @@
 package com.cristiancogollo.biblion
 
 import android.content.Context
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -106,108 +94,32 @@ fun HomeScreen(
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            ModalDrawerSheet(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(300.dp),
-                drawerContainerColor = MaterialTheme.colorScheme.surface,
-                drawerShape = RectangleShape
-            ) {
-                Spacer(modifier = Modifier.height(48.dp))
-
-                val menuOptions = listOf(
-                    HomeDrawerOption.HOME,
-                    HomeDrawerOption.PICK_VERSION,
-                    HomeDrawerOption.MY_TEACHINGS,
-                    HomeDrawerOption.DOCTRINES,
-                    HomeDrawerOption.BIBLION,
-                    HomeDrawerOption.STUDY_MODE,
-                    HomeDrawerOption.ABOUT_US
-                )
-
-                menuOptions.forEach { option ->
-                    if (option == HomeDrawerOption.ABOUT_US) {
-                        DarkModeMenuItem(
-                            checked = isDarkTheme,
-                            onCheckedChange = onToggleDarkTheme
-                        )
-                    }
-
-                    BiblionMenuItem(
-                        text = stringResource(option.labelRes),
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            when (option) {
-                                HomeDrawerOption.HOME -> {
-                                    if (currentRoute != Screen.Home.route) {
-                                        navController.navigate(Screen.Home.route) {
-                                            popUpTo(Screen.Home.route) { inclusive = false }
-                                            launchSingleTop = true
-                                        }
-                                    }
-                                }
-                                HomeDrawerOption.MY_TEACHINGS -> {
-                                    navController.navigateSingleTop(Screen.Ensenanzas.route)
-                                }
-                                HomeDrawerOption.STUDY_MODE -> {
-                                    navController.navigateSingleTop(Screen.Reader.createRoute(studyMode = true))
-                                }
-                                HomeDrawerOption.PICK_VERSION -> {
-                                    showVersionDialog = true
-                                }
-                                HomeDrawerOption.DOCTRINES,
-                                HomeDrawerOption.BIBLION -> {
-                                    showComingSoonDialog = true
-                                }
-                                HomeDrawerOption.ABOUT_US -> {
-                                    showAboutDialog = true
-                                }
-                            }
+            BiblionAppDrawer(
+                drawerState = drawerState,
+                isDarkTheme = isDarkTheme,
+                onToggleDarkTheme = onToggleDarkTheme,
+                currentUserEmail = currentUserEmail,
+                isAuthenticated = isAuthenticated,
+                onClose = { scope.launch { drawerState.close() } },
+                onNavigateHome = {
+                    if (currentRoute != Screen.Home.route) {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Home.route) { inclusive = false }
+                            launchSingleTop = true
                         }
-                    )
-                }
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(bottom = 32.dp),
-                    verticalArrangement = Arrangement.Bottom,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(Icons.Default.AccountCircle, contentDescription = null, modifier = Modifier.size(80.dp))
-                    Text(
-                        text = if (isAuthenticated) {
-                            stringResource(R.string.auth_account_title)
-                        } else {
-                            stringResource(R.string.reader_label)
-                        }
-                    )
-                    if (!currentUserEmail.isNullOrBlank()) {
-                        Text(
-                            text = currentUserEmail,
-                            modifier = Modifier.padding(horizontal = 24.dp),
-                            textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
                     }
-                    Spacer(modifier = Modifier.height(10.dp))
-                    OutlinedButton(
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            onAuthActionClick()
-                        },
-                        shape = RoundedCornerShape(50),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface)
-                    ) {
-                        Text(
-                            text = stringResource(
-                                if (isAuthenticated) R.string.sign_out else R.string.sign_in
-                            ),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            }
+                },
+                onNavigateToTeachings = {
+                    navController.navigateSingleTop(Screen.Ensenanzas.route)
+                },
+                onNavigateToStudyMode = {
+                    navController.navigateSingleTop(Screen.Reader.createRoute(studyMode = true))
+                },
+                onPickVersion = { showVersionDialog = true },
+                onShowComingSoon = { showComingSoonDialog = true },
+                onShowAbout = { showAboutDialog = true },
+                onAuthActionClick = onAuthActionClick
+            )
         }
     ) {
         Scaffold(
@@ -287,17 +199,6 @@ fun HomeScreen(
     if (showSignedOutDialog) {
         SignedOutDialog(onDismiss = onDismissSignedOutDialog)
     }
-}
-
-
-private enum class HomeDrawerOption(val labelRes: Int) {
-    HOME(R.string.drawer_home),
-    PICK_VERSION(R.string.drawer_pick_version),
-    MY_TEACHINGS(R.string.drawer_my_teachings),
-    DOCTRINES(R.string.drawer_doctrines),
-    BIBLION(R.string.drawer_biblion),
-    STUDY_MODE(R.string.drawer_study_mode),
-    ABOUT_US(R.string.drawer_about_us)
 }
 
 @Composable
@@ -384,47 +285,5 @@ private suspend fun getDailyVerse(context: Context, versionKey: String): DailyVe
         BibleRepository.getVerseText(context, versionKey, book, chapter, verse)
     } catch (e: Exception) {
         DailyVerse(context.getString(R.string.daily_verse_loading), "$book $chapter:$verse")
-    }
-}
-
-
-@Composable
-/**
- * Item reutilizable de menú lateral.
- *
- * @param text texto visible de la opción.
- * @param onClick callback invocado cuando el usuario toca la opción.
- */
-fun BiblionMenuItem(text: String, onClick: () -> Unit) {
-    Text(
-        text = text,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 16.dp, horizontal = 24.dp),
-        style = MaterialTheme.typography.bodyLarge
-    )
-}
-
-@Composable
-private fun DarkModeMenuItem(
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = stringResource(R.string.drawer_dark_mode),
-            style = MaterialTheme.typography.bodyLarge
-        )
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange
-        )
     }
 }

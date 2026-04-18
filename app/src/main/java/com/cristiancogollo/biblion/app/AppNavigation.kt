@@ -29,7 +29,10 @@ fun AppNavigation(
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel()
     val authState by authViewModel.state.collectAsState()
-    val appContext = LocalContext.current.applicationContext
+    val context = LocalContext.current
+    val appContext = context.applicationContext
+    val googleCredentialsAuth = remember(context) { GoogleCredentialsAuth(context) }
+    val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
 
     LaunchedEffect(appContext) {
@@ -99,10 +102,6 @@ fun AppNavigation(
 
     NavHost(navController = navController, startDestination = Screen.Home.route) {
         composable(Screen.Home.route) {
-            val context = LocalContext.current
-            val googleCredentialsAuth = remember(context) { GoogleCredentialsAuth(context) }
-            val scope = rememberCoroutineScope()
-
             HomeScreen(
                 navController = navController,
                 isDarkTheme = isDarkTheme,
@@ -130,7 +129,23 @@ fun AppNavigation(
             navController = navController,
             includeHome = false,
             isDarkTheme = isDarkTheme,
-            onToggleDarkTheme = onToggleDarkTheme
+            onToggleDarkTheme = onToggleDarkTheme,
+            currentUserEmail = authState.currentUser?.email,
+            isAuthenticated = authState.isAuthenticated,
+            showSignedOutDialog = authState.showSignedOutDialog,
+            onDismissSignedOutDialog = {
+                authViewModel.process(AuthIntent.DismissSignedOutDialog)
+            },
+            onAuthActionClick = {
+                if (authState.isAuthenticated) {
+                    authViewModel.process(AuthIntent.SignOut)
+                    scope.launch {
+                        googleCredentialsAuth.clearCredentialState()
+                    }
+                } else {
+                    navController.navigateSingleTop(Screen.Login.route)
+                }
+            }
         )
 
         composable(Screen.Login.route) {
