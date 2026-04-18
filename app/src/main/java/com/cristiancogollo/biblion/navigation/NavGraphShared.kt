@@ -13,6 +13,7 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
     navController: NavController,
     openBooksInStudyMode: Boolean = false,
     includeHome: Boolean = true,
+    includeBooks: Boolean = true,
     isDarkTheme: Boolean = false,
     onToggleDarkTheme: (Boolean) -> Unit = {},
     currentUserEmail: String? = null,
@@ -40,23 +41,25 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
         EnsenanzaScreen(navController)
     }
 
-    composable(
-        route = Screen.Books.route,
-        arguments = listOf(navArgument("testament") { type = NavType.StringType })
-    ) { backStackEntry ->
-        val testament = Testament.fromRouteArg(backStackEntry.arguments?.getString("testament"))
-        BooksScreen(
-            navController = navController,
-            selectedTestament = testament,
-            openInStudyMode = openBooksInStudyMode,
-            isDarkTheme = isDarkTheme,
-            onToggleDarkTheme = onToggleDarkTheme,
-            currentUserEmail = currentUserEmail,
-            isAuthenticated = isAuthenticated,
-            showSignedOutDialog = showSignedOutDialog,
-            onDismissSignedOutDialog = onDismissSignedOutDialog,
-            onAuthActionClick = onAuthActionClick
-        )
+    if (includeBooks) {
+        composable(
+            route = Screen.Books.route,
+            arguments = listOf(navArgument("testament") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val testament = Testament.fromRouteArg(backStackEntry.arguments?.getString("testament"))
+            BooksScreen(
+                navController = navController,
+                selectedTestament = testament,
+                openInStudyMode = openBooksInStudyMode,
+                isDarkTheme = isDarkTheme,
+                onToggleDarkTheme = onToggleDarkTheme,
+                currentUserEmail = currentUserEmail,
+                isAuthenticated = isAuthenticated,
+                showSignedOutDialog = showSignedOutDialog,
+                onDismissSignedOutDialog = onDismissSignedOutDialog,
+                onAuthActionClick = onAuthActionClick
+            )
+        }
     }
 
     composable(Screen.Search.route) {
