@@ -196,9 +196,6 @@ fun HomeScreen(
         BiblionComingSoonDialog(onDismiss = { showComingSoonDialog = false })
     }
 
-    if (showSignedOutDialog) {
-        SignedOutDialog(onDismiss = onDismissSignedOutDialog)
-    }
 }
 
 @Composable

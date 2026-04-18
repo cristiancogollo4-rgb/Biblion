@@ -128,6 +128,7 @@ fun AppNavigation(
         addSharedPrimaryDestinations(
             navController = navController,
             includeHome = false,
+            includeBooks = false,
             isDarkTheme = isDarkTheme,
             onToggleDarkTheme = onToggleDarkTheme,
             currentUserEmail = authState.currentUser?.email,
@@ -147,6 +148,35 @@ fun AppNavigation(
                 }
             }
         )
+
+        composable(
+            route = Screen.Books.route,
+            arguments = listOf(navArgument("testament") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val testament = Testament.fromRouteArg(backStackEntry.arguments?.getString("testament"))
+            BooksScreen(
+                navController = navController,
+                selectedTestament = testament,
+                isDarkTheme = isDarkTheme,
+                onToggleDarkTheme = onToggleDarkTheme,
+                currentUserEmail = authState.currentUser?.email,
+                isAuthenticated = authState.isAuthenticated,
+                showSignedOutDialog = authState.showSignedOutDialog,
+                onDismissSignedOutDialog = {
+                    authViewModel.process(AuthIntent.DismissSignedOutDialog)
+                },
+                onAuthActionClick = {
+                    if (authState.isAuthenticated) {
+                        authViewModel.process(AuthIntent.SignOut)
+                        scope.launch {
+                            googleCredentialsAuth.clearCredentialState()
+                        }
+                    } else {
+                        navController.navigateSingleTop(Screen.Login.route)
+                    }
+                }
+            )
+        }
 
         composable(Screen.Login.route) {
             val context = LocalContext.current
@@ -293,5 +323,13 @@ fun AppNavigation(
             val bookName = decodeArg(encodedName).ifBlank { null }
             ReaderScreen(navController, bookName, initialStudyMode = true)
         }
+    }
+
+    if (authState.showSignedOutDialog) {
+        SignedOutDialog(
+            onDismiss = {
+                authViewModel.process(AuthIntent.DismissSignedOutDialog)
+            }
+        )
     }
 }
