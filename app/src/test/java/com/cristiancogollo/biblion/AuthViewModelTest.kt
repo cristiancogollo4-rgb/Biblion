@@ -64,6 +64,24 @@ class AuthViewModelTest {
         assertEquals(null, viewModel.state.value.errorMessageRes)
     }
 
+    @Test
+    fun sign_out_clears_authenticated_user_immediately() = runTest {
+        val fakeRepository = FakeAuthRepository(
+            initialUser = AuthUser(
+                uid = "uid-reader",
+                email = "reader@biblion.app"
+            )
+        )
+        val viewModel = buildViewModel(fakeRepository)
+
+        advanceUntilIdle()
+        viewModel.process(AuthIntent.SignOut)
+        advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.isAuthenticated)
+        assertEquals(null, viewModel.state.value.currentUser)
+    }
+
     private fun buildViewModel(repository: AuthRepository = FakeAuthRepository()): AuthViewModel {
         val application = ApplicationProvider.getApplicationContext<Application>()
         return AuthViewModel(

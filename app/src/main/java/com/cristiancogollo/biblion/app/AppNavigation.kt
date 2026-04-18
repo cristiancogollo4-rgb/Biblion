@@ -1,6 +1,7 @@
 package com.cristiancogollo.biblion
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.navigation.NavType
@@ -17,25 +18,69 @@ fun AppNavigation(
 ) {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel()
-    val authState by authViewModel.state.collectAsState()
 
-    NavHost(navController = navController, startDestination = Screen.Home.route) {
-        addSharedPrimaryDestinations(
-            navController = navController,
-            isDarkTheme = isDarkTheme,
-            onToggleDarkTheme = onToggleDarkTheme,
-            currentUserEmail = authState.currentUser?.email,
-            isAuthenticated = authState.isAuthenticated,
-            onAuthActionClick = {
-                if (authState.isAuthenticated) {
-                    authViewModel.process(AuthIntent.SignOut)
-                } else {
-                    navController.navigateSingleTop(Screen.Login.route)
+    LaunchedEffect(authViewModel, navController) {
+        authViewModel.effects.collect { effect ->
+            when (effect) {
+                AuthEffect.NavigateHome -> {
+                    val returnedToExistingHome = navController.popBackStack(
+                        Screen.Home.route,
+                        inclusive = false
+                    )
+                    if (!returnedToExistingHome) {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(navController.graph.startDestinationId) {
+                                inclusive = false
+                            }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+
+                AuthEffect.NavigateLogin -> {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Register.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
                 }
             }
+        }
+    }
+
+    NavHost(navController = navController, startDestination = Screen.Home.route) {
+        composable(Screen.Home.route) {
+            val authState by authViewModel.state.collectAsState()
+
+            HomeScreen(
+                navController = navController,
+                isDarkTheme = isDarkTheme,
+                onToggleDarkTheme = onToggleDarkTheme,
+                currentUserEmail = authState.currentUser?.email,
+                isAuthenticated = authState.isAuthenticated,
+                showSignedOutDialog = authState.showSignedOutDialog,
+                onDismissSignedOutDialog = {
+                    authViewModel.process(AuthIntent.DismissSignedOutDialog)
+                },
+                onAuthActionClick = {
+                    if (authState.isAuthenticated) {
+                        authViewModel.process(AuthIntent.SignOut)
+                    } else {
+                        navController.navigateSingleTop(Screen.Login.route)
+                    }
+                }
+            )
+        }
+
+        addSharedPrimaryDestinations(
+            navController = navController,
+            includeHome = false,
+            isDarkTheme = isDarkTheme,
+            onToggleDarkTheme = onToggleDarkTheme
         )
 
         composable(Screen.Login.route) {
+            val authState by authViewModel.state.collectAsState()
+
             LoginScreen(
                 navController = navController,
                 uiState = authState,
@@ -44,6 +89,8 @@ fun AppNavigation(
         }
 
         composable(Screen.Register.route) {
+            val authState by authViewModel.state.collectAsState()
+
             RegisterScreen(
                 navController = navController,
                 uiState = authState,

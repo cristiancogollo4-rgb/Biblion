@@ -63,6 +63,8 @@ fun HomeScreen(
     onToggleDarkTheme: (Boolean) -> Unit,
     currentUserEmail: String? = null,
     isAuthenticated: Boolean = false,
+    showSignedOutDialog: Boolean = false,
+    onDismissSignedOutDialog: () -> Unit = {},
     onAuthActionClick: () -> Unit = {},
     modifier: Modifier = Modifier,
     loadAvailableVersions: suspend (Context) -> List<BibleVersionOption> = { ctx ->
@@ -280,6 +282,10 @@ fun HomeScreen(
 
     if (showComingSoonDialog) {
         BiblionComingSoonDialog(onDismiss = { showComingSoonDialog = false })
+    }
+
+    if (showSignedOutDialog) {
+        SignedOutDialog(onDismiss = onDismissSignedOutDialog)
     }
 }
 

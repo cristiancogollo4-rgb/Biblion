@@ -1,12 +1,15 @@
 package com.cristiancogollo.biblion
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -27,9 +30,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -44,12 +47,6 @@ fun LoginScreen(
     uiState: AuthUiState,
     onIntent: (AuthIntent) -> Unit
 ) {
-    LaunchedEffect(uiState.isAuthenticated) {
-        if (uiState.isAuthenticated) {
-            navController.navigateTopLevel(Screen.Home.route)
-        }
-    }
-
     AuthScreenScaffold(
         navController = navController,
         title = stringResource(R.string.auth_login_title),
@@ -79,12 +76,6 @@ fun RegisterScreen(
     uiState: AuthUiState,
     onIntent: (AuthIntent) -> Unit
 ) {
-    LaunchedEffect(uiState.isAuthenticated) {
-        if (uiState.isAuthenticated) {
-            navController.navigateTopLevel(Screen.Home.route)
-        }
-    }
-
     AuthScreenScaffold(
         navController = navController,
         title = stringResource(R.string.auth_register_title),
@@ -145,6 +136,14 @@ private fun AuthScreenScaffold(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.Center
         ) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Image(
+                painter = painterResource(id = R.drawable.logobiblion),
+                contentDescription = stringResource(R.string.auth_logo_cd),
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .fillMaxWidth(0.55f)
+            )
             Spacer(modifier = Modifier.height(24.dp))
             Text(
                 text = title,
@@ -246,11 +245,16 @@ private fun AuthForm(
             enabled = !uiState.isLoading
         ) {
             if (uiState.isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.height(18.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
             } else {
                 Text(primaryButtonText)
             }
