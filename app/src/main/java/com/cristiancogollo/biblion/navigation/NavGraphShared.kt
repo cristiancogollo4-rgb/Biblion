@@ -13,13 +13,19 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
     navController: NavController,
     openBooksInStudyMode: Boolean = false,
     isDarkTheme: Boolean = false,
-    onToggleDarkTheme: (Boolean) -> Unit = {}
+    onToggleDarkTheme: (Boolean) -> Unit = {},
+    currentUserEmail: String? = null,
+    isAuthenticated: Boolean = false,
+    onAuthActionClick: () -> Unit = {}
 ) {
     composable(Screen.Home.route) {
         HomeScreen(
             navController = navController,
             isDarkTheme = isDarkTheme,
-            onToggleDarkTheme = onToggleDarkTheme
+            onToggleDarkTheme = onToggleDarkTheme,
+            currentUserEmail = currentUserEmail,
+            isAuthenticated = isAuthenticated,
+            onAuthActionClick = onAuthActionClick
         )
     }
 

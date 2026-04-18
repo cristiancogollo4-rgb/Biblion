@@ -1,11 +1,14 @@
 package com.cristiancogollo.biblion
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun AppNavigation(
@@ -13,13 +16,40 @@ fun AppNavigation(
     onToggleDarkTheme: (Boolean) -> Unit
 ) {
     val navController = rememberNavController()
+    val authViewModel: AuthViewModel = viewModel()
+    val authState by authViewModel.state.collectAsState()
 
     NavHost(navController = navController, startDestination = Screen.Home.route) {
         addSharedPrimaryDestinations(
             navController = navController,
             isDarkTheme = isDarkTheme,
-            onToggleDarkTheme = onToggleDarkTheme
+            onToggleDarkTheme = onToggleDarkTheme,
+            currentUserEmail = authState.currentUser?.email,
+            isAuthenticated = authState.isAuthenticated,
+            onAuthActionClick = {
+                if (authState.isAuthenticated) {
+                    authViewModel.process(AuthIntent.SignOut)
+                } else {
+                    navController.navigateSingleTop(Screen.Login.route)
+                }
+            }
         )
+
+        composable(Screen.Login.route) {
+            LoginScreen(
+                navController = navController,
+                uiState = authState,
+                onIntent = authViewModel::process
+            )
+        }
+
+        composable(Screen.Register.route) {
+            RegisterScreen(
+                navController = navController,
+                uiState = authState,
+                onIntent = authViewModel::process
+            )
+        }
 
         composable(
             route = Screen.ReaderWithBook.route,

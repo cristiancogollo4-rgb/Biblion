@@ -61,6 +61,9 @@ fun HomeScreen(
     navController: NavController,
     isDarkTheme: Boolean,
     onToggleDarkTheme: (Boolean) -> Unit,
+    currentUserEmail: String? = null,
+    isAuthenticated: Boolean = false,
+    onAuthActionClick: () -> Unit = {},
     modifier: Modifier = Modifier,
     loadAvailableVersions: suspend (Context) -> List<BibleVersionOption> = { ctx ->
         BibleRepository.getAvailableVersions(ctx)
@@ -170,17 +173,36 @@ fun HomeScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Icon(Icons.Default.AccountCircle, contentDescription = null, modifier = Modifier.size(80.dp))
-                    Text(stringResource(R.string.reader_label))
+                    Text(
+                        text = if (isAuthenticated) {
+                            stringResource(R.string.auth_account_title)
+                        } else {
+                            stringResource(R.string.reader_label)
+                        }
+                    )
+                    if (!currentUserEmail.isNullOrBlank()) {
+                        Text(
+                            text = currentUserEmail,
+                            modifier = Modifier.padding(horizontal = 24.dp),
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedButton(
                         onClick = {
                             scope.launch { drawerState.close() }
-                            showComingSoonDialog = true
+                            onAuthActionClick()
                         },
                         shape = RoundedCornerShape(50),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface)
                     ) {
-                        Text(stringResource(R.string.sign_in), color = MaterialTheme.colorScheme.onSurface)
+                        Text(
+                            text = stringResource(
+                                if (isAuthenticated) R.string.sign_out else R.string.sign_in
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
             }
