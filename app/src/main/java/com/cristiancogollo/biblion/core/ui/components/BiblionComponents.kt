@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -50,6 +51,16 @@ import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
+
+private enum class AppDrawerOption(val labelRes: Int) {
+    HOME(R.string.drawer_home),
+    PICK_VERSION(R.string.drawer_pick_version),
+    MY_TEACHINGS(R.string.drawer_my_teachings),
+    DOCTRINES(R.string.drawer_doctrines),
+    BIBLION(R.string.drawer_biblion),
+    STUDY_MODE(R.string.drawer_study_mode),
+    ABOUT_US(R.string.drawer_about_us)
+}
 
 // 1. BiblionTopAppBar: Usado en HomeScreen y BooksScreen
 @OptIn(ExperimentalMaterial3Api::class)
@@ -113,6 +124,145 @@ fun BiblionTopAppBar(
             containerColor = MaterialTheme.colorScheme.surface
         )
     )
+}
+
+@Composable
+fun BiblionAppDrawer(
+    drawerState: DrawerState,
+    isDarkTheme: Boolean,
+    onToggleDarkTheme: (Boolean) -> Unit,
+    currentUserEmail: String? = null,
+    isAuthenticated: Boolean = false,
+    onClose: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onNavigateToTeachings: () -> Unit,
+    onNavigateToStudyMode: () -> Unit,
+    onPickVersion: () -> Unit,
+    onShowComingSoon: () -> Unit,
+    onShowAbout: () -> Unit,
+    onAuthActionClick: () -> Unit
+) {
+    val menuOptions = listOf(
+        AppDrawerOption.HOME,
+        AppDrawerOption.PICK_VERSION,
+        AppDrawerOption.MY_TEACHINGS,
+        AppDrawerOption.DOCTRINES,
+        AppDrawerOption.BIBLION,
+        AppDrawerOption.STUDY_MODE,
+        AppDrawerOption.ABOUT_US
+    )
+
+    ModalDrawerSheet(
+        modifier = Modifier
+            .fillMaxHeight()
+            .width(300.dp),
+        drawerContainerColor = MaterialTheme.colorScheme.surface,
+        drawerShape = RectangleShape
+    ) {
+        Spacer(modifier = Modifier.height(48.dp))
+
+        menuOptions.forEach { option ->
+            if (option == AppDrawerOption.ABOUT_US) {
+                DarkModeMenuItem(
+                    checked = isDarkTheme,
+                    onCheckedChange = onToggleDarkTheme
+                )
+            }
+
+            BiblionMenuItem(
+                text = stringResource(option.labelRes),
+                onClick = {
+                    if (!drawerState.isOpen) return@BiblionMenuItem
+                    onClose()
+                    when (option) {
+                        AppDrawerOption.HOME -> onNavigateHome()
+                        AppDrawerOption.PICK_VERSION -> onPickVersion()
+                        AppDrawerOption.MY_TEACHINGS -> onNavigateToTeachings()
+                        AppDrawerOption.DOCTRINES,
+                        AppDrawerOption.BIBLION -> onShowComingSoon()
+                        AppDrawerOption.STUDY_MODE -> onNavigateToStudyMode()
+                        AppDrawerOption.ABOUT_US -> onShowAbout()
+                    }
+                }
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.Bottom,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(Icons.Default.AccountCircle, contentDescription = null, modifier = Modifier.size(80.dp))
+            Text(
+                text = if (isAuthenticated) {
+                    stringResource(R.string.auth_account_title)
+                } else {
+                    stringResource(R.string.reader_label)
+                }
+            )
+            if (!currentUserEmail.isNullOrBlank()) {
+                Text(
+                    text = currentUserEmail,
+                    modifier = Modifier.padding(horizontal = 24.dp),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = {
+                    onClose()
+                    onAuthActionClick()
+                },
+                shape = RoundedCornerShape(50),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface)
+            ) {
+                Text(
+                    text = stringResource(
+                        if (isAuthenticated) R.string.sign_out else R.string.sign_in
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun BiblionMenuItem(text: String, onClick: () -> Unit) {
+    Text(
+        text = text,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 16.dp, horizontal = 24.dp),
+        style = MaterialTheme.typography.bodyLarge
+    )
+}
+
+@Composable
+private fun DarkModeMenuItem(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = stringResource(R.string.drawer_dark_mode),
+            style = MaterialTheme.typography.bodyLarge
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange
+        )
+    }
 }
 
 // 2. TestamentSelector: Selector tipo pestañas (Antiguo / Nuevo)

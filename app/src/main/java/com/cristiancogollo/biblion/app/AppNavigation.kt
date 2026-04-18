@@ -86,7 +86,23 @@ fun AppNavigation(
             navController = navController,
             includeHome = false,
             isDarkTheme = isDarkTheme,
-            onToggleDarkTheme = onToggleDarkTheme
+            onToggleDarkTheme = onToggleDarkTheme,
+            currentUserEmail = authState.currentUser?.email,
+            isAuthenticated = authState.isAuthenticated,
+            showSignedOutDialog = authState.showSignedOutDialog,
+            onDismissSignedOutDialog = {
+                authViewModel.process(AuthIntent.DismissSignedOutDialog)
+            },
+            onAuthActionClick = {
+                if (authState.isAuthenticated) {
+                    authViewModel.process(AuthIntent.SignOut)
+                    scope.launch {
+                        googleCredentialsAuth.clearCredentialState()
+                    }
+                } else {
+                    navController.navigateSingleTop(Screen.Login.route)
+                }
+            }
         )
 
         composable(Screen.Login.route) {

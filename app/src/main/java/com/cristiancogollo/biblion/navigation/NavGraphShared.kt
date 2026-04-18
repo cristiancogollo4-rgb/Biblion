@@ -48,7 +48,14 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
         BooksScreen(
             navController = navController,
             selectedTestament = testament,
-            openInStudyMode = openBooksInStudyMode
+            openInStudyMode = openBooksInStudyMode,
+            isDarkTheme = isDarkTheme,
+            onToggleDarkTheme = onToggleDarkTheme,
+            currentUserEmail = currentUserEmail,
+            isAuthenticated = isAuthenticated,
+            showSignedOutDialog = showSignedOutDialog,
+            onDismissSignedOutDialog = onDismissSignedOutDialog,
+            onAuthActionClick = onAuthActionClick
         )
     }
 
