@@ -23,7 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import androidx.compose.material3.RadioButtonDefaults
@@ -48,7 +47,7 @@ fun BibleVersionDialog(
                     Text(
                         text = "Elegir versión",
                         style = MaterialTheme.typography.headlineSmall,
-                        color = BiblionNavy
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
                         text = "Selecciona la traducción para continuar leyendo.",

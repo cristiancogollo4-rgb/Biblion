@@ -62,6 +62,7 @@ fun BiblionTopAppBar(
 ) {
     val resolvedLogoContentDescription =
         logoContentDescription.ifBlank { stringResource(R.string.cd_app_logo) }
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
 
     CenterAlignedTopAppBar(
         title = {
@@ -86,7 +87,7 @@ fun BiblionTopAppBar(
                         fontFamily = FontFamily.Serif,
                         fontWeight = FontWeight.Bold
                     ),
-                    color = BiblionNavy
+                    color = onSurfaceColor
                 )
             }
         },
@@ -95,7 +96,7 @@ fun BiblionTopAppBar(
                 Icon(
                     imageVector = Icons.Default.Menu,
                     contentDescription = stringResource(R.string.cd_open_menu),
-                    tint = BiblionNavy
+                    tint = onSurfaceColor
                 )
             }
         },
@@ -104,12 +105,12 @@ fun BiblionTopAppBar(
                 Icon(
                     imageVector = Icons.Default.Search,
                     contentDescription = stringResource(R.string.cd_search),
-                    tint = BiblionNavy
+                    tint = onSurfaceColor
                 )
             }
         },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-            containerColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surface
         )
     )
 }
@@ -128,7 +129,7 @@ fun TestamentSelector(
             .padding(16.dp)
             .height(50.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFFF0F0F0)),
+            .background(MaterialTheme.colorScheme.surfaceVariant),
         verticalAlignment = Alignment.CenterVertically
     ) {
         tabs.forEach { testament ->
@@ -140,7 +141,7 @@ fun TestamentSelector(
                 modifier = Modifier.weight(1f).fillMaxHeight(),
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (selected) BiblionNavy else Color.Transparent,
+                    containerColor = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
                     contentColor = if (selected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
                 ),
                 contentPadding = PaddingValues(0.dp)
@@ -204,7 +205,7 @@ fun BookCard(bookName: String, onClick: () -> Unit) {
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFDFBF0)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Box(
@@ -215,7 +216,7 @@ fun BookCard(bookName: String, onClick: () -> Unit) {
                 text = bookName,
                 textAlign = TextAlign.Center,
                 fontSize = 12.sp,
-                color = BiblionNavy,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontFamily = FontFamily.Serif,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(4.dp)
@@ -243,7 +244,7 @@ fun BiblionSelectionDialog(
         ) {
             Column {
                 Column(modifier = Modifier.padding(24.dp)) {
-                    Text(text = title, style = MaterialTheme.typography.headlineSmall, color = BiblionNavy)
+                    Text(text = title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
                     Text(text = subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f))
                 }
 
@@ -305,7 +306,7 @@ fun BiblionReaderTopAppBar(
                         fontFamily = FontFamily.Serif,
                         fontWeight = FontWeight.Bold
                     ),
-                    color = BiblionNavy,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.clickable(onClick = onBookTitleClick)
                 )
             },
@@ -314,7 +315,7 @@ fun BiblionReaderTopAppBar(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = stringResource(R.string.cd_back),
-                        tint = BiblionNavy
+                        tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
             },
@@ -323,7 +324,7 @@ fun BiblionReaderTopAppBar(
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = stringResource(R.string.cd_search),
-                        tint = BiblionNavy
+                        tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
                 // Botón Disminuir Fuente
@@ -331,7 +332,7 @@ fun BiblionReaderTopAppBar(
                     Icon(
                         imageVector = Icons.Default.HorizontalRule,
                         contentDescription = stringResource(R.string.cd_decrease_font_size),
-                        tint = BiblionNavy
+                        tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
                 // Botón Aumentar Fuente
@@ -339,7 +340,7 @@ fun BiblionReaderTopAppBar(
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = stringResource(R.string.cd_increase_font_size),
-                        tint = BiblionNavy
+                        tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
             },
@@ -366,7 +367,7 @@ fun BiblionReaderTopAppBar(
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                         letterSpacing = 1.sp
                     ),
-                    color = if (isSelected) BiblionGoldPrimary else BiblionBluePrimary.copy(alpha = 0.75f),
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
                     modifier = Modifier
                         .clickable { onChapterClick(chapter) }
                         .padding(vertical = 4.dp)
@@ -375,7 +376,7 @@ fun BiblionReaderTopAppBar(
         }
 
         // Línea divisoria sutil
-        HorizontalDivider(thickness = 0.5.dp, color = BiblionGoldSoft.copy(alpha = 0.5f))
+        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 
@@ -420,7 +421,7 @@ fun VerseActionsFloatingMenu(
                 ) {
                     // Contador Estilizado
                     Surface(
-                        color = BiblionNavy,
+                        color = MaterialTheme.colorScheme.primary,
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         Text(

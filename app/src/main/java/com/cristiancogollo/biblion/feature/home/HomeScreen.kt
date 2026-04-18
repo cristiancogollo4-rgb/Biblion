@@ -5,6 +5,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -58,6 +59,8 @@ data class DailyVerse(val text: String, val reference: String)
 @Composable
 fun HomeScreen(
     navController: NavController,
+    isDarkTheme: Boolean,
+    onToggleDarkTheme: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     loadAvailableVersions: suspend (Context) -> List<BibleVersionOption> = { ctx ->
         BibleRepository.getAvailableVersions(ctx)
@@ -118,6 +121,13 @@ fun HomeScreen(
                 )
 
                 menuOptions.forEach { option ->
+                    if (option == HomeDrawerOption.ABOUT_US) {
+                        DarkModeMenuItem(
+                            checked = isDarkTheme,
+                            onCheckedChange = onToggleDarkTheme
+                        )
+                    }
+
                     BiblionMenuItem(
                         text = stringResource(option.labelRes),
                         onClick = {
@@ -366,4 +376,27 @@ fun BiblionMenuItem(text: String, onClick: () -> Unit) {
             .padding(vertical = 16.dp, horizontal = 24.dp),
         style = MaterialTheme.typography.bodyLarge
     )
+}
+
+@Composable
+private fun DarkModeMenuItem(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = stringResource(R.string.drawer_dark_mode),
+            style = MaterialTheme.typography.bodyLarge
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange
+        )
+    }
 }

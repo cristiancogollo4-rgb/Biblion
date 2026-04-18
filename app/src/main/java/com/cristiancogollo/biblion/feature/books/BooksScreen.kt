@@ -117,7 +117,7 @@ fun BooksScreen(navController: NavController, selectedTestament: Testament, open
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontFamily = FontFamily.Serif,
-                        color = BiblionNavy
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 )
 

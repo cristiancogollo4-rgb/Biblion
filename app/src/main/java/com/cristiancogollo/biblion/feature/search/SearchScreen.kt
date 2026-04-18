@@ -43,7 +43,6 @@ import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 import kotlinx.coroutines.launch
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.ui.graphics.Color
 
 data class SearchResult(
     val reference: String,
@@ -101,7 +100,7 @@ fun SearchScreen(navController: NavController) {
                     Text(
                         text = "Encuentra un versículo",
                         style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
-                        color = BiblionNavy,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -115,13 +114,13 @@ fun SearchScreen(navController: NavController) {
                             Icon(Icons.Default.Search, contentDescription = null)
                         },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFFC9A227),   // borde cuando está activo
-                            unfocusedBorderColor = Color(0xFFBFA76A), // borde normal
-                            focusedLabelColor = Color(0xFFC9A227),
-                            unfocusedLabelColor = Color(0xFF8A7A4A),
-                            cursorColor = Color(0xFFC9A227),
-                            focusedLeadingIconColor = Color(0xFFC9A227),
-                            unfocusedLeadingIconColor = Color(0xFF8A7A4A)
+                            focusedBorderColor = BiblionGoldPrimary,
+                            unfocusedBorderColor = BiblionGoldSoft,
+                            focusedLabelColor = BiblionGoldPrimary,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+                            cursorColor = BiblionGoldPrimary,
+                            focusedLeadingIconColor = BiblionGoldPrimary,
+                            unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
                         )
                     )
                     Spacer(modifier = Modifier.height(10.dp))

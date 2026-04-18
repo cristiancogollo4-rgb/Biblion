@@ -24,12 +24,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.core.text.HtmlCompat
-import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,6 +39,7 @@ fun StudyReadScreen(
 ) {
     val viewModel: StudyViewModel = viewModel()
     val state by viewModel.state.collectAsState()
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
 
     LaunchedEffect(studyId) {
         viewModel.process(StudyIntent.SelectStudy(studyId))
@@ -68,7 +69,7 @@ fun StudyReadScreen(
                 item {
                     Text(
                         text = "Etiquetas: ${state.tags.joinToString(", ")}",
-                        color = BiblionNavy,
+                        color = MaterialTheme.colorScheme.onSurface,
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -81,7 +82,7 @@ fun StudyReadScreen(
                         TextView(context).apply {
                             textSize = 18f
                             setLineSpacing(0f, 1.2f)
-                            setTextColor(android.graphics.Color.BLACK)
+                            setTextColor(onSurfaceColor.toArgb())
                         }
                     },
                     update = { view ->
