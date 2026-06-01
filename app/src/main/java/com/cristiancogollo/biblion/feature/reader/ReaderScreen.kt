@@ -32,10 +32,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -50,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -108,7 +111,9 @@ fun ReaderScreen(
     initialStudyMode: Boolean = false,
     initialChapter: Int = 1,
     targetVerse: String? = null,
-    initialStudyId: Long? = null
+    initialStudyId: Long? = null,
+    isDarkTheme: Boolean = false,
+    onToggleDarkTheme: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -146,7 +151,11 @@ fun ReaderScreen(
         Row(modifier = Modifier.fillMaxSize()) {
             if (!studyUi.focusMode) {
                 Box(modifier = Modifier.weight(1f)) {
-                    StudyModeNavigation(initialBook = bookName)
+                    StudyModeNavigation(
+                        initialBook = bookName,
+                        isDarkTheme = isDarkTheme,
+                        onToggleDarkTheme = onToggleDarkTheme
+                    )
                 }
             }
             Box(modifier = Modifier.weight(1f)) {
@@ -178,14 +187,20 @@ fun ReaderScreen(
  *
  * @param initialBook libro a abrir automáticamente al iniciar la navegación dividida.
  */
-private fun StudyModeNavigation(initialBook: String?) {
+private fun StudyModeNavigation(
+    initialBook: String?,
+    isDarkTheme: Boolean,
+    onToggleDarkTheme: (Boolean) -> Unit
+) {
     val splitNavController = rememberNavController()
     val studyViewModel: StudyViewModel = viewModel()
 
     NavHost(navController = splitNavController, startDestination = Screen.Home.route) {
         addSharedPrimaryDestinations(
             navController = splitNavController,
-            openBooksInStudyMode = true
+            openBooksInStudyMode = true,
+            isDarkTheme = isDarkTheme,
+            onToggleDarkTheme = onToggleDarkTheme
         )
         composable(
             route = Screen.ReaderWithBook.route,
@@ -273,6 +288,7 @@ fun ReaderContent(
     targetVerse: String? = null
 ) {
     val context = LocalContext.current
+    val density = LocalDensity.current
     val scope = rememberCoroutineScope()
     val prefs = remember {
         context.getSharedPreferences(AppPreferencesSyncStore.PREFS_NAME, Context.MODE_PRIVATE)
@@ -299,11 +315,24 @@ fun ReaderContent(
     var pendingTargetVerse by remember(bookName, targetVerse) { mutableStateOf(targetVerse) }
     val lazyListState = rememberLazyListState()
     var floatingButtonOffset by remember { mutableStateOf(IntOffset(0, 0)) }
+    var floatingButtonSize by remember { mutableStateOf(IntSize.Zero) }
+    var readerContainerSize by remember { mutableStateOf(IntSize.Zero) }
+    val floatingButtonMarginPx = with(density) { 20.dp.roundToPx() }
     val highlightsCache = remember {
         HighlightsCache(
             maxVersions = 2,
             maxChaptersPerVersion = 12,
             entryTtlMillis = 2 * 60 * 1000
+        )
+    }
+
+    fun boundedFloatingButtonOffset(offset: IntOffset, size: IntSize = floatingButtonSize): IntOffset {
+        if (size == IntSize.Zero || readerContainerSize == IntSize.Zero) return offset
+        val minX = -(readerContainerSize.width - size.width - floatingButtonMarginPx * 2).coerceAtLeast(0)
+        val minY = -(readerContainerSize.height - size.height - floatingButtonMarginPx * 2).coerceAtLeast(0)
+        return IntOffset(
+            x = offset.x.coerceIn(minX, 0),
+            y = offset.y.coerceIn(minY, 0)
         )
     }
 
@@ -471,7 +500,15 @@ fun ReaderContent(
             )
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .onGloballyPositioned { coordinates ->
+                    readerContainerSize = coordinates.size
+                    floatingButtonOffset = boundedFloatingButtonOffset(floatingButtonOffset)
+                }
+        ) {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -548,15 +585,21 @@ fun ReaderContent(
                 containerColor = BiblionGoldSoft,
                 contentColor = Color.White, // o Color.White si lo prefieres
                 modifier = Modifier
-                    .offset { floatingButtonOffset }
                     .align(Alignment.BottomEnd)
                     .padding(20.dp)
-                    .pointerInput(Unit) {
+                    .offset { boundedFloatingButtonOffset(floatingButtonOffset) }
+                    .onGloballyPositioned { coordinates ->
+                        floatingButtonSize = coordinates.size
+                        floatingButtonOffset = boundedFloatingButtonOffset(floatingButtonOffset, coordinates.size)
+                    }
+                    .pointerInput(readerContainerSize, floatingButtonSize) {
                         detectDragGestures { change, dragAmount ->
                             change.consume()
-                            floatingButtonOffset = IntOffset(
-                                x = floatingButtonOffset.x + dragAmount.x.roundToInt(),
-                                y = floatingButtonOffset.y + dragAmount.y.roundToInt()
+                            floatingButtonOffset = boundedFloatingButtonOffset(
+                                IntOffset(
+                                    x = floatingButtonOffset.x + dragAmount.x.roundToInt(),
+                                    y = floatingButtonOffset.y + dragAmount.y.roundToInt()
+                                )
                             )
                         }
                     }

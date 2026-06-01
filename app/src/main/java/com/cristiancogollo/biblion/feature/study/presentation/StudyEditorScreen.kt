@@ -9,9 +9,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,6 +42,7 @@ fun StudyEditorScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var menuOffset by remember { mutableStateOf(IntOffset(0, -120)) }
+    var editorContainerWidthPx by remember { mutableStateOf(0) }
     var showSaveDialog by remember { mutableStateOf(false) }
     var saveTitle by remember { mutableStateOf("") }
     var saveTagsInput by remember { mutableStateOf("") }
@@ -71,6 +75,103 @@ fun StudyEditorScreen(
         viewModel.process(StudyIntent.SaveStudy)
     }
 
+    fun htmlEscape(value: String): String =
+        value.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
+
+    fun selectedText(): String {
+        val range = richState.selection
+        val text = richState.annotatedString.text
+        return text.substring(range.min, range.max.coerceAtMost(text.length)).trim()
+    }
+
+    fun applySelectionStyle(style: SpanStyle) {
+        val range = richState.selection
+        if (range.collapsed) {
+            richState.addSpanStyle(style)
+        } else {
+            richState.addSpanStyle(style, TextRange(range.min, range.max))
+            richState.selection = range
+        }
+    }
+
+    fun toggleSelectionStyle(style: SpanStyle, isActive: Boolean) {
+        val range = richState.selection
+        if (range.collapsed) {
+            if (isActive) {
+                richState.removeSpanStyle(style)
+            } else {
+                richState.addSpanStyle(style)
+            }
+        } else {
+            if (isActive) {
+                richState.removeSpanStyle(style, range)
+            } else {
+                richState.addSpanStyle(style, range)
+            }
+            richState.selection = range
+        }
+    }
+
+    fun keepSelection(action: () -> Unit) {
+        val range = richState.selection
+        action()
+        if (!range.collapsed) {
+            richState.selection = range
+        }
+    }
+
+    fun insertStudyBlock(label: String, body: String = "") {
+        val safeBody = body.ifBlank { "Escribe aqui..." }
+        richState.insertHtmlAfterSelection(
+            """
+            <br>
+            <blockquote><b>$label</b><br>${htmlEscape(safeBody)}</blockquote>
+            <br>
+            """.trimIndent()
+        )
+    }
+
+    fun clearSelectionFormatting() {
+        val range = richState.selection
+        val style = richState.currentSpanStyle
+        val styles = buildList {
+            add(SpanStyle(fontWeight = FontWeight.Bold))
+            add(SpanStyle(fontStyle = FontStyle.Italic))
+            add(SpanStyle(textDecoration = TextDecoration.Underline))
+            if (style.color != Color.Unspecified) add(SpanStyle(color = style.color))
+            if (style.background != Color.Unspecified) add(SpanStyle(background = style.background))
+        }
+        styles.forEach { spanStyle ->
+            if (range.collapsed) richState.removeSpanStyle(spanStyle) else richState.removeSpanStyle(spanStyle, range)
+        }
+        if (!range.collapsed) {
+            richState.selection = range
+        }
+    }
+
+    fun clearSelectionTextColor() {
+        val range = richState.selection
+        val color = richState.currentSpanStyle.color
+        if (color != Color.Unspecified) {
+            val style = SpanStyle(color = color)
+            if (range.collapsed) richState.removeSpanStyle(style) else richState.removeSpanStyle(style, range)
+            if (!range.collapsed) richState.selection = range
+        }
+    }
+
+    fun clearSelectionBackground() {
+        val range = richState.selection
+        val background = richState.currentSpanStyle.background
+        if (background != Color.Unspecified) {
+            val style = SpanStyle(background = background)
+            if (range.collapsed) richState.removeSpanStyle(style) else richState.removeSpanStyle(style, range)
+            if (!range.collapsed) richState.selection = range
+        }
+    }
+
     val selection = richState.selection
     val hasSelection = selection.start != selection.end
     val showMenu = hasSelection || ui.pendingCitations.isNotEmpty()
@@ -96,6 +197,18 @@ fun StudyEditorScreen(
         viewModel.process(StudyIntent.SetSelectionActive(hasSelection))
         if (hasSelection) {
             menuOffset = IntOffset(0, -220)
+        }
+    }
+
+    LaunchedEffect(selection) {
+        if (selection.collapsed) {
+            val style = richState.currentSpanStyle
+            if (style.textDecoration == TextDecoration.Underline) {
+                richState.removeSpanStyle(SpanStyle(textDecoration = TextDecoration.Underline))
+            }
+            if (style.background != Color.Unspecified) {
+                richState.removeSpanStyle(SpanStyle(background = style.background))
+            }
         }
     }
 
@@ -163,6 +276,9 @@ fun StudyEditorScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = if (ui.focusMode) 64.dp else 24.dp)
+                .onGloballyPositioned { coordinates ->
+                    editorContainerWidthPx = coordinates.size.width
+                }
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown || !event.isCtrlPressed) return@onPreviewKeyEvent false
                     when (event.key) {
@@ -190,23 +306,35 @@ fun StudyEditorScreen(
             StudyEditorFloatingMenu(
                 isVisible = showMenu,
                 anchorOffset = menuOffset,
+                containerWidthPx = editorContainerWidthPx,
                 pendingCitations = ui.pendingCitations.size,
                 onDismiss = { viewModel.process(StudyIntent.SetContextMenuVisible(false)) },
                 onHeadlineUp = {
-                    richState.toggleSpanStyle(SpanStyle(fontSize = 30.sp, fontWeight = FontWeight.Bold))
+                    keepSelection { richState.toggleSpanStyle(SpanStyle(fontSize = 30.sp, fontWeight = FontWeight.Bold)) }
                 },
                 onHeadlineDown = {
-                    richState.toggleSpanStyle(SpanStyle(fontSize = 18.sp, fontWeight = FontWeight.Normal))
+                    keepSelection { richState.toggleSpanStyle(SpanStyle(fontSize = 18.sp, fontWeight = FontWeight.Normal)) }
                 },
-                onBold = { richState.toggleSpanStyle(SpanStyle(fontWeight = FontWeight.Bold)) },
-                onItalic = { richState.toggleSpanStyle(SpanStyle(fontStyle = FontStyle.Italic)) },
+                onBold = { keepSelection { richState.toggleSpanStyle(SpanStyle(fontWeight = FontWeight.Bold)) } },
+                onItalic = { keepSelection { richState.toggleSpanStyle(SpanStyle(fontStyle = FontStyle.Italic)) } },
+                onUnderline = {
+                    toggleSelectionStyle(
+                        style = SpanStyle(textDecoration = TextDecoration.Underline),
+                        isActive = richState.currentSpanStyle.textDecoration == TextDecoration.Underline
+                    )
+                },
+                onTextColor = { color -> applySelectionStyle(SpanStyle(color = color)) },
+                onBackgroundColor = { color -> applySelectionStyle(SpanStyle(background = color)) },
+                onClearTextColor = { clearSelectionTextColor() },
+                onClearBackground = { clearSelectionBackground() },
+                onClearFormatting = { clearSelectionFormatting() },
                 onIncreaseSize = {
                     viewModel.process(StudyIntent.IncreaseSelectionFont)
-                    richState.toggleSpanStyle(SpanStyle(fontSize = (ui.selectionFontSizeSp + 2f).sp))
+                    keepSelection { richState.toggleSpanStyle(SpanStyle(fontSize = (ui.selectionFontSizeSp + 2f).sp)) }
                 },
                 onDecreaseSize = {
                     viewModel.process(StudyIntent.DecreaseSelectionFont)
-                    richState.toggleSpanStyle(SpanStyle(fontSize = (ui.selectionFontSizeSp - 2f).coerceAtLeast(12f).sp))
+                    keepSelection { richState.toggleSpanStyle(SpanStyle(fontSize = (ui.selectionFontSizeSp - 2f).coerceAtLeast(12f).sp)) }
                 },
                 onBulletList = { richState.toggleUnorderedList() },
                 onOrderedList = { richState.toggleOrderedList() },
@@ -222,7 +350,11 @@ fun StudyEditorScreen(
                         newCitationsHtml.append("<br>").append(quoteHtml).append("<br>")
                     }
                     richState.setHtml(currentHtml + newCitationsHtml.toString())
-                }
+                },
+                onInsertNote = { insertStudyBlock("Nota", selectedText()) },
+                onInsertReflection = { insertStudyBlock("Reflexion", selectedText()) },
+                onInsertPrayer = { insertStudyBlock("Oracion") },
+                onInsertQuestion = { insertStudyBlock("Pregunta", selectedText()) }
             )
         }
     }

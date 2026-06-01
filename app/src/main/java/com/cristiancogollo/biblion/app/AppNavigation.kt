@@ -313,7 +313,9 @@ fun AppNavigation(
                 initialStudyMode = studyMode,
                 initialChapter = initialChapter,
                 targetVerse = initialVerse,
-                initialStudyId = studyId
+                initialStudyId = studyId,
+                isDarkTheme = isDarkTheme,
+                onToggleDarkTheme = onToggleDarkTheme
             )
         }
 
@@ -348,7 +350,9 @@ fun AppNavigation(
                 initialStudyMode = studyMode,
                 initialChapter = initialChapter,
                 targetVerse = initialVerse,
-                initialStudyId = studyId
+                initialStudyId = studyId,
+                isDarkTheme = isDarkTheme,
+                onToggleDarkTheme = onToggleDarkTheme
             )
         }
 
@@ -363,7 +367,13 @@ fun AppNavigation(
         ) { entry ->
             val encodedName = entry.arguments?.getString("bookName") ?: ""
             val bookName = decodeArg(encodedName).ifBlank { null }
-            ReaderScreen(navController, bookName, initialStudyMode = true)
+            ReaderScreen(
+                navController = navController,
+                bookName = bookName,
+                initialStudyMode = true,
+                isDarkTheme = isDarkTheme,
+                onToggleDarkTheme = onToggleDarkTheme
+            )
         }
     }
 
