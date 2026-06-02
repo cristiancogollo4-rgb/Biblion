@@ -75,8 +75,20 @@ data class SerializedStudyDocument(
 @Serializable
 sealed interface StudyBlockNode {
     @Serializable
+    @SerialName("paragraph")
+    data class Paragraph(
+        val blockId: String = CuidGenerator.create(),
+        val text: String = "",
+        val parallelText: String = "",
+        val role: String = "paragraph",
+        val styles: List<TextStyleRange> = emptyList(),
+        val parallelStyles: List<TextStyleRange> = emptyList()
+    ) : StudyBlockNode
+
+    @Serializable
     @SerialName("rich_text")
     data class RichText(
+        val blockId: String = CuidGenerator.create(),
         val html: String,
         val references: List<BibleReferenceNode> = emptyList()
     ) : StudyBlockNode
@@ -105,7 +117,68 @@ sealed interface StudyBlockNode {
         val uri: String,
         val caption: String
     ) : StudyBlockNode
+
+    @Serializable
+    @SerialName("note")
+    data class Note(
+        val blockId: String = CuidGenerator.create(),
+        val text: String = "",
+        val collapsed: Boolean = false
+    ) : StudyBlockNode
+
+    @Serializable
+    @SerialName("reflection")
+    data class Reflection(
+        val blockId: String = CuidGenerator.create(),
+        val topic: String = "",
+        val text: String = "",
+        val collapsed: Boolean = false
+    ) : StudyBlockNode
+
+    @Serializable
+    @SerialName("quoted_verse")
+    data class QuotedVerse(
+        val blockId: String = CuidGenerator.create(),
+        val reference: String = "",
+        val primaryVersion: String = "rv1960",
+        val primaryText: String = "",
+        val compareVersion: String = "",
+        val compareText: String = "",
+        val note: String = "",
+        val collapsed: Boolean = false
+    ) : StudyBlockNode
+
+    @Serializable
+    @SerialName("question")
+    data class Question(
+        val blockId: String = CuidGenerator.create(),
+        val question: String = "",
+        val answer: String = "",
+        val collapsed: Boolean = false
+    ) : StudyBlockNode
+
+    @Serializable
+    @SerialName("two_column")
+    data class TwoColumn(
+        val blockId: String = CuidGenerator.create(),
+        val leftTitle: String = "",
+        val leftText: String = "",
+        val rightTitle: String = "",
+        val rightText: String = "",
+        val collapsed: Boolean = false
+    ) : StudyBlockNode
 }
+
+@Serializable
+data class TextStyleRange(
+    val start: Int,
+    val end: Int,
+    val color: Long? = null,
+    val background: Long? = null,
+    val bold: Boolean = false,
+    val italic: Boolean = false,
+    val underline: Boolean = false
+)
 
 @Serializable
 data class BibleReferenceNode(

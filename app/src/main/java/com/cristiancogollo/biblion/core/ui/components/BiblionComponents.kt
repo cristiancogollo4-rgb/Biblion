@@ -5,8 +5,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -656,6 +658,10 @@ fun StudyEditorFloatingMenu(
     isVisible: Boolean,
     anchorOffset: IntOffset,
     containerWidthPx: Int,
+    hasSelection: Boolean,
+    isParallelTextMode: Boolean = false,
+    isBulletMode: Boolean = false,
+    isNumberedMode: Boolean = false,
     pendingCitations: Int,
     onDismiss: () -> Unit,
     onHeadlineUp: () -> Unit,
@@ -663,6 +669,8 @@ fun StudyEditorFloatingMenu(
     onBold: () -> Unit,
     onItalic: () -> Unit,
     onUnderline: () -> Unit,
+    onUppercase: () -> Unit,
+    onLowercase: () -> Unit,
     onTextColor: (Color) -> Unit,
     onBackgroundColor: (Color) -> Unit,
     onClearTextColor: () -> Unit,
@@ -675,8 +683,9 @@ fun StudyEditorFloatingMenu(
     onInsertPendingCitations: () -> Unit,
     onInsertNote: () -> Unit,
     onInsertReflection: () -> Unit,
-    onInsertPrayer: () -> Unit,
-    onInsertQuestion: () -> Unit
+    onInsertQuotedVerse: () -> Unit,
+    onInsertQuestion: () -> Unit,
+    onInsertTwoColumn: () -> Unit
 ) {
     if (!isVisible) return
     var expandedTool by remember { mutableStateOf<String?>(null) }
@@ -722,6 +731,10 @@ fun StudyEditorFloatingMenu(
     StudyEditorFloatingBubble(
         anchorOffset = anchorOffset,
         containerWidthPx = containerWidthPx,
+        hasSelection = hasSelection,
+        isParallelTextMode = isParallelTextMode,
+        isBulletMode = isBulletMode,
+        isNumberedMode = isNumberedMode,
         pendingCitations = pendingCitations,
         expandedTool = expandedTool,
         onExpandedToolChange = { expandedTool = it },
@@ -733,6 +746,8 @@ fun StudyEditorFloatingMenu(
         onBold = onBold,
         onItalic = onItalic,
         onUnderline = onUnderline,
+        onUppercase = onUppercase,
+        onLowercase = onLowercase,
         onTextColor = onTextColor,
         onBackgroundColor = onBackgroundColor,
         onCustomTextColor = { color ->
@@ -753,8 +768,9 @@ fun StudyEditorFloatingMenu(
         onInsertPendingCitations = onInsertPendingCitations,
         onInsertNote = onInsertNote,
         onInsertReflection = onInsertReflection,
-        onInsertPrayer = onInsertPrayer,
-        onInsertQuestion = onInsertQuestion
+        onInsertQuotedVerse = onInsertQuotedVerse,
+        onInsertQuestion = onInsertQuestion,
+        onInsertTwoColumn = onInsertTwoColumn
     )
     return
 
@@ -799,6 +815,10 @@ fun StudyEditorFloatingMenu(
 private fun StudyEditorFloatingBubble(
     anchorOffset: IntOffset,
     containerWidthPx: Int,
+    hasSelection: Boolean,
+    isParallelTextMode: Boolean,
+    isBulletMode: Boolean,
+    isNumberedMode: Boolean,
     pendingCitations: Int,
     expandedTool: String?,
     onExpandedToolChange: (String?) -> Unit,
@@ -810,6 +830,8 @@ private fun StudyEditorFloatingBubble(
     onBold: () -> Unit,
     onItalic: () -> Unit,
     onUnderline: () -> Unit,
+    onUppercase: () -> Unit,
+    onLowercase: () -> Unit,
     onTextColor: (Color) -> Unit,
     onBackgroundColor: (Color) -> Unit,
     onCustomTextColor: (Color) -> Unit,
@@ -824,8 +846,9 @@ private fun StudyEditorFloatingBubble(
     onInsertPendingCitations: () -> Unit,
     onInsertNote: () -> Unit,
     onInsertReflection: () -> Unit,
-    onInsertPrayer: () -> Unit,
-    onInsertQuestion: () -> Unit
+    onInsertQuotedVerse: () -> Unit,
+    onInsertQuestion: () -> Unit,
+    onInsertTwoColumn: () -> Unit
 ) {
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
@@ -888,34 +911,61 @@ private fun StudyEditorFloatingBubble(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    CompactEditorButton(Icons.Default.Title, "Titulo", onHeadlineUp)
-                    CompactEditorButton(Icons.Default.HorizontalRule, "Texto normal", onHeadlineDown)
-                    CompactEditorButton(Icons.Default.FormatBold, "Negrita", onBold)
-                    CompactEditorButton(Icons.Default.FormatItalic, "Cursiva", onItalic)
-                    CompactEditorButton(Icons.Default.FormatUnderlined, "Subrayado", onUnderline)
-                    CompactEditorButton(Icons.Default.TextIncrease, "Aumentar texto", onIncreaseSize)
-                    CompactEditorButton(Icons.Default.TextDecrease, "Reducir texto", onDecreaseSize)
-                    CompactEditorButton(Icons.Default.FormatClear, "Limpiar formato", onClearFormatting)
+                    CompactEditorButton(Icons.Default.Title, "Titulo", hasSelection, onHeadlineUp)
+                    CompactEditorButton(Icons.Default.HorizontalRule, "Texto normal", hasSelection, onHeadlineDown)
+                    CompactEditorButton(Icons.Default.FormatBold, "Negrita", hasSelection, onBold)
+                    CompactEditorButton(Icons.Default.FormatItalic, "Cursiva", hasSelection, onItalic)
+                    CompactEditorButton(Icons.Default.FormatUnderlined, "Subrayado", hasSelection, onUnderline)
+                    TextToolChip("MAY", hasSelection, onUppercase)
+                    TextToolChip("min", hasSelection, onLowercase)
+                    CompactEditorButton(Icons.Default.TextIncrease, "Aumentar texto", hasSelection, onIncreaseSize)
+                    CompactEditorButton(Icons.Default.TextDecrease, "Reducir texto", hasSelection, onDecreaseSize)
+                    CompactEditorButton(Icons.Default.FormatClear, "Limpiar formato", hasSelection, onClearFormatting)
                 }
 
                 Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    EditorToolChip(Icons.Default.FormatColorText, "Texto", expandedTool == "text") {
+                    EditorToolChip(Icons.Default.FormatColorText, "Texto", expandedTool == "text", hasSelection) {
                         onExpandedToolChange(if (expandedTool == "text") null else "text")
                     }
-                    EditorToolChip(Icons.Default.FormatColorFill, "Fondo", expandedTool == "background") {
+                    EditorToolChip(Icons.Default.FormatColorFill, "Fondo", expandedTool == "background", hasSelection) {
                         onExpandedToolChange(if (expandedTool == "background") null else "background")
                     }
-                    CompactEditorButton(Icons.AutoMirrored.Filled.FormatListBulleted, "Vinetas", onBulletList)
-                    CompactEditorButton(Icons.Default.FormatListNumbered, "Lista numerada", onOrderedList)
+                    EditorToolChip(
+                        Icons.AutoMirrored.Filled.FormatListBulleted,
+                        if (isBulletMode) "Quitar vinetas" else "Vinetas",
+                        isBulletMode,
+                        hasSelection,
+                        onBulletList
+                    )
+                    EditorToolChip(
+                        Icons.Default.FormatListNumbered,
+                        if (isNumberedMode) "Quitar numeracion" else "Numerada",
+                        isNumberedMode,
+                        hasSelection,
+                        onOrderedList
+                    )
+                    EditorToolChip(
+                        Icons.Default.FormatListNumbered,
+                        if (isParallelTextMode) "Una columna" else "Columnas",
+                        isParallelTextMode,
+                        hasSelection,
+                        onInsertTwoColumn
+                    )
                 }
 
-                when (expandedTool) {
+                when (expandedTool.takeIf { hasSelection }) {
                     "text" -> ColorTools(
                         colors = textPalette,
                         customColor = customColor,
@@ -941,17 +991,21 @@ private fun StudyEditorFloatingBubble(
                 }
 
                 Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    EditorToolChip(Icons.Default.EditNote, "Nota", false, onInsertNote)
-                    EditorToolChip(Icons.Default.Lightbulb, "Reflexion", false, onInsertReflection)
-                    EditorToolChip(Icons.Default.FormatQuote, "Oracion", false, onInsertPrayer)
-                    EditorToolChip(Icons.Default.QuestionMark, "Pregunta", false, onInsertQuestion)
+                    EditorToolChip(Icons.Default.EditNote, "Nota", false, true, onInsertNote)
+                    EditorToolChip(Icons.Default.Lightbulb, "Reflexion", false, true, onInsertReflection)
+                    EditorToolChip(Icons.Default.FormatQuote, "Versiculo", false, true, onInsertQuotedVerse)
+                    EditorToolChip(Icons.Default.QuestionMark, "Pregunta", false, true, onInsertQuestion)
                     EditorToolChip(
                         Icons.Default.EditNote,
                         if (pendingCitations > 0) "Citar $pendingCitations" else "Citar",
                         pendingCitations > 0,
+                        true,
                         onInsertPendingCitations
                     )
                 }
@@ -961,15 +1015,48 @@ private fun StudyEditorFloatingBubble(
 }
 
 @Composable
-private fun CompactEditorButton(icon: ImageVector, description: String, onClick: () -> Unit) {
-    IconButton(onClick = onClick, modifier = Modifier.size(36.dp)) {
+private fun CompactEditorButton(
+    icon: ImageVector,
+    description: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.size(36.dp)
+    ) {
         Icon(
             imageVector = icon,
             contentDescription = description,
             modifier = Modifier.size(20.dp),
-            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
+            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 0.82f else 0.28f)
         )
     }
+}
+
+@Composable
+private fun TextToolChip(
+    label: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    AssistChip(
+        onClick = onClick,
+        enabled = enabled,
+        label = {
+            Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        },
+        shape = RoundedCornerShape(14.dp),
+        border = null,
+        colors = AssistChipDefaults.assistChipColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+            labelColor = MaterialTheme.colorScheme.onSurface,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f),
+            disabledLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.32f)
+        ),
+        modifier = Modifier.height(32.dp)
+    )
 }
 
 @Composable
@@ -977,10 +1064,12 @@ private fun EditorToolChip(
     icon: ImageVector,
     label: String,
     selected: Boolean,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     AssistChip(
         onClick = onClick,
+        enabled = enabled,
         label = { Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
         leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp)) },
         shape = RoundedCornerShape(14.dp),
@@ -988,7 +1077,10 @@ private fun EditorToolChip(
         colors = AssistChipDefaults.assistChipColors(
             containerColor = if (selected) BiblionGoldSoft.copy(alpha = 0.38f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
             labelColor = MaterialTheme.colorScheme.onSurface,
-            leadingIconContentColor = if (selected) BiblionGoldPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
+            leadingIconContentColor = if (selected) BiblionGoldPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f),
+            disabledLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.32f),
+            disabledLeadingIconContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.32f)
         ),
         modifier = Modifier.height(32.dp)
     )
