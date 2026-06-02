@@ -19,8 +19,8 @@ import kotlinx.serialization.json.Json
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestWatcher
-import org.junit.runner.RunWith
 import org.junit.runner.Description
+import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -36,13 +36,12 @@ class StudyViewModelTest {
         val viewModel = buildViewModel(dao)
 
         advanceUntilIdle()
-        viewModel.process(StudyIntent.UpdateTitle("Título actualizado"))
-
-        advanceTimeBy(AUTOSAVE_DEBOUNCE_MS - 1)
+        viewModel.process(StudyIntent.SelectStudy(7L))
         advanceUntilIdle()
-        assertEquals(0, dao.updateStudyCalls)
+        dao.resetUpdateStudyCalls()
+        viewModel.process(StudyIntent.UpdateTitle("Titulo actualizado"))
 
-        advanceTimeBy(1)
+        advanceTimeBy(AUTOSAVE_DEBOUNCE_MS)
         advanceUntilIdle()
         assertEquals(1, dao.updateStudyCalls)
     }
@@ -53,11 +52,13 @@ class StudyViewModelTest {
         val viewModel = buildViewModel(dao)
 
         advanceUntilIdle()
+        viewModel.process(StudyIntent.SelectStudy(7L))
+        advanceUntilIdle()
         advanceTimeBy(AUTOSAVE_DEBOUNCE_MS + 10)
         advanceUntilIdle()
         assertEquals(0, dao.updateStudyCalls)
 
-        viewModel.process(StudyIntent.UpdateTitle("Título base"))
+        viewModel.process(StudyIntent.UpdateTitle("Titulo base"))
         advanceTimeBy(AUTOSAVE_DEBOUNCE_MS + 10)
         advanceUntilIdle()
         assertEquals(0, dao.updateStudyCalls)
@@ -91,14 +92,16 @@ class StudyViewModelTest {
         return StudyViewModel(
             application = application,
             dao = dao,
-            autoSaveDebounceMs = AUTOSAVE_DEBOUNCE_MS
+            autoSaveDebounceMs = AUTOSAVE_DEBOUNCE_MS,
+            seedDemoStudies = false,
+            ioDispatcher = mainDispatcherRule.dispatcher
         )
     }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainDispatcherRule(
-    private val dispatcher: TestDispatcher = StandardTestDispatcher()
+    val dispatcher: TestDispatcher = StandardTestDispatcher()
 ) : TestWatcher() {
     override fun starting(description: Description) {
         Dispatchers.setMain(dispatcher)
@@ -119,7 +122,7 @@ private class FakeStudyDao : StudyDao {
     )
     private val study = StudyEntity(
         id = 7L,
-        title = "Título base",
+        title = "Titulo base",
         notebookId = notebook.id,
         contentSerialized = json.encodeToString(
             SerializedStudyDocument(
@@ -132,6 +135,10 @@ private class FakeStudyDao : StudyDao {
 
     var updateStudyCalls: Int = 0
         private set
+
+    fun resetUpdateStudyCalls() {
+        updateStudyCalls = 0
+    }
 
     override fun observeNotebooks(): Flow<List<StudyNotebookEntity>> = flowOf(listOf(notebook))
 

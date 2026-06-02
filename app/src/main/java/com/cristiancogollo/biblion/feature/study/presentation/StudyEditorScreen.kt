@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.*
@@ -1204,16 +1205,45 @@ private fun QuotedVerseText(
     text: String,
     modifier: Modifier = Modifier
 ) {
+    val contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
+    val verseNumberColor = verseNumberAccentColor()
     Text(
-        text = text.ifBlank { "Texto de la cita no disponible." },
+        text = text.ifBlank { "Texto de la cita no disponible." }.toVerseNumberStyledText(verseNumberColor),
         modifier = modifier,
         style = MaterialTheme.typography.bodyLarge.copy(
             fontFamily = FontFamily.Serif,
             fontStyle = FontStyle.Italic,
             lineHeight = 25.sp
         ),
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
+        color = contentColor
     )
+}
+
+@Composable
+private fun verseNumberAccentColor(): Color {
+    return if (MaterialTheme.colorScheme.background.luminance() > 0.5f) {
+        BiblionBluePrimary
+    } else {
+        BiblionGoldPrimary
+    }
+}
+
+private fun String.toVerseNumberStyledText(verseNumberColor: Color): AnnotatedString {
+    val builder = AnnotatedString.Builder(this)
+    Regex("""(^|\s)(\d{1,3})(?=\s)""").findAll(this).forEach { match ->
+        val numberStart = match.range.first + match.groupValues[1].length
+        val numberEnd = numberStart + match.groupValues[2].length
+        builder.addStyle(
+            SpanStyle(
+                color = verseNumberColor,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp
+            ),
+            numberStart,
+            numberEnd
+        )
+    }
+    return builder.toAnnotatedString()
 }
 
 @Composable

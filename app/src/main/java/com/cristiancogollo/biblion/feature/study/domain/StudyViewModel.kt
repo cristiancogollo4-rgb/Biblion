@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.flatMapLatest
@@ -131,7 +132,9 @@ sealed interface StudyIntent {
 class StudyViewModel @JvmOverloads constructor(
     application: Application,
     private val dao: StudyDao = StudyDatabase.getInstance(application).studyDao(),
-    private val autoSaveDebounceMs: Long = AUTOSAVE_DEBOUNCE_MS
+    private val autoSaveDebounceMs: Long = AUTOSAVE_DEBOUNCE_MS,
+    private val seedDemoStudies: Boolean = true,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : AndroidViewModel(application) {
     companion object {
         private const val TAG = "StudyViewModel"
@@ -202,7 +205,7 @@ class StudyViewModel @JvmOverloads constructor(
             is StudyIntent.SelectStudy -> viewModelScope.launch { loadStudy(intent.studyId) }
             is StudyIntent.DeleteStudy -> {
                 viewModelScope.launch {
-                    withContext(Dispatchers.IO) {
+                    withContext(ioDispatcher) {
                         val existing = dao.getStudy(intent.studyId) ?: return@withContext
                         dao.updateStudy(
                             existing.copy(
@@ -499,12 +502,12 @@ class StudyViewModel @JvmOverloads constructor(
             StudyIntent.CreateNewStudy -> {
                 viewModelScope.launch {
                     val now = System.currentTimeMillis()
-                    val notebookId = _state.value.selectedNotebookId ?: withContext(Dispatchers.IO) {
+                    val notebookId = _state.value.selectedNotebookId ?: withContext(ioDispatcher) {
                         dao.observeNotebooks().firstOrNull()?.firstOrNull()?.id
                     } ?: return@launch
-                    val notebook = withContext(Dispatchers.IO) { dao.getNotebook(notebookId) } ?: return@launch
+                    val notebook = withContext(ioDispatcher) { dao.getNotebook(notebookId) } ?: return@launch
                     val emptyDoc = json.encodeToString(SerializedStudyDocument())
-                    val newId = withContext(Dispatchers.IO) {
+                    val newId = withContext(ioDispatcher) {
                         dao.insertStudy(
                             StudyEntity(
                                 title = "Nueva Enseñanza",
@@ -608,13 +611,15 @@ class StudyViewModel @JvmOverloads constructor(
                 bookName = reference.book,
                 chapter = reference.chapter.toString(),
                 verse = verse.toString()
-            ).text.takeIf { it.isNotBlank() }
+            ).text
+                .takeIf { it.isNotBlank() }
+                ?.let { text -> "$verse ${text.trim()}" }
         }.joinToString(" ")
     }
 
     fun updateStudyMetadata(studyId: Long, title: String, tags: List<String>) {
         viewModelScope.launch {
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 val existing = dao.getStudy(studyId) ?: return@withContext
                 val document = runCatching {
                     json.decodeFromString<SerializedStudyDocument>(existing.contentSerialized)
@@ -643,7 +648,7 @@ class StudyViewModel @JvmOverloads constructor(
     }
 
     private suspend fun ensureSeedData() {
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             if (dao.getNotebookCount() == 0) {
                 val now = System.currentTimeMillis()
                 val notebook = StudyNotebookEntity(
@@ -664,11 +669,182 @@ class StudyViewModel @JvmOverloads constructor(
                     )
                 )
             }
+
+            if (!seedDemoStudies) return@withContext
+
+            val sampleTitle = "Identidad Sin Filtro - Demo modo estudio"
+            val existingSample = dao.getAllStudiesForSync()
+                .firstOrNull { it.deletedAt == null && it.title.equals(sampleTitle, ignoreCase = true) }
+            val document = SerializedStudyDocument(
+                blocks = identidadSinFiltroSampleBlocks(),
+                globalVersion = "rv1960",
+                tags = listOf("identidad", "jovenes", "mision juvenil", "predicacion", "demo")
+            )
+            if (existingSample == null) {
+                val now = System.currentTimeMillis()
+                val notebook = dao.getAllNotebooksForSync().firstOrNull { it.deletedAt == null }
+                    ?: StudyNotebookEntity(
+                        title = "Mis Notas de Estudio",
+                        createdAt = now,
+                        updatedAt = now
+                    ).let { created ->
+                        val id = dao.insertNotebook(created)
+                        created.copy(id = id)
+                    }
+                dao.insertStudy(
+                    StudyEntity(
+                        title = sampleTitle,
+                        notebookId = notebook.id,
+                        notebookRemoteId = notebook.remoteId,
+                        contentSerialized = json.encodeToString(document),
+                        createdAt = now,
+                        updatedAt = now
+                    )
+                )
+            } else {
+                val existingDocument = runCatching {
+                    json.decodeFromString<SerializedStudyDocument>(existingSample.contentSerialized)
+                }.getOrNull()
+                val hasLegacyBlocks = existingDocument?.blocks?.any {
+                    it is StudyBlockNode.Question || it is StudyBlockNode.TwoColumn
+                } == true
+                if (hasLegacyBlocks) {
+                    dao.updateStudy(
+                        existingSample.copy(
+                        title = sampleTitle,
+                        contentSerialized = json.encodeToString(document),
+                            updatedAt = System.currentTimeMillis()
+                        )
+                    )
+                }
+            }
         }
     }
 
+    private fun identidadSinFiltroSampleBlocks(): List<StudyBlockNode> = listOf(
+        StudyBlockNode.Paragraph(
+            text = "IDENTIDAD SIN FILTRO",
+            role = "heading"
+        ),
+        StudyBlockNode.Note(
+            text = "Demo construida desde el documento Identidad Sin Filtro.docx para probar el modo estudio: citas por rango, reflexiones, columnas, listas y texto destacado."
+        ),
+        StudyBlockNode.QuotedVerse(
+            reference = "1 Samuel 16:5-13",
+            primaryVersion = "rv1960",
+            primaryText = "5 El respondio: Si, vengo a ofrecer sacrificio a Jehova; santificaos, y venid conmigo al sacrificio. 6 Y acontecio que cuando ellos vinieron, el vio a Eliab, y dijo: De cierto delante de Jehova esta su ungido. 7 Y Jehova respondio a Samuel: No mires a su parecer, ni a lo grande de su estatura, porque yo lo desecho; porque Jehova no mira lo que mira el hombre; pues el hombre mira lo que esta delante de sus ojos, pero Jehova mira el corazon. 8 Entonces llamo Isai a Abinadab, y lo hizo pasar delante de Samuel, el cual dijo: Tampoco a este ha escogido Jehova. 9 Hizo luego pasar Isai a Sama. Y el dijo: Tampoco a este ha elegido Jehova. 10 E hizo pasar Isai siete hijos suyos delante de Samuel; pero Samuel dijo a Isai: Jehova no ha elegido a estos. 11 Entonces dijo Samuel a Isai: Son estos todos tus hijos? Y el respondio: Queda aun el menor, que apacienta las ovejas. Y dijo Samuel a Isai: Envia por el, porque no nos sentaremos a la mesa hasta que el venga aqui. 12 Envio, pues, por el, y le hizo entrar; y era rubio, hermoso de ojos, y de buen parecer. Entonces Jehova dijo: Levantate y ungelo, porque este es. 13 Y Samuel tomo el cuerno del aceite, y lo ungio en medio de sus hermanos; y desde aquel dia en adelante el Espiritu de Jehova vino sobre David.",
+            note = "Texto base de apertura: Dios no define la identidad por apariencia, posicion o comparacion."
+        ),
+        StudyBlockNode.Paragraph(
+            text = "Contextualizar la labor de Mision juvenil.",
+            role = "heading"
+        ),
+        styledParagraph(
+            text = "Cuando hablamos de Mision juvenil, de lo que hace en medio de las universidades, cumple dos roles: predicar el evangelio a toda la comunidad estudiantil y ser un refugio para nuestros jovenes.",
+            highlight = "predicar el evangelio",
+            color = 0xFF8A5A00,
+            bold = true
+        ),
+        StudyBlockNode.Reflection(
+            topic = "Mision juvenil",
+            text = "La mision no solo anuncia; tambien acompana, sostiene y forma identidad en medio de la universidad."
+        ),
+        StudyBlockNode.Paragraph(
+            text = "Predicar\nAnunciar el evangelio a la comunidad estudiantil con claridad y cercania.",
+            parallelText = "Refugio\nCrear un espacio donde los jovenes puedan ser acompanados, escuchados y formados.",
+            role = "columns",
+            styles = listOf(TextStyleRange(start = 0, end = 8, bold = true, color = 0xFF8A5A00)),
+            parallelStyles = listOf(TextStyleRange(start = 0, end = 7, bold = true, color = 0xFF0F766E))
+        ),
+        StudyBlockNode.Paragraph(
+            text = "En la Biblia se puede encontrar el llamamiento de varios jovenes que fueron escogidos por Dios desde una temprana edad:"
+        ),
+        StudyBlockNode.Paragraph(
+            text = "El profeta Jeremias: el profeta timido.",
+            role = "bullet"
+        ),
+        StudyBlockNode.Paragraph(
+            text = "El profeta Samuel: cuyo nombre significa Dios ha escuchado.",
+            role = "bullet"
+        ),
+        StudyBlockNode.Paragraph(
+            text = "El joven David: conocido como el hombre conforme al corazon de Dios.",
+            role = "bullet"
+        ),
+        StudyBlockNode.QuotedVerse(
+            reference = "Jeremias 1:6-7",
+            primaryVersion = "rv1960",
+            primaryText = "6 Y yo dije: Ah, Senor Jehova! He aqui, no se hablar, porque soy nino. 7 Y me dijo Jehova: No digas: Soy un nino; porque a todo lo que te envie iras tu, y diras todo lo que te mande."
+        ),
+        StudyBlockNode.Reflection(
+            topic = "Pregunta guia",
+            text = "Si Dios escoge a jovenes desde su aparente debilidad, que excusa debo dejar de usar? La identidad nace del llamado de Dios, no de la seguridad personal, la edad o la apariencia."
+        ),
+        StudyBlockNode.Paragraph(
+            text = "Digale al que esta a su lado: usted ha sido escogido por Dios. Pero hemos sido escogidos para que?"
+        ),
+        styledParagraph(
+            text = "Cuando Dios escoge a una persona, lo primero que hace es darle algo especial: le da de su gracia y le da una identidad. Cuantos de aqui tenemos la identidad de Jesucristo?",
+            highlight = "le da una identidad",
+            color = 0xFF0F766E,
+            background = 0xFFE2F8EF,
+            bold = true
+        ),
+        StudyBlockNode.QuotedVerse(
+            reference = "Juan 15:16",
+            primaryVersion = "rv1960",
+            primaryText = "16 No me elegisteis vosotros a mi, sino que yo os elegi a vosotros, y os he puesto para que vayais y lleveis fruto, y vuestro fruto permanezca; para que todo lo que pidiereis al Padre en mi nombre, el os lo de."
+        ),
+        StudyBlockNode.Paragraph(
+            text = "Esto es lo bonito: en medio de cada universidad encontramos un grupo de jovenes escogido por Dios para hacer esta mision."
+        ),
+        StudyBlockNode.Paragraph(
+            text = "Dios escoge",
+            parallelText = "Dios envia",
+            role = "columns",
+            styles = listOf(TextStyleRange(start = 0, end = 11, bold = true, color = 0xFF7C3AED)),
+            parallelStyles = listOf(TextStyleRange(start = 0, end = 9, bold = true, color = 0xFFB45309))
+        ),
+        StudyBlockNode.QuotedVerse(
+            reference = "1 Corintios 15:9-10",
+            primaryVersion = "rv1960",
+            primaryText = "9 Porque yo soy el mas pequeno de los apostoles, que no soy digno de ser llamado apostol, porque persegui a la iglesia de Dios. 10 Pero por la gracia de Dios soy lo que soy; y su gracia no ha sido en vano para conmigo, antes he trabajado mas que todos ellos; pero no yo, sino la gracia de Dios conmigo."
+        ),
+        StudyBlockNode.Reflection(
+            topic = "Identidad sin filtro",
+            text = "La identidad no se define por apariencia, comparacion o pasado. Dios mira el corazon, llama por gracia y forma fruto que permanece."
+        ),
+        StudyBlockNode.Note(
+            text = "Cierre sugerido: invitar a los jovenes a responder desde su identidad en Cristo y no desde la presion de parecer suficientes."
+        )
+    )
+
+    private fun styledParagraph(
+        text: String,
+        highlight: String,
+        color: Long? = null,
+        background: Long? = null,
+        bold: Boolean = false,
+        italic: Boolean = false
+    ): StudyBlockNode.Paragraph {
+        val start = text.indexOf(highlight).takeIf { it >= 0 } ?: return StudyBlockNode.Paragraph(text = text)
+        return StudyBlockNode.Paragraph(
+            text = text,
+            styles = listOf(
+                TextStyleRange(
+                    start = start,
+                    end = start + highlight.length,
+                    color = color,
+                    background = background,
+                    bold = bold,
+                    italic = italic
+                )
+            )
+        )
+    }
+
     private suspend fun loadStudy(studyId: Long) {
-        val study = withContext(Dispatchers.IO) { dao.getStudy(studyId) } ?: return
+        val study = withContext(ioDispatcher) { dao.getStudy(studyId) } ?: return
         try {
             val doc = runCatching { json.decodeFromString<SerializedStudyDocument>(study.contentSerialized) }
                 .getOrDefault(SerializedStudyDocument())
@@ -717,10 +893,10 @@ class StudyViewModel @JvmOverloads constructor(
 
     private suspend fun persistCurrentStudy(): Boolean {
         val s = _state.value
-        val notebookId = s.selectedNotebookId ?: withContext(Dispatchers.IO) {
+        val notebookId = s.selectedNotebookId ?: withContext(ioDispatcher) {
             dao.observeNotebooks().firstOrNull()?.firstOrNull()?.id
         } ?: return false
-        val notebook = withContext(Dispatchers.IO) { dao.getNotebook(notebookId) } ?: return false
+        val notebook = withContext(ioDispatcher) { dao.getNotebook(notebookId) } ?: return false
         val now = System.currentTimeMillis()
         val document = SerializedStudyDocument(
             blocks = s.blocks,
@@ -729,7 +905,7 @@ class StudyViewModel @JvmOverloads constructor(
         )
         val studyId = s.selectedStudyId
         if (studyId == null) {
-            val newId = withContext(Dispatchers.IO) {
+            val newId = withContext(ioDispatcher) {
                 dao.insertStudy(
                     StudyEntity(
                         title = s.title.ifBlank { "Nueva Enseñanza" },
@@ -752,14 +928,14 @@ class StudyViewModel @JvmOverloads constructor(
                     positionMetadata = "inline"
                 )
             }
-            withContext(Dispatchers.IO) { dao.replaceCitations(newId, citations) }
+            withContext(ioDispatcher) { dao.replaceCitations(newId, citations) }
             _state.value = _state.value.copy(selectedStudyId = newId, selectedNotebookId = notebookId, isDraftMode = false)
             lastSavedSignature = buildSignature(_state.value)
             FirestoreSyncManager.requestStudiesSync()
             return true
         }
 
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             val existing = dao.getStudy(studyId)
             dao.updateStudy(
                 existing?.copy(
@@ -792,7 +968,7 @@ class StudyViewModel @JvmOverloads constructor(
                 positionMetadata = "inline"
             )
         }
-        withContext(Dispatchers.IO) { dao.replaceCitations(studyId, citations) }
+        withContext(ioDispatcher) { dao.replaceCitations(studyId, citations) }
         lastSavedSignature = buildSignature(_state.value)
         FirestoreSyncManager.requestStudiesSync()
         return true

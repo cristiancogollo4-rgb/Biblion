@@ -270,6 +270,63 @@ private fun StudyModeNavigation(
 
 data class VerseAction(val number: String, val text: String)
 
+data class CitationVerseGroup(
+    val reference: String,
+    val text: String
+)
+
+private fun formatCitationVerseText(number: Int, text: String): String = "$number ${text.trim()}"
+
+internal fun buildCitationVerseGroups(
+    bookName: String,
+    chapter: Int,
+    selections: Collection<VerseAction>
+): List<CitationVerseGroup> {
+    val sortedSelections = selections
+        .mapNotNull { selection ->
+            val number = selection.number.toIntOrNull() ?: return@mapNotNull null
+            number to selection
+        }
+        .sortedBy { it.first }
+
+    if (sortedSelections.isEmpty()) return emptyList()
+
+    val groups = mutableListOf<CitationVerseGroup>()
+    var currentStart = sortedSelections.first().first
+    var currentEnd = currentStart
+    val currentTexts = mutableListOf(
+        formatCitationVerseText(
+            number = sortedSelections.first().first,
+            text = sortedSelections.first().second.text
+        )
+    )
+
+    fun flushGroup() {
+        val reference = "$bookName $chapter:$currentStart" +
+            if (currentEnd > currentStart) "-$currentEnd" else ""
+        groups += CitationVerseGroup(
+            reference = reference,
+            text = currentTexts.joinToString(" ")
+        )
+    }
+
+    sortedSelections.drop(1).forEach { (number, selection) ->
+        if (number == currentEnd + 1) {
+            currentEnd = number
+            currentTexts += formatCitationVerseText(number, selection.text)
+        } else {
+            flushGroup()
+            currentStart = number
+            currentEnd = number
+            currentTexts.clear()
+            currentTexts += formatCitationVerseText(number, selection.text)
+        }
+    }
+    flushGroup()
+
+    return groups
+}
+
 @Composable
 /**
  * Contenido principal del lector de capítulos y versículos.
@@ -371,6 +428,21 @@ fun ReaderContent(
             chapter = selectedChapter,
             verses = result.updatedChapterHighlights
         )
+    }
+
+    fun addSelectedCitations(includeFullText: Boolean) {
+        val targetBook = bookName ?: return
+        buildCitationVerseGroups(
+            bookName = targetBook,
+            chapter = selectedChapter,
+            selections = selectedVerseActions.values
+        ).forEach { group ->
+            viewModel.addCitation(
+                reference = group.reference,
+                text = group.text,
+                includeFullText = includeFullText
+            )
+        }
     }
 
     fun loadChapter(book: String, chapter: Int) {
@@ -633,10 +705,7 @@ fun ReaderContent(
                 },
                 onAddCitation = if (isStudyModeActive) {
                     {
-                        selectedVerseActions.values.sortedBy { it.number.toIntOrNull() ?: Int.MAX_VALUE }.forEach { selected ->
-                            val reference = "${bookName ?: ""} $selectedChapter:${selected.number}"
-                            viewModel.addCitation(reference = reference, text = selected.text, includeFullText = true)
-                        }
+                        addSelectedCitations(includeFullText = true)
                         selectedVerseActions = emptyMap()
                     }
                 } else {
@@ -658,20 +727,14 @@ fun ReaderContent(
                 text = { Text("Elige cómo insertar los versículos seleccionados.") },
                 confirmButton = {
                     TextButton(onClick = {
-                        selectedVerseActions.values.sortedBy { it.number.toIntOrNull() ?: Int.MAX_VALUE }.forEach { selected ->
-                            val reference = "${bookName ?: ""} $selectedChapter:${selected.number}"
-                            viewModel.addCitation(reference = reference, text = selected.text, includeFullText = true)
-                        }
+                        addSelectedCitations(includeFullText = true)
                         selectedVerseActions = emptyMap()
                         showCitationInsertDialog = false
                     }) { Text("Texto completo") }
                 },
                 dismissButton = {
                     TextButton(onClick = {
-                        selectedVerseActions.values.sortedBy { it.number.toIntOrNull() ?: Int.MAX_VALUE }.forEach { selected ->
-                            val reference = "${bookName ?: ""} $selectedChapter:${selected.number}"
-                            viewModel.addCitation(reference = reference, text = selected.text, includeFullText = false)
-                        }
+                        addSelectedCitations(includeFullText = false)
                         selectedVerseActions = emptyMap()
                         showCitationInsertDialog = false
                     }) { Text("Solo referencia") }
