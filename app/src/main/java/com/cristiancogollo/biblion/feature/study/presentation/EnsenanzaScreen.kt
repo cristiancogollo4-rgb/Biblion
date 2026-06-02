@@ -2,14 +2,17 @@ package com.cristiancogollo.biblion
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -46,6 +49,17 @@ fun EnsenanzaScreen(navController: NavController) {
     var metadataTitle by remember { mutableStateOf("") }
     var metadataTagsInput by remember { mutableStateOf("") }
     var metadataError by remember { mutableStateOf<String?>(null) }
+    var filterInput by remember { mutableStateOf("") }
+    val visibleStudies = remember(state.allStudies, filterInput) {
+        val query = filterInput.trim().lowercase()
+        state.allStudies.map { study ->
+            study to buildStudyPreview(study.contentSerialized, json)
+        }.filter { (study, preview) ->
+            query.isBlank() ||
+                study.title.lowercase().contains(query) ||
+                preview.tags.any { tag -> tag.lowercase().contains(query) }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -62,7 +76,6 @@ fun EnsenanzaScreen(navController: NavController) {
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
-                    viewModel.process(StudyIntent.CreateNewStudy)
                     navController.navigateSingleTop(Screen.Reader.createRoute(studyMode = true))
                 },
                 containerColor = MaterialTheme.colorScheme.primary,
@@ -83,7 +96,35 @@ fun EnsenanzaScreen(navController: NavController) {
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(state.allStudies, key = { it.id }) { study ->
+                item {
+                    OutlinedTextField(
+                        value = filterInput,
+                        onValueChange = { filterInput = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = null)
+                        },
+                        label = { Text("Filtrar") },
+                        placeholder = { Text("Titulo o etiqueta") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = BiblionNavy,
+                            unfocusedBorderColor = BiblionGoldPrimary,
+                            focusedLabelColor = BiblionNavy,
+                            cursorColor = BiblionNavy
+                        )
+                    )
+                }
+                if (visibleStudies.isEmpty()) {
+                    item {
+                        Text(
+                            text = "No hay ensenanzas que coincidan con el filtro.",
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+                items(visibleStudies, key = { it.first.id }) { (study, _) ->
                     EnsenanzaCard(
                         study = study,
                         dateText = dateFormat.format(Date(study.updatedAt)),
@@ -124,7 +165,10 @@ fun EnsenanzaScreen(navController: NavController) {
             textContentColor = MaterialTheme.colorScheme.onSurface,
             title = { Text("Editar título y etiquetas") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     OutlinedTextField(
                         value = metadataTitle,
                         onValueChange = {
@@ -140,21 +184,12 @@ fun EnsenanzaScreen(navController: NavController) {
                             cursorColor = BiblionNavy
                         )
                     )
-                    OutlinedTextField(
+                    StudyTagSelector(
                         value = metadataTagsInput,
                         onValueChange = {
                             metadataTagsInput = it
                             metadataError = null
-                        },
-                        singleLine = true,
-                        label = { Text("Etiquetas") },
-                        supportingText = { Text("Separadas por comas") },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = BiblionNavy,
-                            unfocusedBorderColor = BiblionGoldPrimary,
-                            focusedLabelColor = BiblionNavy,
-                            cursorColor = BiblionNavy
-                        )
+                        }
                     )
                     metadataError?.let {
                         Text(
@@ -169,13 +204,11 @@ fun EnsenanzaScreen(navController: NavController) {
                 TextButton(
                     onClick = {
                     val cleanTitle = metadataTitle.trim()
-                    val cleanTags = metadataTagsInput.split(",")
-                        .map { it.trim().removePrefix("#") }
-                        .filter { it.isNotBlank() }
-                        .distinct()
+                    val cleanTags = parseStudyTags(metadataTagsInput)
+                    val tagError = validateRequiredStudyTags(cleanTags)
                     metadataError = when {
                         cleanTitle.isBlank() -> "El título es obligatorio."
-                        cleanTags.isEmpty() -> "Debes agregar al menos una etiqueta."
+                        tagError != null -> tagError
                         else -> null
                     }
                     if (metadataError == null) {

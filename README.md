@@ -1,164 +1,359 @@
-# 📖 Biblion
+# Biblion
 
-**Biblion** es una aplicación móvil Android, construida con **Kotlin + Jetpack Compose**, diseñada para hacer la lectura bíblica, la búsqueda de versículos y el estudio personal más simples, rápidas y enfocadas.
+**Biblion** es una aplicacion movil Android construida con **Kotlin + Jetpack Compose + Material 3**. Su objetivo es ofrecer una experiencia clara para lectura biblica, busqueda de versiculos y preparacion de ensenanzas desde un solo lugar.
 
----
-
-## ✨ Descripción
-
-Biblion nace para resolver una necesidad muy concreta: tener una experiencia de estudio bíblico clara, ordenada y accesible desde el celular, sin interfaces recargadas.
-
-La app está orientada a:
-- Personas que desean leer la Biblia de forma diaria.
-- Usuarios que necesitan encontrar versículos por texto rápidamente.
-- Creyentes que quieren organizar enseñanzas/notas personales en un solo lugar.
-
-En su estado actual, Biblion combina lectura bíblica por libro/capítulo, selección de versión bíblica y herramientas iniciales de estudio con almacenamiento local.
+El proyecto esta en desarrollo activo. La experiencia visual, los flujos de estudio y la sincronizacion siguen evolucionando.
 
 ---
 
-## 🚧 Estado del proyecto
+## Estado actual
 
-> [!WARNING]
-> **Biblion está en desarrollo activo (no es una versión final).**
-> 
-> Esto significa que:
-> - Algunas funcionalidades aún están en evolución.
-> - La experiencia visual y de navegación puede cambiar.
-> - Pueden existir errores o comportamientos no definitivos.
-> 
-> Si vas a usar o contribuir al proyecto, considera que se están realizando mejoras continuas.
+Biblion ya cuenta con:
 
----
-
-## ✅ Características actuales
-
-Basado en el código actual del repositorio, Biblion ya incluye:
-
-- Lectura bíblica por testamento, libro y capítulo.
-- Visualización de **versículo del día** con persistencia diaria.
-- Búsqueda de versículos por palabra/frase dentro de la versión seleccionada.
-- Navegación directa al pasaje desde resultados de búsqueda.
-- Soporte para múltiples versiones bíblicas cargadas desde `assets` (ej. RV1960, NVI, DHH, TLA, NTV).
-- Selector de versión bíblica desde la interfaz.
-- Modo de estudio con editor enriquecido (rich text) para crear contenido.
-- Gestión de enseñanzas guardadas (crear, abrir, editar, eliminar).
-- Etiquetas/metadatos para enseñanzas.
-- Persistencia local con Room para estudios y citas vinculadas.
-- Inserción de citas bíblicas en el flujo de estudio.
+- Lectura biblica por testamento, libro y capitulo.
+- Busqueda de versiculos por texto.
+- Selector de version biblica.
+- Resaltado de versiculos.
+- Preferencias de lectura, incluyendo tamano de fuente.
+- Modo claro/oscuro global.
+- Autenticacion con Firebase.
+- Sincronizacion con Firestore para preferencias, resaltados, estudios y citas.
+- Modo estudio con editor estructurado.
+- Gestion de "Mis ensenanzas".
+- Lectura enriquecida de ensenanzas.
+- Sistema de etiquetas sugeridas y validacion de metadata.
+- Filtros de ensenanzas por titulo o etiquetas.
 
 ---
 
-## 🛠️ Tecnologías utilizadas
+## Caracteristicas principales
 
-- **Kotlin**
-- **Jetpack Compose** (UI declarativa)
-- **Material 3**
-- **Navigation Compose**
-- **AndroidX Lifecycle**
-- **Room (SQLite)**
-- **Kotlinx Serialization**
-- **KSP (Kotlin Symbol Processing)**
-- **RichEditor Compose** (editor de contenido enriquecido)
+### Lectura biblica
+
+- Navegacion por Antiguo y Nuevo Testamento.
+- Lectura por libro/capitulo.
+- Cambio de version biblica desde el lector.
+- Busqueda de versiculos y navegacion directa al resultado.
+- Seleccion multiple de versiculos.
+- Resaltado por color.
+- Insercion de citas al modo estudio.
+
+### Citas por rango
+
+Cuando se seleccionan versiculos contiguos, Biblion los agrupa como una sola cita:
+
+```text
+Genesis 1:1-3
+1 En el principio... 2 Y la tierra... 3 Y dijo Dios...
+```
+
+Esto evita crear tres componentes separados para una sola referencia.
+
+### Mis ensenanzas
+
+La seccion **Mis ensenanzas** permite:
+
+- Ver ensenanzas guardadas.
+- Abrir una ensenanza en modo lectura.
+- Editar una ensenanza en modo estudio.
+- Editar titulo y etiquetas.
+- Eliminar ensenanzas.
+- Filtrar por titulo o etiquetas.
 
 ---
 
-## 🧱 Arquitectura
+## Modo estudio
 
-La organización actual sugiere una arquitectura por capas con enfoque **MVVM**:
+El modo estudio combina el lector biblico con un editor para preparar ensenanzas, bosquejos, devocionales o clases.
 
-- **UI (Compose Screens/Components):** pantallas como `HomeScreen`, `ReaderScreen`, `SearchScreen`, `EnsenanzaScreen`, etc.
-- **ViewModel:** `StudyViewModel` gestiona estado de estudio, intents y persistencia de cambios.
-- **Data Layer:**
-  - `BibleRepository` para acceso/caché de textos bíblicos desde `assets`.
-  - `StudyDatabase` + DAO (Room) para enseñanzas y citas.
-- **Navigation Layer:** rutas centralizadas en `NavigationRoutes` y composición en `AppNavigation`.
+### Herramientas del editor
 
-Este enfoque facilita escalar módulos (por ejemplo, doctrinas, exportación y sincronización futura).
+#### Texto libre
+
+Bloque principal para redactar la ensenanza. Permite escribir parrafos continuos y separar ideas.
+
+#### Encabezado
+
+Convierte un parrafo en titulo/seccion. Sirve para estructurar el bosquejo.
+
+#### Lista con vinetas
+
+Convierte parrafos en items de lista para puntos no secuenciales.
+
+#### Lista numerada
+
+Convierte parrafos en items ordenados para pasos, argumentos o secuencias.
+
+#### Columnas
+
+Permite comparar o presentar dos ideas lado a lado. Internamente no es un bloque independiente: usa un parrafo con `role = "columns"` y `parallelText`.
+
+Usos recomendados:
+
+- contraste de ideas;
+- predicar/refugio;
+- antes/despues;
+- texto/aplicacion.
+
+#### Citar
+
+Inserta una cita biblica como bloque interactivo.
+
+Funciones:
+
+- insertar texto completo de la cita;
+- mantener rangos como una sola referencia;
+- mostrar indicadores inline de versiculo;
+- cambiar version biblica;
+- comparar con otra version;
+- ocultar/mostrar comparacion.
+
+#### Nota
+
+Bloque para observaciones, ideas auxiliares, datos de contexto o recordatorios del expositor.
+
+#### Reflexion
+
+Bloque para desarrollar una idea espiritual o pastoral vinculada al tema.
+
+#### Estilos de texto
+
+Permite aplicar estilos a rangos seleccionados:
+
+- color de texto;
+- color de fondo;
+- negrita;
+- cursiva;
+- subrayado;
+- tamano de fuente.
+
+#### Modo enfoque
+
+Oculta el panel del lector y deja el editor como area principal de trabajo.
+
+#### Guardar con metadata
+
+Antes de guardar, Biblion solicita titulo y etiquetas organizadas por secciones.
 
 ---
 
-## ⚙️ Instalación
+## Lectura de ensenanzas
+
+La pantalla de lectura de ensenanzas renderiza el documento estructurado, no solo texto plano.
+
+Funciones actuales:
+
+- visualizacion de parrafos, encabezados, listas, columnas, notas, reflexiones y citas;
+- cambio de version en citas;
+- comparacion de versiones en citas;
+- ocultar/mostrar comparacion;
+- numeracion inline de versiculos con color diferenciado para modo claro/oscuro;
+- aumentar/disminuir tamano de letra;
+- alternar modo claro/oscuro;
+- lectura vertical en moviles;
+- lectura en pantalla dividida en pantallas grandes.
+
+---
+
+## Sistema de etiquetas
+
+Las ensenanzas usan un sistema rico de etiquetas sugeridas.
+
+### Proposito
+
+- `predicacion`
+- `devocional`
+- `estudio-biblico`
+- `clase`
+- `discipulado`
+- `formacion`
+
+### Audiencia
+
+- `jovenes`
+- `iglesia`
+- `lideres`
+- `universitarios`
+- `familias`
+- `simpatizantes`
+- `ninos`
+- `mujeres`
+- `hombres`
+- `ancianos`
+- `grupos-especiales`
+- `pastores`
+
+### Tema
+
+- `identidad`
+- `fe`
+- `gracia`
+- `proposito`
+- `oracion`
+- `evangelismo`
+- `servicio`
+- `esperanza`
+- `doctrina`
+- `amor`
+- `misiones`
+- `adoracion`
+
+### Estado
+
+- `borrador`
+- `en-preparacion`
+- `finalizado`
+
+### Reglas de guardado
+
+Para guardar una ensenanza se requiere:
+
+- titulo obligatorio;
+- al menos una etiqueta de proposito;
+- al menos una etiqueta de audiencia;
+- al menos una etiqueta de tema;
+- exactamente una etiqueta de estado.
+
+Proposito, audiencia y tema permiten seleccion multiple. Estado permite una sola seleccion.
+
+---
+
+## Arquitectura
+
+La organizacion actual sigue un enfoque por capas con patron **MVVM**.
+
+### UI
+
+Pantallas y componentes Compose:
+
+- `HomeScreen`
+- `BooksScreen`
+- `ReaderScreen`
+- `SearchScreen`
+- `StudyEditorScreen`
+- `StudyReadScreen`
+- `EnsenanzaScreen`
+- `StudyTagSelector`
+
+### ViewModel
+
+`StudyViewModel` coordina:
+
+- estado del editor;
+- autosave;
+- carga y guardado de estudios;
+- insercion de citas;
+- cambio/comparacion de versiones en citas;
+- metadata;
+- seeds/demo de estudio.
+
+### Data layer
+
+- `BibleRepository`: acceso a textos biblicos desde `assets` y cache.
+- `StudyDatabase`: Room para cuadernos, estudios y citas vinculadas.
+- `FirestoreSyncManager`: sincronizacion de preferencias, resaltados y estudios.
+- `AppPreferencesSyncStore`: preferencias locales sincronizables.
+
+### Navegacion
+
+- `NavigationRoutes`
+- `AppNavigation`
+- `NavGraphShared`
+
+---
+
+## Tecnologias
+
+- Kotlin
+- Jetpack Compose
+- Material 3
+- Navigation Compose
+- AndroidX Lifecycle
+- Room
+- Kotlinx Serialization
+- KSP
+- Firebase Auth
+- Firestore
+- Robolectric / pruebas unitarias Android
+
+---
+
+## Instalacion
 
 ### Requisitos
 
-- Android Studio (versión reciente recomendada)
-- JDK 11
-- SDK de Android compatible con el proyecto
+- Android Studio reciente.
+- JDK 11 compatible con el proyecto.
+- SDK de Android.
 
 ### Pasos
-
-1. Clona el repositorio:
 
 ```bash
 git clone https://github.com/<tu-usuario>/Biblion.git
 cd Biblion
 ```
 
-2. Abre el proyecto en Android Studio.
+Luego:
 
-3. Sincroniza Gradle (`Sync Project with Gradle Files`).
-
-4. Ejecuta la app en un emulador o dispositivo físico Android (minSdk 26).
-
----
-
-## ▶️ Uso
-
-Flujo básico recomendado:
-
-1. Abre la app y entra a **Inicio**.
-2. Elige **Antiguo** o **Nuevo Testamento**.
-3. Selecciona un libro para abrir el lector bíblico.
-4. Cambia la versión bíblica si lo deseas.
-5. Usa **Buscar** para encontrar versículos por texto.
-6. Entra en **Modo Estudio** para crear o editar enseñanzas.
-7. Guarda tus enseñanzas y administra título/etiquetas desde **Mis Enseñanzas**.
+1. Abre el proyecto en Android Studio.
+2. Sincroniza Gradle.
+3. Configura Firebase si vas a probar autenticacion/sincronizacion.
+4. Ejecuta en emulador o dispositivo fisico Android.
 
 ---
 
-## 🗺️ Roadmap / Próximas mejoras
+## Validacion local
 
+Compilar:
 
-- Implementar exportación real de estudios a PDF (actualmente existe como punto de extensión).
-- Incorporar autenticación y sincronización en la nube para respaldo multi-dispositivo.
-- Completar módulos visibles como “Doctrinas” y secciones marcadas como “Próximamente”.
-- Mejorar accesibilidad (tamaños dinámicos, contraste, soporte ampliado para lectores de pantalla).
-- Añadir pruebas automatizadas de UI y cobertura de flujos clave de estudio.
-- Incluir internacionalización completa (i18n) para más idiomas.
+```powershell
+.\gradlew.bat :app:compileDebugKotlin
+```
 
----
+Ejecutar pruebas unitarias:
 
-## 👥 Equipo
+```powershell
+.\gradlew.bat :app:testDebugUnitTest
+```
 
-- **Cristian Felipe Cogollo Rodríguez** — Co-fundador & Lead Developer
-- **Anderson Geovanny Duarte Largo** — Co-fundador & Estrategia / Alianzas
+Pruebas relevantes del modo estudio:
 
----
-
-## 🤝 Contribuciones
-
-¡Las contribuciones son bienvenidas!
-
-Si quieres aportar:
-
-1. Haz un fork del repositorio.
-2. Crea una rama para tu cambio:
-   ```bash
-   git checkout -b feat/mi-mejora
-   ```
-3. Realiza tus cambios con commits claros.
-4. Ejecuta pruebas/local checks.
-5. Envía un Pull Request describiendo:
-   - Problema que resuelve.
-   - Enfoque aplicado.
-   - Capturas o evidencia (si aplica).
-
-Sugerencia: abre primero un issue para discutir cambios grandes de arquitectura o UX.
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests com.cristiancogollo.biblion.ReaderCitationGroupingTest --tests com.cristiancogollo.biblion.StudyViewModelTest --tests com.cristiancogollo.biblion.StudyTagSelectorTest
+```
 
 ---
 
+## Roadmap
 
-### 🙌 Nota final
+Ideas pendientes o en evolucion:
 
-Biblion busca crecer como una herramienta útil para la comunidad cristiana, priorizando claridad, enfoque bíblico y simplicidad de uso. Si detectas errores o tienes ideas, tus aportes pueden marcar una gran diferencia.
+- Exportacion real de ensenanzas a PDF.
+- Mejoras de accesibilidad.
+- Mayor cobertura de pruebas UI.
+- Mejoras visuales para pantallas grandes.
+- Gestion avanzada de cuadernos.
+- Busqueda avanzada dentro de ensenanzas.
+- Sincronizacion mas robusta ante conflictos.
+
+---
+
+## Equipo
+
+- Cristian Felipe Cogollo Rodriguez - Co-fundador & Lead Developer.
+- Anderson Geovanny Duarte Largo - Co-fundador & Estrategia / Alianzas.
+
+---
+
+## Contribuciones
+
+Las contribuciones son bienvenidas.
+
+Flujo recomendado:
+
+1. Crea una rama enfocada.
+2. Realiza cambios pequenos y verificables.
+3. Ejecuta compilacion y pruebas relacionadas.
+4. Abre PR con problema, solucion, riesgos y evidencia.
+
+Para detalles de estandares internos, revisa `AGENTS.md`.

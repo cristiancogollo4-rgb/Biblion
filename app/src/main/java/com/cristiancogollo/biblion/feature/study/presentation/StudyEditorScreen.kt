@@ -536,7 +536,10 @@ fun StudyEditorScreen(
             textContentColor = MaterialTheme.colorScheme.onSurface,
             title = { Text("Guardar enseñanza") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     OutlinedTextField(
                         value = saveTitle,
                         onValueChange = {
@@ -553,22 +556,12 @@ fun StudyEditorScreen(
                             cursorColor = BiblionNavy
                         )
                     )
-                    OutlinedTextField(
+                    StudyTagSelector(
                         value = saveTagsInput,
                         onValueChange = {
                             saveTagsInput = it
                             saveError = null
-                        },
-                        singleLine = true,
-                        label = { Text("Etiquetas") },
-                        placeholder = { Text("Ej: fe, oración, esperanza") },
-                        supportingText = { Text("Separa las etiquetas por comas.") },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = BiblionNavy,
-                            unfocusedBorderColor = BiblionGoldPrimary,
-                            focusedLabelColor = BiblionNavy,
-                            cursorColor = BiblionNavy
-                        )
+                        }
                     )
                     saveError?.let { error ->
                         Text(
@@ -582,14 +575,12 @@ fun StudyEditorScreen(
             confirmButton = {
                 TextButton(onClick = {
                     val cleanedTitle = saveTitle.trim()
-                    val parsedTags = saveTagsInput.split(",")
-                        .map { it.trim().removePrefix("#") }
-                        .filter { it.isNotBlank() }
-                        .distinct()
+                    val parsedTags = parseStudyTags(saveTagsInput)
+                    val tagError = validateRequiredStudyTags(parsedTags)
                     saveError = when {
                         !validateNonEmptyContent() -> "No puedes guardar una enseñanza vacía."
-                        cleanedTitle.isBlank() && parsedTags.isEmpty() ->
-                            "Debes agregar al menos un título o una etiqueta para guardar."
+                        cleanedTitle.isBlank() -> "Debes agregar un titulo para guardar."
+                        tagError != null -> tagError
                         else -> null
                     }
 
