@@ -4,6 +4,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
@@ -21,18 +22,21 @@ import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
@@ -53,6 +57,8 @@ fun StudyEditorScreen(
     onFocusModeChanged: (Boolean) -> Unit
 ) {
     val ui by viewModel.state.collectAsState()
+    val context = LocalContext.current
+    var availableBibleVersions by remember { mutableStateOf<List<BibleVersionOption>>(emptyList()) }
     var activeTextBlockId by remember { mutableStateOf<String?>(null) }
     var activeTextRole by remember { mutableStateOf("paragraph") }
     var activeTextSource by remember { mutableStateOf("main") }
@@ -111,10 +117,6 @@ fun StudyEditorScreen(
 
     fun insertReflectionBlock() = viewModel.process(StudyIntent.AddReflectionBlock(selectedText(), activeTextBlockId))
 
-    fun insertQuotedVerseBlock() = viewModel.process(StudyIntent.AddQuotedVerseBlock(activeTextBlockId))
-
-    fun insertQuestionBlock() = viewModel.process(StudyIntent.AddQuestionBlock(activeTextBlockId))
-
     fun toggleParallelText() {
         updateActiveParagraphRole(if (activeTextRole == "columns") "paragraph" else "columns")
     }
@@ -159,7 +161,8 @@ fun StudyEditorScreen(
         background: Color? = null,
         bold: Boolean = false,
         italic: Boolean = false,
-        underline: Boolean = false
+        underline: Boolean = false,
+        fontSizeSp: Float? = null
     ) {
         val blockId = activeTextBlockId ?: return
         val start = activeSelectionStart.coerceAtMost(activeSelectionEnd)
@@ -175,7 +178,8 @@ fun StudyEditorScreen(
                 background = background?.value?.toLong(),
                 bold = bold,
                 italic = italic,
-                underline = underline
+                underline = underline,
+                fontSizeSp = fontSizeSp
             )
         )
     }
@@ -188,14 +192,56 @@ fun StudyEditorScreen(
         viewModel.process(StudyIntent.ClearParagraphTextStyle(blockId, activeTextSource, start, end))
     }
 
+    fun clearSelectedTextColor() {
+        val blockId = activeTextBlockId ?: return
+        val start = activeSelectionStart.coerceAtMost(activeSelectionEnd)
+        val end = activeSelectionStart.coerceAtLeast(activeSelectionEnd)
+        if (start == end) return
+        viewModel.process(
+            StudyIntent.ClearParagraphTextStyle(
+                blockId = blockId,
+                source = activeTextSource,
+                start = start,
+                end = end,
+                clearColor = true,
+                clearBackground = false,
+                clearBold = false,
+                clearItalic = false,
+                clearUnderline = false,
+                clearFontSize = false
+            )
+        )
+    }
+
+    fun clearSelectedBackground() {
+        val blockId = activeTextBlockId ?: return
+        val start = activeSelectionStart.coerceAtMost(activeSelectionEnd)
+        val end = activeSelectionStart.coerceAtLeast(activeSelectionEnd)
+        if (start == end) return
+        viewModel.process(
+            StudyIntent.ClearParagraphTextStyle(
+                blockId = blockId,
+                source = activeTextSource,
+                start = start,
+                end = end,
+                clearColor = false,
+                clearBackground = true,
+                clearBold = false,
+                clearItalic = false,
+                clearUnderline = false,
+                clearFontSize = false
+            )
+        )
+    }
+
     fun clearSelectionFormatting() {
         updateActiveParagraphRole("paragraph")
         clearSelectedStyle()
     }
 
-    fun clearSelectionTextColor() = clearSelectedStyle()
+    fun clearSelectionTextColor() = clearSelectedTextColor()
 
-    fun clearSelectionBackground() = clearSelectedStyle()
+    fun clearSelectionBackground() = clearSelectedBackground()
 
     val hasSelection = activeSelectedText.isNotBlank()
     val hasTextTarget = activeTextBlockId != null
@@ -222,6 +268,10 @@ fun StudyEditorScreen(
     }
 
     LaunchedEffect(ui.focusMode) { onFocusModeChanged(ui.focusMode) }
+
+    LaunchedEffect(Unit) {
+        availableBibleVersions = BibleRepository.getAvailableVersions(context)
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -404,7 +454,14 @@ fun StudyEditorScreen(
                         is StudyBlockNode.TwoColumn -> {
                             StudyInteractiveBlockCard(
                                 block = block,
+                                availableVersions = availableBibleVersions,
                                 onUpdate = { updated -> viewModel.process(StudyIntent.UpdateBlock(updated)) },
+                                onChangeQuotedVerseVersion = { blockId, version ->
+                                    viewModel.process(StudyIntent.ChangeQuotedVerseVersion(blockId, version))
+                                },
+                                onCompareQuotedVerseVersion = { blockId, version ->
+                                    viewModel.process(StudyIntent.CompareQuotedVerseVersion(blockId, version))
+                                },
                                 onToggleCollapsed = { blockId -> viewModel.process(StudyIntent.ToggleBlockCollapsed(blockId)) },
                                 onDelete = { blockId -> viewModel.process(StudyIntent.DeleteBlock(blockId)) }
                             )
@@ -445,11 +502,11 @@ fun StudyEditorScreen(
                 onClearFormatting = { clearSelectionFormatting() },
                 onIncreaseSize = {
                     viewModel.process(StudyIntent.IncreaseSelectionFont)
-                    updateActiveParagraphRole("heading")
+                    applySelectedStyle(fontSizeSp = (ui.selectionFontSizeSp + 2f).coerceAtMost(46f))
                 },
                 onDecreaseSize = {
                     viewModel.process(StudyIntent.DecreaseSelectionFont)
-                    updateActiveParagraphRole("paragraph")
+                    applySelectedStyle(fontSizeSp = (ui.selectionFontSizeSp - 2f).coerceAtLeast(12f))
                 },
                 onBulletList = {
                     updateActiveParagraphRole(if (activeTextRole == "bullet") "paragraph" else "bullet")
@@ -459,18 +516,12 @@ fun StudyEditorScreen(
                 },
                 onInsertPendingCitations = {
                     val pending = viewModel.consumePendingCitations()
-                    if (pending.isEmpty()) {
-                        insertQuotedVerseBlock()
-                    } else {
-                        pending.forEach { request ->
-                            viewModel.process(StudyIntent.AddQuotedVerseBlock(activeTextBlockId, request))
-                        }
+                    pending.forEach { request ->
+                        viewModel.process(StudyIntent.AddQuotedVerseBlock(activeTextBlockId, request))
                     }
                 },
                 onInsertNote = { insertNoteBlock() },
                 onInsertReflection = { insertReflectionBlock() },
-                onInsertQuotedVerse = { insertQuotedVerseBlock() },
-                onInsertQuestion = { insertQuestionBlock() },
                 onInsertTwoColumn = { toggleParallelText() }
             )
         }
@@ -819,7 +870,8 @@ private class StyleRangeVisualTransformation(
                         background = style.background?.let { Color(it.toULong()) } ?: Color.Unspecified,
                         fontWeight = if (style.bold) FontWeight.Bold else null,
                         fontStyle = if (style.italic) FontStyle.Italic else null,
-                        textDecoration = if (style.underline) TextDecoration.Underline else null
+                        textDecoration = if (style.underline) TextDecoration.Underline else null,
+                        fontSize = style.fontSizeSp?.sp ?: TextUnit.Unspecified
                     ),
                     start,
                     end
@@ -847,7 +899,10 @@ private fun String.toPlainEditorText(): String {
 @Composable
 private fun StudyInteractiveBlockCard(
     block: StudyBlockNode,
+    availableVersions: List<BibleVersionOption>,
     onUpdate: (StudyBlockNode) -> Unit,
+    onChangeQuotedVerseVersion: (String, String) -> Unit,
+    onCompareQuotedVerseVersion: (String, String) -> Unit,
     onToggleCollapsed: (String) -> Unit,
     onDelete: (String) -> Unit
 ) {
@@ -888,49 +943,60 @@ private fun StudyInteractiveBlockCard(
         }
 
         is StudyBlockNode.QuotedVerse -> InteractiveBlockShell(
-            title = "Versiculo citado",
+            title = "Citar",
             accent = Color(0xFFB45309),
             container = Color(0xFFFFF1D6),
             collapsed = block.collapsed,
             onToggle = { onToggleCollapsed(block.blockId) },
             onDelete = { onDelete(block.blockId) }
         ) {
-            IntegratedBlockTextField(
-                value = block.reference,
-                onValueChange = { onUpdate(block.copy(reference = it)) },
-                placeholder = "Referencia, ej: Juan 3:16"
+            var showCompareTools by remember(block.blockId) { mutableStateOf(block.compareText.isNotBlank()) }
+            QuotedVerseReferenceHeader(
+                block = block,
+                availableVersions = availableVersions,
+                showCompareTools = showCompareTools,
+                onVersionSelected = { version ->
+                    onChangeQuotedVerseVersion(block.blockId, version)
+                },
+                onToggleCompare = { showCompareTools = !showCompareTools },
+                onCompareVersionSelected = { version ->
+                    onCompareQuotedVerseVersion(block.blockId, version)
+                }
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                IntegratedBlockTextField(
-                    value = block.primaryVersion,
-                    onValueChange = { onUpdate(block.copy(primaryVersion = it)) },
-                    modifier = Modifier.weight(1f),
-                    placeholder = "Version principal"
-                )
-                IntegratedBlockTextField(
-                    value = block.compareVersion,
-                    onValueChange = { onUpdate(block.copy(compareVersion = it)) },
-                    modifier = Modifier.weight(1f),
-                    placeholder = "Comparar con"
-                )
+            if (showCompareTools) {
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val compact = maxWidth < 520.dp
+                    if (compact) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            QuotedVerseText(text = block.primaryText)
+                            if (block.compareText.isNotBlank()) {
+                                QuotedVerseText(text = block.compareText)
+                            }
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            QuotedVerseText(
+                                text = block.primaryText,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Box(
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                if (block.compareText.isNotBlank()) {
+                                    QuotedVerseText(text = block.compareText)
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                QuotedVerseText(text = block.primaryText)
             }
-            IntegratedBlockTextField(
-                value = block.primaryText,
-                onValueChange = { onUpdate(block.copy(primaryText = it)) },
-                placeholder = "Texto principal..."
-            )
-            IntegratedBlockTextField(
-                value = block.compareText,
-                onValueChange = { onUpdate(block.copy(compareText = it)) },
-                placeholder = "Texto comparado..."
-            )
-            IntegratedBlockTextField(
-                value = block.note,
-                onValueChange = { onUpdate(block.copy(note = it)) },
-                placeholder = "Enfasis de la ensenanza..."
-            )
         }
-
         is StudyBlockNode.Question -> InteractiveBlockShell(
             title = "Pregunta",
             accent = Color(0xFF2563EB),
@@ -1041,6 +1107,116 @@ private fun TwoColumnEditorSide(
 }
 
 @Composable
+private fun QuotedVerseReferenceHeader(
+    block: StudyBlockNode.QuotedVerse,
+    availableVersions: List<BibleVersionOption>,
+    showCompareTools: Boolean,
+    onVersionSelected: (String) -> Unit,
+    onToggleCompare: () -> Unit,
+    onCompareVersionSelected: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = block.reference.ifBlank { "Referencia citada" },
+            style = MaterialTheme.typography.labelLarge,
+            color = Color(0xFFB45309),
+            fontWeight = FontWeight.Bold
+        )
+        QuotedVerseVersionMenuButton(
+            label = block.primaryVersion.uppercase(),
+            versions = availableVersions,
+            selectedVersion = block.primaryVersion,
+            onVersionSelected = onVersionSelected
+        )
+        TextButton(
+            onClick = onToggleCompare,
+            contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
+        ) {
+            Text(
+                text = if (showCompareTools) "ocultar" else "comparar",
+                style = MaterialTheme.typography.labelSmall
+            )
+        }
+        if (showCompareTools) {
+            QuotedVerseVersionMenuButton(
+                label = if (block.compareVersion.isBlank()) "version" else block.compareVersion.uppercase(),
+                versions = availableVersions.filter { it.key != block.primaryVersion },
+                selectedVersion = block.compareVersion,
+                onVersionSelected = onCompareVersionSelected
+            )
+        }
+    }
+}
+
+@Composable
+private fun QuotedVerseVersionMenuButton(
+    label: String,
+    versions: List<BibleVersionOption>,
+    selectedVersion: String,
+    onVersionSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        TextButton(
+            onClick = { expanded = true },
+            contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall
+            )
+            Icon(
+                Icons.Default.ArrowDropDown,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            versions.forEach { version ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = version.label,
+                            fontWeight = if (version.key == selectedVersion) FontWeight.Bold else FontWeight.Normal
+                        )
+                    },
+                    onClick = {
+                        expanded = false
+                        onVersionSelected(version.key)
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuotedVerseText(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    Text(
+        text = text.ifBlank { "Texto de la cita no disponible." },
+        modifier = modifier,
+        style = MaterialTheme.typography.bodyLarge.copy(
+            fontFamily = FontFamily.Serif,
+            fontStyle = FontStyle.Italic,
+            lineHeight = 25.sp
+        ),
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
+    )
+}
+
+@Composable
 private fun IntegratedBlockTextField(
     value: String,
     onValueChange: (String) -> Unit,
@@ -1054,6 +1230,8 @@ private fun IntegratedBlockTextField(
             .fillMaxWidth()
             .padding(vertical = 3.dp),
         textStyle = MaterialTheme.typography.bodyLarge.copy(
+            fontFamily = FontFamily.Serif,
+            fontStyle = FontStyle.Italic,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.86f)
         ),
         decorationBox = { innerTextField ->
@@ -1061,7 +1239,10 @@ private fun IntegratedBlockTextField(
                 if (value.isBlank()) {
                     Text(
                         text = placeholder,
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontFamily = FontFamily.Serif,
+                            fontStyle = FontStyle.Italic
+                        ),
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                     )
                 }
@@ -1095,16 +1276,16 @@ private fun InteractiveBlockShell(
     ) {
             Box(
                 modifier = Modifier
-                    .padding(top = 8.dp)
-                    .width(3.dp)
+                    .padding(top = 7.dp)
+                    .width(2.dp)
                     .fillMaxHeight()
                     .background(accent, MaterialTheme.shapes.small)
             )
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(start = 10.dp, end = 2.dp, top = 2.dp, bottom = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                    .padding(start = 8.dp, end = 2.dp, top = 1.dp, bottom = 3.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1116,7 +1297,9 @@ private fun InteractiveBlockShell(
                     singleLine = true,
                     textStyle = MaterialTheme.typography.labelLarge.copy(
                         color = accent,
-                        fontWeight = FontWeight.Bold
+                        fontFamily = FontFamily.Serif,
+                        fontWeight = FontWeight.Bold,
+                        fontStyle = FontStyle.Italic
                     ),
                     modifier = Modifier.weight(1f)
                 )

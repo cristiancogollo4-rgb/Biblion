@@ -34,11 +34,11 @@ import androidx.compose.material.icons.filled.HorizontalRule
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.QuestionMark
 import androidx.compose.material.icons.filled.TextIncrease
 import androidx.compose.material.icons.filled.TextDecrease
 import androidx.compose.material.icons.filled.Title
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ViewColumn
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -59,9 +59,13 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.TextUnit
@@ -610,7 +614,7 @@ fun VerseActionsFloatingMenu(
                     ActionPill(icon = Icons.Default.CopyAll, label = "Copiar", onClick = onCopy)
                     
                     if (onAddCitation != null) {
-                        ActionPill(icon = Icons.Default.EditNote, label = "Citar", onClick = onAddCitation)
+                        ActionPill(icon = Icons.Default.FormatQuote, label = "Citar", onClick = onAddCitation)
                     }
 
                     IconButton(onClick = onClearSelection, modifier = Modifier.size(36.dp)) {
@@ -683,8 +687,6 @@ fun StudyEditorFloatingMenu(
     onInsertPendingCitations: () -> Unit,
     onInsertNote: () -> Unit,
     onInsertReflection: () -> Unit,
-    onInsertQuotedVerse: () -> Unit,
-    onInsertQuestion: () -> Unit,
     onInsertTwoColumn: () -> Unit
 ) {
     if (!isVisible) return
@@ -768,8 +770,6 @@ fun StudyEditorFloatingMenu(
         onInsertPendingCitations = onInsertPendingCitations,
         onInsertNote = onInsertNote,
         onInsertReflection = onInsertReflection,
-        onInsertQuotedVerse = onInsertQuotedVerse,
-        onInsertQuestion = onInsertQuestion,
         onInsertTwoColumn = onInsertTwoColumn
     )
     return
@@ -846,8 +846,6 @@ private fun StudyEditorFloatingBubble(
     onInsertPendingCitations: () -> Unit,
     onInsertNote: () -> Unit,
     onInsertReflection: () -> Unit,
-    onInsertQuotedVerse: () -> Unit,
-    onInsertQuestion: () -> Unit,
     onInsertTwoColumn: () -> Unit
 ) {
     val configuration = LocalConfiguration.current
@@ -917,16 +915,16 @@ private fun StudyEditorFloatingBubble(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    CompactEditorButton(Icons.Default.Title, "Titulo", hasSelection, onHeadlineUp)
-                    CompactEditorButton(Icons.Default.HorizontalRule, "Texto normal", hasSelection, onHeadlineDown)
-                    CompactEditorButton(Icons.Default.FormatBold, "Negrita", hasSelection, onBold)
-                    CompactEditorButton(Icons.Default.FormatItalic, "Cursiva", hasSelection, onItalic)
-                    CompactEditorButton(Icons.Default.FormatUnderlined, "Subrayado", hasSelection, onUnderline)
-                    TextToolChip("MAY", hasSelection, onUppercase)
-                    TextToolChip("min", hasSelection, onLowercase)
-                    CompactEditorButton(Icons.Default.TextIncrease, "Aumentar texto", hasSelection, onIncreaseSize)
-                    CompactEditorButton(Icons.Default.TextDecrease, "Reducir texto", hasSelection, onDecreaseSize)
-                    CompactEditorButton(Icons.Default.FormatClear, "Limpiar formato", hasSelection, onClearFormatting)
+                    TextEditorGlyphButton("H1", "Titulo", hasSelection, fontWeight = FontWeight.Bold, onClick = onHeadlineUp)
+                    TextEditorGlyphButton("P", "Texto normal", hasSelection, onClick = onHeadlineDown)
+                    TextEditorGlyphButton("B", "Negrita", hasSelection, fontWeight = FontWeight.Black, onClick = onBold)
+                    TextEditorGlyphButton("I", "Cursiva", hasSelection, fontStyle = FontStyle.Italic, onClick = onItalic)
+                    TextEditorGlyphButton("U", "Subrayado", hasSelection, textDecoration = TextDecoration.Underline, onClick = onUnderline)
+                    TextEditorGlyphButton("AA", "Mayusculas", hasSelection, fontWeight = FontWeight.Bold, onClick = onUppercase)
+                    TextEditorGlyphButton("aa", "Minusculas", hasSelection, onClick = onLowercase)
+                    TextEditorGlyphButton("A+", "Aumentar texto", hasSelection, fontWeight = FontWeight.Bold, onClick = onIncreaseSize)
+                    TextEditorGlyphButton("A-", "Reducir texto", hasSelection, fontWeight = FontWeight.Bold, onClick = onDecreaseSize)
+                    TextEditorGlyphButton("Tx", "Limpiar formato", hasSelection, textDecoration = TextDecoration.LineThrough, onClick = onClearFormatting)
                 }
 
                 Row(
@@ -936,10 +934,10 @@ private fun StudyEditorFloatingBubble(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    EditorToolChip(Icons.Default.FormatColorText, "Texto", expandedTool == "text", hasSelection) {
+                    EditorToolChip(Icons.Default.FormatColorText, "Color", expandedTool == "text", hasSelection) {
                         onExpandedToolChange(if (expandedTool == "text") null else "text")
                     }
-                    EditorToolChip(Icons.Default.FormatColorFill, "Fondo", expandedTool == "background", hasSelection) {
+                    EditorToolChip(Icons.Default.FormatColorFill, "Resaltar", expandedTool == "background", hasSelection) {
                         onExpandedToolChange(if (expandedTool == "background") null else "background")
                     }
                     EditorToolChip(
@@ -957,7 +955,7 @@ private fun StudyEditorFloatingBubble(
                         onOrderedList
                     )
                     EditorToolChip(
-                        Icons.Default.FormatListNumbered,
+                        Icons.Default.ViewColumn,
                         if (isParallelTextMode) "Una columna" else "Columnas",
                         isParallelTextMode,
                         hasSelection,
@@ -999,18 +997,44 @@ private fun StudyEditorFloatingBubble(
                 ) {
                     EditorToolChip(Icons.Default.EditNote, "Nota", false, true, onInsertNote)
                     EditorToolChip(Icons.Default.Lightbulb, "Reflexion", false, true, onInsertReflection)
-                    EditorToolChip(Icons.Default.FormatQuote, "Versiculo", false, true, onInsertQuotedVerse)
-                    EditorToolChip(Icons.Default.QuestionMark, "Pregunta", false, true, onInsertQuestion)
                     EditorToolChip(
-                        Icons.Default.EditNote,
+                        Icons.Default.FormatQuote,
                         if (pendingCitations > 0) "Citar $pendingCitations" else "Citar",
                         pendingCitations > 0,
-                        true,
+                        pendingCitations > 0,
                         onInsertPendingCitations
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TextEditorGlyphButton(
+    glyph: String,
+    description: String,
+    enabled: Boolean = true,
+    fontWeight: FontWeight = FontWeight.SemiBold,
+    fontStyle: FontStyle? = null,
+    textDecoration: TextDecoration? = null,
+    onClick: () -> Unit
+) {
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.size(36.dp)
+    ) {
+        Text(
+            text = glyph,
+            modifier = Modifier.semantics { contentDescription = description },
+            fontSize = if (glyph.length > 1) 13.sp else 16.sp,
+            fontWeight = fontWeight,
+            fontStyle = fontStyle,
+            textDecoration = textDecoration,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 0.86f else 0.28f),
+            textAlign = TextAlign.Center
+        )
     }
 }
 

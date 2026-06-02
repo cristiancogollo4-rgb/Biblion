@@ -633,7 +633,11 @@ fun ReaderContent(
                 },
                 onAddCitation = if (isStudyModeActive) {
                     {
-                        showCitationInsertDialog = true
+                        selectedVerseActions.values.sortedBy { it.number.toIntOrNull() ?: Int.MAX_VALUE }.forEach { selected ->
+                            val reference = "${bookName ?: ""} $selectedChapter:${selected.number}"
+                            viewModel.addCitation(reference = reference, text = selected.text, includeFullText = true)
+                        }
+                        selectedVerseActions = emptyMap()
                     }
                 } else {
                     null

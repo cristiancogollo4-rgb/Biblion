@@ -177,7 +177,8 @@ data class TextStyleRange(
     val background: Long? = null,
     val bold: Boolean = false,
     val italic: Boolean = false,
-    val underline: Boolean = false
+    val underline: Boolean = false,
+    val fontSizeSp: Float? = null
 )
 
 @Serializable

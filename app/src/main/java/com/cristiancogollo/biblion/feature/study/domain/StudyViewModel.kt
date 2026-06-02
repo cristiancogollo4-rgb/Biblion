@@ -89,13 +89,20 @@ sealed interface StudyIntent {
         val background: Long? = null,
         val bold: Boolean = false,
         val italic: Boolean = false,
-        val underline: Boolean = false
+        val underline: Boolean = false,
+        val fontSizeSp: Float? = null
     ) : StudyIntent
     data class ClearParagraphTextStyle(
         val blockId: String,
         val source: String,
         val start: Int,
-        val end: Int
+        val end: Int,
+        val clearColor: Boolean = true,
+        val clearBackground: Boolean = true,
+        val clearBold: Boolean = true,
+        val clearItalic: Boolean = true,
+        val clearUnderline: Boolean = true,
+        val clearFontSize: Boolean = true
     ) : StudyIntent
     data class UpdateRichTextBlock(val blockId: String, val html: String) : StudyIntent
     data class AddNoteBlock(val afterBlockId: String?) : StudyIntent
@@ -104,6 +111,8 @@ sealed interface StudyIntent {
         val afterBlockId: String?,
         val citation: CitationInsertRequest? = null
     ) : StudyIntent
+    data class ChangeQuotedVerseVersion(val blockId: String, val version: String) : StudyIntent
+    data class CompareQuotedVerseVersion(val blockId: String, val version: String) : StudyIntent
     data class AddQuestionBlock(val afterBlockId: String?) : StudyIntent
     data class UpdateBlock(val block: StudyBlockNode) : StudyIntent
     data class ToggleBlockCollapsed(val blockId: String) : StudyIntent
@@ -317,7 +326,8 @@ class StudyViewModel @JvmOverloads constructor(
                             background = intent.background,
                             bold = intent.bold,
                             italic = intent.italic,
-                            underline = intent.underline
+                            underline = intent.underline,
+                            fontSizeSp = intent.fontSizeSp
                         )
                     } else {
                         block
@@ -331,7 +341,17 @@ class StudyViewModel @JvmOverloads constructor(
             is StudyIntent.ClearParagraphTextStyle -> {
                 val updatedBlocks = ensureTextFlow(_state.value.blocks, _state.value.richHtml).map { block ->
                     if (block is StudyBlockNode.Paragraph && block.blockId == intent.blockId) {
-                        block.clearTextStyle(intent.source, intent.start, intent.end)
+                        block.clearTextStyle(
+                            source = intent.source,
+                            start = intent.start,
+                            end = intent.end,
+                            clearColor = intent.clearColor,
+                            clearBackground = intent.clearBackground,
+                            clearBold = intent.clearBold,
+                            clearItalic = intent.clearItalic,
+                            clearUnderline = intent.clearUnderline,
+                            clearFontSize = intent.clearFontSize
+                        )
                     } else {
                         block
                     }
@@ -402,15 +422,24 @@ class StudyViewModel @JvmOverloads constructor(
                 insertInteractiveBlock(
                     block = StudyBlockNode.QuotedVerse(
                         reference = citation?.reference.orEmpty(),
-                        primaryVersion = _state.value.globalVersion,
-                        primaryText = citation?.text.orEmpty(),
-                        note = if (citation == null) {
-                            "Agrega aqui el enfasis pastoral o doctrinal del texto."
-                        } else {
-                            "Agrega aqui el enfasis pastoral o doctrinal del texto citado."
-                        }
+                        primaryVersion = citation?.version ?: _state.value.globalVersion,
+                        primaryText = citation?.text.orEmpty()
                     ),
                     afterBlockId = intent.afterBlockId
+                )
+            }
+            is StudyIntent.ChangeQuotedVerseVersion -> {
+                loadQuotedVerseVersion(
+                    blockId = intent.blockId,
+                    version = intent.version,
+                    compare = false
+                )
+            }
+            is StudyIntent.CompareQuotedVerseVersion -> {
+                loadQuotedVerseVersion(
+                    blockId = intent.blockId,
+                    version = intent.version,
+                    compare = true
                 )
             }
             is StudyIntent.AddQuestionBlock -> {
@@ -508,13 +537,14 @@ class StudyViewModel @JvmOverloads constructor(
 
     fun addCitation(reference: String, text: String, includeFullText: Boolean) {
         val parsed = parseReference(reference) ?: return
+        val alwaysIncludeFullText = true
         val id = CuidGenerator.create()
         val citation = StudyBlockNode.Citation(
             citationId = id,
             reference = parsed,
             text = text,
             version = _state.value.globalVersion,
-            includeFullText = includeFullText
+            includeFullText = alwaysIncludeFullText
         )
         _state.value = _state.value.copy(
             blocks = _state.value.blocks + citation,
@@ -523,7 +553,7 @@ class StudyViewModel @JvmOverloads constructor(
                 reference = reference,
                 text = text,
                 version = _state.value.globalVersion,
-                includeFullText = includeFullText
+                includeFullText = alwaysIncludeFullText
             )
         )
     }
@@ -540,6 +570,46 @@ class StudyViewModel @JvmOverloads constructor(
         } else {
             "\n    — ${request.reference}\n"
         }
+    }
+
+    private fun loadQuotedVerseVersion(blockId: String, version: String, compare: Boolean) {
+        val normalizedVersion = normalizeVersion(version)
+        val block = _state.value.blocks
+            .filterIsInstance<StudyBlockNode.QuotedVerse>()
+            .firstOrNull { it.blockId == blockId }
+            ?: return
+        val reference = parseReference(block.reference) ?: return
+
+        viewModelScope.launch {
+            val loadedText = loadReferenceText(reference, normalizedVersion)
+            if (loadedText.isBlank()) return@launch
+            _state.value = _state.value.copy(
+                blocks = _state.value.blocks.map { current ->
+                    if (current is StudyBlockNode.QuotedVerse && current.blockId == blockId) {
+                        if (compare) {
+                            current.copy(compareVersion = normalizedVersion, compareText = loadedText)
+                        } else {
+                            current.copy(primaryVersion = normalizedVersion, primaryText = loadedText)
+                        }
+                    } else {
+                        current
+                    }
+                }
+            )
+        }
+    }
+
+    private suspend fun loadReferenceText(reference: BibleReferenceNode, version: String): String {
+        val context = getApplication<Application>().applicationContext
+        return (reference.verseStart..reference.verseEnd).mapNotNull { verse ->
+            BibleRepository.getVerseText(
+                context = context,
+                versionKey = version,
+                bookName = reference.book,
+                chapter = reference.chapter.toString(),
+                verse = verse.toString()
+            ).text.takeIf { it.isNotBlank() }
+        }.joinToString(" ")
     }
 
     fun updateStudyMetadata(studyId: Long, title: String, tags: List<String>) {
@@ -809,7 +879,8 @@ class StudyViewModel @JvmOverloads constructor(
         background: Long?,
         bold: Boolean,
         italic: Boolean,
-        underline: Boolean
+        underline: Boolean,
+        fontSizeSp: Float?
     ): StudyBlockNode.Paragraph {
         val textLength = if (source == "parallel") parallelText.length else text.length
         val rangeStart = start.coerceIn(0, textLength).coerceAtMost(end.coerceIn(0, textLength))
@@ -823,7 +894,8 @@ class StudyViewModel @JvmOverloads constructor(
             background = background,
             bold = bold,
             italic = italic,
-            underline = underline
+            underline = underline,
+            fontSizeSp = fontSizeSp
         )
         return if (source == "parallel") {
             copy(parallelStyles = parallelStyles + style)
@@ -835,20 +907,59 @@ class StudyViewModel @JvmOverloads constructor(
     private fun StudyBlockNode.Paragraph.clearTextStyle(
         source: String,
         start: Int,
-        end: Int
+        end: Int,
+        clearColor: Boolean,
+        clearBackground: Boolean,
+        clearBold: Boolean,
+        clearItalic: Boolean,
+        clearUnderline: Boolean,
+        clearFontSize: Boolean
     ): StudyBlockNode.Paragraph {
         val textLength = if (source == "parallel") parallelText.length else text.length
         val rangeStart = start.coerceIn(0, textLength).coerceAtMost(end.coerceIn(0, textLength))
         val rangeEnd = start.coerceIn(0, textLength).coerceAtLeast(end.coerceIn(0, textLength))
         if (rangeStart == rangeEnd) return this
 
-        fun keep(style: TextStyleRange): Boolean =
-            style.end <= rangeStart || style.start >= rangeEnd
+        fun TextStyleRange.hasAnyStyle(): Boolean =
+            color != null || background != null || bold || italic || underline || fontSizeSp != null
+
+        fun trimStyle(style: TextStyleRange): TextStyleRange = style.copy(
+            color = if (clearColor) null else style.color,
+            background = if (clearBackground) null else style.background,
+            bold = if (clearBold) false else style.bold,
+            italic = if (clearItalic) false else style.italic,
+            underline = if (clearUnderline) false else style.underline,
+            fontSizeSp = if (clearFontSize) null else style.fontSizeSp
+        )
+
+        fun clearStyles(styles: List<TextStyleRange>): List<TextStyleRange> = buildList {
+            styles.forEach { style ->
+                if (style.end <= rangeStart || style.start >= rangeEnd) {
+                    add(style)
+                } else {
+                    if (style.start < rangeStart) {
+                        add(style.copy(end = rangeStart))
+                    }
+                    val middle = trimStyle(
+                        style.copy(
+                            start = style.start.coerceAtLeast(rangeStart),
+                            end = style.end.coerceAtMost(rangeEnd)
+                        )
+                    )
+                    if (middle.start < middle.end && middle.hasAnyStyle()) {
+                        add(middle)
+                    }
+                    if (style.end > rangeEnd) {
+                        add(style.copy(start = rangeEnd))
+                    }
+                }
+            }
+        }
 
         return if (source == "parallel") {
-            copy(parallelStyles = parallelStyles.filter(::keep))
+            copy(parallelStyles = clearStyles(parallelStyles))
         } else {
-            copy(styles = styles.filter(::keep))
+            copy(styles = clearStyles(styles))
         }
     }
 
