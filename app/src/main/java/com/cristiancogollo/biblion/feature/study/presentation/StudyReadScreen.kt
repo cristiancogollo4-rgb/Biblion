@@ -14,13 +14,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Brightness4
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ViewColumn
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,8 +36,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -58,17 +64,25 @@ import androidx.navigation.NavController
 import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 
+private val LocalStudyReadFontSize = compositionLocalOf { 18.sp }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StudyReadScreen(
     navController: NavController,
-    studyId: Long
+    studyId: Long,
+    isDarkTheme: Boolean = false,
+    onToggleDarkTheme: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
     val viewModel: StudyViewModel = viewModel()
     val state by viewModel.state.collectAsState()
     val expandedBlocks = remember(studyId) { mutableStateMapOf<String, Boolean>() }
     var availableBibleVersions by remember { mutableStateOf<List<BibleVersionOption>>(emptyList()) }
+    val supportsSplitReading = configuration.screenWidthDp >= 840
+    var splitReadingEnabled by remember(studyId) { mutableStateOf(false) }
+    var readFontSizeSp by remember(studyId) { mutableStateOf(18f) }
 
     LaunchedEffect(studyId) {
         viewModel.process(StudyIntent.SelectStudy(studyId))
@@ -76,6 +90,12 @@ fun StudyReadScreen(
 
     LaunchedEffect(Unit) {
         availableBibleVersions = BibleRepository.getAvailableVersions(context)
+    }
+
+    LaunchedEffect(supportsSplitReading) {
+        if (!supportsSplitReading) {
+            splitReadingEnabled = false
+        }
     }
 
     Scaffold(
@@ -87,73 +107,251 @@ fun StudyReadScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atras")
                     }
                 },
+                actions = {
+                    TextButton(
+                        onClick = { readFontSizeSp = (readFontSizeSp - 1f).coerceAtLeast(14f) },
+                        enabled = readFontSizeSp > 14f
+                    ) {
+                        Text("A-", style = MaterialTheme.typography.labelLarge)
+                    }
+                    TextButton(
+                        onClick = { readFontSizeSp = (readFontSizeSp + 1f).coerceAtMost(28f) },
+                        enabled = readFontSizeSp < 28f
+                    ) {
+                        Text("A+", style = MaterialTheme.typography.labelLarge)
+                    }
+                    IconButton(onClick = { onToggleDarkTheme(!isDarkTheme) }) {
+                        Icon(
+                            Icons.Default.Brightness4,
+                            contentDescription = if (isDarkTheme) "Cambiar a modo claro" else "Cambiar a modo oscuro",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    if (supportsSplitReading && state.blocks.isNotEmpty()) {
+                        IconButton(onClick = { splitReadingEnabled = !splitReadingEnabled }) {
+                            Icon(
+                                Icons.Default.ViewColumn,
+                                contentDescription = if (splitReadingEnabled) {
+                                    "Leer en una columna"
+                                } else {
+                                    "Leer en pantalla dividida"
+                                },
+                                tint = if (splitReadingEnabled) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                }
+                            )
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            if (state.tags.isNotEmpty()) {
-                item {
-                    Text(
-                        text = "Etiquetas: ${state.tags.joinToString(", ")}",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
+        val readItems = remember(state.blocks) { state.blocks.toReadItems() }
+        val blockActions = StudyReadBlockActions(
+            availableVersions = availableBibleVersions,
+            expandedBlocks = expandedBlocks,
+            onExpandedChange = { key, expanded ->
+                expandedBlocks[key] = expanded
+            },
+            onChangeQuotedVerseVersion = { blockId, version ->
+                viewModel.process(StudyIntent.ChangeQuotedVerseVersion(blockId, version))
+            },
+            onCompareQuotedVerseVersion = { blockId, version ->
+                viewModel.process(StudyIntent.CompareQuotedVerseVersion(blockId, version))
             }
+        )
 
-            if (state.blocks.isEmpty() && state.richHtml.isBlank()) {
-                item {
-                    Text(
-                        text = "Esta ensenanza no tiene contenido aun.",
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                }
-            } else if (state.blocks.isEmpty()) {
-                item {
-                    Text(
-                        text = state.richHtml.toPlainReadText(),
-                        style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 25.sp),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
+        CompositionLocalProvider(LocalStudyReadFontSize provides readFontSizeSp.sp) {
+            if (supportsSplitReading && splitReadingEnabled && readItems.isNotEmpty()) {
+                StudyReadSplitContent(
+                    tags = state.tags,
+                    readItems = readItems,
+                    blockActions = blockActions,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                )
             } else {
-                var numberedIndex = 0
-                state.blocks.forEach { block ->
-                    if (block is StudyBlockNode.Paragraph && block.role == "numbered") {
-                        numberedIndex += 1
-                    }
-                    val numberForBlock = numberedIndex
-                    val key = block.readBlockKey()
-                    item(key = key) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        StudyReadBlock(
-                            block = block,
-                            numberedIndex = numberForBlock,
-                            availableVersions = availableBibleVersions,
-                            expanded = expandedBlocks[key] ?: !block.readCollapsed,
-                            onExpandedChange = { expanded ->
-                                expandedBlocks[key] = expanded
-                            },
-                            onChangeQuotedVerseVersion = { blockId, version ->
-                                viewModel.process(StudyIntent.ChangeQuotedVerseVersion(blockId, version))
-                            },
-                            onCompareQuotedVerseVersion = { blockId, version ->
-                                viewModel.process(StudyIntent.CompareQuotedVerseVersion(blockId, version))
-                            }
-                        )
-                    }
+                StudyReadVerticalContent(
+                    tags = state.tags,
+                    richHtml = state.richHtml,
+                    readItems = readItems,
+                    blockActions = blockActions,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                )
+            }
+        }
+    }
+}
+
+private data class StudyReadItem(
+    val block: StudyBlockNode,
+    val numberedIndex: Int
+) {
+    val key: String = block.readBlockKey()
+}
+
+private data class StudyReadBlockActions(
+    val availableVersions: List<BibleVersionOption>,
+    val expandedBlocks: Map<String, Boolean>,
+    val onExpandedChange: (String, Boolean) -> Unit,
+    val onChangeQuotedVerseVersion: (String, String) -> Unit,
+    val onCompareQuotedVerseVersion: (String, String) -> Unit
+)
+
+private fun List<StudyBlockNode>.toReadItems(): List<StudyReadItem> {
+    var numberedIndex = 0
+    return map { block ->
+        if (block is StudyBlockNode.Paragraph && block.role == "numbered") {
+            numberedIndex += 1
+        }
+        StudyReadItem(block = block, numberedIndex = numberedIndex)
+    }
+}
+
+@Composable
+private fun StudyReadVerticalContent(
+    tags: List<String>,
+    richHtml: String,
+    readItems: List<StudyReadItem>,
+    blockActions: StudyReadBlockActions,
+    modifier: Modifier = Modifier
+) {
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (tags.isNotEmpty()) {
+            item {
+                StudyReadTags(tags)
+            }
+        }
+
+        if (readItems.isEmpty() && richHtml.isBlank()) {
+            item {
+                StudyReadEmptyMessage()
+            }
+        } else if (readItems.isEmpty()) {
+            item {
+                Text(
+                    text = richHtml.toPlainReadText(),
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontSize = LocalStudyReadFontSize.current,
+                        lineHeight = (LocalStudyReadFontSize.current.value * 1.45f).sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        } else {
+            readItems.forEach { readItem ->
+                item(key = readItem.key) {
+                    StudyReadBlockItem(item = readItem, blockActions = blockActions)
                 }
             }
         }
     }
+}
+
+@Composable
+private fun StudyReadSplitContent(
+    tags: List<String>,
+    readItems: List<StudyReadItem>,
+    blockActions: StudyReadBlockActions,
+    modifier: Modifier = Modifier
+) {
+    val splitIndex = (readItems.size + 1) / 2
+    val leftItems = readItems.take(splitIndex)
+    val rightItems = readItems.drop(splitIndex)
+
+    Column(
+        modifier = modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        if (tags.isNotEmpty()) {
+            StudyReadTags(tags)
+        }
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            StudyReadSplitColumn(
+                readItems = leftItems,
+                blockActions = blockActions,
+                modifier = Modifier
+                    .weight(1f)
+                    .widthIn(max = 620.dp)
+            )
+            StudyReadSplitColumn(
+                readItems = rightItems,
+                blockActions = blockActions,
+                modifier = Modifier
+                    .weight(1f)
+                    .widthIn(max = 620.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun StudyReadSplitColumn(
+    readItems: List<StudyReadItem>,
+    blockActions: StudyReadBlockActions,
+    modifier: Modifier = Modifier
+) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        readItems.forEach { readItem ->
+            item(key = readItem.key) {
+                StudyReadBlockItem(item = readItem, blockActions = blockActions)
+            }
+        }
+    }
+}
+
+@Composable
+private fun StudyReadBlockItem(
+    item: StudyReadItem,
+    blockActions: StudyReadBlockActions
+) {
+    Spacer(modifier = Modifier.height(4.dp))
+    StudyReadBlock(
+        block = item.block,
+        numberedIndex = item.numberedIndex,
+        availableVersions = blockActions.availableVersions,
+        expanded = blockActions.expandedBlocks[item.key] ?: !item.block.readCollapsed,
+        onExpandedChange = { expanded ->
+            blockActions.onExpandedChange(item.key, expanded)
+        },
+        onChangeQuotedVerseVersion = blockActions.onChangeQuotedVerseVersion,
+        onCompareQuotedVerseVersion = blockActions.onCompareQuotedVerseVersion
+    )
+}
+
+@Composable
+private fun StudyReadTags(tags: List<String>) {
+    Text(
+        text = "Etiquetas: ${tags.joinToString(", ")}",
+        color = MaterialTheme.colorScheme.onSurface,
+        style = MaterialTheme.typography.bodyMedium
+    )
+}
+
+@Composable
+private fun StudyReadEmptyMessage() {
+    Text(
+        text = "Esta ensenanza no tiene contenido aun.",
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
+        style = MaterialTheme.typography.bodyLarge
+    )
 }
 
 @Composable
@@ -332,6 +530,7 @@ private fun StudyReadParagraph(block: StudyBlockNode.Paragraph, numberedIndex: I
     }
 
     val isListItem = block.role == "bullet" || block.role == "numbered"
+    val readFontSize = LocalStudyReadFontSize.current
     val textStyle = when (block.role) {
         "heading" -> MaterialTheme.typography.headlineSmall.copy(
             fontWeight = FontWeight.Bold,
@@ -339,7 +538,8 @@ private fun StudyReadParagraph(block: StudyBlockNode.Paragraph, numberedIndex: I
         )
         else -> MaterialTheme.typography.bodyLarge.copy(
             color = MaterialTheme.colorScheme.onSurface,
-            lineHeight = 25.sp
+            fontSize = readFontSize,
+            lineHeight = (readFontSize.value * 1.45f).sp
         )
     }
     val prefix = when (block.role) {
@@ -371,9 +571,13 @@ private fun StudyReadParagraph(block: StudyBlockNode.Paragraph, numberedIndex: I
 
 @Composable
 private fun StudyReadLegacyRichText(block: StudyBlockNode.RichText) {
+    val readFontSize = LocalStudyReadFontSize.current
     Text(
         text = block.html.toPlainReadText(),
-        style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 25.sp),
+        style = MaterialTheme.typography.bodyLarge.copy(
+            fontSize = readFontSize,
+            lineHeight = (readFontSize.value * 1.45f).sp
+        ),
         color = MaterialTheme.colorScheme.onSurface
     )
 }
@@ -384,12 +588,16 @@ private fun StudyReadColumnText(
     styles: List<TextStyleRange>,
     modifier: Modifier = Modifier
 ) {
+    val readFontSize = LocalStudyReadFontSize.current
     Text(
         text = text.toStyledText(styles),
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 2.dp),
-        style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 25.sp),
+        style = MaterialTheme.typography.bodyLarge.copy(
+            fontSize = readFontSize,
+            lineHeight = (readFontSize.value * 1.45f).sp
+        ),
         color = MaterialTheme.colorScheme.onSurface
     )
 }
@@ -566,12 +774,14 @@ private fun StudyReadColumn(
 private fun ReadSerifText(text: String) {
     val contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
     val verseNumberColor = verseNumberAccentColor()
+    val readFontSize = LocalStudyReadFontSize.current
     Text(
         text = text.ifBlank { "Sin contenido." }.toVerseNumberStyledText(verseNumberColor),
         style = MaterialTheme.typography.bodyLarge.copy(
             fontFamily = FontFamily.Serif,
             fontStyle = FontStyle.Italic,
-            lineHeight = 25.sp
+            fontSize = readFontSize,
+            lineHeight = (readFontSize.value * 1.45f).sp
         ),
         color = contentColor
     )
@@ -633,8 +843,10 @@ private fun String.toStyledText(styles: List<TextStyleRange>): AnnotatedString {
     }.toAnnotatedString()
 }
 
+@Composable
 private fun String.toVerseNumberStyledText(verseNumberColor: Color): AnnotatedString {
     val builder = AnnotatedString.Builder(this)
+    val numberFontSize = (LocalStudyReadFontSize.current.value * 0.72f).sp
     Regex("""(^|\s)(\d{1,3})(?=\s)""").findAll(this).forEach { match ->
         val numberStart = match.range.first + match.groupValues[1].length
         val numberEnd = numberStart + match.groupValues[2].length
@@ -642,7 +854,7 @@ private fun String.toVerseNumberStyledText(verseNumberColor: Color): AnnotatedSt
             SpanStyle(
                 color = verseNumberColor,
                 fontWeight = FontWeight.Bold,
-                fontSize = 13.sp
+                fontSize = numberFontSize
             ),
             numberStart,
             numberEnd

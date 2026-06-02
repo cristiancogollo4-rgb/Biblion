@@ -71,6 +71,11 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
         arguments = listOf(navArgument("studyId") { type = NavType.LongType })
     ) { backStackEntry ->
         val studyId = backStackEntry.arguments?.getLong("studyId") ?: return@composable
-        StudyReadScreen(navController = navController, studyId = studyId)
+        StudyReadScreen(
+            navController = navController,
+            studyId = studyId,
+            isDarkTheme = isDarkTheme,
+            onToggleDarkTheme = onToggleDarkTheme
+        )
     }
 }
