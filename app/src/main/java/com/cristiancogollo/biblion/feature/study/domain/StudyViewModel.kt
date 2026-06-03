@@ -524,11 +524,12 @@ class StudyViewModel @JvmOverloads constructor(
                 }
             }
             StudyIntent.StartNewDraft -> {
+                val initialBlocks = listOf(StudyBlockNode.Paragraph(text = ""))
                 _state.value = _state.value.copy(
                     selectedStudyId = null,
                     title = "",
                     richHtml = "",
-                    blocks = emptyList(),
+                    blocks = initialBlocks,
                     tags = emptyList(),
                     pendingCitations = emptyList(),
                     isDraftMode = true

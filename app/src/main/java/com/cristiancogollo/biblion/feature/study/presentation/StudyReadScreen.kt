@@ -829,8 +829,8 @@ private fun String.toStyledText(styles: List<TextStyleRange>): AnnotatedString {
             if (start == end) return@forEach
             addStyle(
                 SpanStyle(
-                    color = range.color?.let { Color(it) } ?: Color.Unspecified,
-                    background = range.background?.let { Color(it) } ?: Color.Unspecified,
+                    color = range.color?.toStudyColorOrUnspecified() ?: Color.Unspecified,
+                    background = range.background?.toStudyColorOrUnspecified() ?: Color.Unspecified,
                     fontWeight = if (range.bold) FontWeight.Bold else null,
                     fontStyle = if (range.italic) FontStyle.Italic else null,
                     textDecoration = if (range.underline) TextDecoration.Underline else null,

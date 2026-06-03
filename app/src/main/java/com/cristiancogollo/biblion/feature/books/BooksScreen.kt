@@ -114,7 +114,7 @@ fun BooksScreen(
                 BiblionTopAppBar(
                     onNavigationIconClick = { scope.launch { drawerState.open() } },
                     onSearchIconClick = { navController.navigateSingleTop(Screen.Search.route) },
-                    logoResId = R.drawable.logobiblion,
+                    logoResId = biblionLogoRes(isDarkTheme),
                 )
             }
         ) { innerPadding ->

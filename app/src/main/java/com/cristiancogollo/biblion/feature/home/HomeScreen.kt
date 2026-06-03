@@ -131,7 +131,7 @@ fun HomeScreen(
                     onSearchIconClick = {
                         navController.navigateSingleTop(Screen.Search.route)
                     },
-                    logoResId = R.drawable.logobiblion
+                    logoResId = biblionLogoRes(isDarkTheme)
                 )
             }
         ) { innerPadding ->

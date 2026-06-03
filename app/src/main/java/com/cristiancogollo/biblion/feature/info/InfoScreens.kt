@@ -115,7 +115,7 @@ fun BiblionComingSoonDialog(onDismiss: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.logobiblionsinletras),
+                    painter = painterResource(id = biblionLogoResForCurrentTheme()),
                     contentDescription = "Logo de Biblion",
                     modifier = Modifier.size(72.dp)
                 )
@@ -159,7 +159,7 @@ fun SignedOutDialog(onDismiss: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.logobiblionsinletras),
+                    painter = painterResource(id = biblionLogoResForCurrentTheme()),
                     contentDescription = "Logo de Biblion",
                     modifier = Modifier.size(72.dp)
                 )

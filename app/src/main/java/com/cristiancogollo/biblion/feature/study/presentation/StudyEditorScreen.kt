@@ -86,7 +86,21 @@ fun StudyEditorScreen(
     }
 
     fun validateNonEmptyContent(): Boolean {
-        val plainContent = ui.richHtml
+        val blockContent = ui.blocks.joinToString(" ") { block ->
+            when (block) {
+                is StudyBlockNode.Paragraph -> "${block.text} ${block.parallelText}"
+                is StudyBlockNode.RichText -> block.html
+                is StudyBlockNode.Citation -> block.text
+                is StudyBlockNode.Note -> block.text
+                is StudyBlockNode.Reflection -> "${block.topic} ${block.text}"
+                is StudyBlockNode.QuotedVerse -> "${block.reference} ${block.primaryText} ${block.note}"
+                is StudyBlockNode.Question -> "${block.question} ${block.answer}"
+                is StudyBlockNode.TwoColumn -> "${block.leftTitle} ${block.leftText} ${block.rightTitle} ${block.rightText}"
+                is StudyBlockNode.Audio -> block.title
+                is StudyBlockNode.Image -> block.caption
+            }
+        }
+        val plainContent = (ui.richHtml + " " + blockContent)
             .replace(Regex("<[^>]*>"), " ")
             .replace("&nbsp;", " ")
             .trim()
@@ -175,8 +189,8 @@ fun StudyEditorScreen(
                 source = activeTextSource,
                 start = start,
                 end = end,
-                color = color?.value?.toLong(),
-                background = background?.value?.toLong(),
+                color = color?.toStudyColorLong(),
+                background = background?.toStudyColorLong(),
                 bold = bold,
                 italic = italic,
                 underline = underline,
@@ -858,8 +872,8 @@ private class StyleRangeVisualTransformation(
             if (start < end) {
                 builder.addStyle(
                     SpanStyle(
-                        color = style.color?.let { Color(it.toULong()) } ?: Color.Unspecified,
-                        background = style.background?.let { Color(it.toULong()) } ?: Color.Unspecified,
+                        color = style.color?.toStudyColorOrUnspecified() ?: Color.Unspecified,
+                        background = style.background?.toStudyColorOrUnspecified() ?: Color.Unspecified,
                         fontWeight = if (style.bold) FontWeight.Bold else null,
                         fontStyle = if (style.italic) FontStyle.Italic else null,
                         textDecoration = if (style.underline) TextDecoration.Underline else null,

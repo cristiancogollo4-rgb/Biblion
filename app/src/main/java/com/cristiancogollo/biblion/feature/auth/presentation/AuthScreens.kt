@@ -143,7 +143,7 @@ private fun AuthScreenScaffold(
         ) {
             Spacer(modifier = Modifier.height(24.dp))
             Image(
-                painter = painterResource(id = R.drawable.logobiblion),
+                painter = painterResource(id = biblionLogoResForCurrentTheme()),
                 contentDescription = stringResource(R.string.auth_logo_cd),
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)

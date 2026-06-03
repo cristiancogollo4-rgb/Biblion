@@ -87,6 +87,28 @@ class StudyViewModelTest {
         assertEquals("No se pudo cargar el estudio.", after.loadErrorMessage)
     }
 
+    @Test
+    fun save_draft_with_metadata_inserts_new_study() = runTest {
+        val dao = FakeStudyDao()
+        val viewModel = buildViewModel(dao)
+
+        advanceUntilIdle()
+        viewModel.process(StudyIntent.StartNewDraft)
+        val firstBlock = viewModel.state.value.blocks.filterIsInstance<StudyBlockNode.Paragraph>().first()
+        viewModel.process(StudyIntent.UpdateParagraphBlock(firstBlock.blockId, "Contenido de la ensenanza"))
+        viewModel.process(
+            StudyIntent.SaveStudyWithMetadata(
+                title = "Identidad en Cristo",
+                tags = listOf("predicacion", "jovenes", "fe", "borrador")
+            )
+        )
+        advanceUntilIdle()
+
+        assertEquals(1, dao.insertStudyCalls)
+        assertEquals("Identidad en Cristo", dao.insertedStudies.last().title)
+        assertEquals(8L, viewModel.state.value.selectedStudyId)
+    }
+
     private fun buildViewModel(dao: FakeStudyDao): StudyViewModel {
         val application = ApplicationProvider.getApplicationContext<Application>()
         return StudyViewModel(
@@ -135,6 +157,9 @@ private class FakeStudyDao : StudyDao {
 
     var updateStudyCalls: Int = 0
         private set
+    var insertStudyCalls: Int = 0
+        private set
+    val insertedStudies = mutableListOf<StudyEntity>()
 
     fun resetUpdateStudyCalls() {
         updateStudyCalls = 0
@@ -160,13 +185,20 @@ private class FakeStudyDao : StudyDao {
 
     override fun observeAllStudies(): Flow<List<StudyEntity>> = flowOf(listOf(study))
 
-    override suspend fun insertStudy(study: StudyEntity): Long = study.id
+    override suspend fun insertStudy(study: StudyEntity): Long {
+        insertStudyCalls += 1
+        val newId = study.id.takeIf { it > 0 } ?: (7L + insertStudyCalls)
+        insertedStudies += study.copy(id = newId)
+        return newId
+    }
 
     override suspend fun updateStudy(study: StudyEntity) {
         updateStudyCalls += 1
     }
 
-    override suspend fun getStudy(id: Long): StudyEntity? = if (id == study.id) study else null
+    override suspend fun getStudy(id: Long): StudyEntity? {
+        return insertedStudies.firstOrNull { it.id == id } ?: if (id == study.id) study else null
+    }
 
     override suspend fun getStudyByRemoteId(remoteId: String): StudyEntity? {
         return if (remoteId == study.remoteId) study else null

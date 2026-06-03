@@ -4,6 +4,8 @@
     <style name="Theme.Biblion" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
         <item name="android:windowBackground">@drawable/biblion_launch_background</item>
+        <item name="android:windowSplashScreenBackground">@color/biblion_launch_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/logo_biblion_dark</item>
     </style>
 
 </resources>

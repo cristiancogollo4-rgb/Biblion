@@ -6,4 +6,5 @@
     <color name="biblion_gold_soft">#BFA981</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="biblion_launch_background">#FFFFFF</color>
 </resources>
