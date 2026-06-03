@@ -1,0 +1,13 @@
+{
+  "name": "biblion-bibi-worker",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "secret:nvidia": "wrangler secret put NVIDIA_API_KEY"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

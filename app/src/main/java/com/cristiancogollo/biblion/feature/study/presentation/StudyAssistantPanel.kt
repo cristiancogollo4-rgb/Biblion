@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,15 +37,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
+import kotlinx.coroutines.launch
+import java.text.Normalizer
 
 private enum class StudyAssistantAuthor {
     USER,
@@ -62,20 +67,92 @@ fun StudyAssistantOverlay(
     studyTitle: String,
     studyTags: List<String>,
     selectedText: String,
-    onInsertNote: (String) -> Unit,
-    onInsertReflection: (topic: String, text: String) -> Unit,
+    currentOutline: List<String> = emptyList(),
+    notes: List<String> = emptyList(),
+    onInsertNote: ((String) -> Unit)?,
+    onInsertReflection: ((topic: String, text: String) -> Unit)?,
+    modifier: Modifier = Modifier
+) {
+    BibiAssistantOverlay(
+        mode = StudyAssistantMode.STUDY,
+        studyTitle = studyTitle,
+        studyTags = studyTags,
+        selectedText = selectedText,
+        currentOutline = currentOutline,
+        notes = notes,
+        initialMessage = "Hola, soy Bibi, tu asistente de estudio en Biblion. Puedo ayudarte con ideas, pasajes relacionados, contexto biblico y reflexiones para tu ensenanza.",
+        inputPlaceholder = "Pregunta sobre tu ensenanza...",
+        onInsertNote = onInsertNote,
+        onInsertReflection = onInsertReflection,
+        modifier = modifier
+    )
+}
+
+@Composable
+fun ReaderAssistantOverlay(
+    bookName: String?,
+    chapter: Int,
+    selectedText: String,
+    modifier: Modifier = Modifier
+) {
+    val title = listOfNotNull(bookName, chapter.takeIf { it > 0 }?.let { "capitulo $it" })
+        .joinToString(" ")
+    BibiAssistantOverlay(
+        mode = StudyAssistantMode.READER,
+        studyTitle = title,
+        studyTags = emptyList(),
+        selectedText = selectedText,
+        currentOutline = emptyList(),
+        notes = emptyList(),
+        initialMessage = "Hola, soy Bibi, tu asistente biblico en Biblion. Puedo responder preguntas sencillas sobre el pasaje que estas leyendo.",
+        inputPlaceholder = "Pregunta sobre este pasaje...",
+        onInsertNote = null,
+        onInsertReflection = null,
+        modifier = modifier
+    )
+}
+
+@Composable
+private fun BibiAssistantOverlay(
+    mode: StudyAssistantMode,
+    studyTitle: String,
+    studyTags: List<String>,
+    selectedText: String,
+    currentOutline: List<String>,
+    notes: List<String>,
+    initialMessage: String,
+    inputPlaceholder: String,
+    onInsertNote: ((String) -> Unit)?,
+    onInsertReflection: ((topic: String, text: String) -> Unit)?,
     modifier: Modifier = Modifier
 ) {
     val initialAssistantMessage = remember {
         StudyAssistantChatMessage(
             author = StudyAssistantAuthor.ASSISTANT,
-            text = "Hola, soy Bibi, tu asistente de estudio en Biblion. Puedes pedirme ideas, pasajes relacionados o una reflexion para tu ensenanza."
+            text = initialMessage
         )
     }
     var isOpen by rememberSaveable { mutableStateOf(false) }
     var input by rememberSaveable { mutableStateOf("") }
+    var isLoading by rememberSaveable { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var availableBibleVersions by remember { mutableStateOf<List<StudyAssistantBibleVersion>>(emptyList()) }
+    var selectedBibleVersion by remember { mutableStateOf("rv1960") }
+    val assistantRepository = remember { HttpStudyAssistantRepository() }
     val messages = remember {
         mutableStateOf(listOf(initialAssistantMessage))
+    }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        availableBibleVersions = BibleRepository.getAvailableVersions(context)
+            .map { version ->
+                StudyAssistantBibleVersion(
+                    key = version.key,
+                    label = version.label
+                )
+            }
+        selectedBibleVersion = BibleRepository.getSelectedVersionKey(context)
     }
 
     Box(modifier = modifier) {
@@ -83,6 +160,8 @@ fun StudyAssistantOverlay(
             StudyAssistantPanel(
                 messages = messages.value,
                 input = input,
+                isLoading = isLoading,
+                inputPlaceholder = inputPlaceholder,
                 onInputChange = { input = it },
                 onClose = { isOpen = false },
                 onReset = {
@@ -90,28 +169,44 @@ fun StudyAssistantOverlay(
                         initialAssistantMessage.copy(id = CuidGenerator.create())
                     )
                     input = ""
+                    isLoading = false
                 },
                 onClear = {
                     messages.value = emptyList()
                     input = ""
+                    isLoading = false
                 },
                 onSend = {
                     val question = input.trim()
-                    if (question.isBlank()) return@StudyAssistantPanel
-                    val answer = buildStudyAssistantLocalAnswer(
-                        question = question,
-                        studyTitle = studyTitle,
-                        studyTags = studyTags,
-                        selectedText = selectedText
-                    )
+                    if (question.isBlank() || isLoading) return@StudyAssistantPanel
                     messages.value = messages.value + StudyAssistantChatMessage(
                         author = StudyAssistantAuthor.USER,
                         text = question
-                    ) + StudyAssistantChatMessage(
-                        author = StudyAssistantAuthor.ASSISTANT,
-                        text = answer
                     )
                     input = ""
+                    isLoading = true
+                    scope.launch {
+                        val response = assistantRepository.ask(
+                            StudyAssistantRequest(
+                                question = question,
+                                studyTitle = studyTitle,
+                                studyTags = studyTags,
+                                selectedText = selectedText,
+                                mode = mode,
+                                intent = inferStudyAssistantIntent(question),
+                                currentOutline = currentOutline,
+                                notes = notes,
+                                bibleVersions = availableBibleVersions,
+                                bibleVersion = selectedBibleVersion
+                            )
+                        )
+                        val fallbackNote = if (response.usedFallback) "\n\nRespuesta local de respaldo." else ""
+                        messages.value = messages.value + StudyAssistantChatMessage(
+                            author = StudyAssistantAuthor.ASSISTANT,
+                            text = response.answer + fallbackNote
+                        )
+                        isLoading = false
+                    }
                 },
                 onInsertNote = onInsertNote,
                 onInsertReflection = onInsertReflection,
@@ -139,13 +234,15 @@ fun StudyAssistantOverlay(
 private fun StudyAssistantPanel(
     messages: List<StudyAssistantChatMessage>,
     input: String,
+    isLoading: Boolean,
+    inputPlaceholder: String,
     onInputChange: (String) -> Unit,
     onClose: () -> Unit,
     onReset: () -> Unit,
     onClear: () -> Unit,
     onSend: () -> Unit,
-    onInsertNote: (String) -> Unit,
-    onInsertReflection: (topic: String, text: String) -> Unit,
+    onInsertNote: ((String) -> Unit)?,
+    onInsertReflection: ((topic: String, text: String) -> Unit)?,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -224,6 +321,11 @@ private fun StudyAssistantPanel(
                             onInsertReflection = onInsertReflection
                         )
                     }
+                    if (isLoading) {
+                        item(key = "bibi-loading") {
+                            StudyAssistantLoadingBubble()
+                        }
+                    }
                 }
             }
 
@@ -235,11 +337,14 @@ private fun StudyAssistantPanel(
                     value = input,
                     onValueChange = onInputChange,
                     modifier = Modifier.weight(1f),
+                    enabled = !isLoading,
                     minLines = 1,
                     maxLines = 4,
-                    placeholder = { Text("Pregunta sobre tu ensenanza...") }
+                    placeholder = {
+                        Text(if (isLoading) "Bibi esta pensando..." else inputPlaceholder)
+                    }
                 )
-                IconButton(onClick = onSend) {
+                IconButton(onClick = onSend, enabled = !isLoading) {
                     Icon(Icons.Default.Send, contentDescription = "Enviar pregunta")
                 }
             }
@@ -248,10 +353,41 @@ private fun StudyAssistantPanel(
 }
 
 @Composable
+private fun StudyAssistantLoadingBubble() {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.Start
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(0.72f),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Bibi esta pensando...",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun StudyAssistantMessageBubble(
     message: StudyAssistantChatMessage,
-    onInsertNote: (String) -> Unit,
-    onInsertReflection: (topic: String, text: String) -> Unit
+    onInsertNote: ((String) -> Unit)?,
+    onInsertReflection: ((topic: String, text: String) -> Unit)?
 ) {
     val isUser = message.author == StudyAssistantAuthor.USER
     val bubbleColor = if (isUser) {
@@ -276,23 +412,27 @@ private fun StudyAssistantMessageBubble(
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
-        if (!isUser) {
+        if (!isUser && (onInsertNote != null || onInsertReflection != null)) {
             Row(
                 modifier = Modifier.padding(top = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                AssistChip(
-                    onClick = { onInsertNote(message.text) },
-                    label = { Text("Nota") },
-                    leadingIcon = { Icon(Icons.Default.NoteAdd, contentDescription = null) }
-                )
-                AssistChip(
-                    onClick = {
-                        onInsertReflection("Bibi", message.text)
-                    },
-                    label = { Text("Reflexion") },
-                    leadingIcon = { Icon(Icons.Default.Lightbulb, contentDescription = null) }
-                )
+                if (onInsertNote != null) {
+                    AssistChip(
+                        onClick = { onInsertNote(message.text) },
+                        label = { Text("Nota") },
+                        leadingIcon = { Icon(Icons.Default.NoteAdd, contentDescription = null) }
+                    )
+                }
+                if (onInsertReflection != null) {
+                    AssistChip(
+                        onClick = {
+                            onInsertReflection("Bibi", message.text)
+                        },
+                        label = { Text("Reflexion") },
+                        leadingIcon = { Icon(Icons.Default.Lightbulb, contentDescription = null) }
+                    )
+                }
             }
         }
     }
@@ -342,6 +482,37 @@ private fun buildStudyAssistantLocalAnswer(
         else -> {
             "$baseContext No tengo una respuesta especifica para esa pregunta, pero puedo ayudarte a reflexionar mas sobre $studyTitle si me das mas detalles."
         }
+    }
+}
+
+private fun inferStudyAssistantIntent(question: String): StudyAssistantIntent {
+    val normalized = question.lowercase().removeAccents()
+    return when {
+        listOf("bosquejo", "estructura", "organiza", "puntos").any { it in normalized } -> {
+            StudyAssistantIntent.OUTLINE
+        }
+        listOf("predicacion", "sermon", "predicar").any { it in normalized } -> {
+            StudyAssistantIntent.SERMON
+        }
+        listOf("devocional", "meditacion").any { it in normalized } -> {
+            StudyAssistantIntent.DEVOTIONAL
+        }
+        listOf("define", "definir", "significa", "significado", "palabra").any { it in normalized } -> {
+            StudyAssistantIntent.DEFINE
+        }
+        listOf("relacionado", "referencias", "pasajes", "donde dice").any { it in normalized } -> {
+            StudyAssistantIntent.CROSS_REFERENCE
+        }
+        listOf("aplicacion", "aplicar", "practica", "vida").any { it in normalized } -> {
+            StudyAssistantIntent.APPLICATION
+        }
+        listOf("compara", "comparar", "version", "traduccion").any { it in normalized } -> {
+            StudyAssistantIntent.COMPARE_VERSIONS
+        }
+        listOf("explica", "explicar", "contexto", "entiendo").any { it in normalized } -> {
+            StudyAssistantIntent.EXPLAIN
+        }
+        else -> StudyAssistantIntent.QUESTION
     }
 }
 

@@ -15,3 +15,8 @@
 local.properties
 key.properties
 app/google-services.json
+functions/.env
+functions/.secret.local
+functions/node_modules/
+workers/**/.wrangler/
+workers/**/node_modules/

@@ -681,6 +681,24 @@ fun ReaderContent(
                     contentDescription = "Cambiar versión de Biblia"
                 )
             }
+
+            if (!isStudyModeActive) {
+                val selectedContext = selectedVerseActions.values
+                    .sortedBy { it.number.toIntOrNull() ?: Int.MAX_VALUE }
+                    .joinToString("\n") { selected ->
+                        "${bookName ?: ""} $selectedChapter:${selected.number} ${selected.text}"
+                    }
+                ReaderAssistantOverlay(
+                    bookName = bookName,
+                    chapter = selectedChapter,
+                    selectedText = selectedContext.ifBlank {
+                        "${bookName ?: ""} $selectedChapter"
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(20.dp)
+                )
+            }
         }
 
         if (selectedVerseActions.isNotEmpty()) {

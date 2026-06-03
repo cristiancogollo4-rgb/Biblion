@@ -1,0 +1,6 @@
+name = "biblion-bibi"
+main = "src/index.js"
+compatibility_date = "2026-06-03"
+
+[observability]
+enabled = true

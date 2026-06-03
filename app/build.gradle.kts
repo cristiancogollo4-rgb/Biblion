@@ -11,9 +11,15 @@ plugins {
 
 val keyProperties = Properties()
 val keyPropertiesFile = rootProject.file("key.properties")
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
 
 if (keyPropertiesFile.exists()) {
     keyPropertiesFile.inputStream().use(keyProperties::load)
+}
+
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.inputStream().use(localProperties::load)
 }
 
 val ciKeystorePath = System.getenv("CM_KEYSTORE_PATH")
@@ -50,6 +56,11 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField(
+            "String",
+            "BIBI_ENDPOINT_URL",
+            "\"${localProperties.getProperty("bibiEndpointUrl", "").trim()}\""
+        )
     }
 
     signingConfigs {
@@ -92,6 +103,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

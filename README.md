@@ -23,6 +23,7 @@ Biblion ya cuenta con:
 - Lectura enriquecida de ensenanzas.
 - Sistema de etiquetas sugeridas y validacion de metadata.
 - Filtros de ensenanzas por titulo o etiquetas.
+- Bibi, asistente biblica online integrada al lector y al modo estudio.
 
 ---
 
@@ -59,6 +60,130 @@ La seccion **Mis ensenanzas** permite:
 - Editar titulo y etiquetas.
 - Eliminar ensenanzas.
 - Filtrar por titulo o etiquetas.
+
+---
+
+## Bibi, asistente biblica
+
+**Bibi** es la asistente biblica oficial de Biblion. Esta especializada exclusivamente en contenido biblico y cristiano; no actua como asistente general.
+
+### Donde aparece
+
+- **Modo lector**: ayuda con preguntas breves sobre el pasaje actual, contexto inmediato, palabras, referencias y aplicaciones sencillas.
+- **Modo estudio**: ayuda a preparar ensenanzas, predicaciones, devocionales, clases y materiales de discipulado. Puede sugerir bosquejos, ideas principales, aplicaciones, notas y reflexiones.
+
+### Dominio de Bibi
+
+Bibi responde sobre:
+
+- Biblia, libros, capitulos y versiculos;
+- estudio biblico y contexto;
+- personajes, lugares e historia biblica relacionada con las Escrituras;
+- doctrina cristiana, discipulado, devocionales y predicacion;
+- preparacion de ensenanzas;
+- significado de palabras biblicas;
+- referencias cruzadas y comparacion de pasajes.
+
+Si el usuario pregunta algo fuera del contexto biblico o cristiano, Bibi redirige amablemente hacia el estudio de las Escrituras.
+
+### Contexto que recibe
+
+Bibi no recibe toda la Biblia completa en cada pregunta. En cambio, Biblion le envia contexto relevante:
+
+- modo actual: `reader` o `study`;
+- intencion inferida: `explain`, `define`, `cross_reference`, `application`, `outline`, `sermon`, `devotional`, `compare_versions` o `question`;
+- version biblica seleccionada;
+- versiones biblicas disponibles en Biblion;
+- texto seleccionado por el usuario;
+- pasajes biblicos proporcionados por Biblion;
+- titulo, etiquetas, bloques actuales y notas de la ensenanza;
+- entradas relevantes del diccionario biblico inicial.
+
+El siguiente paso previsto es recuperar automaticamente el capitulo completo o un rango cercano de versiculos desde los assets biblicos y enviarlo como `bible.passages`.
+
+### Versiones biblicas
+
+Bibi conoce las versiones disponibles de Biblion porque Android se las envia desde `BibleRepository.getAvailableVersions`.
+
+Versiones actuales:
+
+- Reina Valera 1960 (`rv1960`)
+- Nueva Version Internacional (`nvi`)
+- Dios Habla Hoy (`dhh`)
+- Traduccion en Lenguaje Actual (`tla`)
+- Nueva Traduccion Viviente (`ntv`)
+
+Si se agregan nuevas versiones como assets, Bibi puede recibirlas automaticamente.
+
+### Diccionario biblico
+
+El Worker de Bibi incluye un diccionario biblico inicial con entradas breves para conceptos como:
+
+- creacion;
+- pacto;
+- fe;
+- gracia;
+- pecado;
+- evangelio;
+- Mesias/Cristo;
+- discipulado;
+- Reino de Dios;
+- salvacion;
+- redencion;
+- santidad;
+- adoracion;
+- oracion;
+- iglesia;
+- justicia;
+- amor;
+- esperanza;
+- bautismo;
+- Santa Cena.
+
+El diccionario se usa como respaldo contextual rapido y no reemplaza los pasajes biblicos proporcionados por Biblion.
+
+### Respuesta estructurada
+
+Internamente Bibi responde con:
+
+```json
+{
+  "answer": "",
+  "references": [],
+  "suggestedBlocks": [],
+  "confidence": "high"
+}
+```
+
+La app muestra solamente `answer` en el chat. Android y el Worker limpian defensivamente respuestas que incluyan JSON visible o malformado.
+
+### Infraestructura online
+
+Bibi online usa:
+
+- Android: `HttpStudyAssistantRepository`.
+- Endpoint configurable: `bibiEndpointUrl` en `local.properties`.
+- Cloudflare Worker: `workers/bibi`.
+- Modelo NVIDIA por API: configurado en el Worker.
+- Secreto: `NVIDIA_API_KEY` guardado como Cloudflare secret.
+
+La API key no debe guardarse en Android, Gradle, recursos, commits ni archivos versionados.
+
+Para configurar localmente el endpoint:
+
+```properties
+bibiEndpointUrl=https://biblion-bibi.cristiancogollo4.workers.dev/ask
+```
+
+Para desplegar el Worker:
+
+```powershell
+cd workers\bibi
+npx wrangler secret put NVIDIA_API_KEY
+npx wrangler deploy
+```
+
+El Worker tiene respaldos para respuestas de identidad, versiones, dominio no biblico, diccionario biblico y timeouts de NVIDIA.
 
 ---
 
@@ -130,6 +255,10 @@ Permite aplicar estilos a rangos seleccionados:
 #### Modo enfoque
 
 Oculta el panel del lector y deja el editor como area principal de trabajo.
+
+#### Bibi
+
+Abre un chat flotante para pedir ayuda biblica durante la preparacion. Mientras genera respuesta, muestra una burbuja de carga. En modo estudio permite insertar respuestas como Nota o Reflexion.
 
 #### Guardar con metadata
 
@@ -234,6 +363,7 @@ Pantallas y componentes Compose:
 - `StudyReadScreen`
 - `EnsenanzaScreen`
 - `StudyTagSelector`
+- `StudyAssistantPanel`
 
 ### ViewModel
 
@@ -253,6 +383,8 @@ Pantallas y componentes Compose:
 - `StudyDatabase`: Room para cuadernos, estudios y citas vinculadas.
 - `FirestoreSyncManager`: sincronizacion de preferencias, resaltados y estudios.
 - `AppPreferencesSyncStore`: preferencias locales sincronizables.
+- `StudyAssistantRepository`: contrato Android para Bibi, envio de contexto, limpieza de respuestas y respaldo local.
+- `workers/bibi`: Cloudflare Worker que aplica prompts, dominio biblico, diccionario, versiones y conexion con NVIDIA.
 
 ### Navegacion
 
@@ -274,6 +406,8 @@ Pantallas y componentes Compose:
 - KSP
 - Firebase Auth
 - Firestore
+- Cloudflare Workers
+- NVIDIA API
 - Robolectric / pruebas unitarias Android
 
 ---
@@ -298,7 +432,8 @@ Luego:
 1. Abre el proyecto en Android Studio.
 2. Sincroniza Gradle.
 3. Configura Firebase si vas a probar autenticacion/sincronizacion.
-4. Ejecuta en emulador o dispositivo fisico Android.
+4. Configura `bibiEndpointUrl` en `local.properties` si vas a probar Bibi online.
+5. Ejecuta en emulador o dispositivo fisico Android.
 
 ---
 
@@ -314,6 +449,12 @@ Ejecutar pruebas unitarias:
 
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest
+```
+
+Validar Worker de Bibi:
+
+```powershell
+node --check workers\bibi\src\index.js
 ```
 
 Pruebas relevantes del modo estudio:
@@ -335,6 +476,9 @@ Ideas pendientes o en evolucion:
 - Gestion avanzada de cuadernos.
 - Busqueda avanzada dentro de ensenanzas.
 - Sincronizacion mas robusta ante conflictos.
+- Recuperacion automatica de pasajes biblicos para Bibi desde assets locales.
+- Diccionario biblico ampliado y administrable.
+- Insercion de `suggestedBlocks` de Bibi como bloques reales del modo estudio.
 
 ---
 

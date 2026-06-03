@@ -32,6 +32,9 @@ Biblion ya incluye:
 - Lectura de ensenanzas con controles de tamano de letra, modo claro/oscuro y pantalla dividida en pantallas grandes.
 - Sistema de etiquetas sugeridas por seccion: proposito, audiencia, tema y estado.
 - Validacion de guardado de ensenanzas: titulo obligatorio y etiquetas requeridas por seccion.
+- Asistente biblico Bibi en modo estudio y lector normal.
+- Integracion online de Bibi mediante Cloudflare Worker y modelo NVIDIA.
+- Contexto para Bibi con versiones biblicas disponibles, version seleccionada, texto seleccionado, bloques actuales de la ensenanza, notas y diccionario biblico inicial.
 
 ## 3) Principios de cambio
 
@@ -80,6 +83,53 @@ El modo estudio se compone principalmente de `StudyEditorScreen`, `StudyViewMode
 - **Aumentar/disminuir fuente de seleccion**: aplica tamano al texto seleccionado.
 - **Modo enfoque**: oculta el panel del lector para concentrarse en el editor.
 - **Guardar con metadata**: exige titulo y etiquetas validas.
+- **Bibi**: asistente flotante para hacer preguntas biblicas, pedir ideas, pasajes relacionados, bosquejos, aplicaciones, notas o reflexiones. En modo estudio puede insertar respuestas como Nota o Reflexion.
+
+### Bibi
+
+Bibi es la asistente biblica oficial de Biblion. Esta integrada en:
+
+- **Modo estudio**: respuestas mas profundas para preparar ensenanzas, predicaciones, devocionales, clases biblicas y discipulado.
+- **Lector normal**: respuestas breves para comprender el pasaje actual, palabras, referencias y aplicaciones sencillas.
+
+Reglas funcionales:
+
+- Bibi no actua como asistente general.
+- Su dominio es exclusivamente biblico/cristiano: Biblia, estudio biblico, contexto, personajes, lugares, historia biblica relacionada con las Escrituras, doctrina cristiana, discipulado, devocionales, predicacion, ensenanzas, reflexion, aplicacion, palabras biblicas, referencias cruzadas y comparacion de pasajes.
+- Preguntas fuera de dominio deben responder con el mensaje de redireccion definido en `StudyAssistantRepository` y `workers/bibi/src/index.js`.
+- Bibi no debe inventar versiculos, citas, personajes, eventos, doctrinas, revelaciones, profecias, mensajes personales de Dios ni interpretaciones sin fundamento biblico.
+- Toda ensenanza, explicacion o aplicacion debe estar sustentada en las Escrituras o identificarse claramente como reflexion basada en ellas.
+- Si una referencia no es segura, debe reconocerlo y sugerir verificar el pasaje.
+- Si compara versiones, debe usar solo textos proporcionados por Biblion; no debe inventar traducciones.
+
+Contexto enviado a Bibi:
+
+- `mode`: `study` o `reader`.
+- `intent`: `explain`, `define`, `cross_reference`, `application`, `outline`, `sermon`, `devotional`, `compare_versions` o `question`.
+- `study.title`, `study.tags`, `study.selectedText`, `study.currentOutline`, `study.notes`.
+- `bible.version`, `bible.availableVersions`, `bible.passages`.
+
+Respuesta esperada del Worker:
+
+```json
+{
+  "answer": "",
+  "references": [],
+  "suggestedBlocks": [],
+  "confidence": "high"
+}
+```
+
+La UI debe mostrar solo `answer`. El repositorio Android limpia defensivamente respuestas que lleguen con JSON incrustado o malformado.
+
+Infraestructura:
+
+- El cliente Android usa `HttpStudyAssistantRepository`.
+- La URL se configura con `bibiEndpointUrl` en `local.properties` y se inyecta como `BuildConfig.BIBI_ENDPOINT_URL`.
+- El Worker vive en `workers/bibi`.
+- El Worker usa `NVIDIA_API_KEY` como secreto de Cloudflare, nunca en el APK.
+- Si el endpoint falla o esta vacio, Android usa respuesta local de respaldo.
+- El Worker tambien tiene respuestas de respaldo con diccionario biblico cuando NVIDIA tarda.
 
 ### Citas biblicas
 
@@ -127,6 +177,7 @@ Funciones actuales:
 - Lectura en pantalla dividida solo en pantallas grandes.
 - Lectura vertical en moviles.
 - Filtro y administracion desde "Mis ensenanzas".
+- Bibi en lector normal para preguntas biblicas basicas sobre el pasaje actual.
 
 ## 7) Estado y ViewModel
 
@@ -174,6 +225,8 @@ Si se ejecuta un subconjunto, reportarlo claramente.
 - No duplicar librerias ya administradas en `gradle/libs.versions.toml`.
 - Nuevas dependencias deben declararse con version centralizada en el catalogo.
 - Evitar actualizaciones masivas de versiones sin necesidad.
+- No agregar secretos a Gradle, `local.properties`, commits ni recursos Android. Las claves online de Bibi deben vivir en Cloudflare Worker secrets.
+- `workers/**/node_modules/` y `.wrangler/` deben permanecer ignorados.
 
 ## 12) Commits y PR
 

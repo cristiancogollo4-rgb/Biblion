@@ -121,6 +121,38 @@ fun StudyEditorScreen(
 
     fun selectedText(): String = activeSelectedText.trim()
 
+    fun assistantCurrentOutline(): List<String> = ui.blocks.mapNotNull { block ->
+        when (block) {
+            is StudyBlockNode.Paragraph -> listOf(block.text, block.parallelText)
+                .filter { it.isNotBlank() }
+                .joinToString(" | ")
+                .ifBlank { null }
+            is StudyBlockNode.RichText -> block.html.takeIf { it.isNotBlank() }
+            is StudyBlockNode.Citation -> block.reference.display
+            is StudyBlockNode.QuotedVerse -> listOf(block.reference, block.primaryText)
+                .filter { it.isNotBlank() }
+                .joinToString(" ")
+                .ifBlank { null }
+            is StudyBlockNode.Question -> block.question.takeIf { it.isNotBlank() }
+            is StudyBlockNode.TwoColumn -> listOf(block.leftTitle, block.leftText, block.rightTitle, block.rightText)
+                .filter { it.isNotBlank() }
+                .joinToString(" | ")
+                .ifBlank { null }
+            else -> null
+        }
+    }.take(12)
+
+    fun assistantNotes(): List<String> = ui.blocks.mapNotNull { block ->
+        when (block) {
+            is StudyBlockNode.Note -> block.text.takeIf { it.isNotBlank() }
+            is StudyBlockNode.Reflection -> listOf(block.topic, block.text)
+                .filter { it.isNotBlank() }
+                .joinToString(": ")
+                .ifBlank { null }
+            else -> null
+        }
+    }.take(8)
+
     fun updateActiveParagraphRole(role: String) {
         activeTextBlockId?.let { blockId ->
             activeTextRole = role
@@ -544,6 +576,8 @@ fun StudyEditorScreen(
                 studyTitle = ui.title,
                 studyTags = ui.tags,
                 selectedText = activeSelectedText,
+                currentOutline = assistantCurrentOutline(),
+                notes = assistantNotes(),
                 onInsertNote = { text ->
                     viewModel.process(StudyIntent.AddNoteBlock(activeTextBlockId, text))
                     scope.launch { snackbarHostState.showSnackbar("Respuesta insertada como nota.") }
