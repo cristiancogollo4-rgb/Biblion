@@ -9,6 +9,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
@@ -34,6 +36,53 @@ fun AppNavigation(
     val googleCredentialsAuth = remember(context) { GoogleCredentialsAuth(context) }
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
+    val activity = context.findActivity()
+    var showAuthDialog by remember { mutableStateOf(false) }
+    var authDialogMode by remember { mutableStateOf(AuthDialogMode.LOGIN) }
+
+    fun openAuthDialog(mode: AuthDialogMode = AuthDialogMode.LOGIN) {
+        authDialogMode = mode
+        authViewModel.process(AuthIntent.ClearError)
+        showAuthDialog = true
+    }
+
+    fun startGoogleSignIn() {
+        if (activity == null) {
+            authViewModel.onGoogleSignInUnavailable()
+            return
+        }
+
+        authViewModel.beginGoogleSignIn()
+        scope.launch {
+            try {
+                when (val result = googleCredentialsAuth.requestIdToken(activity)) {
+                    is GoogleCredentialsResult.Success -> {
+                        authViewModel.signInWithGoogleIdToken(result.idToken)
+                    }
+
+                    GoogleCredentialsResult.Cancelled -> {
+                        authViewModel.onGoogleSignInCancelled()
+                    }
+
+                    is GoogleCredentialsResult.Failure -> {
+                        Log.w(
+                            "BiblionAuth",
+                            "Google sign-in credential request failed",
+                            result.throwable
+                        )
+                        authViewModel.onGoogleSignInUnavailable()
+                    }
+                }
+            } catch (exception: Throwable) {
+                Log.e(
+                    "BiblionAuth",
+                    "Unexpected Google sign-in crash avoided",
+                    exception
+                )
+                authViewModel.onGoogleSignInUnavailable()
+            }
+        }
+    }
 
     LaunchedEffect(appContext) {
         FirestoreSyncManager.initialize(appContext)
@@ -76,6 +125,7 @@ fun AppNavigation(
         authViewModel.effects.collect { effect ->
             when (effect) {
                 AuthEffect.NavigateHome -> {
+                    showAuthDialog = false
                     val returnedToExistingHome = navController.popBackStack(
                         Screen.Home.route,
                         inclusive = false
@@ -91,10 +141,7 @@ fun AppNavigation(
                 }
 
                 AuthEffect.NavigateLogin -> {
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(Screen.Register.route) { inclusive = true }
-                        launchSingleTop = true
-                    }
+                    openAuthDialog(AuthDialogMode.LOGIN)
                 }
             }
         }
@@ -119,7 +166,7 @@ fun AppNavigation(
                             googleCredentialsAuth.clearCredentialState()
                         }
                     } else {
-                        navController.navigateSingleTop(Screen.Login.route)
+                        openAuthDialog(AuthDialogMode.LOGIN)
                     }
                 }
             )
@@ -144,7 +191,7 @@ fun AppNavigation(
                         googleCredentialsAuth.clearCredentialState()
                     }
                 } else {
-                    navController.navigateSingleTop(Screen.Login.route)
+                    openAuthDialog(AuthDialogMode.LOGIN)
                 }
             }
         )
@@ -172,110 +219,24 @@ fun AppNavigation(
                             googleCredentialsAuth.clearCredentialState()
                         }
                     } else {
-                        navController.navigateSingleTop(Screen.Login.route)
+                        openAuthDialog(AuthDialogMode.LOGIN)
                     }
                 }
             )
         }
 
         composable(Screen.Login.route) {
-            val context = LocalContext.current
-            val activity = context.findActivity()
-            val googleCredentialsAuth = remember(context) { GoogleCredentialsAuth(context) }
-            val scope = rememberCoroutineScope()
-
-            LoginScreen(
-                navController = navController,
-                uiState = authState,
-                onIntent = authViewModel::process,
-                onGoogleSignIn = {
-                    if (activity == null) {
-                        authViewModel.onGoogleSignInUnavailable()
-                        return@LoginScreen
-                    }
-
-                    authViewModel.beginGoogleSignIn()
-                    scope.launch {
-                        try {
-                            when (val result = googleCredentialsAuth.requestIdToken(activity)) {
-                                is GoogleCredentialsResult.Success -> {
-                                    authViewModel.signInWithGoogleIdToken(result.idToken)
-                                }
-
-                                GoogleCredentialsResult.Cancelled -> {
-                                    authViewModel.onGoogleSignInCancelled()
-                                }
-
-                                is GoogleCredentialsResult.Failure -> {
-                                    Log.w(
-                                        "BiblionAuth",
-                                        "Google sign-in credential request failed",
-                                        result.throwable
-                                    )
-                                    authViewModel.onGoogleSignInUnavailable()
-                                }
-                            }
-                        } catch (exception: Throwable) {
-                            Log.e(
-                                "BiblionAuth",
-                                "Unexpected Google sign-in crash avoided",
-                                exception
-                            )
-                            authViewModel.onGoogleSignInUnavailable()
-                        }
-                    }
-                }
-            )
+            LaunchedEffect(Unit) {
+                openAuthDialog(AuthDialogMode.LOGIN)
+                navController.popBackStack()
+            }
         }
 
         composable(Screen.Register.route) {
-            val context = LocalContext.current
-            val activity = context.findActivity()
-            val googleCredentialsAuth = remember(context) { GoogleCredentialsAuth(context) }
-            val scope = rememberCoroutineScope()
-
-            RegisterScreen(
-                navController = navController,
-                uiState = authState,
-                onIntent = authViewModel::process,
-                onGoogleSignIn = {
-                    if (activity == null) {
-                        authViewModel.onGoogleSignInUnavailable()
-                        return@RegisterScreen
-                    }
-
-                    authViewModel.beginGoogleSignIn()
-                    scope.launch {
-                        try {
-                            when (val result = googleCredentialsAuth.requestIdToken(activity)) {
-                                is GoogleCredentialsResult.Success -> {
-                                    authViewModel.signInWithGoogleIdToken(result.idToken)
-                                }
-
-                                GoogleCredentialsResult.Cancelled -> {
-                                    authViewModel.onGoogleSignInCancelled()
-                                }
-
-                                is GoogleCredentialsResult.Failure -> {
-                                    Log.w(
-                                        "BiblionAuth",
-                                        "Google sign-in credential request failed",
-                                        result.throwable
-                                    )
-                                    authViewModel.onGoogleSignInUnavailable()
-                                }
-                            }
-                        } catch (exception: Throwable) {
-                            Log.e(
-                                "BiblionAuth",
-                                "Unexpected Google sign-in crash avoided",
-                                exception
-                            )
-                            authViewModel.onGoogleSignInUnavailable()
-                        }
-                    }
-                }
-            )
+            LaunchedEffect(Unit) {
+                openAuthDialog(AuthDialogMode.REGISTER)
+                navController.popBackStack()
+            }
         }
 
         composable(
@@ -381,6 +342,22 @@ fun AppNavigation(
         SignedOutDialog(
             onDismiss = {
                 authViewModel.process(AuthIntent.DismissSignedOutDialog)
+            }
+        )
+    }
+
+    if (showAuthDialog && !authState.isAuthenticated) {
+        AuthDialog(
+            mode = authDialogMode,
+            uiState = authState,
+            onIntent = authViewModel::process,
+            onGoogleSignIn = ::startGoogleSignIn,
+            onModeChange = { mode -> authDialogMode = mode },
+            onDismiss = {
+                if (!authState.isLoading) {
+                    showAuthDialog = false
+                    authViewModel.process(AuthIntent.ClearError)
+                }
             }
         )
     }

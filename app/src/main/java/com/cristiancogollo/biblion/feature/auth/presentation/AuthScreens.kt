@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -33,6 +34,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -41,6 +43,83 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+
+enum class AuthDialogMode {
+    LOGIN,
+    REGISTER
+}
+
+@Composable
+fun AuthDialog(
+    mode: AuthDialogMode,
+    uiState: AuthUiState,
+    onIntent: (AuthIntent) -> Unit,
+    onGoogleSignIn: () -> Unit,
+    onModeChange: (AuthDialogMode) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val isLogin = mode == AuthDialogMode.LOGIN
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 420.dp),
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 6.dp,
+            color = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Image(
+                    painter = painterResource(id = biblionLogoResForCurrentTheme()),
+                    contentDescription = stringResource(R.string.auth_logo_cd),
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .fillMaxWidth(0.46f)
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = stringResource(if (isLogin) R.string.auth_login_title else R.string.auth_register_title),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = stringResource(if (isLogin) R.string.auth_login_subtitle else R.string.auth_register_subtitle),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                AuthForm(
+                    uiState = uiState,
+                    showConfirmPassword = !isLogin,
+                    primaryButtonText = stringResource(if (isLogin) R.string.sign_in else R.string.auth_create_account),
+                    secondaryLabel = stringResource(if (isLogin) R.string.auth_no_account else R.string.auth_have_account),
+                    secondaryActionText = stringResource(if (isLogin) R.string.auth_go_to_register else R.string.auth_go_to_login),
+                    onEmailChanged = { onIntent(AuthIntent.UpdateEmail(it)) },
+                    onPasswordChanged = { onIntent(AuthIntent.UpdatePassword(it)) },
+                    onConfirmPasswordChanged = { onIntent(AuthIntent.UpdateConfirmPassword(it)) },
+                    onPrimaryAction = { onIntent(if (isLogin) AuthIntent.SignIn else AuthIntent.Register) },
+                    onGoogleSignIn = onGoogleSignIn,
+                    onSecondaryAction = {
+                        onIntent(AuthIntent.ClearError)
+                        onModeChange(if (isLogin) AuthDialogMode.REGISTER else AuthDialogMode.LOGIN)
+                    }
+                )
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.End),
+                    enabled = !uiState.isLoading
+                ) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        }
+    }
+}
 
 @Composable
 fun LoginScreen(
