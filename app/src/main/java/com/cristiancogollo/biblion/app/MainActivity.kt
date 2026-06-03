@@ -39,7 +39,6 @@ import kotlinx.coroutines.delay
  * Esta clase no contiene lógica de negocio; solo configuración de arranque.
  */
 class MainActivity : ComponentActivity() {
-    private var pendingLauncherIconDarkTheme: Boolean? = null
 
     /**
      * Ciclo de vida inicial del Activity.
@@ -55,17 +54,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onStop() {
-        super.onStop()
-        pendingLauncherIconDarkTheme?.let { isDarkTheme ->
-            BiblionLauncherIconManager.applyThemeIcon(this, isDarkTheme)
-            pendingLauncherIconDarkTheme = null
-        }
-    }
-
-    fun scheduleLauncherIconUpdate(isDarkTheme: Boolean) {
-        pendingLauncherIconDarkTheme = isDarkTheme
-    }
 }
 
 @Composable
@@ -99,7 +87,6 @@ private fun MainActivity.BiblionApp() {
                     defaultValue = systemDarkTheme
                 )
                 darkThemeEnabled = enabled
-                activity.scheduleLauncherIconUpdate(enabled)
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -120,7 +107,6 @@ private fun MainActivity.BiblionApp() {
                     onToggleDarkTheme = { enabled ->
                         darkThemeEnabled = enabled
                         ThemePreferences.setDarkModeEnabled(activity, enabled)
-                        activity.scheduleLauncherIconUpdate(enabled)
                     }
                 )
             }

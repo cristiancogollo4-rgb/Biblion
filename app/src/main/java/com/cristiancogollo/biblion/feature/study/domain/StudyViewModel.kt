@@ -106,8 +106,8 @@ sealed interface StudyIntent {
         val clearFontSize: Boolean = true
     ) : StudyIntent
     data class UpdateRichTextBlock(val blockId: String, val html: String) : StudyIntent
-    data class AddNoteBlock(val afterBlockId: String?) : StudyIntent
-    data class AddReflectionBlock(val topic: String, val afterBlockId: String?) : StudyIntent
+    data class AddNoteBlock(val afterBlockId: String?, val text: String? = null) : StudyIntent
+    data class AddReflectionBlock(val topic: String, val afterBlockId: String?, val text: String? = null) : StudyIntent
     data class AddQuotedVerseBlock(
         val afterBlockId: String?,
         val citation: CitationInsertRequest? = null
@@ -406,7 +406,8 @@ class StudyViewModel @JvmOverloads constructor(
             is StudyIntent.AddNoteBlock -> {
                 insertInteractiveBlock(
                     block = StudyBlockNode.Note(
-                        text = "Escribe una observacion, dato curioso o aclaracion del tema."
+                        text = intent.text?.trim()?.ifBlank { null }
+                            ?: "Escribe una observacion, dato curioso o aclaracion del tema."
                     ),
                     afterBlockId = intent.afterBlockId
                 )
@@ -415,7 +416,8 @@ class StudyViewModel @JvmOverloads constructor(
                 insertInteractiveBlock(
                     block = StudyBlockNode.Reflection(
                         topic = intent.topic.ifBlank { "Idea o palabra clave" },
-                        text = "Desarrolla aqui una mirada mas profunda para la ensenanza."
+                        text = intent.text?.trim()?.ifBlank { null }
+                            ?: "Desarrolla aqui una mirada mas profunda para la ensenanza."
                     ),
                     afterBlockId = intent.afterBlockId
                 )

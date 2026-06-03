@@ -539,6 +539,23 @@ fun StudyEditorScreen(
                 onInsertReflection = { insertReflectionBlock() },
                 onInsertTwoColumn = { toggleParallelText() }
             )
+
+            StudyAssistantOverlay(
+                studyTitle = ui.title,
+                studyTags = ui.tags,
+                selectedText = activeSelectedText,
+                onInsertNote = { text ->
+                    viewModel.process(StudyIntent.AddNoteBlock(activeTextBlockId, text))
+                    scope.launch { snackbarHostState.showSnackbar("Respuesta insertada como nota.") }
+                },
+                onInsertReflection = { topic, text ->
+                    viewModel.process(StudyIntent.AddReflectionBlock(topic, activeTextBlockId, text))
+                    scope.launch { snackbarHostState.showSnackbar("Respuesta insertada como reflexion.") }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
+            )
         }
     }
 
