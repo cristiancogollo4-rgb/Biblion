@@ -50,7 +50,8 @@ fun BooksScreen(
     isAuthenticated: Boolean = false,
     showSignedOutDialog: Boolean = false,
     onDismissSignedOutDialog: () -> Unit = {},
-    onAuthActionClick: () -> Unit = {}
+    onAuthActionClick: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {}
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -96,6 +97,7 @@ fun BooksScreen(
                         navController.navigateSingleTop(Screen.Home.route)
                     }
                 },
+                onNavigateToProfile = onNavigateToProfile,
                 onNavigateToTeachings = {
                     navController.navigateSingleTop(Screen.Ensenanzas.route)
                 },

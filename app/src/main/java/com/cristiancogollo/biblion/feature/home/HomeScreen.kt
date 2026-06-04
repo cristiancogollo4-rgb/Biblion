@@ -54,6 +54,7 @@ fun HomeScreen(
     showSignedOutDialog: Boolean = false,
     onDismissSignedOutDialog: () -> Unit = {},
     onAuthActionClick: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {},
     modifier: Modifier = Modifier,
     loadAvailableVersions: suspend (Context) -> List<BibleVersionOption> = { ctx ->
         BibleRepository.getAvailableVersions(ctx)
@@ -109,6 +110,7 @@ fun HomeScreen(
                         }
                     }
                 },
+                onNavigateToProfile = onNavigateToProfile,
                 onNavigateToTeachings = {
                     navController.navigateSingleTop(Screen.Ensenanzas.route)
                 },

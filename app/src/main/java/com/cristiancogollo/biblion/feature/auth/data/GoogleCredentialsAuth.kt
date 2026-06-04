@@ -1,4 +1,4 @@
-package com.cristiancogollo.biblion
+package com.cristiancogollo.biblion.feature.auth.data
 
 import android.app.Activity
 import android.content.Context
@@ -7,11 +7,10 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
-import androidx.credentials.exceptions.GetCredentialException
 import androidx.credentials.exceptions.NoCredentialException
+import com.cristiancogollo.biblion.R
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
-import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
 
 sealed interface GoogleCredentialsResult {
     data class Success(val idToken: String) : GoogleCredentialsResult
@@ -28,32 +27,24 @@ class GoogleCredentialsAuth(
         val webClientId = context.getString(R.string.default_web_client_id)
         if (webClientId.isBlank()) {
             return GoogleCredentialsResult.Failure(
-                IllegalStateException("default_web_client_id is missing.")
+                IllegalStateException("default_web_client_id is missing. Check google-services.json")
             )
         }
 
         return try {
-            requestIdToken(activity, webClientId, filterAuthorizedAccounts = true)
-        } catch (_: NoCredentialException) {
+            requestGoogleCredential(activity, webClientId, filterAuthorizedAccounts = true)
+        } catch (e: NoCredentialException) {
             try {
-                requestIdToken(activity, webClientId, filterAuthorizedAccounts = false)
-            } catch (_: GetCredentialCancellationException) {
+                requestGoogleCredential(activity, webClientId, filterAuthorizedAccounts = false)
+            } catch (e: GetCredentialCancellationException) {
                 GoogleCredentialsResult.Cancelled
-            } catch (exception: GoogleIdTokenParsingException) {
-                GoogleCredentialsResult.Failure(exception)
-            } catch (exception: GetCredentialException) {
-                GoogleCredentialsResult.Failure(exception)
-            } catch (exception: Throwable) {
-                GoogleCredentialsResult.Failure(exception)
+            } catch (e: Exception) {
+                GoogleCredentialsResult.Failure(e)
             }
-        } catch (exception: GoogleIdTokenParsingException) {
-            GoogleCredentialsResult.Failure(exception)
-        } catch (_: GetCredentialCancellationException) {
+        } catch (e: GetCredentialCancellationException) {
             GoogleCredentialsResult.Cancelled
-        } catch (exception: GetCredentialException) {
-            GoogleCredentialsResult.Failure(exception)
-        } catch (exception: Throwable) {
-            GoogleCredentialsResult.Failure(exception)
+        } catch (e: Exception) {
+            GoogleCredentialsResult.Failure(e)
         }
     }
 
@@ -63,7 +54,7 @@ class GoogleCredentialsAuth(
         }
     }
 
-    private suspend fun requestIdToken(
+    private suspend fun requestGoogleCredential(
         activity: Activity,
         webClientId: String,
         filterAuthorizedAccounts: Boolean

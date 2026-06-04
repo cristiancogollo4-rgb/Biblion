@@ -21,6 +21,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.cristiancogollo.biblion.feature.auth.data.GoogleCredentialsAuth
+import com.cristiancogollo.biblion.feature.auth.data.GoogleCredentialsResult
 import kotlinx.coroutines.launch
 
 @Composable
@@ -30,7 +32,9 @@ fun AppNavigation(
 ) {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel()
+    val profileViewModel: ProfileViewModel = viewModel()
     val authState by authViewModel.state.collectAsState()
+    val profileState by profileViewModel.state.collectAsState()
     val context = LocalContext.current
     val appContext = context.applicationContext
     val googleCredentialsAuth = remember(context) { GoogleCredentialsAuth(context) }
@@ -44,6 +48,14 @@ fun AppNavigation(
         authDialogMode = mode
         authViewModel.process(AuthIntent.ClearError)
         showAuthDialog = true
+    }
+
+    fun navigateToProfile() {
+        if (authState.isAuthenticated) {
+            navController.navigateSingleTop(Screen.Profile.route)
+        } else {
+            openAuthDialog(AuthDialogMode.LOGIN)
+        }
     }
 
     fun startGoogleSignIn() {
@@ -67,10 +79,10 @@ fun AppNavigation(
                     is GoogleCredentialsResult.Failure -> {
                         Log.w(
                             "BiblionAuth",
-                            "Google sign-in credential request failed",
+                            "Google sign-in credential request failed. Check Firebase OAuth config and SHA-1/SHA-256 fingerprints for the active signing key.",
                             result.throwable
                         )
-                        authViewModel.onGoogleSignInUnavailable()
+                        authViewModel.onGoogleSignInConfigurationError()
                     }
                 }
             } catch (exception: Throwable) {
@@ -100,6 +112,7 @@ fun AppNavigation(
 
     LaunchedEffect(authState.currentUser?.uid) {
         val user = authState.currentUser
+        profileViewModel.setCurrentUser(user)
         if (user != null) {
             Log.d("FirestoreSync", "AppNavigation detected authenticated user uid=${user.uid}")
             FirestoreSyncManager.start(user)
@@ -168,7 +181,8 @@ fun AppNavigation(
                     } else {
                         openAuthDialog(AuthDialogMode.LOGIN)
                     }
-                }
+                },
+                onNavigateToProfile = ::navigateToProfile
             )
         }
 
@@ -193,8 +207,32 @@ fun AppNavigation(
                 } else {
                     openAuthDialog(AuthDialogMode.LOGIN)
                 }
-            }
+            },
+            onNavigateToProfile = ::navigateToProfile
         )
+
+        composable(Screen.Profile.route) {
+            if (!authState.isAuthenticated) {
+                LaunchedEffect(Unit) {
+                    openAuthDialog(AuthDialogMode.LOGIN)
+                    navController.popBackStack()
+                }
+            } else {
+                ProfileScreen(
+                    navController = navController,
+                    uiState = profileState,
+                    onNombresChange = profileViewModel::updateNombres,
+                    onApellidosChange = profileViewModel::updateApellidos,
+                    onAliasChange = profileViewModel::updateAlias,
+                    onBiografiaChange = profileViewModel::updateBiografia,
+                    onAvatarColorChange = profileViewModel::updateAvatarColor,
+                    onProfilePhotoSelected = { uri -> profileViewModel.uploadProfilePhoto(appContext, uri) },
+                    onClearProfilePhoto = profileViewModel::clearProfilePhoto,
+                    onSave = { profileViewModel.saveProfile() },
+                    onClearSaveSuccess = profileViewModel::clearSaveSuccess
+                )
+            }
+        }
 
         composable(
             route = Screen.Books.route,
@@ -221,7 +259,8 @@ fun AppNavigation(
                     } else {
                         openAuthDialog(AuthDialogMode.LOGIN)
                     }
-                }
+                },
+                onNavigateToProfile = ::navigateToProfile
             )
         }
 
@@ -359,6 +398,17 @@ fun AppNavigation(
                     authViewModel.process(AuthIntent.ClearError)
                 }
             }
+        )
+    }
+
+    if (profileState.requiresCompletion) {
+        CompleteProfileDialog(
+            uiState = profileState,
+            onNombresChange = profileViewModel::updateNombres,
+            onApellidosChange = profileViewModel::updateApellidos,
+            onAliasChange = profileViewModel::updateAlias,
+            onSave = { profileViewModel.saveProfile() },
+            onDismiss = profileViewModel::dismissCompletionPrompt
         )
     }
 }

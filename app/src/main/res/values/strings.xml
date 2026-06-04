@@ -3,6 +3,7 @@
     <string name="biblion_wordmark">BIBLION</string>
 
     <string name="drawer_home">Home</string>
+    <string name="drawer_profile">Profile</string>
     <string name="drawer_pick_version">Choose version</string>
     <string name="drawer_dark_mode">Dark mode</string>
     <string name="drawer_my_teachings">My teachings</string>
@@ -39,11 +40,40 @@
     <string name="auth_error_generic">We could not complete the request. Try again.</string>
     <string name="auth_error_google_cancelled">Google sign-in was cancelled.</string>
     <string name="auth_error_google_unavailable">Google sign-in is unavailable right now.</string>
+    <string name="auth_error_google_configuration">Google sign-in needs Firebase OAuth configuration for this app signature.</string>
     <string name="auth_logout_title">Signed out</string>
     <string name="auth_logout_message">You have signed out successfully.</string>
     <string name="auth_logout_confirm">OK</string>
     <string name="auth_logo_cd">Biblion logo</string>
     <string name="sync_cloud_error">Error syncing data in the cloud</string>
+
+    <string name="profile_title">Profile</string>
+    <string name="profile_complete_title">Complete your profile</string>
+    <string name="profile_complete_message">Biblion needs your basic profile information for your teachings and the Biblion network.</string>
+    <string name="profile_names">Names *</string>
+    <string name="profile_last_names">Last names *</string>
+    <string name="profile_alias">Alias *</string>
+    <string name="profile_alias_placeholder">Biblion user</string>
+    <string name="profile_biography">Biography (optional)</string>
+    <string name="profile_role">Role</string>
+    <string name="profile_plan">Plan</string>
+    <string name="profile_publisher_status">Publisher status</string>
+    <string name="profile_save">Save profile</string>
+    <string name="profile_saved">Profile saved</string>
+    <string name="profile_later">Later</string>
+    <string name="profile_choose_photo">Choose photo</string>
+    <string name="profile_use_color">Use color</string>
+    <string name="profile_error_names">Enter your names.</string>
+    <string name="profile_error_last_names">Enter your last names.</string>
+    <string name="profile_error_alias">Enter your alias.</string>
+    <string name="profile_metrics_title">Activity</string>
+    <string name="profile_metric_created">Created teachings</string>
+    <string name="profile_metric_published">Published teachings</string>
+    <string name="profile_metric_downloaded">Downloaded teachings</string>
+    <string name="profile_metric_downloads">Downloads</string>
+    <string name="profile_metric_likes">Likes</string>
+    <string name="profile_metric_saved">Saved</string>
+    <string name="profile_metric_comments">Comments</string>
 
     <string name="testament_old_label">Old Testament</string>
     <string name="testament_new_label">New Testament</string>

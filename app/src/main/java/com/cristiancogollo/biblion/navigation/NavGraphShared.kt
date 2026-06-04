@@ -20,7 +20,8 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
     isAuthenticated: Boolean = false,
     showSignedOutDialog: Boolean = false,
     onDismissSignedOutDialog: () -> Unit = {},
-    onAuthActionClick: () -> Unit = {}
+    onAuthActionClick: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {}
 ) {
     if (includeHome) {
         composable(Screen.Home.route) {
@@ -32,7 +33,8 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
                 isAuthenticated = isAuthenticated,
                 showSignedOutDialog = showSignedOutDialog,
                 onDismissSignedOutDialog = onDismissSignedOutDialog,
-                onAuthActionClick = onAuthActionClick
+                onAuthActionClick = onAuthActionClick,
+                onNavigateToProfile = onNavigateToProfile
             )
         }
     }
@@ -57,7 +59,8 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
                 isAuthenticated = isAuthenticated,
                 showSignedOutDialog = showSignedOutDialog,
                 onDismissSignedOutDialog = onDismissSignedOutDialog,
-                onAuthActionClick = onAuthActionClick
+                onAuthActionClick = onAuthActionClick,
+                onNavigateToProfile = onNavigateToProfile
             )
         }
     }

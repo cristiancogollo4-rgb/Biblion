@@ -21,6 +21,15 @@ import kotlinx.serialization.decodeFromString
 private data class RemoteUserDocument(
     val uid: String = "",
     val email: String? = null,
+    val nombres: String = "",
+    val apellidos: String = "",
+    val correo: String? = null,
+    val alias: String = "",
+    val rol: String = "LECTOR",
+    val estadoPublicador: String = "NO_APROBADO",
+    val plan: String = "FREE",
+    val fotoPerfil: String? = null,
+    val biografia: String = "",
     val schemaVersion: Long = 1,
     val createdAt: Long = 0,
     val updatedAt: Long = 0,
@@ -80,7 +89,7 @@ private data class RemoteHighlightChapter(
 
 object FirestoreSyncManager {
     private const val TAG = "FirestoreSync"
-    private const val SCHEMA_VERSION = 1L
+    private const val SCHEMA_VERSION = 2L
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val syncMutex = Mutex()
@@ -216,11 +225,52 @@ object FirestoreSyncManager {
 
     private suspend fun ensureUserDocument(user: AuthUser) {
         val now = System.currentTimeMillis()
+        val currentSnapshot = withTimeout(15_000) {
+            userRoot(user.uid).get().awaitResult()
+        }
+        val alias = user.displayName
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: user.email?.substringBefore("@")?.trim().orEmpty()
+        val currentData = currentSnapshot.data.orEmpty()
+        val createdAt = (currentData["createdAt"] as? Number)?.toLong() ?: now
+        val fechaRegistro = (currentData["fechaRegistro"] as? Number)?.toLong()
+            ?: (currentData["fecha_registro"] as? Number)?.toLong()
+            ?: createdAt
+        val fotoPerfil = currentData["fotoPerfil"] as? String
+            ?: currentData["foto_perfil"] as? String
+            ?: user.photoUrl
+        val avatarColor = (currentData["avatarColor"] as? Number)?.toLong()
+            ?: (currentData["avatar_color"] as? Number)?.toLong()
+            ?: 0xFF0B6E9FUL.toLong()
         val doc = mapOf(
             "uid" to user.uid,
             "email" to user.email,
+            "nombres" to (currentData["nombres"] as? String ?: ""),
+            "apellidos" to (currentData["apellidos"] as? String ?: ""),
+            "correo" to user.email,
+            "alias" to (currentData["alias"] as? String ?: alias),
+            "rol" to (currentData["rol"] as? String ?: "LECTOR"),
+            "estadoPublicador" to (currentData["estadoPublicador"] as? String ?: "NO_APROBADO"),
+            "estado_publicador" to (currentData["estado_publicador"] as? String ?: "NO_APROBADO"),
+            "plan" to (currentData["plan"] as? String ?: "FREE"),
+            "fotoPerfil" to fotoPerfil,
+            "foto_perfil" to fotoPerfil,
+            "avatarColor" to avatarColor,
+            "avatar_color" to avatarColor,
+            "biografia" to (currentData["biografia"] as? String ?: ""),
+            "totalEnsenanzasCreadas" to ((currentData["totalEnsenanzasCreadas"] as? Number)?.toInt() ?: 0),
+            "totalEnsenanzasPublicadas" to ((currentData["totalEnsenanzasPublicadas"] as? Number)?.toInt() ?: 0),
+            "totalDescargas" to ((currentData["totalDescargas"] as? Number)?.toInt() ?: 0),
+            "totalLikes" to ((currentData["totalLikes"] as? Number)?.toInt() ?: 0),
+            "totalGuardados" to ((currentData["totalGuardados"] as? Number)?.toInt() ?: 0),
+            "totalComentarios" to ((currentData["totalComentarios"] as? Number)?.toInt() ?: 0),
+            "totalSeguidores" to ((currentData["totalSeguidores"] as? Number)?.toInt() ?: 0),
+            "totalSiguiendo" to ((currentData["totalSiguiendo"] as? Number)?.toInt() ?: 0),
+            "fechaRegistro" to fechaRegistro,
+            "fecha_registro" to fechaRegistro,
             "schemaVersion" to SCHEMA_VERSION,
-            "createdAt" to now,
+            "createdAt" to createdAt,
             "updatedAt" to now,
             "lastLoginAt" to now,
             "lastSeenAt" to now

@@ -82,6 +82,7 @@ import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 
 private enum class AppDrawerOption(val labelRes: Int) {
     HOME(R.string.drawer_home),
+    PROFILE(R.string.drawer_profile),
     PICK_VERSION(R.string.drawer_pick_version),
     MY_TEACHINGS(R.string.drawer_my_teachings),
     DOCTRINES(R.string.drawer_doctrines),
@@ -163,6 +164,7 @@ fun BiblionAppDrawer(
     isAuthenticated: Boolean = false,
     onClose: () -> Unit,
     onNavigateHome: () -> Unit,
+    onNavigateToProfile: () -> Unit,
     onNavigateToTeachings: () -> Unit,
     onNavigateToStudyMode: () -> Unit,
     onPickVersion: () -> Unit,
@@ -172,6 +174,7 @@ fun BiblionAppDrawer(
 ) {
     val menuOptions = listOf(
         AppDrawerOption.HOME,
+        AppDrawerOption.PROFILE,
         AppDrawerOption.PICK_VERSION,
         AppDrawerOption.MY_TEACHINGS,
         AppDrawerOption.DOCTRINES,
@@ -200,10 +203,16 @@ fun BiblionAppDrawer(
             BiblionMenuItem(
                 text = stringResource(option.labelRes),
                 onClick = {
+                    if (option == AppDrawerOption.PROFILE && !isAuthenticated) {
+                        onClose()
+                        onAuthActionClick()
+                        return@BiblionMenuItem
+                    }
                     if (!drawerState.isOpen) return@BiblionMenuItem
                     onClose()
                     when (option) {
                         AppDrawerOption.HOME -> onNavigateHome()
+                        AppDrawerOption.PROFILE -> onNavigateToProfile()
                         AppDrawerOption.PICK_VERSION -> onPickVersion()
                         AppDrawerOption.MY_TEACHINGS -> onNavigateToTeachings()
                         AppDrawerOption.DOCTRINES,

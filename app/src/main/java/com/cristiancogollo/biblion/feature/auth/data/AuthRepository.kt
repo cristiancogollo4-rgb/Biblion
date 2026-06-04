@@ -14,7 +14,9 @@ import kotlin.coroutines.resumeWithException
 
 data class AuthUser(
     val uid: String,
-    val email: String?
+    val email: String?,
+    val displayName: String? = null,
+    val photoUrl: String? = null
 )
 
 interface AuthRepository {
@@ -92,7 +94,9 @@ class FirebaseAuthRepository(
 private fun FirebaseUser.toAuthUser(): AuthUser {
     return AuthUser(
         uid = uid,
-        email = email
+        email = email,
+        displayName = displayName,
+        photoUrl = photoUrl?.toString()
     )
 }
 

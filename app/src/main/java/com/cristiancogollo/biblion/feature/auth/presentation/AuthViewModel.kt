@@ -169,6 +169,15 @@ class AuthViewModel @JvmOverloads constructor(
         }
     }
 
+    fun onGoogleSignInConfigurationError() {
+        _state.update {
+            it.copy(
+                isLoading = false,
+                errorMessageRes = R.string.auth_error_google_configuration
+            )
+        }
+    }
+
     private fun signIn() {
         val current = _state.value
         if (current.isLoading) return
