@@ -2,5 +2,10 @@ name = "biblion-bibi"
 main = "src/index.js"
 compatibility_date = "2026-06-03"
 
+[vars]
+BIBI_PROVIDER = "openai-compatible"
+BIBI_MODEL = "qwen3-8b"
+OPENAI_COMPATIBLE_BASE_URL = "https://ws-jtyu5n7ae7krw2qu.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
+
 [observability]
 enabled = true

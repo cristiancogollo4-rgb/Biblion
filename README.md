@@ -16,8 +16,10 @@ Biblion ya cuenta con:
 - Resaltado de versiculos.
 - Preferencias de lectura, incluyendo tamano de fuente.
 - Modo claro/oscuro global.
-- Autenticacion con Firebase.
+- Autenticacion con Firebase Auth, incluyendo inicio de sesion con Google.
 - Sincronizacion con Firestore para preferencias, resaltados, estudios y citas.
+- Perfil de usuario con datos reales, alias, biografia, foto o avatar de color.
+- Base inicial para la red de Biblion sobre Firebase/Firestore.
 - Modo estudio con editor estructurado.
 - Gestion de "Mis ensenanzas".
 - Lectura enriquecida de ensenanzas.
@@ -60,6 +62,65 @@ La seccion **Mis ensenanzas** permite:
 - Editar titulo y etiquetas.
 - Eliminar ensenanzas.
 - Filtrar por titulo o etiquetas.
+
+---
+
+## Perfil y red de Biblion
+
+Biblion ya incluye una seccion **Perfil** para usuarios autenticados. Esta seccion prepara la identidad que se usara en la red de Biblion.
+
+### Datos del perfil
+
+El perfil solicita y guarda en Firestore:
+
+- nombres;
+- apellidos;
+- alias visible;
+- correo;
+- biografia;
+- rol;
+- estado de publicador;
+- plan;
+- fecha de registro.
+
+Si el usuario inicia sesion con Google y faltan nombres, apellidos o alias, Biblion muestra un dialogo para completar el perfil.
+
+### Avatar visible en la red
+
+El usuario puede elegir como verse en la red:
+
+- subir una foto de perfil;
+- usar un avatar circular con color personalizable.
+
+La foto se sube a Firebase Storage en:
+
+```text
+profile_photos/{uid}/avatar.jpg
+```
+
+La URL se guarda en Firestore como `fotoPerfil` y `foto_perfil`.
+
+Si el usuario no usa foto, el avatar se representa con `avatarColor` y `avatar_color`. Esto permite que la red muestre una identidad visual consistente aunque no exista imagen.
+
+### Metricas del perfil
+
+El perfil muestra metricas iniciales segun el rol o estado del usuario.
+
+Para lectores:
+
+- ensenanzas creadas;
+- ensenanzas descargadas;
+- guardados;
+- comentarios.
+
+Para publicadores, administradores o usuarios con `estadoPublicador = APROBADO`:
+
+- ensenanzas creadas;
+- ensenanzas publicadas;
+- likes recibidos;
+- descargas recibidas.
+
+Estas metricas se guardan como contadores en `users/{uid}` y arrancan en `0` hasta que se conecten los flujos sociales de la red.
 
 ---
 
@@ -164,8 +225,12 @@ Bibi online usa:
 - Android: `HttpStudyAssistantRepository`.
 - Endpoint configurable: `bibiEndpointUrl` en `local.properties`.
 - Cloudflare Worker: `workers/bibi`.
-- Modelo NVIDIA por API: configurado en el Worker.
-- Secreto: `NVIDIA_API_KEY` guardado como Cloudflare secret.
+- Modelo principal: `qwen3-8b` mediante endpoint compatible con OpenAI.
+- Proveedor por defecto del Worker: `openai-compatible`.
+- Endpoint por defecto: DashScope/Alibaba compatible-mode.
+- Fallback configurable: NVIDIA con `nvidia/llama-3.1-nemotron-nano-8b-v1`.
+- Secreto principal: `OPENAI_COMPATIBLE_API_KEY` guardado como Cloudflare secret.
+- Secreto opcional de fallback/pruebas: `NVIDIA_API_KEY`.
 
 La API key no debe guardarse en Android, Gradle, recursos, commits ni archivos versionados.
 
@@ -179,11 +244,17 @@ Para desplegar el Worker:
 
 ```powershell
 cd workers\bibi
-npx wrangler secret put NVIDIA_API_KEY
+npx wrangler secret put OPENAI_COMPATIBLE_API_KEY
 npx wrangler deploy
 ```
 
-El Worker tiene respaldos para respuestas de identidad, versiones, dominio no biblico, diccionario biblico y timeouts de NVIDIA.
+Para volver temporalmente a NVIDIA, cambia `BIBI_PROVIDER = "nvidia"` y `BIBI_MODEL = "nvidia/llama-3.1-nemotron-nano-8b-v1"` en `workers/bibi/wrangler.toml`, y configura:
+
+```powershell
+npx wrangler secret put NVIDIA_API_KEY
+```
+
+El Worker tiene respaldos para respuestas de identidad, versiones, dominio no biblico, diccionario biblico y timeouts del proveedor IA.
 
 ---
 
@@ -383,14 +454,211 @@ Pantallas y componentes Compose:
 - `StudyDatabase`: Room para cuadernos, estudios y citas vinculadas.
 - `FirestoreSyncManager`: sincronizacion de preferencias, resaltados y estudios.
 - `AppPreferencesSyncStore`: preferencias locales sincronizables.
+- `UserProfileRepository`: lectura y escritura del perfil en Firestore, foto en Storage y color de avatar.
 - `StudyAssistantRepository`: contrato Android para Bibi, envio de contexto, limpieza de respuestas y respaldo local.
-- `workers/bibi`: Cloudflare Worker que aplica prompts, dominio biblico, diccionario, versiones y conexion con NVIDIA.
+- `workers/bibi`: Cloudflare Worker que aplica prompts, dominio biblico, diccionario, versiones y conexion con Qwen/DashScope u otros proveedores compatibles.
 
 ### Navegacion
 
 - `NavigationRoutes`
 - `AppNavigation`
 - `NavGraphShared`
+
+---
+
+## Estructura de datos
+
+Biblion combina persistencia local con sincronizacion en Firebase.
+
+### Room local
+
+`StudyDatabase` mantiene los datos del modo estudio en el dispositivo:
+
+- `study_notebooks`: cuadernos de estudio.
+- `studies`: ensenanzas/documentos del usuario.
+- `linked_citations`: citas biblicas vinculadas a una ensenanza.
+
+Campos relevantes de sincronizacion:
+
+- `remoteId`;
+- `ownerUid`;
+- `deletedAt`;
+- `lastSyncedAt`;
+- `syncVersion`.
+
+Las citas vinculadas conservan:
+
+- `book`;
+- `chapter`;
+- `verseStart`;
+- `verseEnd`;
+- `version`;
+- `positionMetadata`.
+
+### Firestore privado por usuario
+
+La sincronizacion actual usa documentos privados bajo:
+
+```text
+users/{uid}
+```
+
+Subcolecciones actuales:
+
+```text
+users/{uid}/preferences/app
+users/{uid}/notebooks/{notebookRemoteId}
+users/{uid}/studies/{studyRemoteId}
+users/{uid}/chapter_highlights/{book__chapter}
+```
+
+`users/{uid}` contiene el perfil principal:
+
+| Campo | Funcion |
+| --- | --- |
+| `uid` | Identificador de Firebase Auth. |
+| `email` / `correo` | Correo de inicio de sesion. |
+| `nombres` | Nombres reales. |
+| `apellidos` | Apellidos reales. |
+| `alias` | Nombre visible en Biblion. |
+| `rol` | Tipo general: `LECTOR`, `PUBLICADOR`, `ADMIN`. |
+| `estadoPublicador` / `estado_publicador` | Estado para publicar: `NO_APROBADO`, `PENDIENTE`, `APROBADO`, `SUSPENDIDO`. |
+| `plan` | Plan del usuario: `FREE`, `GO`, `PLUS`. |
+| `fotoPerfil` / `foto_perfil` | URL de foto en Firebase Storage. |
+| `avatarColor` / `avatar_color` | Color del avatar cuando no hay foto. |
+| `biografia` | Descripcion breve del usuario. |
+| `fechaRegistro` / `fecha_registro` | Fecha de creacion del perfil. |
+| `createdAt`, `updatedAt`, `lastLoginAt`, `lastSeenAt` | Trazabilidad de sincronizacion. |
+
+Contadores preparados para la red:
+
+| Campo | Funcion |
+| --- | --- |
+| `totalEnsenanzasCreadas` | Ensenanzas creadas por el usuario. |
+| `totalEnsenanzasPublicadas` | Ensenanzas publicadas por publicadores aprobados. |
+| `totalDescargas` | Descargas asociadas al usuario o a sus publicaciones segun contexto. |
+| `totalLikes` | Likes recibidos o acumulados en publicaciones. |
+| `totalGuardados` | Ensenanzas guardadas/favoritas. |
+| `totalComentarios` | Comentarios hechos o recibidos segun el flujo social. |
+| `totalSeguidores` | Usuarios que siguen a este usuario. |
+| `totalSiguiendo` | Usuarios seguidos por este usuario. |
+
+### Firebase Storage
+
+Las fotos de perfil se guardan en:
+
+```text
+profile_photos/{uid}/avatar.jpg
+```
+
+El cliente guarda la URL publica/descargable en Firestore. Si no existe foto, la UI usa `avatarColor`.
+
+### Modelo previsto para la red de Biblion
+
+Por ahora la red se modelara en Firebase. La estructura prevista sigue estas entidades:
+
+#### Usuario
+
+Representado por `users/{uid}`. Todos los usuarios pueden crear ensenanzas privadas o sincronizadas. Solo usuarios con `estadoPublicador = APROBADO` pueden publicar ensenanzas publicas.
+
+#### Ensenanza
+
+Entidad central para contenido creado por usuarios.
+
+Campos previstos:
+
+- `id`;
+- `usuario_id`;
+- `titulo`;
+- `descripcion`;
+- `contenido`;
+- `estado`: `BORRADOR`, `PUBLICADA`, `ARCHIVADA`;
+- `visibilidad`: `PRIVADA`, `NUBE`, `PUBLICA`;
+- `total_descargas`;
+- `total_likes`;
+- `total_guardados`;
+- `fecha_creacion`;
+- `fecha_actualizacion`.
+
+Reglas:
+
+- un lector puede tener ensenanzas `PRIVADA` o `NUBE`;
+- un publicador aprobado puede publicar con `estado = PUBLICADA` y `visibilidad = PUBLICA`.
+
+#### Seguidor
+
+Relacion entre usuarios:
+
+- `id`;
+- `seguidor_id`;
+- `seguido_id`;
+- `fecha`.
+
+#### Descarga
+
+Registra descargas de ensenanzas:
+
+- `id`;
+- `usuario_id`;
+- `ensenanza_id`;
+- `fecha_descarga`.
+
+#### Favorito
+
+Guarda ensenanzas conservadas por un usuario:
+
+- `id`;
+- `usuario_id`;
+- `ensenanza_id`;
+- `fecha_guardado`.
+
+#### Like
+
+Registra likes en ensenanzas publicas:
+
+- `id`;
+- `usuario_id`;
+- `ensenanza_id`;
+- `fecha`.
+
+Regla recomendada: un usuario solo puede dar un like por ensenanza.
+
+#### Etiqueta
+
+Catalogo de temas o categorias:
+
+- `id`;
+- `nombre`.
+
+#### EnsenanzaEtiqueta
+
+Relacion muchos-a-muchos entre ensenanzas y etiquetas:
+
+- `id`;
+- `ensenanza_id`;
+- `etiqueta_id`.
+
+#### Comentario
+
+Comentarios en ensenanzas publicas:
+
+- `id`;
+- `usuario_id`;
+- `ensenanza_id`;
+- `contenido`;
+- `fecha_creacion`.
+
+Regla recomendada: solo comentar ensenanzas con `visibilidad = PUBLICA`.
+
+### Reglas de consistencia de la red
+
+- Todo usuario puede crear ensenanzas.
+- Lectores pueden guardar ensenanzas privadas o sincronizadas en nube.
+- Solo usuarios con `estadoPublicador = APROBADO` pueden crear ensenanzas publicas.
+- Likes, comentarios, descargas publicas y favoritos sociales aplican principalmente a ensenanzas publicas.
+- Los contadores son valores derivados de las colecciones sociales.
+- La visibilidad decide si el contenido es personal, sincronizado o publico.
+- El estado de publicador decide si el usuario puede aparecer como publicador en la red.
 
 ---
 
@@ -406,8 +674,10 @@ Pantallas y componentes Compose:
 - KSP
 - Firebase Auth
 - Firestore
+- Firebase Storage
 - Cloudflare Workers
-- NVIDIA API
+- Qwen3-8B / DashScope compatible con OpenAI
+- NVIDIA API como fallback configurable
 - Robolectric / pruebas unitarias Android
 
 ---
@@ -431,9 +701,32 @@ Luego:
 
 1. Abre el proyecto en Android Studio.
 2. Sincroniza Gradle.
-3. Configura Firebase si vas a probar autenticacion/sincronizacion.
+3. Configura Firebase si vas a probar autenticacion, sincronizacion, perfil o red.
 4. Configura `bibiEndpointUrl` en `local.properties` si vas a probar Bibi online.
 5. Ejecuta en emulador o dispositivo fisico Android.
+
+### Firebase local
+
+Para probar Google Sign-In en debug:
+
+1. Ejecuta:
+
+```powershell
+.\gradlew.bat :app:signingReport
+```
+
+2. Copia el SHA-1 de la variante `debug`.
+3. Agrega esa huella a la app Android en Firebase Console.
+4. Descarga el nuevo `google-services.json`.
+5. Reemplaza `app/google-services.json`.
+
+Las huellas no se agregan por usuario. Se agregan por certificado de firma de la app: debug, release, upload key o Play App Signing.
+
+Para probar foto de perfil, Firebase Storage debe permitir que un usuario autenticado escriba su propia imagen:
+
+```text
+profile_photos/{uid}/avatar.jpg
+```
 
 ---
 
@@ -457,6 +750,52 @@ Validar Worker de Bibi:
 node --check workers\bibi\src\index.js
 ```
 
+Probar modelos candidatos de Bibi:
+
+```powershell
+cd workers\bibi
+$env:NVIDIA_API_KEY="tu_api_key"
+npm run eval:models -- nvidia/llama-3.1-nemotron-nano-8b-v1
+```
+
+El evaluador revisa:
+
+- JSON valido;
+- dominio (`bible` u `out_of_domain`);
+- idioma esperado;
+- referencias permitidas;
+- textos obligatorios y prohibidos;
+- estructura minima para bosquejos;
+- latencia promedio.
+
+Tambien se pueden comparar varios modelos pasando sus IDs exactos del proveedor:
+
+```powershell
+npm run eval:models -- modelo_1 modelo_2 modelo_3
+```
+
+Para endpoints compatibles con OpenAI, por ejemplo DashScope/Alibaba:
+
+```powershell
+cd workers\bibi
+$env:BIBI_EVAL_PROVIDER="openai-compatible"
+$env:OPENAI_COMPATIBLE_BASE_URL="https://tu-endpoint/compatible-mode/v1"
+$env:OPENAI_COMPATIBLE_API_KEY="tu_api_key"
+npm run eval:models -- qwen3-8b
+```
+
+No guardes API keys en el repositorio. Si una clave se comparte por error, debe rotarse en el proveedor.
+
+Para comparar proveedores distintos en una sola corrida, usa prefijos:
+
+```powershell
+cd workers\bibi
+$env:NVIDIA_API_KEY="tu_nvidia_key"
+$env:OPENAI_COMPATIBLE_BASE_URL="https://tu-endpoint/compatible-mode/v1"
+$env:OPENAI_COMPATIBLE_API_KEY="tu_openai_compatible_key"
+npm run eval:models -- nvidia:nvidia/llama-3.1-nemotron-nano-8b-v1 openai:qwen3-8b
+```
+
 Pruebas relevantes del modo estudio:
 
 ```powershell
@@ -476,6 +815,8 @@ Ideas pendientes o en evolucion:
 - Gestion avanzada de cuadernos.
 - Busqueda avanzada dentro de ensenanzas.
 - Sincronizacion mas robusta ante conflictos.
+- Implementacion completa de la red de Biblion: publicaciones, seguidores, likes, comentarios, favoritos y descargas publicas.
+- Reglas de seguridad Firestore/Storage para roles, publicadores aprobados y propiedad de documentos.
 - Recuperacion automatica de pasajes biblicos para Bibi desde assets locales.
 - Diccionario biblico ampliado y administrable.
 - Insercion de `suggestedBlocks` de Bibi como bloques reales del modo estudio.

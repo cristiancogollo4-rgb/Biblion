@@ -9,7 +9,8 @@ Su objetivo es mantener coherencia con el estado actual del repositorio: Android
 - Lenguaje: Kotlin.
 - UI: Jetpack Compose + Material 3.
 - Persistencia local: Room.
-- Sincronizacion: Firebase Auth + Firestore para preferencias, estudios y citas.
+- Sincronizacion: Firebase Auth + Firestore para preferencias, estudios, citas y perfil.
+- Almacenamiento remoto: Firebase Storage para fotos de perfil.
 - Arquitectura actual: enfoque por capas con patron MVVM.
 - Modulo principal: `app/`.
 - Paquete base: `com.cristiancogollo.biblion`.
@@ -27,13 +28,17 @@ Biblion ya incluye:
 - Resaltado de versiculos con persistencia y sincronizacion.
 - Modo claro/oscuro global.
 - Autenticacion y sincronizacion de datos de usuario.
+- Inicio de sesion con Google mediante Firebase Auth.
+- Perfil de usuario con nombres, apellidos, alias, biografia, foto o avatar de color.
+- Base inicial para la red de Biblion sobre Firestore.
 - Modo estudio con editor de ensenanzas.
 - Listado de "Mis ensenanzas" con abrir, editar, eliminar, filtrar por titulo o etiqueta.
 - Lectura de ensenanzas con controles de tamano de letra, modo claro/oscuro y pantalla dividida en pantallas grandes.
 - Sistema de etiquetas sugeridas por seccion: proposito, audiencia, tema y estado.
 - Validacion de guardado de ensenanzas: titulo obligatorio y etiquetas requeridas por seccion.
 - Asistente biblico Bibi en modo estudio y lector normal.
-- Integracion online de Bibi mediante Cloudflare Worker y modelo NVIDIA.
+- Integracion online de Bibi mediante Cloudflare Worker y Qwen3-8B por endpoint compatible con OpenAI.
+- Evaluador local de modelos de Bibi en `workers/bibi/evals/model_eval.mjs`.
 - Contexto para Bibi con versiones biblicas disponibles, version seleccionada, texto seleccionado, bloques actuales de la ensenanza, notas y diccionario biblico inicial.
 
 ## 3) Principios de cambio
@@ -98,9 +103,12 @@ Reglas funcionales:
 - Su dominio es exclusivamente biblico/cristiano: Biblia, estudio biblico, contexto, personajes, lugares, historia biblica relacionada con las Escrituras, doctrina cristiana, discipulado, devocionales, predicacion, ensenanzas, reflexion, aplicacion, palabras biblicas, referencias cruzadas y comparacion de pasajes.
 - Preguntas fuera de dominio deben responder con el mensaje de redireccion definido en `StudyAssistantRepository` y `workers/bibi/src/index.js`.
 - Bibi no debe inventar versiculos, citas, personajes, eventos, doctrinas, revelaciones, profecias, mensajes personales de Dios ni interpretaciones sin fundamento biblico.
+- Bibi no debe usar referencias no proporcionadas por Biblion salvo que el usuario pida referencias cruzadas o pasajes relacionados y la referencia sea segura.
 - Toda ensenanza, explicacion o aplicacion debe estar sustentada en las Escrituras o identificarse claramente como reflexion basada en ellas.
 - Si una referencia no es segura, debe reconocerlo y sugerir verificar el pasaje.
 - Si compara versiones, debe usar solo textos proporcionados por Biblion; no debe inventar traducciones.
+- Si compara versiones y faltan textos, debe indicar que Biblion no proporciono esos textos.
+- No debe afirmar que Maria Magdalena fue prostituta; si menciona Lucas 7, debe aclarar que el texto no identifica a esa mujer como Maria Magdalena.
 
 Contexto enviado a Bibi:
 
@@ -127,9 +135,13 @@ Infraestructura:
 - El cliente Android usa `HttpStudyAssistantRepository`.
 - La URL se configura con `bibiEndpointUrl` en `local.properties` y se inyecta como `BuildConfig.BIBI_ENDPOINT_URL`.
 - El Worker vive en `workers/bibi`.
-- El Worker usa `NVIDIA_API_KEY` como secreto de Cloudflare, nunca en el APK.
+- El Worker usa `qwen3-8b` como modelo principal mediante proveedor `openai-compatible`.
+- La URL compatible con OpenAI se configura con `OPENAI_COMPATIBLE_BASE_URL` y el secreto `OPENAI_COMPATIBLE_API_KEY`.
+- NVIDIA queda como fallback configurable con `BIBI_PROVIDER = "nvidia"`, `BIBI_MODEL = "nvidia/llama-3.1-nemotron-nano-8b-v1"` y secreto `NVIDIA_API_KEY`.
+- Los secretos de proveedores IA deben vivir en Cloudflare Worker secrets, nunca en el APK ni en archivos versionados.
 - Si el endpoint falla o esta vacio, Android usa respuesta local de respaldo.
-- El Worker tambien tiene respuestas de respaldo con diccionario biblico cuando NVIDIA tarda.
+- El Worker tambien tiene respuestas de respaldo con diccionario biblico cuando el proveedor IA tarda.
+- Las pruebas comparativas de modelos se ejecutan con `npm run eval:models` dentro de `workers/bibi`; el evaluador valida JSON, dominio, idioma, referencias permitidas, textos obligatorios/prohibidos y latencia.
 
 ### Citas biblicas
 
@@ -179,7 +191,86 @@ Funciones actuales:
 - Filtro y administracion desde "Mis ensenanzas".
 - Bibi en lector normal para preguntas biblicas basicas sobre el pasaje actual.
 
-## 7) Estado y ViewModel
+## 7) Perfil y red de Biblion
+
+La red de Biblion se maneja por el momento sobre Firebase/Firestore.
+
+### Perfil
+
+El documento principal del usuario vive en:
+
+```text
+users/{uid}
+```
+
+Campos relevantes:
+
+- `uid`
+- `email` / `correo`
+- `nombres`
+- `apellidos`
+- `alias`
+- `rol`: `LECTOR`, `PUBLICADOR`, `ADMIN`
+- `estadoPublicador` / `estado_publicador`: `NO_APROBADO`, `PENDIENTE`, `APROBADO`, `SUSPENDIDO`
+- `plan`: `FREE`, `GO`, `PLUS`
+- `fotoPerfil` / `foto_perfil`
+- `avatarColor` / `avatar_color`
+- `biografia`
+- `fechaRegistro` / `fecha_registro`
+
+Si el usuario no tiene foto, la red debe representar su identidad con `avatarColor`.
+
+Las fotos de perfil se guardan en Firebase Storage:
+
+```text
+profile_photos/{uid}/avatar.jpg
+```
+
+Reglas:
+
+- Todo usuario autenticado debe poder completar nombres, apellidos y alias.
+- El alias es el nombre visible dentro de la red.
+- La foto de perfil es opcional; si no existe, se usa avatar de color.
+- No guardar imagenes ni claves en el repositorio.
+
+### Contadores sociales preparados
+
+`users/{uid}` puede incluir:
+
+- `totalEnsenanzasCreadas`
+- `totalEnsenanzasPublicadas`
+- `totalDescargas`
+- `totalLikes`
+- `totalGuardados`
+- `totalComentarios`
+- `totalSeguidores`
+- `totalSiguiendo`
+
+Estos valores son derivados de tablas/colecciones sociales y deben actualizarse de forma consistente cuando se implementen likes, descargas, favoritos, comentarios y seguidores.
+
+### Modelo previsto de red
+
+Entidades previstas:
+
+- Usuario
+- Ensenanza
+- Seguidor
+- Descarga
+- Favorito
+- Like
+- Etiqueta
+- EnsenanzaEtiqueta
+- Comentario
+
+Reglas principales:
+
+- Todo usuario puede crear ensenanzas.
+- Un lector puede tener ensenanzas `PRIVADA` o `NUBE`.
+- Solo usuarios con `estadoPublicador = APROBADO` pueden publicar ensenanzas `PUBLICA`.
+- Likes, comentarios, descargas publicas y favoritos sociales aplican principalmente a ensenanzas publicas.
+- Los contadores son derivados, no fuente primaria de verdad.
+
+## 8) Estado y ViewModel
 
 - Nuevas acciones de usuario deben agregarse de forma consistente en `StudyIntent`.
 - El estado visible debe modelarse en `StudyUiState`.
@@ -187,7 +278,7 @@ Funciones actuales:
 - Si se agrega logica testeable, preferir funciones puras o helpers internos con pruebas unitarias.
 - Para tests, se permite inyectar dispatchers o desactivar semillas demo cuando mejore determinismo.
 
-## 8) Datos, repositorios y Room
+## 9) Datos, repositorios y Room
 
 - Cambios de esquema Room deben ser compatibles y justificados.
 - No romper datos existentes sin migracion.
@@ -195,14 +286,14 @@ Funciones actuales:
 - Si se agrega cache o acceso a assets biblicos, seguir el patron de `BibleRepository` y caches dedicados.
 - Las citas vinculadas deben conservar `book`, `chapter`, `verseStart`, `verseEnd` y `version`.
 
-## 9) Navegacion
+## 10) Navegacion
 
 - Registrar rutas nuevas en `NavigationRoutes`, `AppNavigation` o `NavGraphShared` segun corresponda.
 - Evitar duplicidad de rutas.
 - Respetar `launchSingleTop` y `popUpTo` usados en la app.
 - Las pantallas compartidas deben recibir dependencias como tema global mediante parametros, no accediendo a estado global oculto.
 
-## 10) Pruebas y validacion
+## 11) Pruebas y validacion
 
 Agregar o ajustar pruebas unitarias cuando se modifique logica:
 
@@ -220,7 +311,7 @@ Antes de proponer merge, validar al menos:
 
 Si se ejecuta un subconjunto, reportarlo claramente.
 
-## 11) Dependencias y build
+## 12) Dependencias y build
 
 - No duplicar librerias ya administradas en `gradle/libs.versions.toml`.
 - Nuevas dependencias deben declararse con version centralizada en el catalogo.
@@ -228,7 +319,7 @@ Si se ejecuta un subconjunto, reportarlo claramente.
 - No agregar secretos a Gradle, `local.properties`, commits ni recursos Android. Las claves online de Bibi deben vivir en Cloudflare Worker secrets.
 - `workers/**/node_modules/` y `.wrangler/` deben permanecer ignorados.
 
-## 12) Commits y PR
+## 13) Commits y PR
 
 - Commits en imperativo y con alcance claro.
   - Ejemplo: `feat: agrega filtros de ensenanzas`
@@ -240,7 +331,7 @@ Si se ejecuta un subconjunto, reportarlo claramente.
   - evidencia de compilacion/pruebas;
   - capturas si cambia UI.
 
-## 13) Que evitar
+## 14) Que evitar
 
 - Refactors globales no solicitados.
 - Mezclar cambios visuales con cambios funcionales grandes sin razon.
@@ -248,6 +339,6 @@ Si se ejecuta un subconjunto, reportarlo claramente.
 - Romper compatibilidad de datos locales sin estrategia.
 - Revertir cambios ajenos del usuario.
 
-## 14) Regla de consistencia
+## 15) Regla de consistencia
 
 Si existe conflicto entre este documento y una instruccion explicita del solicitante para una tarea puntual, prevalece la instruccion explicita para esa tarea, manteniendo el resto de estandares.

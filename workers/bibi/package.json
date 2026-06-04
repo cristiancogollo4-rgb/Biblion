@@ -5,7 +5,9 @@
   "scripts": {
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
-    "secret:nvidia": "wrangler secret put NVIDIA_API_KEY"
+    "secret:nvidia": "wrangler secret put NVIDIA_API_KEY",
+    "secret:openai-compatible": "wrangler secret put OPENAI_COMPATIBLE_API_KEY",
+    "eval:models": "node evals/model_eval.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"

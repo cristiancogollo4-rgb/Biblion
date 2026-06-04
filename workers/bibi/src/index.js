@@ -1,5 +1,8 @@
 const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
-const BIBI_MODEL = "nvidia/llama-3.1-nemotron-nano-8b-v1";
+const OPENAI_COMPATIBLE_BASE_URL = "https://ws-jtyu5n7ae7krw2qu.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1";
+const DEFAULT_BIBI_PROVIDER = "openai-compatible";
+const DEFAULT_QWEN_MODEL = "qwen3-8b";
+const DEFAULT_NVIDIA_MODEL = "nvidia/llama-3.1-nemotron-nano-8b-v1";
 
 const DEFAULT_BIBLE_VERSIONS = [
   { key: "rv1960", label: "Reina Valera 1960" },
@@ -99,7 +102,7 @@ const CORS_HEADERS = {
   "Content-Type": "application/json"
 };
 
-const OUT_OF_DOMAIN_MESSAGE = "Estoy diseñada para ayudarte únicamente con temas bíblicos y de estudio de las Escrituras dentro de Biblion. ¿Te gustaría explorar algún pasaje, personaje, tema o enseñanza bíblica?";
+const OUT_OF_DOMAIN_MESSAGE = "Estoy disenada para ayudarte unicamente con temas biblicos y de estudio de las Escrituras dentro de Biblion. Te gustaria explorar algun pasaje, personaje, tema o ensenanza biblica?";
 
 export default {
   async fetch(request, env) {
@@ -112,8 +115,9 @@ export default {
       return jsonResponse({ error: "Ruta no disponible." }, 404);
     }
 
-    if (!env.NVIDIA_API_KEY) {
-      return jsonResponse({ error: "NVIDIA_API_KEY no esta configurada." }, 500);
+    const modelConfig = resolveModelConfig(env);
+    if (!modelConfig.apiKey) {
+      return jsonResponse({ error: `${modelConfig.secretName} no esta configurada.` }, 500);
     }
 
     let data;
@@ -203,15 +207,15 @@ export default {
     const timeout = setTimeout(() => controller.abort("Bibi timeout"), 25000);
     let response;
     try {
-      response = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
+      response = await fetch(`${modelConfig.baseUrl}/chat/completions`, {
         method: "POST",
         signal: controller.signal,
         headers: {
-          Authorization: `Bearer ${env.NVIDIA_API_KEY}`,
+          Authorization: `Bearer ${modelConfig.apiKey}`,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: BIBI_MODEL,
+          model: modelConfig.model,
           messages: prompt,
           temperature: 0.25,
           top_p: 0.8,
@@ -235,7 +239,7 @@ export default {
     if (!response.ok) {
       const body = await response.text();
       return jsonResponse(
-        { error: `NVIDIA respondio ${response.status}.`, detail: sanitizeText(body, 400) },
+        { error: `${modelConfig.providerLabel} respondio ${response.status}.`, detail: sanitizeText(body, 400) },
         502
       );
     }
@@ -245,6 +249,35 @@ export default {
     return jsonResponse(parseBibiResponse(content));
   }
 };
+
+function resolveModelConfig(env) {
+  const provider = normalizeProvider(env.BIBI_PROVIDER || DEFAULT_BIBI_PROVIDER);
+  if (provider === "nvidia") {
+    return {
+      provider,
+      providerLabel: "NVIDIA",
+      model: sanitizeText(env.BIBI_MODEL, 120) || DEFAULT_NVIDIA_MODEL,
+      baseUrl: NVIDIA_BASE_URL,
+      apiKey: env.NVIDIA_API_KEY,
+      secretName: "NVIDIA_API_KEY"
+    };
+  }
+
+  return {
+    provider,
+    providerLabel: "OpenAI-compatible",
+    model: sanitizeText(env.BIBI_MODEL, 120) || DEFAULT_QWEN_MODEL,
+    baseUrl: sanitizeText(env.OPENAI_COMPATIBLE_BASE_URL, 240) || OPENAI_COMPATIBLE_BASE_URL,
+    apiKey: env.OPENAI_COMPATIBLE_API_KEY,
+    secretName: "OPENAI_COMPATIBLE_API_KEY"
+  };
+}
+
+function normalizeProvider(value) {
+  const provider = sanitizeText(value, 40).toLowerCase();
+  if (["nvidia"].includes(provider)) return "nvidia";
+  return "openai-compatible";
+}
 
 function buildBibiPrompt({
   mode,
@@ -311,6 +344,7 @@ function buildBibiPrompt({
         "Siempre prioriza las Escrituras por encima de opiniones personales.",
         "Usa nombres biblicos completos, por ejemplo Genesis 1:1, no Libro 1:1.",
         "No inventes versiculos, citas, personajes, eventos ni referencias biblicas.",
+        "No uses referencias que no hayan sido proporcionadas por Biblion salvo que el usuario pida referencias cruzadas o pasajes relacionados y estes seguro.",
         "No inventes doctrinas, revelaciones, profecias, mensajes personales de Dios ni interpretaciones sin fundamento biblico.",
         "Toda ensenanza, explicacion o aplicacion debe estar sustentada en las Escrituras o identificarse claramente como una reflexion basada en ellas.",
         "Si una referencia no es segura, reconocelo claramente y sugiere verificar el pasaje.",
@@ -324,7 +358,8 @@ function buildBibiPrompt({
         "Si el usuario pregunta sobre la vida y ministerio de Jesus, prioriza Mateo, Marcos, Lucas y Juan.",
         "Si el usuario pide apoyo doctrinal, fundamenta la respuesta con referencias biblicas relevantes.",
         "Biblion maneja multiples versiones biblicas; cuando el usuario pregunte por versiones, usa solo las versiones listadas como disponibles en Biblion.",
-        "Si el usuario pide comparar versiones, compara solo textos que hayan sido proporcionados por Biblion. Si no tienes el texto de una version, indica que necesitas que Biblion provea ese pasaje.",
+        "Si el usuario pide comparar versiones, compara solo textos que hayan sido proporcionados por Biblion. Si no tienes el texto de una version, indica que Biblion no proporciono esos textos y no inventes traducciones.",
+        "No afirmes que Maria Magdalena fue prostituta. Si mencionas Lucas 7, aclara que el texto no identifica a esa mujer como Maria Magdalena.",
         "Cuando recibas entradas del Diccionario biblico de Biblion, usalas como apoyo contextual, pero no las pongas por encima del texto biblico proporcionado.",
         "Si existen varias interpretaciones cristianas reconocidas, mencionalas brevemente y no afirmes una posicion como la unica posible salvo que el texto sea explicito.",
         "Si el usuario solicita aplicaciones, manten un enfoque pastoral y practico.",
