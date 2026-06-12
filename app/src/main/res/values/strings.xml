@@ -74,6 +74,24 @@
     <string name="profile_metric_likes">Likes</string>
     <string name="profile_metric_saved">Saved</string>
     <string name="profile_metric_comments">Comments</string>
+    <string name="profile_metric_followers">Followers</string>
+    <string name="profile_metric_following">Following</string>
+    <string name="profile_public_identity">Public identity</string>
+    <string name="profile_biography_empty">Add a short biography to present your reading, teaching, or service focus.</string>
+    <string name="profile_completion_title">Profile readiness</string>
+    <string name="profile_completion_percent">%1$d%% complete</string>
+    <string name="profile_network_title">Biblion presence</string>
+    <string name="profile_status_approved_message">You can publish teachings and build an audience inside the Biblion network.</string>
+    <string name="profile_status_pending_message">Your publisher request is under review. You can still prepare and save teachings.</string>
+    <string name="profile_status_suspended_message">Your publisher access is limited. Your library and reading profile remain available.</string>
+    <string name="profile_status_reader_message">Your account is ready for reading, personal study, and private teaching preparation.</string>
+    <string name="profile_edit_title">Profile details</string>
+    <string name="profile_edit_subtitle">These details shape your visible identity across teachings, comments, and community spaces.</string>
+    <string name="profile_metrics_subtitle">A summary of your activity prepared for teachings and community.</string>
+    <string name="profile_update_title">Update profile</string>
+    <string name="profile_update_profile">Update profile</string>
+    <string name="profile_update_plan_future">Update plan</string>
+    <string name="close">Close</string>
 
     <string name="testament_old_label">Old Testament</string>
     <string name="testament_new_label">New Testament</string>
@@ -81,6 +99,25 @@
     <string name="testament_new_short_label">NEW</string>
 
     <string name="books_screen_title">Books of %1$s</string>
+
+    <string name="search_title">Search passages</string>
+    <string name="search_card_title">Find a verse</string>
+    <string name="search_card_subtitle">Search by word, phrase, or idea and open the passage instantly.</string>
+    <string name="search_field_label">Word or phrase</string>
+    <string name="search_button">Search</string>
+    <string name="search_clear">Clear search</string>
+    <string name="search_filters_title">Filter search</string>
+    <string name="search_filter_all">Whole Bible</string>
+    <string name="search_filter_book_all">All books</string>
+    <string name="search_filter_clear_book">Clear book</string>
+    <string name="search_idle_message">Type a keyword to start searching.</string>
+    <string name="search_empty_message">No results for "%1$s".</string>
+    <string name="search_error_message">Search error: %1$s</string>
+    <string name="search_error_unexpected">An unexpected error occurred.</string>
+    <plurals name="search_results_count">
+        <item quantity="one">%d result found</item>
+        <item quantity="other">%d results found</item>
+    </plurals>
 
     <string name="daily_verse_title">VERSE OF THE DAY</string>
     <string name="daily_verse_fallback_text">For God so loved the world that He gave His only begotten Son, that whoever believes in Him should not perish but have everlasting life.</string>

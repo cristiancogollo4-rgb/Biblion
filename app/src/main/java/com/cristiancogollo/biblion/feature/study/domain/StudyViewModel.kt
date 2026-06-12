@@ -74,6 +74,27 @@ sealed interface StudyIntent {
     data class UpdateParagraphBlock(val blockId: String, val text: String) : StudyIntent
     data class UpdateParagraphParallelText(val blockId: String, val text: String) : StudyIntent
     data class UpdateParagraphRole(val blockId: String, val role: String) : StudyIntent
+    data class UpdateParagraphAlignment(val blockId: String, val textAlign: String) : StudyIntent
+    data class AddColumnEmbeddedBlock(
+        val paragraphBlockId: String,
+        val source: String,
+        val block: ColumnEmbeddedBlock
+    ) : StudyIntent
+    data class UpdateColumnEmbeddedBlock(
+        val paragraphBlockId: String,
+        val source: String,
+        val block: ColumnEmbeddedBlock
+    ) : StudyIntent
+    data class ToggleColumnEmbeddedBlockCollapsed(
+        val paragraphBlockId: String,
+        val source: String,
+        val embeddedBlockId: String
+    ) : StudyIntent
+    data class DeleteColumnEmbeddedBlock(
+        val paragraphBlockId: String,
+        val source: String,
+        val embeddedBlockId: String
+    ) : StudyIntent
     data class SplitParagraphBlock(
         val blockId: String,
         val newBlockId: String,
@@ -224,159 +245,135 @@ class StudyViewModel @JvmOverloads constructor(
                 undoStack.addLast(_state.value.richHtml)
                 _state.value = _state.value.copy(
                     richHtml = intent.html,
-                    blocks = rebuildBlocks(intent.html, _state.value.blocks)
+                    blocks = StudyDocumentEngine.rebuildBlocks(intent.html, _state.value.blocks)
                 )
                 redoStack.clear()
             }
             is StudyIntent.UpdateParagraphBlock -> {
-                val currentBlocks = ensureTextFlow(_state.value.blocks, _state.value.richHtml)
-                val hasTargetBlock = currentBlocks.any { block ->
-                    block is StudyBlockNode.Paragraph && block.blockId == intent.blockId
-                }
-                val sourceBlocks = if (hasTargetBlock) {
-                    currentBlocks
-                } else {
-                    currentBlocks + StudyBlockNode.Paragraph(blockId = intent.blockId, text = intent.text)
-                }
-                val updatedBlocks = normalizeStudyFlow(
-                    sourceBlocks.map { block ->
-                        if (block is StudyBlockNode.Paragraph && block.blockId == intent.blockId) {
-                            block.copy(text = intent.text)
-                        } else {
-                            block
-                        }
-                    }
-                )
-                _state.value = _state.value.copy(
-                    richHtml = buildPlainTextSnapshot(updatedBlocks),
-                    blocks = updatedBlocks
+                applyDocumentBlocks(
+                    StudyDocumentEngine.updateParagraphText(
+                        blocks = _state.value.blocks,
+                        fallbackHtml = _state.value.richHtml,
+                        blockId = intent.blockId,
+                        text = intent.text
+                    )
                 )
             }
             is StudyIntent.UpdateParagraphParallelText -> {
-                val updatedBlocks = normalizeStudyFlow(
-                    ensureTextFlow(_state.value.blocks, _state.value.richHtml).map { block ->
-                        if (block is StudyBlockNode.Paragraph && block.blockId == intent.blockId) {
-                            block.copy(parallelText = intent.text)
-                        } else {
-                            block
-                        }
-                    }
-                )
-                _state.value = _state.value.copy(
-                    richHtml = buildPlainTextSnapshot(updatedBlocks),
-                    blocks = updatedBlocks
+                applyDocumentBlocks(
+                    StudyDocumentEngine.updateParagraphParallelText(
+                        blocks = _state.value.blocks,
+                        fallbackHtml = _state.value.richHtml,
+                        blockId = intent.blockId,
+                        text = intent.text
+                    )
                 )
             }
             is StudyIntent.SplitParagraphBlock -> {
-                val currentBlocks = ensureTextFlow(_state.value.blocks, _state.value.richHtml).toMutableList()
-                val index = currentBlocks.indexOfFirst { block ->
-                    block is StudyBlockNode.Paragraph && block.blockId == intent.blockId
-                }
-                if (index >= 0) {
-                    val current = currentBlocks[index]
-                    if (current is StudyBlockNode.Paragraph) {
-                        currentBlocks[index] = current.copy(text = intent.currentText)
-                        currentBlocks.add(
-                            index + 1,
-                            StudyBlockNode.Paragraph(
-                                blockId = intent.newBlockId,
-                                text = intent.nextText,
-                                role = intent.nextRole
-                            )
-                        )
-                    }
-                }
-                val updatedBlocks = normalizeStudyFlow(currentBlocks)
-                _state.value = _state.value.copy(
-                    richHtml = buildPlainTextSnapshot(updatedBlocks),
-                    blocks = updatedBlocks
+                applyDocumentBlocks(
+                    StudyDocumentEngine.splitParagraph(
+                        blocks = _state.value.blocks,
+                        fallbackHtml = _state.value.richHtml,
+                        blockId = intent.blockId,
+                        newBlockId = intent.newBlockId,
+                        currentText = intent.currentText,
+                        nextText = intent.nextText,
+                        nextRole = intent.nextRole
+                    )
                 )
             }
             is StudyIntent.UpdateParagraphRole -> {
-                val roleUpdatedBlocks = ensureTextFlow(_state.value.blocks, _state.value.richHtml).map { block ->
-                    if (block is StudyBlockNode.Paragraph && block.blockId == intent.blockId) {
-                        if (intent.role == "paragraph" && block.role == "columns") {
-                            block.copy(
-                                text = mergePlainText(block.text, block.parallelText),
-                                parallelText = "",
-                                role = intent.role
-                            )
-                        } else {
-                            block.copy(role = intent.role)
-                        }
-                    } else {
-                        block
-                    }
-                }
-                val updatedBlocks = if (intent.role == "columns") {
-                    ensureParagraphAfter(roleUpdatedBlocks, intent.blockId)
-                } else {
-                    normalizeStudyFlow(roleUpdatedBlocks)
-                }
-                _state.value = _state.value.copy(
-                    richHtml = buildPlainTextSnapshot(updatedBlocks),
-                    blocks = updatedBlocks
+                applyDocumentBlocks(
+                    StudyDocumentEngine.updateParagraphRole(
+                        blocks = _state.value.blocks,
+                        fallbackHtml = _state.value.richHtml,
+                        blockId = intent.blockId,
+                        role = intent.role
+                    )
                 )
             }
-            is StudyIntent.ApplyParagraphTextStyle -> {
-                val updatedBlocks = ensureTextFlow(_state.value.blocks, _state.value.richHtml).map { block ->
-                    if (block is StudyBlockNode.Paragraph && block.blockId == intent.blockId) {
-                        block.applyTextStyle(
-                            source = intent.source,
-                            start = intent.start,
-                            end = intent.end,
-                            color = intent.color,
-                            background = intent.background,
-                            bold = intent.bold,
-                            italic = intent.italic,
-                            underline = intent.underline,
-                            fontSizeSp = intent.fontSizeSp
-                        )
-                    } else {
-                        block
+            is StudyIntent.UpdateParagraphAlignment -> {
+                applyDocumentBlocks(
+                    StudyDocumentEngine.updateParagraphAlignment(
+                        blocks = _state.value.blocks,
+                        fallbackHtml = _state.value.richHtml,
+                        blockId = intent.blockId,
+                        textAlign = intent.textAlign
+                    )
+                )
+            }
+            is StudyIntent.AddColumnEmbeddedBlock -> {
+                updateColumnEmbeddedBlocks(intent.paragraphBlockId, intent.source) { blocks ->
+                    blocks + intent.block
+                }
+            }
+            is StudyIntent.UpdateColumnEmbeddedBlock -> {
+                updateColumnEmbeddedBlocks(intent.paragraphBlockId, intent.source) { blocks ->
+                    blocks.map { existing ->
+                        if (existing.blockId == intent.block.blockId) intent.block else existing
                     }
                 }
-                _state.value = _state.value.copy(
-                    richHtml = buildPlainTextSnapshot(updatedBlocks),
-                    blocks = updatedBlocks
+            }
+            is StudyIntent.ToggleColumnEmbeddedBlockCollapsed -> {
+                updateColumnEmbeddedBlocks(intent.paragraphBlockId, intent.source) { blocks ->
+                    blocks.map { existing ->
+                        if (existing.blockId == intent.embeddedBlockId) {
+                            existing.copy(collapsed = !existing.collapsed)
+                        } else {
+                            existing
+                        }
+                    }
+                }
+            }
+            is StudyIntent.DeleteColumnEmbeddedBlock -> {
+                updateColumnEmbeddedBlocks(intent.paragraphBlockId, intent.source) { blocks ->
+                    blocks.filterNot { it.blockId == intent.embeddedBlockId }
+                }
+            }
+            is StudyIntent.ApplyParagraphTextStyle -> {
+                applyDocumentBlocks(
+                    StudyDocumentEngine.applyParagraphTextStyle(
+                        blocks = _state.value.blocks,
+                        fallbackHtml = _state.value.richHtml,
+                        blockId = intent.blockId,
+                        source = intent.source,
+                        start = intent.start,
+                        end = intent.end,
+                        color = intent.color,
+                        background = intent.background,
+                        bold = intent.bold,
+                        italic = intent.italic,
+                        underline = intent.underline,
+                        fontSizeSp = intent.fontSizeSp
+                    )
                 )
             }
             is StudyIntent.ClearParagraphTextStyle -> {
-                val updatedBlocks = ensureTextFlow(_state.value.blocks, _state.value.richHtml).map { block ->
-                    if (block is StudyBlockNode.Paragraph && block.blockId == intent.blockId) {
-                        block.clearTextStyle(
-                            source = intent.source,
-                            start = intent.start,
-                            end = intent.end,
-                            clearColor = intent.clearColor,
-                            clearBackground = intent.clearBackground,
-                            clearBold = intent.clearBold,
-                            clearItalic = intent.clearItalic,
-                            clearUnderline = intent.clearUnderline,
-                            clearFontSize = intent.clearFontSize
-                        )
-                    } else {
-                        block
-                    }
-                }
-                _state.value = _state.value.copy(
-                    richHtml = buildPlainTextSnapshot(updatedBlocks),
-                    blocks = updatedBlocks
+                applyDocumentBlocks(
+                    StudyDocumentEngine.clearParagraphTextStyle(
+                        blocks = _state.value.blocks,
+                        fallbackHtml = _state.value.richHtml,
+                        blockId = intent.blockId,
+                        source = intent.source,
+                        start = intent.start,
+                        end = intent.end,
+                        clearColor = intent.clearColor,
+                        clearBackground = intent.clearBackground,
+                        clearBold = intent.clearBold,
+                        clearItalic = intent.clearItalic,
+                        clearUnderline = intent.clearUnderline,
+                        clearFontSize = intent.clearFontSize
+                    )
                 )
             }
             is StudyIntent.UpdateRichTextBlock -> {
-                val updatedBlocks = normalizeStudyFlow(
-                    ensureTextFlow(_state.value.blocks, _state.value.richHtml).map { block ->
-                        if (block is StudyBlockNode.RichText && block.blockId == intent.blockId) {
-                            block.copy(html = intent.html, references = detectReferences(intent.html))
-                        } else {
-                            block
-                        }
-                    }
-                )
-                _state.value = _state.value.copy(
-                    richHtml = buildPlainTextSnapshot(updatedBlocks),
-                    blocks = updatedBlocks
+                applyDocumentBlocks(
+                    StudyDocumentEngine.updateRichTextBlock(
+                        blocks = _state.value.blocks,
+                        fallbackHtml = _state.value.richHtml,
+                        blockId = intent.blockId,
+                        html = intent.html
+                    )
                 )
             }
             is StudyIntent.ToggleFocusMode -> _state.value = _state.value.copy(focusMode = intent.enabled)
@@ -456,27 +453,13 @@ class StudyViewModel @JvmOverloads constructor(
                 )
             }
             is StudyIntent.UpdateBlock -> {
-                _state.value = _state.value.copy(
-                    blocks = _state.value.blocks.map { block ->
-                        if (block.interactiveBlockId() == intent.block.interactiveBlockId()) intent.block else block
-                    }
-                )
+                applyDocumentBlocks(StudyDocumentEngine.updateBlock(_state.value.blocks, intent.block))
             }
             is StudyIntent.ToggleBlockCollapsed -> {
-                _state.value = _state.value.copy(
-                    blocks = _state.value.blocks.map { block ->
-                        block.toggleCollapsedIfMatches(intent.blockId)
-                    }
-                )
+                applyDocumentBlocks(StudyDocumentEngine.toggleBlockCollapsed(_state.value.blocks, intent.blockId))
             }
             is StudyIntent.DeleteBlock -> {
-                val normalizedBlocks = normalizeStudyFlow(
-                    _state.value.blocks.filterNot { it.interactiveBlockId() == intent.blockId }
-                )
-                _state.value = _state.value.copy(
-                    richHtml = buildPlainTextSnapshot(normalizedBlocks),
-                    blocks = normalizedBlocks
-                )
+                applyDocumentBlocks(StudyDocumentEngine.deleteBlock(_state.value.blocks, intent.blockId))
             }
             is StudyIntent.ChangeVersion -> {
                 _state.value = _state.value.copy(globalVersion = normalizeVersion(intent.version))
@@ -484,12 +467,18 @@ class StudyViewModel @JvmOverloads constructor(
             StudyIntent.Undo -> if (undoStack.isNotEmpty()) {
                 val previous = undoStack.removeLast()
                 redoStack.addLast(_state.value.richHtml)
-                _state.value = _state.value.copy(richHtml = previous, blocks = rebuildBlocks(previous, _state.value.blocks))
+                _state.value = _state.value.copy(
+                    richHtml = previous,
+                    blocks = StudyDocumentEngine.rebuildBlocks(previous, _state.value.blocks)
+                )
             }
             StudyIntent.Redo -> if (redoStack.isNotEmpty()) {
                 val next = redoStack.removeLast()
                 undoStack.addLast(_state.value.richHtml)
-                _state.value = _state.value.copy(richHtml = next, blocks = rebuildBlocks(next, _state.value.blocks))
+                _state.value = _state.value.copy(
+                    richHtml = next,
+                    blocks = StudyDocumentEngine.rebuildBlocks(next, _state.value.blocks)
+                )
             }
             StudyIntent.ExportPdf -> exportPdfStub()
             StudyIntent.SaveStudy, StudyIntent.Save -> saveStudyNow()
@@ -989,7 +978,7 @@ class StudyViewModel @JvmOverloads constructor(
         if (!citationBook.isNullOrBlank()) return citationBook
 
         val text = buildPlainTextSnapshot(normalizeStudyFlow(ensureTextFlow(document.blocks, "")))
-        return detectReferences(text).firstOrNull()?.book
+        return StudyDocumentEngine.detectReferences(text).firstOrNull()?.book
     }
 
     private fun buildSignature(state: StudyUiState): String {
@@ -1003,256 +992,52 @@ class StudyViewModel @JvmOverloads constructor(
         return "$studyId|${state.title}|${json.encodeToString(document)}"
     }
 
+    private fun applyDocumentBlocks(blocks: List<StudyBlockNode>) {
+        _state.value = _state.value.copy(
+            richHtml = StudyDocumentEngine.buildPlainTextSnapshot(blocks),
+            blocks = blocks
+        )
+    }
+
     private fun rebuildBlocks(html: String, old: List<StudyBlockNode>): List<StudyBlockNode> {
-        val refs = detectReferences(html)
-        val nonText = old.filterNot { it is StudyBlockNode.RichText || it is StudyBlockNode.Paragraph }
-        return listOf(StudyBlockNode.Paragraph(text = html.toPlainStudyText())) + nonText
+        return StudyDocumentEngine.rebuildBlocks(html, old)
     }
 
     private fun insertInteractiveBlock(block: StudyBlockNode, afterBlockId: String?) {
-        val currentBlocks = ensureTextFlow(_state.value.blocks, _state.value.richHtml).toMutableList()
-        val insertionIndex = afterBlockId
-            ?.let { id -> currentBlocks.indexOfFirst { it.flowBlockId() == id } }
-            ?.takeIf { it >= 0 }
-            ?.plus(1)
-            ?: currentBlocks.size
-
-        currentBlocks.add(insertionIndex, block)
-        val nextIndex = insertionIndex + 1
-        if (currentBlocks.getOrNull(nextIndex) !is StudyBlockNode.Paragraph) {
-            currentBlocks.add(nextIndex, StudyBlockNode.Paragraph(text = ""))
-        }
-
-        val normalizedBlocks = normalizeStudyFlow(currentBlocks)
-        _state.value = _state.value.copy(
-            richHtml = buildPlainTextSnapshot(normalizedBlocks),
-            blocks = normalizedBlocks
+        applyDocumentBlocks(
+            StudyDocumentEngine.insertInteractiveBlock(
+                blocks = _state.value.blocks,
+                fallbackHtml = _state.value.richHtml,
+                block = block,
+                afterBlockId = afterBlockId
+            )
         )
     }
 
-    private fun ensureTextFlow(blocks: List<StudyBlockNode>, fallbackHtml: String): List<StudyBlockNode> {
-        if (blocks.any { it is StudyBlockNode.Paragraph }) return blocks
-        if (blocks.any { it is StudyBlockNode.RichText }) return blocks
-        return listOf(StudyBlockNode.Paragraph(text = fallbackHtml.toPlainStudyText())) + blocks
-    }
-
-    private fun ensureParagraphAfter(blocks: List<StudyBlockNode>, blockId: String): List<StudyBlockNode> {
-        val mutableBlocks = blocks.toMutableList()
-        val index = mutableBlocks.indexOfFirst { block ->
-            block is StudyBlockNode.Paragraph && block.blockId == blockId
-        }
-        if (index < 0) return blocks
-
-        val next = mutableBlocks.getOrNull(index + 1)
-        if (next is StudyBlockNode.Paragraph) return blocks
-
-        mutableBlocks.add(index + 1, StudyBlockNode.Paragraph(text = ""))
-        return mutableBlocks
-    }
-
-    private fun StudyBlockNode.Paragraph.applyTextStyle(
+    private fun updateColumnEmbeddedBlocks(
+        paragraphBlockId: String,
         source: String,
-        start: Int,
-        end: Int,
-        color: Long?,
-        background: Long?,
-        bold: Boolean,
-        italic: Boolean,
-        underline: Boolean,
-        fontSizeSp: Float?
-    ): StudyBlockNode.Paragraph {
-        val textLength = if (source == "parallel") parallelText.length else text.length
-        val rangeStart = start.coerceIn(0, textLength).coerceAtMost(end.coerceIn(0, textLength))
-        val rangeEnd = start.coerceIn(0, textLength).coerceAtLeast(end.coerceIn(0, textLength))
-        if (rangeStart == rangeEnd) return this
-
-        val style = TextStyleRange(
-            start = rangeStart,
-            end = rangeEnd,
-            color = color,
-            background = background,
-            bold = bold,
-            italic = italic,
-            underline = underline,
-            fontSizeSp = fontSizeSp
+        transform: (List<ColumnEmbeddedBlock>) -> List<ColumnEmbeddedBlock>
+    ) {
+        applyDocumentBlocks(
+            StudyDocumentEngine.updateColumnEmbeddedBlocks(
+                blocks = _state.value.blocks,
+                fallbackHtml = _state.value.richHtml,
+                paragraphBlockId = paragraphBlockId,
+                source = source,
+                transform = transform
+            )
         )
-        return if (source == "parallel") {
-            copy(parallelStyles = parallelStyles + style)
-        } else {
-            copy(styles = styles + style)
-        }
     }
 
-    private fun StudyBlockNode.Paragraph.clearTextStyle(
-        source: String,
-        start: Int,
-        end: Int,
-        clearColor: Boolean,
-        clearBackground: Boolean,
-        clearBold: Boolean,
-        clearItalic: Boolean,
-        clearUnderline: Boolean,
-        clearFontSize: Boolean
-    ): StudyBlockNode.Paragraph {
-        val textLength = if (source == "parallel") parallelText.length else text.length
-        val rangeStart = start.coerceIn(0, textLength).coerceAtMost(end.coerceIn(0, textLength))
-        val rangeEnd = start.coerceIn(0, textLength).coerceAtLeast(end.coerceIn(0, textLength))
-        if (rangeStart == rangeEnd) return this
+    private fun ensureTextFlow(blocks: List<StudyBlockNode>, fallbackHtml: String): List<StudyBlockNode> =
+        StudyDocumentEngine.ensureTextFlow(blocks, fallbackHtml)
 
-        fun TextStyleRange.hasAnyStyle(): Boolean =
-            color != null || background != null || bold || italic || underline || fontSizeSp != null
+    private fun normalizeStudyFlow(blocks: List<StudyBlockNode>): List<StudyBlockNode> =
+        StudyDocumentEngine.normalizeStudyFlow(blocks)
 
-        fun trimStyle(style: TextStyleRange): TextStyleRange = style.copy(
-            color = if (clearColor) null else style.color,
-            background = if (clearBackground) null else style.background,
-            bold = if (clearBold) false else style.bold,
-            italic = if (clearItalic) false else style.italic,
-            underline = if (clearUnderline) false else style.underline,
-            fontSizeSp = if (clearFontSize) null else style.fontSizeSp
-        )
-
-        fun clearStyles(styles: List<TextStyleRange>): List<TextStyleRange> = buildList {
-            styles.forEach { style ->
-                if (style.end <= rangeStart || style.start >= rangeEnd) {
-                    add(style)
-                } else {
-                    if (style.start < rangeStart) {
-                        add(style.copy(end = rangeStart))
-                    }
-                    val middle = trimStyle(
-                        style.copy(
-                            start = style.start.coerceAtLeast(rangeStart),
-                            end = style.end.coerceAtMost(rangeEnd)
-                        )
-                    )
-                    if (middle.start < middle.end && middle.hasAnyStyle()) {
-                        add(middle)
-                    }
-                    if (style.end > rangeEnd) {
-                        add(style.copy(start = rangeEnd))
-                    }
-                }
-            }
-        }
-
-        return if (source == "parallel") {
-            copy(parallelStyles = clearStyles(parallelStyles))
-        } else {
-            copy(styles = clearStyles(styles))
-        }
-    }
-
-    private fun normalizeStudyFlow(blocks: List<StudyBlockNode>): List<StudyBlockNode> {
-        val normalized = mutableListOf<StudyBlockNode>()
-        blocks.map { it.toNativeTextBlock() }.forEach { block ->
-            val last = normalized.lastOrNull()
-            if (
-                block is StudyBlockNode.Paragraph &&
-                last is StudyBlockNode.Paragraph &&
-                block.role == "paragraph" &&
-                last.role == "paragraph"
-            ) {
-                val mergedHtml = mergePlainText(last.text, block.text)
-                normalized[normalized.lastIndex] = if (last.text.isBlank() && block.text.isNotBlank()) {
-                    block.copy(text = mergedHtml)
-                } else {
-                    last.copy(text = mergedHtml)
-                }
-            } else {
-                normalized.add(block)
-            }
-        }
-
-        val withoutDuplicateEmptyText = normalized.filterIndexed { index, block ->
-            block !is StudyBlockNode.Paragraph ||
-                block.text.isNotBlank() ||
-                block.parallelText.isNotBlank() ||
-                normalized.none { it is StudyBlockNode.Paragraph && (it.text.isNotBlank() || it.parallelText.isNotBlank()) } ||
-                normalized.getOrNull(index - 1) !is StudyBlockNode.Paragraph ||
-                (normalized.getOrNull(index - 1) as? StudyBlockNode.Paragraph)?.role in setOf("columns", "bullet", "numbered")
-        }
-
-        return withoutDuplicateEmptyText.ifEmpty {
-            listOf(StudyBlockNode.Paragraph(text = ""))
-        }
-    }
-
-    private fun mergePlainText(first: String, second: String): String {
-        val firstClean = first.trim()
-        val secondClean = second.trim()
-        return when {
-            firstClean.isBlank() -> secondClean
-            secondClean.isBlank() -> firstClean
-            else -> "$firstClean\n$secondClean"
-        }
-    }
-
-    private fun StudyBlockNode.toNativeTextBlock(): StudyBlockNode = when (this) {
-        is StudyBlockNode.RichText -> StudyBlockNode.Paragraph(
-            blockId = blockId,
-            text = html.toPlainStudyText(),
-            role = "paragraph"
-        )
-        else -> this
-    }
-
-    private fun buildPlainTextSnapshot(blocks: List<StudyBlockNode>): String {
-        return blocks.mapNotNull { block ->
-            when (block) {
-                is StudyBlockNode.Paragraph -> listOf(block.text, block.parallelText).filter { it.isNotBlank() }.joinToString("\n")
-                is StudyBlockNode.RichText -> block.html.toPlainStudyText()
-                is StudyBlockNode.Note -> block.text
-                is StudyBlockNode.Reflection -> listOf(block.topic, block.text).filter { it.isNotBlank() }.joinToString("\n")
-                is StudyBlockNode.QuotedVerse -> listOf(block.reference, block.primaryText, block.compareText, block.note).filter { it.isNotBlank() }.joinToString("\n")
-                is StudyBlockNode.Question -> listOf(block.question, block.answer).filter { it.isNotBlank() }.joinToString("\n")
-                is StudyBlockNode.TwoColumn -> listOf(block.leftTitle, block.leftText, block.rightTitle, block.rightText).filter { it.isNotBlank() }.joinToString("\n")
-                else -> null
-            }
-        }.joinToString("\n\n")
-    }
-
-    private fun String.toPlainStudyText(): String {
-        return replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), "\n")
-            .replace(Regex("</p>|</div>|</h[1-6]>", RegexOption.IGNORE_CASE), "\n")
-            .replace(Regex("<[^>]*>"), " ")
-            .replace("&nbsp;", " ")
-            .replace("&amp;", "&")
-            .replace("&lt;", "<")
-            .replace("&gt;", ">")
-            .replace("&quot;", "\"")
-            .replace(Regex("[ \\t]+"), " ")
-            .replace(Regex("\\n{3,}"), "\n\n")
-            .trim()
-    }
-
-    private fun StudyBlockNode.flowBlockId(): String? = when (this) {
-        is StudyBlockNode.Paragraph -> blockId
-        is StudyBlockNode.RichText -> blockId
-        is StudyBlockNode.Note -> blockId
-        is StudyBlockNode.Reflection -> blockId
-        is StudyBlockNode.QuotedVerse -> blockId
-        is StudyBlockNode.Question -> blockId
-        is StudyBlockNode.TwoColumn -> blockId
-        else -> null
-    }
-
-    private fun StudyBlockNode.interactiveBlockId(): String? = when (this) {
-        is StudyBlockNode.Note -> blockId
-        is StudyBlockNode.Reflection -> blockId
-        is StudyBlockNode.QuotedVerse -> blockId
-        is StudyBlockNode.Question -> blockId
-        is StudyBlockNode.TwoColumn -> blockId
-        else -> null
-    }
-
-    private fun StudyBlockNode.toggleCollapsedIfMatches(blockId: String): StudyBlockNode = when (this) {
-        is StudyBlockNode.Note -> if (this.blockId == blockId) copy(collapsed = !collapsed) else this
-        is StudyBlockNode.Reflection -> if (this.blockId == blockId) copy(collapsed = !collapsed) else this
-        is StudyBlockNode.QuotedVerse -> if (this.blockId == blockId) copy(collapsed = !collapsed) else this
-        is StudyBlockNode.Question -> if (this.blockId == blockId) copy(collapsed = !collapsed) else this
-        is StudyBlockNode.TwoColumn -> if (this.blockId == blockId) copy(collapsed = !collapsed) else this
-        else -> this
-    }
+    private fun buildPlainTextSnapshot(blocks: List<StudyBlockNode>): String =
+        StudyDocumentEngine.buildPlainTextSnapshot(blocks)
 
     private fun detectReferences(text: String): List<BibleReferenceNode> {
         val regex = Regex("""([1-3]?\s?[A-Za-zÁÉÍÓÚáéíóúñÑ]+)\s+(\d+):(\d+)(?:-(\d+))?""")
@@ -1265,7 +1050,8 @@ class StudyViewModel @JvmOverloads constructor(
         }.toList()
     }
 
-    private fun parseReference(reference: String): BibleReferenceNode? = detectReferences(reference).firstOrNull()
+    private fun parseReference(reference: String): BibleReferenceNode? =
+        StudyDocumentEngine.parseReference(reference)
 
     private fun exportPdfStub() {
         // Punto de extensión: implementación de exportación PDF elegante del estudio.

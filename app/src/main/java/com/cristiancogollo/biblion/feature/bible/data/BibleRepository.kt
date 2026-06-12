@@ -1,65 +1,26 @@
 package com.cristiancogollo.biblion
 
 import android.content.Context
-import com.cristiancogollo.biblion.data.repository.cache.BibleLruCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
-import java.io.FileNotFoundException
 import java.util.Locale
-import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Repositorio centralizado para acceso a Biblia local.
- *
- * - Carga y cachea la versión seleccionada en memoria.
- * - Soporta invalidación manual y TTL opcional para escenarios futuros.
+ * Repositorio centralizado para acceso a la Biblia local en SQLite.
  */
 object BibleRepository {
     private const val DEFAULT_BIBLE_VERSION = "rv1960"
-    private const val MAX_CACHED_VERSIONS = 3
-
-    private val cachedBibleByVersion = BibleLruCache<String, JSONObject>(MAX_CACHED_VERSIONS)
-    private val cacheLoadedAtMsByVersion = BibleLruCache<String, Long>(MAX_CACHED_VERSIONS)
-    private val cachedTitlesByVersion = BibleLruCache<String, JSONObject>(MAX_CACHED_VERSIONS)
-    private val cachedBookKeyMapByVersion = BibleLruCache<String, Map<String, String>>(MAX_CACHED_VERSIONS)
-    private val cachedTitleKeyMapByVersion = BibleLruCache<String, Map<String, String>>(MAX_CACHED_VERSIONS)
-    private val cachedSearchIndexByVersion = BibleLruCache<String, List<SearchIndexEntry>>(MAX_CACHED_VERSIONS)
-    private val versionLocks = ConcurrentHashMap<String, Any>()
+    private const val OLD_TESTAMENT_LAST_BOOK_INDEX = 39
 
     /**
-     * Si es null, la cache vive durante todo el proceso.
-     * Si se define, invalida cache al superar el tiempo.
+     * Conservado por compatibilidad con pruebas/call sites antiguos. La Biblia ya se lee desde SQLite.
      */
     @Volatile
     var cacheTtlMs: Long? = null
 
-    private fun isCacheValid(versionKey: String, now: Long): Boolean {
-        val cachedBible = cachedBibleByVersion[versionKey]
-        val loadedAt = cacheLoadedAtMsByVersion[versionKey] ?: 0L
-        val ttl = cacheTtlMs ?: return cachedBible != null
-        return cachedBible != null && (now - loadedAt) <= ttl
-    }
+    fun clearCache() = Unit
 
-    fun clearCache() {
-        cachedBibleByVersion.clear()
-        cacheLoadedAtMsByVersion.clear()
-        cachedTitlesByVersion.clear()
-        cachedBookKeyMapByVersion.clear()
-        cachedTitleKeyMapByVersion.clear()
-        cachedSearchIndexByVersion.clear()
-    }
-
-    fun clearVersionCache(versionKey: String) {
-        val normalized = versionKey.trim().lowercase(Locale.ROOT)
-        if (normalized.isBlank()) return
-        cachedBibleByVersion.remove(normalized)
-        cacheLoadedAtMsByVersion.remove(normalized)
-        cachedTitlesByVersion.remove(normalized)
-        cachedBookKeyMapByVersion.remove(normalized)
-        cachedTitleKeyMapByVersion.remove(normalized)
-        cachedSearchIndexByVersion.remove(normalized)
-    }
+    fun clearVersionCache(versionKey: String) = Unit
 
     fun getSelectedVersionKey(context: Context): String {
         return AppPreferencesSyncStore.getSelectedBibleVersion(context)
@@ -69,202 +30,91 @@ object BibleRepository {
         AppPreferencesSyncStore.setSelectedBibleVersion(context, versionKey)
     }
 
-    fun getAvailableVersions(context: Context): List<BibleVersionOption> {
-        val availableAssets = context.assets.list("")?.toSet().orEmpty()
+    suspend fun getAvailableVersions(context: Context): List<BibleVersionOption> = withContext(Dispatchers.IO) {
+        val availableVersionKeys = bibleDao(context)
+            .getAvailableVersionKeys()
+            .map { normalizeVersionKey(it) }
+            .toSet()
         val known = listOf(
             BibleVersionOption("rv1960", "Reina Valera 1960"),
-            BibleVersionOption("nvi", "Nueva Versión Internacional (NVI)"),
+            BibleVersionOption("nvi", "Nueva Versi\u00f3n Internacional (NVI)"),
             BibleVersionOption("dhh", "Dios Habla Hoy (DHH)"),
             //BibleVersionOption("pdt", "Palabra de Dios para Todos (PDT)"),
-            BibleVersionOption("tla", "Traducción en Lenguaje Actual (TLA)"),
-            BibleVersionOption("ntv", "Nueva Traducción Viviente (NTV)")
-
+            BibleVersionOption("tla", "Traducci\u00f3n en Lenguaje Actual (TLA)"),
+            BibleVersionOption("ntv", "Nueva Traducci\u00f3n Viviente (NTV)")
         )
 
-        val knownAvailable = known.filter { "${it.key}.json" in availableAssets }
-
-        val dynamic = availableAssets
+        val knownAvailable = known.filter { it.key in availableVersionKeys }
+        val dynamic = availableVersionKeys
             .asSequence()
-            .filter { it.endsWith(".json") && !it.endsWith("_titles.json") }
-            .map { it.removeSuffix(".json") }
             .filterNot { key -> known.any { it.key == key } }
             .map { key -> BibleVersionOption(key, key.uppercase(Locale.ROOT)) }
             .toList()
 
-        return (knownAvailable + dynamic).ifEmpty {
+        (knownAvailable + dynamic).ifEmpty {
             listOf(BibleVersionOption(DEFAULT_BIBLE_VERSION, "Reina Valera 1960"))
         }
     }
 
-    private inline fun <K: Any, V: Any> ConcurrentHashMap<K, V>.safeGetOrPut(key: K, crossinline defaultValue: () -> V): V {
-        return computeIfAbsent(key) { defaultValue() }
-    }
-
-    private fun getBible(context: Context): JSONObject {
-        return getBibleForVersion(context, getSelectedVersionKey(context))
-    }
-
-    private fun getBibleForVersion(context: Context, versionKey: String): JSONObject {
-        val assetName = "$versionKey.json"
-        val versionLock = versionLocks.safeGetOrPut(versionKey) { Any() }
-
-        // Estrategia de sincronización: lock por versión para que leer cache, cargar y escribir
-        // ocurra en una única sección crítica y se eviten cargas duplicadas concurrentes.
-        return synchronized(versionLock) {
-            val nowInLock = System.currentTimeMillis()
-            if (isCacheValid(versionKey, nowInLock)) {
-                return@synchronized checkNotNull(cachedBibleByVersion[versionKey])
-            }
-
-            val jsonString = try {
-                context.assets.open(assetName).bufferedReader().use { it.readText() }
-            } catch (_: Exception) {
-                // Fallback a versión por defecto si no se encuentra el asset
-                context.assets.open("$DEFAULT_BIBLE_VERSION.json").bufferedReader().use { it.readText() }
-            }
-
-            JSONObject(jsonString).also {
-                cachedBibleByVersion[versionKey] = it
-                cacheLoadedAtMsByVersion[versionKey] = nowInLock
-                cachedBookKeyMapByVersion.remove(versionKey)
-                cachedSearchIndexByVersion.remove(versionKey)
-            }
-        }
-    }
-
-    private fun getTitles(context: Context): JSONObject {
-        val versionKey = getSelectedVersionKey(context)
-        val cached = cachedTitlesByVersion[versionKey]
-        if (cached != null) {
-            return cached
-        }
-
-        return synchronized(this) {
-            cachedTitlesByVersion[versionKey]?.let { return@synchronized it }
-
-            val titlesAssetName = "${versionKey}_titles.json"
-            val titlesJson = try {
-                val jsonString = context.assets.open(titlesAssetName).bufferedReader().use { it.readText() }
-                JSONObject(jsonString)
-            } catch (_: FileNotFoundException) {
-                JSONObject()
-            } catch (_: Exception) {
-                JSONObject()
-            }
-
-            cachedTitlesByVersion[versionKey] = titlesJson
-            cachedTitleKeyMapByVersion.remove(versionKey)
-            titlesJson
-        }
+    private fun bibleDao(context: Context): BibleDao {
+        return BibleDatabase.getInstance(context).bibleDao()
     }
 
     private fun String.normalizeBookName(): String {
-        val accents = mapOf('á' to 'a', 'é' to 'e', 'í' to 'i', 'ó' to 'o', 'ú' to 'u', 'ñ' to 'n')
+        val accents = mapOf(
+            '\u00e1' to 'a',
+            '\u00e9' to 'e',
+            '\u00ed' to 'i',
+            '\u00f3' to 'o',
+            '\u00fa' to 'u',
+            '\u00f1' to 'n'
+        )
         return lowercase(Locale.ROOT)
             .replace(" ", "")
             .map { accents[it] ?: it }
             .joinToString("")
     }
 
-    private fun getBibleBookKeyMap(versionKey: String, bible: JSONObject): Map<String, String> {
-        cachedBookKeyMapByVersion[versionKey]?.let { return it }
-        return synchronized(this) {
-            cachedBookKeyMapByVersion[versionKey]?.let { return@synchronized it }
-            val built = bible.keys().asSequence().associateBy(
-                keySelector = { it.normalizeBookName() },
-                valueTransform = { it }
-            )
-            cachedBookKeyMapByVersion[versionKey] = built
-            built
-        }
-    }
-
-    private fun getTitleBookKeyMap(versionKey: String, titlesJson: JSONObject): Map<String, String> {
-        cachedTitleKeyMapByVersion[versionKey]?.let { return it }
-        return synchronized(this) {
-            cachedTitleKeyMapByVersion[versionKey]?.let { return@synchronized it }
-            val built = titlesJson.keys().asSequence().associateBy(
-                keySelector = { it.normalizeBookName() },
-                valueTransform = { it }
-            )
-            cachedTitleKeyMapByVersion[versionKey] = built
-            built
-        }
-    }
-
-    private fun getSearchIndex(versionKey: String, bible: JSONObject): List<SearchIndexEntry> {
-        cachedSearchIndexByVersion[versionKey]?.let { return it }
-        return synchronized(this) {
-            cachedSearchIndexByVersion[versionKey]?.let { return@synchronized it }
-            val index = buildList {
-                val books = bible.keys()
-                while (books.hasNext()) {
-                    val bookName = books.next()
-                    val book = bible.getJSONObject(bookName)
-                    val chapters = book.keys()
-                    while (chapters.hasNext()) {
-                        val chapterNum = chapters.next()
-                        val chapter = book.getJSONObject(chapterNum)
-                        val verses = chapter.keys()
-                        while (verses.hasNext()) {
-                            val verseNum = verses.next()
-                            val verseText = chapter.getString(verseNum)
-                            add(
-                                SearchIndexEntry(
-                                    bookName = bookName,
-                                    chapter = chapterNum.toIntOrNull() ?: 1,
-                                    verse = verseNum,
-                                    verseText = verseText
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-            cachedSearchIndexByVersion[versionKey] = index
-            index
-        }
+    private fun normalizeVersionKey(versionKey: String): String {
+        return versionKey.trim().lowercase(Locale.ROOT).ifBlank { DEFAULT_BIBLE_VERSION }
     }
 
     suspend fun getRandomVerse(context: Context): DailyVerse = withContext(Dispatchers.IO) {
-        val bible = getBible(context)
-
-        val books = bible.keys().asSequence().toList()
-        val randomBookName = books.random()
-        val book = bible.getJSONObject(randomBookName)
-
-        val chapters = book.keys().asSequence().toList()
-        val randomChapterNum = chapters.random()
-        val chapter = book.getJSONObject(randomChapterNum)
-
-        val verses = chapter.keys().asSequence().toList()
-        val randomVerseNum = verses.random()
-        val verseText = chapter.getString(randomVerseNum)
+        val versionKey = normalizeVersionKey(getSelectedVersionKey(context))
+        val random = bibleDao(context).getRandomVerse(versionKey)
+            ?: return@withContext DailyVerse(text = "", reference = "")
 
         DailyVerse(
-            text = verseText,
-            reference = "$randomBookName $randomChapterNum:$randomVerseNum"
+            text = random.text,
+            reference = "${random.bookName} ${random.chapter}:${random.verse}"
         )
     }
 
     /**
-     * Obtiene una referencia aleatoria (Libro, Capítulo, Versículo).
+     * Obtiene una referencia aleatoria (Libro, Cap??tulo, Vers??culo).
      */
     suspend fun getRandomVerseReference(context: Context): Triple<String, String, String> = withContext(Dispatchers.IO) {
-        val bible = getBible(context)
-        val books = bible.keys().asSequence().toList()
-        val bookName = books.random()
-        val book = bible.getJSONObject(bookName)
-        val chapters = book.keys().asSequence().toList()
-        val chapterNum = chapters.random()
-        val chapter = book.getJSONObject(chapterNum)
-        val verses = chapter.keys().asSequence().toList()
-        val verseNum = verses.random()
-        Triple(bookName, chapterNum, verseNum)
+        getRandomVerseReferenceForVersion(context, normalizeVersionKey(getSelectedVersionKey(context)))
+    }
+
+    suspend fun getRandomVerseReference(
+        context: Context,
+        versionKey: String
+    ): Triple<String, String, String> = withContext(Dispatchers.IO) {
+        getRandomVerseReferenceForVersion(context, normalizeVersionKey(versionKey))
+    }
+
+    private suspend fun getRandomVerseReferenceForVersion(
+        context: Context,
+        versionKey: String
+    ): Triple<String, String, String> {
+        val random = bibleDao(context).getRandomReference(versionKey)
+            ?: return Triple("Juan", "3", "16")
+        return Triple(random.bookName, random.chapter.toString(), random.verse.toString())
     }
 
     /**
-     * Obtiene el texto de un versículo específico para una versión dada.
+     * Obtiene el texto de un vers??culo espec??fico para una versi??n dada.
      */
     suspend fun getVerseText(
         context: Context,
@@ -273,17 +123,17 @@ object BibleRepository {
         chapter: String,
         verse: String
     ): DailyVerse = withContext(Dispatchers.IO) {
-        val bible = getBibleForVersion(context, versionKey)
-        val normalizedBook = bookName.normalizeBookName()
-        val bibleKey = getBibleBookKeyMap(versionKey, bible)[normalizedBook] ?: bookName
-        
-        val bookJson = bible.optJSONObject(bibleKey)
-        val chapterJson = bookJson?.optJSONObject(chapter)
-        val verseText = chapterJson?.optString(verse) ?: ""
+        val normalizedVersionKey = normalizeVersionKey(versionKey)
+        val row = bibleDao(context).getVerse(
+            versionKey = normalizedVersionKey,
+            normalizedBookName = bookName.normalizeBookName(),
+            chapter = chapter.toIntOrNull() ?: 1,
+            verse = verse.toIntOrNull() ?: 1
+        )
 
         DailyVerse(
-            text = verseText,
-            reference = "$bibleKey $chapter:$verse"
+            text = row?.text.orEmpty(),
+            reference = "${row?.bookName ?: bookName} $chapter:$verse"
         )
     }
 
@@ -292,67 +142,67 @@ object BibleRepository {
         bookName: String,
         chapterNumber: Int
     ): ChapterContent = withContext(Dispatchers.IO) {
-        val versionKey = getSelectedVersionKey(context)
-        val bible = getBible(context)
-        val titlesJsonRoot = getTitles(context)
-
+        val versionKey = normalizeVersionKey(getSelectedVersionKey(context))
+        val dao = bibleDao(context)
         val searchNormalized = bookName.normalizeBookName()
+        val chapterCount = dao.getChapterCount(versionKey, searchNormalized)
+        val verses = dao.getChapterVerses(versionKey, searchNormalized, chapterNumber)
+            .map { it.verse.toString() to it.text }
+        val titlesByVerse = dao.getChapterTitles(versionKey, searchNormalized, chapterNumber)
+            .associate { it.verse.toString() to it.title }
 
-        // 1. Buscar la llave correcta en el JSON de la Biblia
-        val bibleKey = getBibleBookKeyMap(versionKey, bible)[searchNormalized] ?: bookName
-        val bookJson = bible.optJSONObject(bibleKey)
-
-        // 2. Buscar la llave correcta en el JSON de Títulos (independientemente)
-        val titlesKey = getTitleBookKeyMap(versionKey, titlesJsonRoot)[searchNormalized] ?: bibleKey
-        val bookTitlesJson = titlesJsonRoot.optJSONObject(titlesKey)
-
-        val chapterCount = bookJson?.length() ?: 0
-        val chapterJson = bookJson?.optJSONObject(chapterNumber.toString())
-        val chapterTitlesJson = bookTitlesJson?.optJSONObject(chapterNumber.toString())
-
-        val verses = buildList {
-            chapterJson?.keys()?.forEach { key ->
-                add(key to chapterJson.getString(key))
-            }
-        }.sortedBy { it.first.toIntOrNull() ?: Int.MAX_VALUE }
-
-        val titlesByVerse = buildMap {
-            chapterTitlesJson?.keys()?.forEach { key ->
-                val title = chapterTitlesJson.optString(key).trim()
-                if (title.isNotBlank()) {
-                    put(key, title)
-                }
-            }
-        }
-
-        ChapterContent(chapterCount = chapterCount, verses = verses, titlesByVerse = titlesByVerse)
+        ChapterContent(
+            chapterCount = chapterCount,
+            verses = verses,
+            titlesByVerse = titlesByVerse
+        )
     }
 
     suspend fun searchVerses(context: Context, query: String): List<SearchResult> = withContext(Dispatchers.IO) {
-        val versionKey = getSelectedVersionKey(context)
-        val bible = getBibleForVersion(context, versionKey)
-        getSearchIndex(versionKey, bible)
-            .asSequence()
-            .filter { it.verseText.contains(query, ignoreCase = true) }
-            .map { entry ->
+        searchVerses(context, query, BibleSearchFilter())
+    }
+
+    suspend fun searchVerses(
+        context: Context,
+        query: String,
+        filter: BibleSearchFilter
+    ): List<SearchResult> = withContext(Dispatchers.IO) {
+        val versionKey = normalizeVersionKey(getSelectedVersionKey(context))
+        val normalizedBook = filter.bookName?.takeIf { it.isNotBlank() }?.normalizeBookName()
+        val (minBookIndex, maxBookIndex) = when (filter.testament) {
+            BibleSearchTestament.OLD -> 1 to OLD_TESTAMENT_LAST_BOOK_INDEX
+            BibleSearchTestament.NEW -> (OLD_TESTAMENT_LAST_BOOK_INDEX + 1) to 66
+            BibleSearchTestament.ALL -> null to null
+        }
+        bibleDao(context).searchVersesFiltered(
+            versionKey = versionKey,
+            query = query,
+            normalizedBookName = normalizedBook,
+            minBookIndex = minBookIndex,
+            maxBookIndex = maxBookIndex
+        )
+            .map { row ->
                 SearchResult(
-                    reference = "${entry.bookName} ${entry.chapter}:${entry.verse}",
-                    text = entry.verseText,
-                    bookName = entry.bookName,
-                    chapter = entry.chapter,
-                    verse = entry.verse
+                    reference = "${row.bookName} ${row.chapter}:${row.verse}",
+                    text = row.text,
+                    bookName = row.bookName,
+                    chapter = row.chapter,
+                    verse = row.verse.toString()
                 )
             }
-            .toList()
     }
 }
 
-private data class SearchIndexEntry(
-    val bookName: String,
-    val chapter: Int,
-    val verse: String,
-    val verseText: String
+data class BibleSearchFilter(
+    val testament: BibleSearchTestament = BibleSearchTestament.ALL,
+    val bookName: String? = null
 )
+
+enum class BibleSearchTestament {
+    ALL,
+    OLD,
+    NEW
+}
 
 data class ChapterContent(
     val chapterCount: Int,

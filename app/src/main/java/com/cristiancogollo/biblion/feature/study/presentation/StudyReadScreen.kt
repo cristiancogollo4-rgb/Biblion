@@ -31,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -55,6 +56,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -516,13 +518,35 @@ private fun StudyReadParagraph(block: StudyBlockNode.Paragraph, numberedIndex: I
             val compact = maxWidth < 520.dp
             if (compact) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StudyReadColumnText(block.text, block.styles)
-                    StudyReadColumnText(block.parallelText, block.parallelStyles)
+                    StudyReadColumnText(
+                        text = block.text,
+                        styles = block.styles,
+                        embeddedBlocks = block.embeddedBlocks,
+                        textAlign = block.textAlign
+                    )
+                    StudyReadColumnText(
+                        text = block.parallelText,
+                        styles = block.parallelStyles,
+                        embeddedBlocks = block.parallelEmbeddedBlocks,
+                        textAlign = block.textAlign
+                    )
                 }
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StudyReadColumnText(block.text, block.styles, Modifier.weight(1f))
-                    StudyReadColumnText(block.parallelText, block.parallelStyles, Modifier.weight(1f))
+                    StudyReadColumnText(
+                        text = block.text,
+                        styles = block.styles,
+                        embeddedBlocks = block.embeddedBlocks,
+                        modifier = Modifier.weight(1f),
+                        textAlign = block.textAlign
+                    )
+                    StudyReadColumnText(
+                        text = block.parallelText,
+                        styles = block.parallelStyles,
+                        embeddedBlocks = block.parallelEmbeddedBlocks,
+                        modifier = Modifier.weight(1f),
+                        textAlign = block.textAlign
+                    )
                 }
             }
         }
@@ -534,12 +558,14 @@ private fun StudyReadParagraph(block: StudyBlockNode.Paragraph, numberedIndex: I
     val textStyle = when (block.role) {
         "heading" -> MaterialTheme.typography.headlineSmall.copy(
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = block.textAlign.toComposeTextAlign()
         )
         else -> MaterialTheme.typography.bodyLarge.copy(
             color = MaterialTheme.colorScheme.onSurface,
             fontSize = readFontSize,
-            lineHeight = (readFontSize.value * 1.45f).sp
+            lineHeight = (readFontSize.value * 1.45f).sp,
+            textAlign = block.textAlign.toComposeTextAlign()
         )
     }
     val prefix = when (block.role) {
@@ -569,6 +595,14 @@ private fun StudyReadParagraph(block: StudyBlockNode.Paragraph, numberedIndex: I
     }
 }
 
+private fun String.toComposeTextAlign(): TextAlign {
+    return when (this) {
+        "center" -> TextAlign.Center
+        "end" -> TextAlign.End
+        else -> TextAlign.Start
+    }
+}
+
 @Composable
 private fun StudyReadLegacyRichText(block: StudyBlockNode.RichText) {
     val readFontSize = LocalStudyReadFontSize.current
@@ -586,20 +620,69 @@ private fun StudyReadLegacyRichText(block: StudyBlockNode.RichText) {
 private fun StudyReadColumnText(
     text: String,
     styles: List<TextStyleRange>,
-    modifier: Modifier = Modifier
+    embeddedBlocks: List<ColumnEmbeddedBlock>,
+    modifier: Modifier = Modifier,
+    textAlign: String = "start"
 ) {
     val readFontSize = LocalStudyReadFontSize.current
-    Text(
-        text = text.toStyledText(styles),
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 2.dp),
-        style = MaterialTheme.typography.bodyLarge.copy(
-            fontSize = readFontSize,
-            lineHeight = (readFontSize.value * 1.45f).sp
-        ),
-        color = MaterialTheme.colorScheme.onSurface
-    )
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        StudyDocumentEngine.buildColumnFlow(text, embeddedBlocks).forEach { segment ->
+            if (segment.text.isNotBlank()) {
+                Text(
+                    text = segment.text.toStyledText(styles.forSegment(segment.start, segment.end)),
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontSize = readFontSize,
+                        lineHeight = (readFontSize.value * 1.45f).sp,
+                        textAlign = textAlign.toComposeTextAlign()
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            segment.blocksAfter.forEach { block ->
+                StudyReadColumnEmbeddedBlock(block)
+            }
+        }
+    }
+}
+
+@Composable
+private fun StudyReadColumnEmbeddedBlock(block: ColumnEmbeddedBlock) {
+    val accent = when (block.type) {
+        "reflection" -> Color(0xFF7C3AED)
+        "quote" -> Color(0xFFB45309)
+        else -> Color(0xFF0F766E)
+    }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = accent.copy(alpha = 0.08f),
+        shape = MaterialTheme.shapes.small
+    ) {
+        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = block.title.ifBlank {
+                    when (block.type) {
+                        "reflection" -> "Reflexion"
+                        "quote" -> "Cita"
+                        else -> "Nota"
+                    }
+                },
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                color = accent
+            )
+            if (!block.collapsed) {
+                Text(
+                    text = block.text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -841,6 +924,19 @@ private fun String.toStyledText(styles: List<TextStyleRange>): AnnotatedString {
             )
         }
     }.toAnnotatedString()
+}
+
+private fun List<TextStyleRange>.forSegment(start: Int, end: Int): List<TextStyleRange> {
+    if (start >= end) return emptyList()
+    return mapNotNull { style ->
+        val rangeStart = style.start.coerceAtLeast(start)
+        val rangeEnd = style.end.coerceAtMost(end)
+        if (rangeStart >= rangeEnd) {
+            null
+        } else {
+            style.copy(start = rangeStart - start, end = rangeEnd - start)
+        }
+    }
 }
 
 @Composable

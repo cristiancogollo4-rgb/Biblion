@@ -48,6 +48,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 import java.text.Normalizer
 
@@ -69,6 +70,7 @@ fun StudyAssistantOverlay(
     selectedText: String,
     currentOutline: List<String> = emptyList(),
     notes: List<String> = emptyList(),
+    currentUserName: String? = null,
     onInsertNote: ((String) -> Unit)?,
     onInsertReflection: ((topic: String, text: String) -> Unit)?,
     modifier: Modifier = Modifier
@@ -80,6 +82,7 @@ fun StudyAssistantOverlay(
         selectedText = selectedText,
         currentOutline = currentOutline,
         notes = notes,
+        currentUserName = currentUserName,
         initialMessage = "Hola, soy Bibi, tu asistente de estudio en Biblion. Puedo ayudarte con ideas, pasajes relacionados, contexto biblico y reflexiones para tu ensenanza.",
         inputPlaceholder = "Pregunta sobre tu ensenanza...",
         onInsertNote = onInsertNote,
@@ -93,6 +96,7 @@ fun ReaderAssistantOverlay(
     bookName: String?,
     chapter: Int,
     selectedText: String,
+    currentUserName: String? = null,
     modifier: Modifier = Modifier
 ) {
     val title = listOfNotNull(bookName, chapter.takeIf { it > 0 }?.let { "capitulo $it" })
@@ -104,6 +108,7 @@ fun ReaderAssistantOverlay(
         selectedText = selectedText,
         currentOutline = emptyList(),
         notes = emptyList(),
+        currentUserName = currentUserName,
         initialMessage = "Hola, soy Bibi, tu asistente biblico en Biblion. Puedo responder preguntas sencillas sobre el pasaje que estas leyendo.",
         inputPlaceholder = "Pregunta sobre este pasaje...",
         onInsertNote = null,
@@ -120,16 +125,26 @@ private fun BibiAssistantOverlay(
     selectedText: String,
     currentOutline: List<String>,
     notes: List<String>,
+    currentUserName: String?,
     initialMessage: String,
     inputPlaceholder: String,
     onInsertNote: ((String) -> Unit)?,
     onInsertReflection: ((topic: String, text: String) -> Unit)?,
     modifier: Modifier = Modifier
 ) {
-    val initialAssistantMessage = remember {
+    val fallbackUserName = remember {
+        FirebaseAuth.getInstance().currentUser?.let { user ->
+            user.displayName?.takeIf { it.isNotBlank() }
+                ?: user.email?.substringBefore("@")
+        }
+    }
+    val personalizedInitialMessage = remember(initialMessage, currentUserName, fallbackUserName) {
+        personalizeBibiGreeting(initialMessage, currentUserName ?: fallbackUserName)
+    }
+    val initialAssistantMessage = remember(personalizedInitialMessage) {
         StudyAssistantChatMessage(
             author = StudyAssistantAuthor.ASSISTANT,
-            text = initialMessage
+            text = personalizedInitialMessage
         )
     }
     var isOpen by rememberSaveable { mutableStateOf(false) }
@@ -140,7 +155,7 @@ private fun BibiAssistantOverlay(
     var availableBibleVersions by remember { mutableStateOf<List<StudyAssistantBibleVersion>>(emptyList()) }
     var selectedBibleVersion by remember { mutableStateOf("rv1960") }
     val assistantRepository = remember { HttpStudyAssistantRepository() }
-    val messages = remember {
+    val messages = remember(personalizedInitialMessage) {
         mutableStateOf(listOf(initialAssistantMessage))
     }
 
@@ -222,12 +237,21 @@ private fun BibiAssistantOverlay(
                 Image(
                     painter = painterResource(id = R.drawable.bibi_logo),
                     contentDescription = "Abrir Bibi",
-                    modifier = Modifier.size(70.dp),
+                    modifier = Modifier.size(50.dp),
                     contentScale = ContentScale.Fit
                 )
             }
         }
     }
+}
+
+private fun personalizeBibiGreeting(initialMessage: String, userName: String?): String {
+    val cleanName = userName
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+        ?.substringBefore(" ")
+        ?: return initialMessage
+    return initialMessage.replace("Hola,", "Hola $cleanName,")
 }
 
 @Composable
@@ -268,7 +292,7 @@ private fun StudyAssistantPanel(
                         Image(
                             painter = painterResource(id = R.drawable.bibi_logo),
                             contentDescription = null,
-                            modifier = Modifier.padding(2.dp),
+                            modifier = Modifier.padding(1.dp),
                             contentScale = ContentScale.Fit
                         )
                     }

@@ -11,6 +11,7 @@ El proyecto esta en desarrollo activo. La experiencia visual, los flujos de estu
 Biblion ya cuenta con:
 
 - Lectura biblica por testamento, libro y capitulo.
+- Consulta biblica local desde una base SQLite/Room preempaquetada.
 - Busqueda de versiculos por texto.
 - Selector de version biblica.
 - Resaltado de versiculos.
@@ -19,6 +20,7 @@ Biblion ya cuenta con:
 - Autenticacion con Firebase Auth, incluyendo inicio de sesion con Google.
 - Sincronizacion con Firestore para preferencias, resaltados, estudios y citas.
 - Perfil de usuario con datos reales, alias, biografia, foto o avatar de color.
+- Perfil con panel principal de identidad, metricas y edicion agrupada en un solo boton.
 - Base inicial para la red de Biblion sobre Firebase/Firestore.
 - Modo estudio con editor estructurado.
 - Gestion de "Mis ensenanzas".
@@ -34,8 +36,10 @@ Biblion ya cuenta con:
 ### Lectura biblica
 
 - Navegacion por Antiguo y Nuevo Testamento.
+- Deslizamiento entre Antiguo y Nuevo Testamento desde la pantalla de libros.
 - Lectura por libro/capitulo.
 - Cambio de version biblica desde el lector.
+- Deslizamiento entre capitulos con animacion y actualizacion del indicador superior.
 - Busqueda de versiculos y navegacion directa al resultado.
 - Seleccion multiple de versiculos.
 - Resaltado por color.
@@ -69,6 +73,8 @@ La seccion **Mis ensenanzas** permite:
 
 Biblion ya incluye una seccion **Perfil** para usuarios autenticados. Esta seccion prepara la identidad que se usara en la red de Biblion.
 
+La vista principal prioriza identidad, presencia en la red y metricas. Los datos personales, foto y color de avatar se editan desde **Actualizar perfil**, mientras que **Actualizar plan** queda preparado como accion futura.
+
 ### Datos del perfil
 
 El perfil solicita y guarda en Firestore:
@@ -101,6 +107,8 @@ profile_photos/{uid}/avatar.jpg
 La URL se guarda en Firestore como `fotoPerfil` y `foto_perfil`.
 
 Si el usuario no usa foto, el avatar se representa con `avatarColor` y `avatar_color`. Esto permite que la red muestre una identidad visual consistente aunque no exista imagen.
+
+Si la subida de foto falla, el caso mas comun es una regla o bucket de Firebase Storage que no permite escribir en `profile_photos/{uid}/avatar.jpg`. La app mantiene el avatar por color como respaldo y muestra el mensaje de error devuelto por Firebase.
 
 ### Metricas del perfil
 
@@ -160,7 +168,7 @@ Bibi no recibe toda la Biblia completa en cada pregunta. En cambio, Biblion le e
 - titulo, etiquetas, bloques actuales y notas de la ensenanza;
 - entradas relevantes del diccionario biblico inicial.
 
-El siguiente paso previsto es recuperar automaticamente el capitulo completo o un rango cercano de versiculos desde los assets biblicos y enviarlo como `bible.passages`.
+El saludo inicial puede usar el nombre visible del usuario de forma local en la UI. Ese nombre no se agrega al `StudyAssistantRequest`, por lo que no consume tokens ni se envia al Worker.
 
 ### Versiones biblicas
 
@@ -261,6 +269,29 @@ El Worker tiene respaldos para respuestas de identidad, versiones, dominio no bi
 ## Modo estudio
 
 El modo estudio combina el lector biblico con un editor para preparar ensenanzas, bosquejos, devocionales o clases.
+
+### Arquitectura del documento
+
+El documento de una ensenanza se representa como una lista de `StudyBlockNode` serializada en JSON dentro de `StudyEntity.contentSerialized`. Ese formato se conserva porque permite:
+
+- trabajo offline con Room;
+- sincronizacion con Firestore;
+- importacion/exportacion en formato `.biblion`;
+- lectura estructurada sin depender de HTML.
+
+La logica pura del documento vive en `StudyDocumentEngine`. Este motor concentra:
+
+- normalizacion del flujo de bloques;
+- conversion defensiva de contenido legado;
+- aplicacion y limpieza de estilos por rango;
+- manejo de columnas y bloques embebidos dentro de columnas;
+- insercion, actualizacion, colapso y eliminacion de bloques interactivos;
+- snapshot de texto plano para busqueda, autosave y contexto de Bibi;
+- deteccion de referencias biblicas.
+
+`StudyViewModel` debe coordinar estado, autosave, persistencia, citas y sincronizacion, pero no debe duplicar reglas internas de mutacion del documento. Nuevas herramientas del editor deben agregarse primero al motor cuando transformen bloques o texto.
+
+`StudyEditorScreen` renderiza el lienzo de bloques con `LazyColumn` y claves estables por bloque. Esto mejora el rendimiento en ensenanzas largas, reduce recomposiciones innecesarias y mantiene mejor el estado visual de parrafos, columnas, notas, citas y herramientas flotantes.
 
 ### Herramientas del editor
 

@@ -23,13 +23,16 @@ Su objetivo es mantener coherencia con el estado actual del repositorio: Android
 Biblion ya incluye:
 
 - Lectura biblica por testamento, libro y capitulo.
+- Consulta biblica local mediante Room sobre `app/src/main/assets/databases/bible_content.db`.
 - Busqueda de versiculos por texto.
 - Selector de version biblica.
+- Deslizamiento entre testamentos en la pantalla de libros y entre capitulos en el lector.
 - Resaltado de versiculos con persistencia y sincronizacion.
 - Modo claro/oscuro global.
 - Autenticacion y sincronizacion de datos de usuario.
 - Inicio de sesion con Google mediante Firebase Auth.
 - Perfil de usuario con nombres, apellidos, alias, biografia, foto o avatar de color.
+- Perfil con identidad, metricas visibles y edicion agrupada desde el boton "Actualizar perfil".
 - Base inicial para la red de Biblion sobre Firestore.
 - Modo estudio con editor de ensenanzas.
 - Listado de "Mis ensenanzas" con abrir, editar, eliminar, filtrar por titulo o etiqueta.
@@ -40,6 +43,7 @@ Biblion ya incluye:
 - Integracion online de Bibi mediante Cloudflare Worker y Qwen3-8B por endpoint compatible con OpenAI.
 - Evaluador local de modelos de Bibi en `workers/bibi/evals/model_eval.mjs`.
 - Contexto para Bibi con versiones biblicas disponibles, version seleccionada, texto seleccionado, bloques actuales de la ensenanza, notas y diccionario biblico inicial.
+- Saludo local de Bibi con el nombre visible del usuario autenticado sin incluir ese nombre en la solicitud al Worker.
 
 ## 3) Principios de cambio
 
@@ -72,7 +76,17 @@ Biblion ya incluye:
 
 ## 6) Modo estudio: herramientas y responsabilidades
 
-El modo estudio se compone principalmente de `StudyEditorScreen`, `StudyViewModel`, `StudyData`, `ReaderScreen`, `StudyReadScreen` y `EnsenanzaScreen`.
+El modo estudio se compone principalmente de `StudyEditorScreen`, `StudyViewModel`, `StudyDocumentEngine`, `StudyData`, `ReaderScreen`, `StudyReadScreen` y `EnsenanzaScreen`.
+
+### Arquitectura del documento de estudio
+
+- `StudyBlockNode` es el modelo estructurado de la ensenanza.
+- `StudyDocumentEngine` es la fuente de verdad para transformaciones puras del documento.
+- `StudyViewModel` orquesta estado, autosave, persistencia, citas y sincronizacion; no debe duplicar reglas internas de mutacion de bloques.
+- `StudyEditorScreen` debe enfocarse en renderizar UI, seleccion, herramientas flotantes y eventos de usuario.
+- Nuevas herramientas que modifiquen texto, estilos, columnas, notas, reflexiones, citas o bloques interactivos deben agregarse primero como operaciones testeables en `StudyDocumentEngine`.
+- El editor visual usa `LazyColumn` con claves estables por bloque para mejorar rendimiento en ensenanzas largas; no volver a un `Column` con `verticalScroll` para el lienzo completo salvo que exista una razon validada.
+- Las pruebas de transformaciones del documento deben vivir en `StudyDocumentEngineTest` o un test equivalente de dominio.
 
 ### Herramientas del editor
 
@@ -109,6 +123,7 @@ Reglas funcionales:
 - Si compara versiones, debe usar solo textos proporcionados por Biblion; no debe inventar traducciones.
 - Si compara versiones y faltan textos, debe indicar que Biblion no proporciono esos textos.
 - No debe afirmar que Maria Magdalena fue prostituta; si menciona Lucas 7, debe aclarar que el texto no identifica a esa mujer como Maria Magdalena.
+- Puede saludar por nombre en la UI cuando el usuario inicio sesion, pero ese dato debe mantenerse local y no agregarse al payload del Worker salvo que una tarea futura lo justifique explicitamente.
 
 Contexto enviado a Bibi:
 
@@ -116,6 +131,8 @@ Contexto enviado a Bibi:
 - `intent`: `explain`, `define`, `cross_reference`, `application`, `outline`, `sermon`, `devotional`, `compare_versions` o `question`.
 - `study.title`, `study.tags`, `study.selectedText`, `study.currentOutline`, `study.notes`.
 - `bible.version`, `bible.availableVersions`, `bible.passages`.
+
+El nombre visible del usuario no forma parte de este contexto por defecto; solo se usa para el mensaje inicial local del chat.
 
 Respuesta esperada del Worker:
 
@@ -284,6 +301,8 @@ Reglas principales:
 - No romper datos existentes sin migracion.
 - Mantener separacion entre entidades de persistencia y estado UI.
 - Si se agrega cache o acceso a assets biblicos, seguir el patron de `BibleRepository` y caches dedicados.
+- La Biblia se consulta desde la base SQLite preempaquetada `app/src/main/assets/databases/bible_content.db`.
+- La base se genera desde los JSON fuente con `tools/build_bible_sqlite.py`; si se regeneran versiones, conservar la deduplicacion de libros por nombre normalizado para evitar duplicados como los de NVI.
 - Las citas vinculadas deben conservar `book`, `chapter`, `verseStart`, `verseEnd` y `version`.
 
 ## 10) Navegacion

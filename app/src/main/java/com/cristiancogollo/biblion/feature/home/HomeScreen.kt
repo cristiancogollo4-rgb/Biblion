@@ -49,6 +49,7 @@ fun HomeScreen(
     navController: NavController,
     isDarkTheme: Boolean,
     onToggleDarkTheme: (Boolean) -> Unit,
+    currentUserName: String? = null,
     currentUserEmail: String? = null,
     isAuthenticated: Boolean = false,
     showSignedOutDialog: Boolean = false,
@@ -99,6 +100,7 @@ fun HomeScreen(
                 drawerState = drawerState,
                 isDarkTheme = isDarkTheme,
                 onToggleDarkTheme = onToggleDarkTheme,
+                currentUserName = currentUserName,
                 currentUserEmail = currentUserEmail,
                 isAuthenticated = isAuthenticated,
                 onClose = { scope.launch { drawerState.close() } },
@@ -167,7 +169,18 @@ fun HomeScreen(
                 if (dailyVerse != null) {
                     DailyVerseCard(
                         verse = dailyVerse!!.text,
-                        reference = dailyVerse!!.reference
+                        reference = dailyVerse!!.reference,
+                        onClick = {
+                            dailyVerse!!.reference.toBibleNavigationTarget()?.let { target ->
+                                navController.navigateSingleTop(
+                                    Screen.Reader.createRoute(
+                                        bookName = target.bookName,
+                                        chapter = target.chapter,
+                                        verse = target.verse
+                                    )
+                                )
+                            }
+                        }
                     )
                 }
 
@@ -198,6 +211,24 @@ fun HomeScreen(
         BiblionComingSoonDialog(onDismiss = { showComingSoonDialog = false })
     }
 
+}
+
+private data class BibleNavigationTarget(
+    val bookName: String,
+    val chapter: Int,
+    val verse: String
+)
+
+private fun String.toBibleNavigationTarget(): BibleNavigationTarget? {
+    val match = Regex("""^(.+)\s+(\d+):(\d+)$""").matchEntire(trim()) ?: return null
+    val bookName = match.groupValues[1].ifBlank { return null }
+    val chapter = match.groupValues[2].toIntOrNull() ?: return null
+    val verse = match.groupValues[3]
+    return BibleNavigationTarget(
+        bookName = bookName,
+        chapter = chapter,
+        verse = verse
+    )
 }
 
 @Composable
@@ -254,7 +285,7 @@ private suspend fun getDailyVerse(context: Context, versionKey: String): DailyVe
 
     if (isNewDay) {
         try {
-            val (newBook, newChapter, newVerse) = BibleRepository.getRandomVerseReference(context)
+            val (newBook, newChapter, newVerse) = BibleRepository.getRandomVerseReference(context, versionKey)
             book = newBook
             chapter = newChapter
             verse = newVerse

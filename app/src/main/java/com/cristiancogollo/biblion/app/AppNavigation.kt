@@ -43,6 +43,7 @@ fun AppNavigation(
     val activity = context.findActivity()
     var showAuthDialog by remember { mutableStateOf(false) }
     var authDialogMode by remember { mutableStateOf(AuthDialogMode.LOGIN) }
+    val currentUserName = preferredUserName(profileState, authState.currentUser)
 
     fun openAuthDialog(mode: AuthDialogMode = AuthDialogMode.LOGIN) {
         authDialogMode = mode
@@ -166,6 +167,7 @@ fun AppNavigation(
                 navController = navController,
                 isDarkTheme = isDarkTheme,
                 onToggleDarkTheme = onToggleDarkTheme,
+                currentUserName = currentUserName,
                 currentUserEmail = authState.currentUser?.email,
                 isAuthenticated = authState.isAuthenticated,
                 showSignedOutDialog = authState.showSignedOutDialog,
@@ -192,6 +194,7 @@ fun AppNavigation(
             includeBooks = false,
             isDarkTheme = isDarkTheme,
             onToggleDarkTheme = onToggleDarkTheme,
+            currentUserName = currentUserName,
             currentUserEmail = authState.currentUser?.email,
             isAuthenticated = authState.isAuthenticated,
             showSignedOutDialog = authState.showSignedOutDialog,
@@ -244,6 +247,7 @@ fun AppNavigation(
                 selectedTestament = testament,
                 isDarkTheme = isDarkTheme,
                 onToggleDarkTheme = onToggleDarkTheme,
+                currentUserName = currentUserName,
                 currentUserEmail = authState.currentUser?.email,
                 isAuthenticated = authState.isAuthenticated,
                 showSignedOutDialog = authState.showSignedOutDialog,
@@ -315,7 +319,8 @@ fun AppNavigation(
                 targetVerse = initialVerse,
                 initialStudyId = studyId,
                 isDarkTheme = isDarkTheme,
-                onToggleDarkTheme = onToggleDarkTheme
+                onToggleDarkTheme = onToggleDarkTheme,
+                currentUserName = currentUserName
             )
         }
 
@@ -352,7 +357,8 @@ fun AppNavigation(
                 targetVerse = initialVerse,
                 initialStudyId = studyId,
                 isDarkTheme = isDarkTheme,
-                onToggleDarkTheme = onToggleDarkTheme
+                onToggleDarkTheme = onToggleDarkTheme,
+                currentUserName = currentUserName
             )
         }
 
@@ -372,7 +378,8 @@ fun AppNavigation(
                 bookName = bookName,
                 initialStudyMode = true,
                 isDarkTheme = isDarkTheme,
-                onToggleDarkTheme = onToggleDarkTheme
+                onToggleDarkTheme = onToggleDarkTheme,
+                currentUserName = currentUserName
             )
         }
     }
@@ -411,4 +418,18 @@ fun AppNavigation(
             onDismiss = profileViewModel::dismissCompletionPrompt
         )
     }
+}
+
+private fun preferredUserName(profileState: ProfileUiState, currentUser: AuthUser?): String? {
+    val fullName = listOf(profileState.nombres, profileState.apellidos)
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .joinToString(" ")
+    val candidates = listOf(
+        fullName,
+        currentUser?.displayName?.trim().orEmpty(),
+        profileState.alias.trim(),
+        currentUser?.email?.substringBefore("@")?.trim().orEmpty()
+    )
+    return candidates.firstOrNull { it.isNotBlank() }
 }

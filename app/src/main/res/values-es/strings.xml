@@ -74,6 +74,24 @@
     <string name="profile_metric_likes">Likes</string>
     <string name="profile_metric_saved">Guardados</string>
     <string name="profile_metric_comments">Comentarios</string>
+    <string name="profile_metric_followers">Seguidores</string>
+    <string name="profile_metric_following">Siguiendo</string>
+    <string name="profile_public_identity">Identidad publica</string>
+    <string name="profile_biography_empty">Agrega una breve biografia para presentar tu enfoque de lectura, ensenanza o servicio.</string>
+    <string name="profile_completion_title">Preparacion del perfil</string>
+    <string name="profile_completion_percent">%1$d%% completo</string>
+    <string name="profile_network_title">Presencia en Biblion</string>
+    <string name="profile_status_approved_message">Puedes publicar ensenanzas y construir una audiencia dentro de la red de Biblion.</string>
+    <string name="profile_status_pending_message">Tu solicitud de publicador esta en revision. Mientras tanto puedes preparar y guardar ensenanzas.</string>
+    <string name="profile_status_suspended_message">Tu acceso como publicador esta limitado. Conservas tu biblioteca y perfil de lectura.</string>
+    <string name="profile_status_reader_message">Tu cuenta esta lista para lectura, estudio personal y preparacion de ensenanzas privadas.</string>
+    <string name="profile_edit_title">Datos del perfil</string>
+    <string name="profile_edit_subtitle">Estos datos forman tu identidad visible en ensenanzas, comentarios y espacios de comunidad.</string>
+    <string name="profile_metrics_subtitle">Resumen de tu actividad preparada para ensenanzas y comunidad.</string>
+    <string name="profile_update_title">Actualizar perfil</string>
+    <string name="profile_update_profile">Actualizar perfil</string>
+    <string name="profile_update_plan_future">Actualizar plan</string>
+    <string name="close">Cerrar</string>
 
     <string name="testament_old_label">Antiguo Testamento</string>
     <string name="testament_new_label">Nuevo Testamento</string>
@@ -81,6 +99,25 @@
     <string name="testament_new_short_label">NUEVO</string>
 
     <string name="books_screen_title">Libros del %1$s</string>
+
+    <string name="search_title">Buscar pasajes</string>
+    <string name="search_card_title">Encuentra un versiculo</string>
+    <string name="search_card_subtitle">Busca por palabra, frase o idea y abre el pasaje al instante.</string>
+    <string name="search_field_label">Palabra o frase</string>
+    <string name="search_button">Buscar</string>
+    <string name="search_clear">Limpiar busqueda</string>
+    <string name="search_filters_title">Filtrar busqueda</string>
+    <string name="search_filter_all">Toda la Biblia</string>
+    <string name="search_filter_book_all">Todos los libros</string>
+    <string name="search_filter_clear_book">Quitar libro</string>
+    <string name="search_idle_message">Escribe una palabra clave para comenzar la busqueda.</string>
+    <string name="search_empty_message">Sin resultados para "%1$s".</string>
+    <string name="search_error_message">Error al buscar: %1$s</string>
+    <string name="search_error_unexpected">Ocurrio un error inesperado.</string>
+    <plurals name="search_results_count">
+        <item quantity="one">%d resultado encontrado</item>
+        <item quantity="other">%d resultados encontrados</item>
+    </plurals>
 
     <string name="daily_verse_title">VERSÍCULO DEL DÍA</string>
     <string name="daily_verse_fallback_text">Porque de tal manera amó Dios al mundo, que ha dado a su Hijo unigénito, para que todo aquel que en él cree, no se pierda, mas tenga vida eterna.</string>

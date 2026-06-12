@@ -3,7 +3,10 @@ package com.cristiancogollo.biblion.reader.cache
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 class HighlightsCacheTest {
 
     private var now = 0L

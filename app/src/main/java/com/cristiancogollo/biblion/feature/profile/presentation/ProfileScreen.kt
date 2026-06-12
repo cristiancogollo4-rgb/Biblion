@@ -11,6 +11,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -35,6 +36,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -90,6 +92,7 @@ fun ProfileScreen(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val savedMessage = stringResource(R.string.profile_saved)
+    var showEditDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.saveSuccess) {
         if (uiState.saveSuccess) {
@@ -124,16 +127,25 @@ fun ProfileScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(22.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (isWide) {
+            if (uiState.isLoading && uiState.profile == null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(260.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else if (isWide) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .widthIn(max = 980.dp),
-                    horizontalArrangement = Arrangement.spacedBy(48.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    verticalAlignment = Alignment.Top
                 ) {
                     ProfileIdentityPanel(
                         uiState = uiState,
@@ -142,13 +154,8 @@ fun ProfileScreen(
                         onClearProfilePhoto = onClearProfilePhoto,
                         modifier = Modifier.weight(1f)
                     )
-                    ProfileForm(
+                    ProfileNetworkPanel(
                         uiState = uiState,
-                        onNombresChange = onNombresChange,
-                        onApellidosChange = onApellidosChange,
-                        onAliasChange = onAliasChange,
-                        onBiografiaChange = onBiografiaChange,
-                        onSave = onSave,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -159,13 +166,11 @@ fun ProfileScreen(
                     onProfilePhotoSelected = onProfilePhotoSelected,
                     onClearProfilePhoto = onClearProfilePhoto
                 )
-                ProfileForm(
+                ProfileNetworkPanel(
                     uiState = uiState,
-                    onNombresChange = onNombresChange,
-                    onApellidosChange = onApellidosChange,
-                    onAliasChange = onAliasChange,
-                    onBiografiaChange = onBiografiaChange,
-                    onSave = onSave
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 980.dp)
                 )
             }
 
@@ -175,7 +180,29 @@ fun ProfileScreen(
                     .fillMaxWidth()
                     .widthIn(max = 980.dp)
             )
+
+            ProfileActionPanel(
+                onUpdateProfile = { showEditDialog = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 980.dp)
+            )
         }
+    }
+
+    if (showEditDialog) {
+        ProfileEditDialog(
+            uiState = uiState,
+            onNombresChange = onNombresChange,
+            onApellidosChange = onApellidosChange,
+            onAliasChange = onAliasChange,
+            onBiografiaChange = onBiografiaChange,
+            onAvatarColorChange = onAvatarColorChange,
+            onProfilePhotoSelected = onProfilePhotoSelected,
+            onClearProfilePhoto = onClearProfilePhoto,
+            onSave = onSave,
+            onDismiss = { showEditDialog = false }
+        )
     }
 }
 
@@ -234,12 +261,98 @@ fun CompleteProfileDialog(
 }
 
 @Composable
+private fun ProfileEditDialog(
+    uiState: ProfileUiState,
+    onNombresChange: (String) -> Unit,
+    onApellidosChange: (String) -> Unit,
+    onAliasChange: (String) -> Unit,
+    onBiografiaChange: (String) -> Unit,
+    onAvatarColorChange: (Long) -> Unit,
+    onProfilePhotoSelected: (Uri) -> Unit,
+    onClearProfilePhoto: () -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.profile_update_title)) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 620.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                ProfileIdentityPanel(
+                    uiState = uiState,
+                    onAvatarColorChange = onAvatarColorChange,
+                    onProfilePhotoSelected = onProfilePhotoSelected,
+                    onClearProfilePhoto = onClearProfilePhoto,
+                    showProfileActions = true
+                )
+                ProfileForm(
+                    uiState = uiState,
+                    onNombresChange = onNombresChange,
+                    onApellidosChange = onApellidosChange,
+                    onAliasChange = onAliasChange,
+                    onBiografiaChange = onBiografiaChange,
+                    onSave = onSave
+                )
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.close))
+            }
+        },
+        shape = RoundedCornerShape(8.dp)
+    )
+}
+
+@Composable
+private fun ProfileActionPanel(
+    onUpdateProfile: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Row(
+            modifier = Modifier.padding(18.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Button(
+                onClick = onUpdateProfile,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(stringResource(R.string.profile_update_profile))
+            }
+            OutlinedButton(
+                onClick = {},
+                enabled = false,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(stringResource(R.string.profile_update_plan_future))
+            }
+        }
+    }
+}
+
+@Composable
 private fun ProfileIdentityPanel(
     uiState: ProfileUiState,
     onAvatarColorChange: (Long) -> Unit,
     onProfilePhotoSelected: (Uri) -> Unit,
     onClearProfilePhoto: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showProfileActions: Boolean = false
 ) {
     val fullName = listOf(uiState.nombres, uiState.apellidos)
         .map { it.trim() }
@@ -250,66 +363,203 @@ private fun ProfileIdentityPanel(
         if (uri != null) onProfilePhotoSelected(uri)
     }
 
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .widthIn(max = 980.dp),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        ProfileAvatar(
-            photoUrl = uiState.profile?.fotoPerfil,
-            avatarColor = Color(uiState.avatarColor.toInt()),
-            isUploading = uiState.isUploadingAvatar
-        )
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(
-                    onClick = { photoPicker.launch("image/*") },
-                    enabled = !uiState.isUploadingAvatar,
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(2.dp, BiblionBluePrimary)
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.profile_public_identity),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ProfileAvatar(
+                    photoUrl = uiState.profile?.fotoPerfil,
+                    avatarColor = Color(uiState.avatarColor.toInt()),
+                    isUploading = uiState.isUploadingAvatar
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(stringResource(R.string.profile_choose_photo))
-                }
-                if (!uiState.profile?.fotoPerfil.isNullOrBlank()) {
-                    TextButton(
-                        onClick = onClearProfilePhoto,
-                        enabled = !uiState.isUploadingAvatar
-                    ) {
-                        Text(stringResource(R.string.profile_use_color))
-                    }
+                    Text(
+                        text = fullName,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "@${uiState.alias.ifBlank { stringResource(R.string.profile_alias_placeholder) }}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = BiblionBluePrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = uiState.profile?.correo ?: uiState.currentUser?.email.orEmpty(),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = uiState.biografia.ifBlank { stringResource(R.string.profile_biography_empty) },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f),
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
-            AvatarColorSelector(
-                selectedColor = uiState.avatarColor,
-                enabled = uiState.profile?.fotoPerfil.isNullOrBlank(),
-                onAvatarColorChange = onAvatarColorChange
-            )
+
+            ProfileCompletionMeter(uiState)
+
+            if (showProfileActions) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedButton(
+                            onClick = { photoPicker.launch("image/*") },
+                            enabled = !uiState.isUploadingAvatar,
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, BiblionBluePrimary)
+                        ) {
+                            Text(stringResource(R.string.profile_choose_photo))
+                        }
+                        if (!uiState.profile?.fotoPerfil.isNullOrBlank()) {
+                            TextButton(
+                                onClick = onClearProfilePhoto,
+                                enabled = !uiState.isUploadingAvatar
+                            ) {
+                                Text(stringResource(R.string.profile_use_color))
+                            }
+                        }
+                    }
+                    AvatarColorSelector(
+                        selectedColor = uiState.avatarColor,
+                        enabled = uiState.profile?.fotoPerfil.isNullOrBlank(),
+                        onAvatarColorChange = onAvatarColorChange
+                    )
+                }
+            }
         }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = fullName,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = uiState.profile?.correo ?: uiState.currentUser?.email.orEmpty(),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f),
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
+    }
+}
+
+@Composable
+private fun ProfileCompletionMeter(uiState: ProfileUiState) {
+    val completed = listOf(
+        uiState.nombres.isNotBlank(),
+        uiState.apellidos.isNotBlank(),
+        uiState.alias.isNotBlank(),
+        uiState.biografia.isNotBlank()
+    ).count { it }
+    val progress = completed / 4f
+    val percent = (progress * 100).toInt()
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ProfileStatusChip(stringResource(R.string.profile_role), uiState.profile?.rol ?: "LECTOR")
-            ProfileStatusChip(stringResource(R.string.profile_plan), uiState.profile?.plan ?: "FREE")
+            Text(
+                text = stringResource(R.string.profile_completion_title),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = stringResource(R.string.profile_completion_percent, percent),
+                style = MaterialTheme.typography.labelLarge,
+                color = BiblionBluePrimary,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(50)),
+            color = BiblionBluePrimary,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun ProfileNetworkPanel(
+    uiState: ProfileUiState,
+    modifier: Modifier = Modifier
+) {
+    val profile = uiState.profile
+    val role = profile?.rol ?: "LECTOR"
+    val publisherStatus = profile?.estadoPublicador ?: "NO_APROBADO"
+    val plan = profile?.plan ?: "FREE"
+    val statusMessage = when (publisherStatus.uppercase()) {
+        "APROBADO" -> stringResource(R.string.profile_status_approved_message)
+        "PENDIENTE" -> stringResource(R.string.profile_status_pending_message)
+        "SUSPENDIDO" -> stringResource(R.string.profile_status_suspended_message)
+        else -> stringResource(R.string.profile_status_reader_message)
+    }
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .widthIn(max = 980.dp),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = stringResource(R.string.profile_network_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = statusMessage,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.76f)
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                ProfileStatusChip(
+                    label = stringResource(R.string.profile_role),
+                    value = role,
+                    modifier = Modifier.weight(1f)
+                )
+                ProfileStatusChip(
+                    label = stringResource(R.string.profile_plan),
+                    value = plan,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            ProfileStatusChip(
+                label = stringResource(R.string.profile_publisher_status),
+                value = publisherStatus,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
@@ -324,44 +574,65 @@ private fun ProfileForm(
     onSave: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier.widthIn(max = 420.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .widthIn(max = 520.dp),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        RequiredProfileFields(
-            uiState = uiState,
-            onNombresChange = onNombresChange,
-            onApellidosChange = onApellidosChange,
-            onAliasChange = onAliasChange
-        )
-        OutlinedTextField(
-            value = uiState.biografia,
-            onValueChange = onBiografiaChange,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(stringResource(R.string.profile_biography)) },
-            minLines = 5,
-            maxLines = 5,
-            colors = profileTextFieldColors()
-        )
-
-        ProfileError(uiState.errorMessage)
-        Button(
-            onClick = onSave,
-            enabled = !uiState.isSaving,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp)
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            if (uiState.isSaving) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    strokeWidth = 2.dp
-                )
-            } else {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    text = stringResource(R.string.profile_save).uppercase(),
-                    fontFamily = FontFamily.Serif,
-                    fontWeight = FontWeight.Black
+                    text = stringResource(R.string.profile_edit_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
                 )
+                Text(
+                    text = stringResource(R.string.profile_edit_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
+                )
+            }
+            RequiredProfileFields(
+                uiState = uiState,
+                onNombresChange = onNombresChange,
+                onApellidosChange = onApellidosChange,
+                onAliasChange = onAliasChange
+            )
+            OutlinedTextField(
+                value = uiState.biografia,
+                onValueChange = onBiografiaChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(R.string.profile_biography)) },
+                minLines = 5,
+                maxLines = 5,
+                colors = profileTextFieldColors()
+            )
+
+            ProfileError(uiState.errorMessage)
+            Button(
+                onClick = onSave,
+                enabled = !uiState.isSaving,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                if (uiState.isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text(
+                        text = stringResource(R.string.profile_save).uppercase(),
+                        fontFamily = FontFamily.Serif,
+                        fontWeight = FontWeight.Black
+                    )
+                }
             }
         }
     }
@@ -375,7 +646,7 @@ private fun ProfileAvatar(
 ) {
     Surface(
         modifier = Modifier
-            .size(184.dp)
+            .size(108.dp)
             .clip(CircleShape),
         shape = CircleShape,
         color = avatarColor
@@ -390,7 +661,7 @@ private fun ProfileAvatar(
                 Icon(
                     imageVector = Icons.Default.AccountCircle,
                     contentDescription = null,
-                    modifier = Modifier.size(188.dp),
+                    modifier = Modifier.size(112.dp),
                     tint = Color.White
                 )
             }
@@ -437,7 +708,7 @@ private fun RemoteProfileImage(
         Icon(
             imageVector = Icons.Default.AccountCircle,
             contentDescription = null,
-            modifier = Modifier.size(188.dp),
+            modifier = Modifier.size(112.dp),
             tint = Color.White
         )
     }
@@ -521,20 +792,38 @@ private fun RequiredProfileFields(
 }
 
 @Composable
-private fun ProfileStatusChip(label: String, value: String) {
+private fun ProfileStatusChip(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
     Surface(
+        modifier = modifier.defaultMinSize(minHeight = 62.dp),
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(2.dp, BiblionBluePrimary),
-        color = MaterialTheme.colorScheme.surface
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.38f)
     ) {
-        Text(
-            text = "$label ${value.lowercase()}",
-            modifier = Modifier.padding(horizontal = 22.dp, vertical = 12.dp),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Black,
-            color = MaterialTheme.colorScheme.onSurface,
-            textAlign = TextAlign.Center
-        )
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = label.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = value.toDisplayStatus(),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Black,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -544,37 +833,49 @@ private fun ProfileMetricsPanel(
     modifier: Modifier = Modifier
 ) {
     val metrics = profileMetrics(profile)
-    Column(
+    Surface(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Text(
-            text = stringResource(R.string.profile_metrics_title),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            metrics.take(2).forEach { metric ->
-                ProfileMetricCard(
-                    label = metric.label,
-                    value = metric.value,
-                    modifier = Modifier.weight(1f)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = stringResource(R.string.profile_metrics_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = stringResource(R.string.profile_metrics_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
                 )
             }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            metrics.drop(2).take(2).forEach { metric ->
-                ProfileMetricCard(
-                    label = metric.label,
-                    value = metric.value,
-                    modifier = Modifier.weight(1f)
-                )
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val columns = if (maxWidth >= 720.dp) 3 else 2
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    metrics.chunked(columns).forEach { rowMetrics ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            rowMetrics.forEach { metric ->
+                                ProfileMetricCard(
+                                    label = metric.label,
+                                    value = metric.value,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            repeat(columns - rowMetrics.size) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -589,8 +890,8 @@ private fun ProfileMetricCard(
     Surface(
         modifier = modifier.defaultMinSize(minHeight = 82.dp),
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(2.dp, BiblionBluePrimary),
-        color = MaterialTheme.colorScheme.surface
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f)
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -605,9 +906,10 @@ private fun ProfileMetricCard(
             )
             Text(
                 text = label,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.74f)
             )
         }
     }
@@ -641,15 +943,29 @@ private fun profileMetrics(profile: BiblionUserProfile?): List<ProfileMetric> {
         listOf(
             ProfileMetric(stringResource(R.string.profile_metric_created), profile?.totalEnsenanzasCreadas ?: 0),
             ProfileMetric(stringResource(R.string.profile_metric_published), profile?.totalEnsenanzasPublicadas ?: 0),
+            ProfileMetric(stringResource(R.string.profile_metric_downloads), profile?.totalDescargas ?: 0),
             ProfileMetric(stringResource(R.string.profile_metric_likes), profile?.totalLikes ?: 0),
-            ProfileMetric(stringResource(R.string.profile_metric_downloads), profile?.totalDescargas ?: 0)
+            ProfileMetric(stringResource(R.string.profile_metric_followers), profile?.totalSeguidores ?: 0),
+            ProfileMetric(stringResource(R.string.profile_metric_comments), profile?.totalComentarios ?: 0)
         )
     } else {
         listOf(
             ProfileMetric(stringResource(R.string.profile_metric_created), profile?.totalEnsenanzasCreadas ?: 0),
-            ProfileMetric(stringResource(R.string.profile_metric_downloaded), profile?.totalDescargas ?: 0),
             ProfileMetric(stringResource(R.string.profile_metric_saved), profile?.totalGuardados ?: 0),
-            ProfileMetric(stringResource(R.string.profile_metric_comments), profile?.totalComentarios ?: 0)
+            ProfileMetric(stringResource(R.string.profile_metric_comments), profile?.totalComentarios ?: 0),
+            ProfileMetric(stringResource(R.string.profile_metric_following), profile?.totalSiguiendo ?: 0),
+            ProfileMetric(stringResource(R.string.profile_metric_downloaded), profile?.totalDescargas ?: 0),
+            ProfileMetric(stringResource(R.string.profile_metric_followers), profile?.totalSeguidores ?: 0)
         )
     }
+}
+
+private fun String.toDisplayStatus(): String {
+    return lowercase()
+        .replace("_", " ")
+        .split(" ")
+        .filter { it.isNotBlank() }
+        .joinToString(" ") { part ->
+            part.replaceFirstChar { char -> char.uppercase() }
+        }
 }

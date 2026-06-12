@@ -8,6 +8,8 @@ import android.content.SharedPreferences
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.util.Log
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -32,6 +34,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -56,6 +59,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.abs
 import kotlin.math.roundToInt
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -113,7 +117,8 @@ fun ReaderScreen(
     targetVerse: String? = null,
     initialStudyId: Long? = null,
     isDarkTheme: Boolean = false,
-    onToggleDarkTheme: (Boolean) -> Unit = {}
+    onToggleDarkTheme: (Boolean) -> Unit = {},
+    currentUserName: String? = null
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -162,6 +167,7 @@ fun ReaderScreen(
                 StudyEditorScreen(
                     viewModel = studyViewModel,
                     onFocusModeChanged = {},
+                    currentUserName = currentUserName,
                     onClose = {
                         // Al hacer popBackStack, el DisposableEffect de arriba se encargará de la orientación
                         navController.popBackStack()
@@ -176,7 +182,8 @@ fun ReaderScreen(
             isStudyModeActive = false,
             viewModel = studyViewModel,
             initialChapter = initialChapter,
-            targetVerse = targetVerse
+            targetVerse = targetVerse,
+            currentUserName = currentUserName
         )
     }
 }
@@ -342,7 +349,8 @@ fun ReaderContent(
     isStudyModeActive: Boolean,
     viewModel: StudyViewModel,
     initialChapter: Int = 1,
-    targetVerse: String? = null
+    targetVerse: String? = null,
+    currentUserName: String? = null
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -371,6 +379,9 @@ fun ReaderContent(
     var horizontalDrag by remember { mutableFloatStateOf(0f) }
     var pendingTargetVerse by remember(bookName, targetVerse) { mutableStateOf(targetVerse) }
     val lazyListState = rememberLazyListState()
+    var pendingScrollRestoration by remember { mutableStateOf<Pair<String, Int>?>(null) }
+    var pendingScrollToTop by remember { mutableStateOf(false) }
+    val chapterSlideOffset = remember { Animatable(0f) }
     var floatingButtonOffset by remember { mutableStateOf(IntOffset(0, 0)) }
     var floatingButtonSize by remember { mutableStateOf(IntSize.Zero) }
     var readerContainerSize by remember { mutableStateOf(IntSize.Zero) }
@@ -394,6 +405,13 @@ fun ReaderContent(
     }
 
     fun verseKey(verseNumber: String): String = "${bookName ?: ""}|$selectedChapter|$verseNumber"
+
+    fun rememberCurrentVerseScroll() {
+        val visibleVerse = verses.getOrNull(lazyListState.firstVisibleItemIndex)?.first
+        if (!visibleVerse.isNullOrBlank()) {
+            pendingScrollRestoration = visibleVerse to lazyListState.firstVisibleItemScrollOffset
+        }
+    }
 
     fun loadHighlightsForChapter() {
         val raw = AppPreferencesSyncStore.getRawHighlights(context)
@@ -458,8 +476,33 @@ fun ReaderContent(
         }
     }
 
+    fun navigateToChapterWithAnimation(targetChapter: Int, direction: Int) {
+        val targetBook = bookName ?: return
+        if (targetChapter == selectedChapter) return
+        selectedChapter = targetChapter
+        pendingTargetVerse = null
+        pendingScrollRestoration = null
+        pendingScrollToTop = true
+        loadChapter(targetBook, targetChapter)
+        scope.launch {
+            val availableWidth = readerContainerSize.width
+                .takeIf { it > 0 }
+                ?: with(density) { 120.dp.roundToPx() }
+            chapterSlideOffset.snapTo(direction * availableWidth * 0.18f)
+            chapterSlideOffset.animateTo(
+                targetValue = 0f,
+                animationSpec = tween(durationMillis = 220)
+            )
+        }
+    }
+
     LaunchedEffect(bookName) {
-        bookName?.let { loadChapter(it, selectedChapter) }
+        bookName?.let {
+            if (pendingTargetVerse.isNullOrBlank()) {
+                pendingScrollToTop = true
+            }
+            loadChapter(it, selectedChapter)
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -493,6 +536,7 @@ fun ReaderContent(
                 AppPreferencesSyncStore.KEY_SELECTED_BIBLE_VERSION -> {
                     val updatedVersion = AppPreferencesSyncStore.getSelectedBibleVersion(context)
                     if (updatedVersion != selectedVersionKey) {
+                        rememberCurrentVerseScroll()
                         selectedVersionKey = updatedVersion
                         bookName?.let { loadChapter(it, selectedChapter) }
                     }
@@ -509,6 +553,16 @@ fun ReaderContent(
     LaunchedEffect(verses, selectedChapter, bookName) {
         if (bookName.isNullOrBlank() || verses.isEmpty()) return@LaunchedEffect
 
+        pendingScrollRestoration?.let { (verse, offset) ->
+            val index = verses.indexOfFirst { it.first == verse }
+            if (index >= 0) {
+                lazyListState.scrollToItem(index, offset)
+            }
+            pendingScrollRestoration = null
+            pendingScrollToTop = false
+            return@LaunchedEffect
+        }
+
         val target = pendingTargetVerse
         if (!target.isNullOrBlank()) {
             val index = verses.indexOfFirst { it.first == target }
@@ -518,8 +572,9 @@ fun ReaderContent(
                 lazyListState.scrollToItem(0)
             }
             pendingTargetVerse = null
-        } else {
+        } else if (pendingScrollToTop) {
             lazyListState.scrollToItem(0)
+            pendingScrollToTop = false
         }
     }
 
@@ -530,8 +585,10 @@ fun ReaderContent(
             itemCount = chapterCount,
             onDismiss = { showDialog = false },
             onItemSelected = {
-                selectedChapter = it
-                loadChapter(bookName, it)
+                navigateToChapterWithAnimation(
+                    targetChapter = it,
+                    direction = if (it >= selectedChapter) 1 else -1
+                )
                 showDialog = false
             }
         )
@@ -552,8 +609,10 @@ fun ReaderContent(
                     }
                 },
                 onChapterClick = {
-                    selectedChapter = it
-                    bookName?.let { b -> loadChapter(b, it) }
+                    navigateToChapterWithAnimation(
+                        targetChapter = it,
+                        direction = if (it >= selectedChapter) 1 else -1
+                    )
                 },
                 onSearchIconClick = { navController.navigate(Screen.Search.route) },
                 onBookTitleClick = { showDialog = true },
@@ -584,6 +643,12 @@ fun ReaderContent(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
+                    .graphicsLayer {
+                        val width = size.width.takeIf { it > 0f } ?: 1f
+                        translationX = chapterSlideOffset.value
+                        alpha = 1f - (abs(chapterSlideOffset.value) / width * 0.45f)
+                            .coerceIn(0f, 0.35f)
+                    }
                     .pointerInput(bookName, selectedChapter, chapterCount) {
                         detectHorizontalDragGestures(
                             onHorizontalDrag = { _, dragAmount ->
@@ -596,13 +661,17 @@ fun ReaderContent(
                                 }
                                 when {
                                     horizontalDrag <= -40f && selectedChapter < chapterCount -> {
-                                        selectedChapter += 1
-                                        loadChapter(bookName, selectedChapter)
+                                        navigateToChapterWithAnimation(
+                                            targetChapter = selectedChapter + 1,
+                                            direction = 1
+                                        )
                                     }
 
                                     horizontalDrag >= 40f && selectedChapter > 1 -> {
-                                        selectedChapter -= 1
-                                        loadChapter(bookName, selectedChapter)
+                                        navigateToChapterWithAnimation(
+                                            targetChapter = selectedChapter - 1,
+                                            direction = -1
+                                        )
                                     }
                                 }
                                 horizontalDrag = 0f
@@ -612,7 +681,7 @@ fun ReaderContent(
                 state = lazyListState,
                 contentPadding = PaddingValues(16.dp)
             ) {
-                items(verses) { (verseNumber, verseText) ->
+                items(verses, key = { it.first }) { (verseNumber, verseText) ->
                     val chapterTitle = chapterTitles[verseNumber]
                     if (!chapterTitle.isNullOrBlank()) {
                         Text(
@@ -694,6 +763,7 @@ fun ReaderContent(
                     selectedText = selectedContext.ifBlank {
                         "${bookName ?: ""} $selectedChapter"
                     },
+                    currentUserName = currentUserName,
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .padding(20.dp)
@@ -765,6 +835,7 @@ fun ReaderContent(
                 versions = availableVersions,
                 selectedVersionKey = selectedVersionKey,
                 onVersionSelected = { selected ->
+                    rememberCurrentVerseScroll()
                     BibleRepository.setSelectedVersionKey(context, selected.key)
                     selectedVersionKey = selected.key
                     bookName?.let { loadChapter(it, selectedChapter) }

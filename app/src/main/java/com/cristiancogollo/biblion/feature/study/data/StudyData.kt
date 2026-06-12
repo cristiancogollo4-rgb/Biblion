@@ -81,8 +81,11 @@ sealed interface StudyBlockNode {
         val text: String = "",
         val parallelText: String = "",
         val role: String = "paragraph",
+        val textAlign: String = "start",
         val styles: List<TextStyleRange> = emptyList(),
-        val parallelStyles: List<TextStyleRange> = emptyList()
+        val parallelStyles: List<TextStyleRange> = emptyList(),
+        val embeddedBlocks: List<ColumnEmbeddedBlock> = emptyList(),
+        val parallelEmbeddedBlocks: List<ColumnEmbeddedBlock> = emptyList()
     ) : StudyBlockNode
 
     @Serializable
@@ -168,6 +171,16 @@ sealed interface StudyBlockNode {
         val collapsed: Boolean = false
     ) : StudyBlockNode
 }
+
+@Serializable
+data class ColumnEmbeddedBlock(
+    val blockId: String = CuidGenerator.create(),
+    val type: String = "note",
+    val title: String = "",
+    val text: String = "",
+    val collapsed: Boolean = false,
+    val position: Int = Int.MAX_VALUE
+)
 
 @Serializable
 data class TextStyleRange(

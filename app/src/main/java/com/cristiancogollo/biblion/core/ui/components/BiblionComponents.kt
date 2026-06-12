@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -41,6 +42,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ViewColumn
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -66,6 +68,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.TextUnit
@@ -160,6 +163,7 @@ fun BiblionAppDrawer(
     drawerState: DrawerState,
     isDarkTheme: Boolean,
     onToggleDarkTheme: (Boolean) -> Unit,
+    currentUserName: String? = null,
     currentUserEmail: String? = null,
     isAuthenticated: Boolean = false,
     onClose: () -> Unit,
@@ -234,17 +238,23 @@ fun BiblionAppDrawer(
             Icon(Icons.Default.AccountCircle, contentDescription = null, modifier = Modifier.size(80.dp))
             Text(
                 text = if (isAuthenticated) {
-                    stringResource(R.string.auth_account_title)
+                    currentUserName?.takeIf { it.isNotBlank() }
+                        ?: stringResource(R.string.auth_account_title)
                 } else {
                     stringResource(R.string.reader_label)
-                }
+                },
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 24.dp)
             )
             if (!currentUserEmail.isNullOrBlank()) {
                 Text(
                     text = currentUserEmail,
                     modifier = Modifier.padding(horizontal = 24.dp),
                     textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Spacer(modifier = Modifier.height(10.dp))
@@ -395,18 +405,32 @@ fun BookCard(bookName: String, onClick: () -> Unit) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Box(
+        BoxWithConstraints(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
+            val spacious = maxWidth >= 120.dp
+            val bookFontSize = when {
+                spacious && bookName.length >= 17 -> 12.sp
+                spacious && bookName.length >= 14 -> 13.sp
+                spacious -> 14.sp
+                bookName.length >= 17 -> 9.sp
+                bookName.length >= 14 -> 10.sp
+                bookName.length >= 11 -> 11.sp
+                else -> 12.sp
+            }
+
             Text(
                 text = bookName,
                 textAlign = TextAlign.Center,
-                fontSize = 12.sp,
+                fontSize = bookFontSize,
                 color = MaterialTheme.colorScheme.onSurface,
                 fontFamily = FontFamily.Serif,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(4.dp)
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                softWrap = false,
+                modifier = Modifier.padding(horizontal = 4.dp)
             )
         }
     }
@@ -480,6 +504,17 @@ fun BiblionReaderTopAppBar(
     onDecreaseFontSize: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val chapterListState = rememberLazyListState()
+
+    LaunchedEffect(selectedChapter, chapters) {
+        val selectedIndex = chapters.indexOf(selectedChapter)
+        if (selectedIndex >= 0) {
+            chapterListState.animateScrollToItem(
+                index = (selectedIndex - 2).coerceAtLeast(0)
+            )
+        }
+    }
+
     Column(
         modifier = modifier
             .background(MaterialTheme.colorScheme.surface)
@@ -541,6 +576,7 @@ fun BiblionReaderTopAppBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 8.dp),
+            state = chapterListState,
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -684,6 +720,9 @@ fun StudyEditorFloatingMenu(
     onUnderline: () -> Unit,
     onUppercase: () -> Unit,
     onLowercase: () -> Unit,
+    onAlignStart: () -> Unit,
+    onAlignCenter: () -> Unit,
+    onAlignEnd: () -> Unit,
     onTextColor: (Color) -> Unit,
     onBackgroundColor: (Color) -> Unit,
     onClearTextColor: () -> Unit,
@@ -759,6 +798,9 @@ fun StudyEditorFloatingMenu(
         onUnderline = onUnderline,
         onUppercase = onUppercase,
         onLowercase = onLowercase,
+        onAlignStart = onAlignStart,
+        onAlignCenter = onAlignCenter,
+        onAlignEnd = onAlignEnd,
         onTextColor = onTextColor,
         onBackgroundColor = onBackgroundColor,
         onCustomTextColor = { color ->
@@ -841,6 +883,9 @@ private fun StudyEditorFloatingBubble(
     onUnderline: () -> Unit,
     onUppercase: () -> Unit,
     onLowercase: () -> Unit,
+    onAlignStart: () -> Unit,
+    onAlignCenter: () -> Unit,
+    onAlignEnd: () -> Unit,
     onTextColor: (Color) -> Unit,
     onBackgroundColor: (Color) -> Unit,
     onCustomTextColor: (Color) -> Unit,
@@ -931,6 +976,9 @@ private fun StudyEditorFloatingBubble(
                     TextEditorGlyphButton("U", "Subrayado", hasSelection, textDecoration = TextDecoration.Underline, onClick = onUnderline)
                     TextEditorGlyphButton("AA", "Mayusculas", hasSelection, fontWeight = FontWeight.Bold, onClick = onUppercase)
                     TextEditorGlyphButton("aa", "Minusculas", hasSelection, onClick = onLowercase)
+                    TextEditorGlyphButton("|<", "Alinear izquierda", hasSelection, onClick = onAlignStart)
+                    TextEditorGlyphButton("||", "Centrar texto", hasSelection, onClick = onAlignCenter)
+                    TextEditorGlyphButton(">|", "Alinear derecha", hasSelection, onClick = onAlignEnd)
                     TextEditorGlyphButton("A+", "Aumentar texto", hasSelection, fontWeight = FontWeight.Bold, onClick = onIncreaseSize)
                     TextEditorGlyphButton("A-", "Reducir texto", hasSelection, fontWeight = FontWeight.Bold, onClick = onDecreaseSize)
                     TextEditorGlyphButton("Tx", "Limpiar formato", hasSelection, textDecoration = TextDecoration.LineThrough, onClick = onClearFormatting)

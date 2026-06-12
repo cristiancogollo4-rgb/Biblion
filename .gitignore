@@ -20,3 +20,5 @@ functions/.secret.local
 functions/node_modules/
 workers/**/.wrangler/
 workers/**/node_modules/
+biblion-web
+.codex-remote-attachments/

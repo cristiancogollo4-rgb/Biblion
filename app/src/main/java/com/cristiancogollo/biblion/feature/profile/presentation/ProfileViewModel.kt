@@ -125,16 +125,24 @@ class ProfileViewModel @JvmOverloads constructor(
                 repository.uploadProfilePhoto(context.applicationContext, uid, imageUri)
             }.onSuccess { photoUrl ->
                 _state.update { current ->
+                    val baseProfile = current.profile ?: BiblionUserProfile(
+                        uid = uid,
+                        correo = current.currentUser?.email.orEmpty(),
+                        nombres = current.nombres,
+                        apellidos = current.apellidos,
+                        alias = current.alias,
+                        avatarColor = current.avatarColor
+                    )
                     current.copy(
                         isUploadingAvatar = false,
-                        profile = current.profile?.copy(fotoPerfil = photoUrl)
+                        profile = baseProfile.copy(fotoPerfil = photoUrl)
                     )
                 }
             }.onFailure { throwable ->
                 _state.update {
                     it.copy(
                         isUploadingAvatar = false,
-                        errorMessage = throwable.message ?: "No se pudo subir la foto de perfil."
+                        errorMessage = throwable.localizedMessage ?: "No se pudo subir la foto de perfil."
                     )
                 }
             }
@@ -148,9 +156,17 @@ class ProfileViewModel @JvmOverloads constructor(
             runCatching { repository.clearProfilePhoto(uid) }
                 .onSuccess {
                     _state.update { current ->
+                        val baseProfile = current.profile ?: BiblionUserProfile(
+                            uid = uid,
+                            correo = current.currentUser?.email.orEmpty(),
+                            nombres = current.nombres,
+                            apellidos = current.apellidos,
+                            alias = current.alias,
+                            avatarColor = current.avatarColor
+                        )
                         current.copy(
                             isUploadingAvatar = false,
-                            profile = current.profile?.copy(fotoPerfil = null)
+                            profile = baseProfile.copy(fotoPerfil = null)
                         )
                     }
                 }

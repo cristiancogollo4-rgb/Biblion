@@ -1,13 +1,16 @@
 package com.cristiancogollo.biblion
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
@@ -46,6 +49,7 @@ fun BooksScreen(
     openInStudyMode: Boolean = false,
     isDarkTheme: Boolean = false,
     onToggleDarkTheme: (Boolean) -> Unit = {},
+    currentUserName: String? = null,
     currentUserEmail: String? = null,
     isAuthenticated: Boolean = false,
     showSignedOutDialog: Boolean = false,
@@ -56,6 +60,7 @@ fun BooksScreen(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     var selectedVersionKey by remember { mutableStateOf(BibleRepository.getSelectedVersionKey(context)) }
@@ -63,6 +68,7 @@ fun BooksScreen(
     var showVersionDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var showComingSoonDialog by remember { mutableStateOf(false) }
+    var testamentDrag by remember { mutableFloatStateOf(0f) }
 
     var currentSelectedTestamentArg by rememberSaveable { mutableStateOf(selectedTestament.toRouteArg()) }
     val currentSelectedTestament = Testament.fromRouteArg(currentSelectedTestamentArg)
@@ -76,6 +82,7 @@ fun BooksScreen(
     val booksToShow = remember(currentSelectedTestament) {
         if (currentSelectedTestament == Testament.OLD) oldTestamentBooks else newTestamentBooks
     }
+    val bookCardMinSize = if (configuration.screenWidthDp >= 600) 140.dp else 92.dp
     
     val title = stringResource(
         R.string.books_screen_title,
@@ -89,6 +96,7 @@ fun BooksScreen(
                 drawerState = drawerState,
                 isDarkTheme = isDarkTheme,
                 onToggleDarkTheme = onToggleDarkTheme,
+                currentUserName = currentUserName,
                 currentUserEmail = currentUserEmail,
                 isAuthenticated = isAuthenticated,
                 onClose = { scope.launch { drawerState.close() } },
@@ -125,6 +133,24 @@ fun BooksScreen(
                     .fillMaxSize()
                     .padding(innerPadding)
                     .background(MaterialTheme.colorScheme.surface)
+                    .pointerInput(currentSelectedTestament) {
+                        detectHorizontalDragGestures(
+                            onHorizontalDrag = { _, dragAmount ->
+                                testamentDrag += dragAmount
+                            },
+                            onDragEnd = {
+                                when {
+                                    testamentDrag <= -50f && currentSelectedTestament == Testament.OLD -> {
+                                        currentSelectedTestamentArg = Testament.NEW.toRouteArg()
+                                    }
+                                    testamentDrag >= 50f && currentSelectedTestament == Testament.NEW -> {
+                                        currentSelectedTestamentArg = Testament.OLD.toRouteArg()
+                                    }
+                                }
+                                testamentDrag = 0f
+                            }
+                        )
+                    }
             ) {
                 TestamentSelector(
                     selectedTab = currentSelectedTestament,
@@ -146,7 +172,7 @@ fun BooksScreen(
                 )
 
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(4),
+                    columns = GridCells.Adaptive(minSize = bookCardMinSize),
                     contentPadding = PaddingValues(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
