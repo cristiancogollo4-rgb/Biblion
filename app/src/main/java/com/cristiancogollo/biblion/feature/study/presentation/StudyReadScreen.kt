@@ -105,7 +105,7 @@ fun StudyReadScreen(
             TopAppBar(
                 title = { Text(state.title.ifBlank { "Sin titulo" }) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = { navController.popBackStackOrNavigateHome() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atras")
                     }
                 },

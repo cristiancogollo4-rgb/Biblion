@@ -91,6 +91,7 @@
     <string name="profile_update_title">Update profile</string>
     <string name="profile_update_profile">Update profile</string>
     <string name="profile_update_plan_future">Update plan</string>
+    <string name="profile_toggle_network_details">Show or hide profile details</string>
     <string name="close">Close</string>
 
     <string name="testament_old_label">Old Testament</string>

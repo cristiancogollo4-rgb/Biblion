@@ -91,6 +91,7 @@
     <string name="profile_update_title">Actualizar perfil</string>
     <string name="profile_update_profile">Actualizar perfil</string>
     <string name="profile_update_plan_future">Actualizar plan</string>
+    <string name="profile_toggle_network_details">Mostrar u ocultar detalles del perfil</string>
     <string name="close">Cerrar</string>
 
     <string name="testament_old_label">Antiguo Testamento</string>

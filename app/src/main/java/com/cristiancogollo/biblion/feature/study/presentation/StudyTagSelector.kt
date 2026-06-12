@@ -17,13 +17,13 @@ import androidx.compose.ui.unit.dp
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 
-private data class StudyTagGroup(
+internal data class StudyTagGroup(
     val title: String,
     val tags: List<String>,
     val singleSelection: Boolean = false
 )
 
-private val suggestedStudyTagGroups = listOf(
+internal val suggestedStudyTagGroups = listOf(
     StudyTagGroup(
         title = "Proposito",
         tags = listOf("predicacion", "devocional", "estudio-biblico", "clase", "discipulado", "formacion")

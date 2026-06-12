@@ -1,5 +1,10 @@
 package com.cristiancogollo.biblion
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -619,6 +624,108 @@ fun VerseActionsFloatingMenu(
     onAddCitation: (() -> Unit)?,
     onHighlight: (Int) -> Unit
 ) {
+    val popupOffset = if (anchorOffset == IntOffset.Zero) IntOffset(0, -32) else anchorOffset
+
+    Popup(
+        alignment = Alignment.BottomCenter,
+        offset = popupOffset,
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(
+            focusable = false,
+            dismissOnClickOutside = false
+        )
+    ) {
+        AnimatedVisibility(
+            visible = true,
+            enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut()
+        ) {
+            ElevatedCard(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .widthIn(max = 420.dp),
+                shape = RoundedCornerShape(24.dp),
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 12.dp),
+                colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text(
+                                text = "$selectedCount",
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.surface,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        ActionPill(icon = Icons.Default.CopyAll, label = "Copiar", onClick = onCopy)
+
+                        if (onAddCitation != null) {
+                            ActionPill(icon = Icons.Default.FormatQuote, label = "Citar", onClick = onAddCitation)
+                        }
+
+                        IconButton(onClick = onClearSelection, modifier = Modifier.size(36.dp)) {
+                            Icon(
+                                imageVector = Icons.Default.HighlightOff,
+                                contentDescription = "Limpiar",
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                            )
+                        }
+                    }
+
+                    if (showHighlightOptions) {
+                        HorizontalDivider(
+                            modifier = Modifier.width(60.dp).padding(vertical = 4.dp),
+                            color = BiblionGoldSoft.copy(alpha = 0.2f)
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            highlightPalette.forEachIndexed { index, color ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(26.dp)
+                                        .background(
+                                            color = if (index == 0) MaterialTheme.colorScheme.surface else color,
+                                            shape = RoundedCornerShape(13.dp)
+                                        )
+                                        .border(1.dp, BiblionGoldSoft.copy(alpha = 0.5f), RoundedCornerShape(13.dp))
+                                        .clickable { onHighlight(index) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LegacyVerseActionsFloatingMenu(
+    selectedCount: Int,
+    anchorOffset: IntOffset,
+    showHighlightOptions: Boolean,
+    highlightPalette: List<Color>,
+    onDismiss: () -> Unit,
+    onClearSelection: () -> Unit,
+    onCopy: () -> Unit,
+    onAddCitation: (() -> Unit)?,
+    onHighlight: (Int) -> Unit
+) {
     Popup(
         alignment = Alignment.BottomCenter,
         offset = IntOffset(0, -180), // Posición interactiva en la zona inferior-media
@@ -934,7 +1041,12 @@ private fun StudyEditorFloatingBubble(
         onDismissRequest = onDismiss,
         properties = PopupProperties(focusable = false)
     ) {
-        ElevatedCard(
+        AnimatedVisibility(
+            visible = true,
+            enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut()
+        ) {
+            ElevatedCard(
             modifier = Modifier
                 .onGloballyPositioned { coordinates ->
                     popupSize = coordinates.size
@@ -1065,6 +1177,7 @@ private fun StudyEditorFloatingBubble(
             }
         }
     }
+}
 }
 
 @Composable

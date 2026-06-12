@@ -52,6 +52,7 @@ data class StudyUiState(
     val globalVersion: String = "rv1960",
     val tags: List<String> = emptyList(),
     val isDraftMode: Boolean = false,
+    val isStudiesLoading: Boolean = true,
     val loadErrorMessage: String? = null
 )
 
@@ -212,7 +213,7 @@ class StudyViewModel @JvmOverloads constructor(
         }
         viewModelScope.launch {
             dao.observeAllStudies().collect { all ->
-                _state.value = _state.value.copy(allStudies = all)
+                _state.value = _state.value.copy(allStudies = all, isStudiesLoading = false)
             }
         }
     }

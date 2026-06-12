@@ -43,4 +43,16 @@ class ReaderCitationGroupingTest {
         assertEquals("Genesis 1:1-2", groups[0].reference)
         assertEquals("Genesis 1:4", groups[1].reference)
     }
+
+    @Test
+    fun selected_verse_range_positions_are_detected_for_visual_blocks() {
+        val selected = setOf(1, 2, 3, 5)
+
+        assertEquals(VerseSelectionRangePosition.Start, verseSelectionRangePosition("1", selected))
+        assertEquals(VerseSelectionRangePosition.Middle, verseSelectionRangePosition("2", selected))
+        assertEquals(VerseSelectionRangePosition.End, verseSelectionRangePosition("3", selected))
+        assertEquals(VerseSelectionRangePosition.Single, verseSelectionRangePosition("5", selected))
+        assertEquals(VerseSelectionRangePosition.None, verseSelectionRangePosition("4", selected))
+        assertEquals(VerseSelectionRangePosition.None, verseSelectionRangePosition("intro", selected))
+    }
 }

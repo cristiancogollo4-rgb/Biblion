@@ -4,11 +4,20 @@ import android.content.Intent
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -16,6 +25,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilePresent
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Search
@@ -30,9 +40,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -60,15 +73,26 @@ fun EnsenanzaScreen(navController: NavController) {
     var metadataTitle by remember { mutableStateOf("") }
     var metadataTagsInput by remember { mutableStateOf("") }
     var metadataError by remember { mutableStateOf<String?>(null) }
-    var filterInput by remember { mutableStateOf("") }
-    val visibleStudies = remember(state.allStudies, filterInput) {
-        val query = filterInput.trim().lowercase()
+    var titleFilterInput by remember { mutableStateOf("") }
+    var selectedTagFilters by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val studiesWithPreview = remember(state.allStudies) {
         state.allStudies.map { study ->
             study to buildStudyPreview(study.contentSerialized, json)
-        }.filter { (study, preview) ->
-            query.isBlank() ||
-                study.title.lowercase().contains(query) ||
-                preview.tags.any { tag -> tag.lowercase().contains(query) }
+        }
+    }
+    val tagFilterGroups = remember(studiesWithPreview) {
+        buildTeachingTagFilterGroups(studiesWithPreview.flatMap { (_, preview) -> preview.tags })
+    }
+    val visibleStudies = remember(studiesWithPreview, titleFilterInput, selectedTagFilters, tagFilterGroups) {
+        val titleQuery = titleFilterInput.trim().lowercase()
+        studiesWithPreview.filter { (study, preview) ->
+            val matchesTitle = titleQuery.isBlank() || study.title.lowercase().contains(titleQuery)
+            val matchesTags = matchesSelectedTeachingTags(
+                studyTags = preview.tags,
+                selectedTags = selectedTagFilters,
+                tagGroups = tagFilterGroups
+            )
+            matchesTitle && matchesTags
         }
     }
 
@@ -77,7 +101,7 @@ fun EnsenanzaScreen(navController: NavController) {
             TopAppBar(
                 title = { Text("Mis Enseñanzas", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = { navController.popBackStackOrNavigateHome() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 },
@@ -97,7 +121,9 @@ fun EnsenanzaScreen(navController: NavController) {
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
-        if (state.allStudies.isEmpty()) {
+        if (state.isStudiesLoading) {
+            TeachingListLoadingSkeleton(contentPadding = padding)
+        } else if (state.allStudies.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Text("No tienes enseñanzas guardadas aún.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f))
             }
@@ -108,22 +134,19 @@ fun EnsenanzaScreen(navController: NavController) {
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item {
-                    OutlinedTextField(
-                        value = filterInput,
-                        onValueChange = { filterInput = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        leadingIcon = {
-                            Icon(Icons.Default.Search, contentDescription = null)
+                    TeachingFilters(
+                        titleQuery = titleFilterInput,
+                        onTitleQueryChange = { titleFilterInput = it },
+                        tagGroups = tagFilterGroups,
+                        selectedTags = selectedTagFilters,
+                        onTagToggled = { tag ->
+                            selectedTagFilters = if (tag in selectedTagFilters) {
+                                selectedTagFilters - tag
+                            } else {
+                                selectedTagFilters + tag
+                            }
                         },
-                        label = { Text("Filtrar") },
-                        placeholder = { Text("Titulo o etiqueta") },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = BiblionNavy,
-                            unfocusedBorderColor = BiblionGoldPrimary,
-                            focusedLabelColor = BiblionNavy,
-                            cursorColor = BiblionNavy
-                        )
+                        onClearTags = { selectedTagFilters = emptySet() }
                     )
                 }
                 if (visibleStudies.isEmpty()) {
@@ -135,9 +158,11 @@ fun EnsenanzaScreen(navController: NavController) {
                         )
                     }
                 }
-                items(visibleStudies, key = { it.first.id }) { (study, _) ->
+                items(visibleStudies, key = { it.first.id }) { (study, preview) ->
                     EnsenanzaCard(
                         study = study,
+                        previewText = preview.content,
+                        tags = preview.tags,
                         dateText = dateFormat.format(Date(study.updatedAt)),
                         onOpen = {
                             navController.navigateSingleTop(Screen.StudyRead.createRoute(study.id))
@@ -254,8 +279,451 @@ fun EnsenanzaScreen(navController: NavController) {
 }
 
 @Composable
+private fun TeachingFilters(
+    titleQuery: String,
+    onTitleQueryChange: (String) -> Unit,
+    tagGroups: List<TeachingTagFilterGroup>,
+    selectedTags: Set<String>,
+    onTagToggled: (String) -> Unit,
+    onClearTags: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, BiblionGoldSoft.copy(alpha = 0.38f)),
+        tonalElevation = 1.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            OutlinedTextField(
+                value = titleQuery,
+                onValueChange = onTitleQueryChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                leadingIcon = {
+                    Icon(Icons.Default.Search, contentDescription = null)
+                },
+                label = { Text("Buscar por titulo") },
+                placeholder = { Text("Nombre de la ensenanza") },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = BiblionNavy,
+                    unfocusedBorderColor = BiblionGoldPrimary,
+                    focusedLabelColor = BiblionNavy,
+                    cursorColor = BiblionNavy
+                )
+            )
+
+            if (tagGroups.isNotEmpty()) {
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(end = 8.dp)
+                ) {
+                    items(tagGroups, key = { it.title }) { group ->
+                        TeachingTagFilterMenuButton(
+                            group = group,
+                            selectedTags = selectedTags,
+                            onTagToggled = onTagToggled
+                        )
+                    }
+                    if (selectedTags.isNotEmpty()) {
+                        item {
+                            TextButton(
+                                onClick = onClearTags,
+                                colors = ButtonDefaults.textButtonColors(contentColor = BiblionGoldPrimary)
+                            ) {
+                                Text("Limpiar")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TeachingTagFilterMenuButton(
+    group: TeachingTagFilterGroup,
+    selectedTags: Set<String>,
+    onTagToggled: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedCount = group.tags.count { it in selectedTags }
+    val hasSelection = selectedCount > 0
+
+    Box {
+        OutlinedButton(
+            onClick = { expanded = true },
+            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(
+                width = 1.dp,
+                color = if (hasSelection) BiblionGoldPrimary else BiblionGoldSoft.copy(alpha = 0.52f)
+            ),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = if (hasSelection) BiblionBluePrimary else MaterialTheme.colorScheme.surface,
+                contentColor = if (hasSelection) MaterialTheme.colorScheme.onPrimary else BiblionBluePrimary
+            ),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            Text(
+                text = if (hasSelection) "${group.title} ($selectedCount)" else group.title,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Icon(
+                imageVector = Icons.Default.ExpandMore,
+                contentDescription = null
+            )
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.heightIn(max = 320.dp),
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            group.tags.forEach { tag ->
+                val checked = tag in selectedTags
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = tag,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    onClick = { onTagToggled(tag) },
+                    leadingIcon = {
+                        Checkbox(
+                            checked = checked,
+                            onCheckedChange = null,
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = BiblionBluePrimary,
+                                uncheckedColor = BiblionGoldPrimary,
+                                checkmarkColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        )
+                    }
+                )
+            }
+        }
+    }
+}
+
+internal data class TeachingTagFilterGroup(
+    val title: String,
+    val tags: List<String>
+)
+
+internal fun buildTeachingTagFilterGroups(tags: List<String>): List<TeachingTagFilterGroup> {
+    val availableTags = tags
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinct()
+        .sorted()
+    val standardGroups = suggestedStudyTagGroups.map { group ->
+        TeachingTagFilterGroup(group.title, group.tags)
+    }
+    val customTags = availableTags.filterNot { tag ->
+        suggestedStudyTagGroups.any { group -> tag in group.tags }
+    }
+    return if (customTags.isEmpty()) {
+        standardGroups
+    } else {
+        standardGroups + TeachingTagFilterGroup("Personalizadas", customTags)
+    }
+}
+
+internal fun matchesSelectedTeachingTags(
+    studyTags: List<String>,
+    selectedTags: Set<String>,
+    tagGroups: List<TeachingTagFilterGroup>
+): Boolean {
+    if (selectedTags.isEmpty()) return true
+    val studyTagSet = studyTags.toSet()
+    val selectedByGroup = tagGroups.mapNotNull { group ->
+        group.tags.filter { it in selectedTags }.takeIf { it.isNotEmpty() }
+    }
+    val groupedSelectedTags = selectedByGroup.flatten().toSet()
+    val ungroupedSelectedTags = selectedTags - groupedSelectedTags
+    return selectedByGroup.all { groupSelectedTags ->
+        groupSelectedTags.any { it in studyTagSet }
+    } && ungroupedSelectedTags.all { it in studyTagSet }
+}
+
+@Composable
+private fun TeachingListLoadingSkeleton(contentPadding: PaddingValues) {
+    val transition = rememberInfiniteTransition(label = "teachings-shimmer")
+    val shimmerAlpha by transition.animateFloat(
+        initialValue = 0.28f,
+        targetValue = 0.72f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 950),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "teachings-shimmer-alpha"
+    )
+    val shimmerBrush = Brush.linearGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+            BiblionGoldSoft.copy(alpha = 0.12f + shimmerAlpha * 0.18f),
+            BiblionBluePrimary.copy(alpha = 0.06f + shimmerAlpha * 0.12f)
+        )
+    )
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(contentPadding),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            ShimmerBlock(
+                brush = shimmerBrush,
+                height = 56.dp,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        repeat(4) {
+            item {
+                TeachingCardSkeleton(brush = shimmerBrush)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TeachingCardSkeleton(brush: Brush) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ShimmerBlock(brush = brush, height = 20.dp, modifier = Modifier.fillMaxWidth(0.72f))
+                ShimmerBlock(brush = brush, height = 14.dp, modifier = Modifier.fillMaxWidth(0.44f))
+            }
+            ShimmerBlock(brush = brush, height = 40.dp, modifier = Modifier.width(40.dp))
+        }
+    }
+}
+
+@Composable
+private fun ShimmerBlock(
+    brush: Brush,
+    height: Dp,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .height(height)
+            .clip(RoundedCornerShape(8.dp))
+            .background(brush)
+    )
+}
+
+@Composable
 fun EnsenanzaCard(
     study: StudyEntity,
+    previewText: String = "",
+    tags: List<String> = emptyList(),
+    dateText: String,
+    onOpen: () -> Unit,
+    onEdit: () -> Unit,
+    onEditMetadata: () -> Unit,
+    onShareText: () -> Unit,
+    onShareBiblion: () -> Unit,
+    onSharePdf: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onOpen() }
+        ) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .fillMaxHeight()
+                        .width(6.dp)
+                        .background(BiblionGoldPrimary)
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = 20.dp,
+                        top = 16.dp,
+                        end = 16.dp,
+                        bottom = 16.dp
+                    ),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = study.title.ifBlank { "Sin titulo" },
+                            style = MaterialTheme.typography.titleLarge,
+                            color = BiblionBluePrimary,
+                            fontWeight = FontWeight.Black,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "Ultima edicion: $dateText",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                        )
+                    }
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "Mas opciones",
+                                tint = BiblionBluePrimary
+                            )
+                        }
+                        TeachingActionsMenu(
+                            expanded = menuExpanded,
+                            onDismiss = { menuExpanded = false },
+                            onEdit = onEdit,
+                            onEditMetadata = onEditMetadata,
+                            onShareText = onShareText,
+                            onShareBiblion = onShareBiblion,
+                            onSharePdf = onSharePdf,
+                            onDelete = onDelete
+                        )
+                    }
+                }
+
+                if (previewText.isNotBlank()) {
+                    Text(
+                        text = previewText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                if (tags.isNotEmpty()) {
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        contentPadding = PaddingValues(end = 8.dp)
+                    ) {
+                        items(tags, key = { it }) { tag ->
+                            TeachingTagChip(tag)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TeachingActionsMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    onEdit: () -> Unit,
+    onEditMetadata: () -> Unit,
+    onShareText: () -> Unit,
+    onShareBiblion: () -> Unit,
+    onSharePdf: () -> Unit,
+    onDelete: () -> Unit
+) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        offset = DpOffset(x = 0.dp, y = 6.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            IconButton(onClick = { onDismiss(); onEdit() }) {
+                Icon(Icons.Default.Edit, contentDescription = "Editar", tint = BiblionGoldPrimary)
+            }
+            IconButton(onClick = { onDismiss(); onEditMetadata() }) {
+                Icon(Icons.Default.Settings, contentDescription = "Configurar", tint = BiblionGoldPrimary)
+            }
+            IconButton(onClick = { onDismiss(); onShareText() }) {
+                Icon(Icons.Default.Share, contentDescription = "Compartir texto", tint = BiblionGoldPrimary)
+            }
+            IconButton(onClick = { onDismiss(); onShareBiblion() }) {
+                Icon(Icons.Default.FilePresent, contentDescription = "Compartir archivo Biblion", tint = BiblionGoldPrimary)
+            }
+            IconButton(onClick = { onDismiss(); onSharePdf() }) {
+                Icon(Icons.Default.PictureAsPdf, contentDescription = "Exportar PDF", tint = BiblionGoldPrimary)
+            }
+            IconButton(onClick = { onDismiss(); onDelete() }) {
+                Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = BiblionGoldPrimary)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TeachingTagChip(tag: String) {
+    Surface(
+        modifier = Modifier.widthIn(max = 120.dp),
+        color = BiblionBluePrimary.copy(alpha = 0.08f),
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, BiblionGoldSoft.copy(alpha = 0.42f))
+    ) {
+        Text(
+            text = tag,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = BiblionBluePrimary,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun LegacyEnsenanzaCard(
+    study: StudyEntity,
+    previewText: String = "",
+    tags: List<String> = emptyList(),
     dateText: String,
     onOpen: () -> Unit,
     onEdit: () -> Unit,
@@ -688,7 +1156,8 @@ private data class StudyPreview(
 private fun buildStudyPreview(serialized: String, json: Json): StudyPreview {
     val doc = runCatching { json.decodeFromString<SerializedStudyDocument>(serialized) }.getOrNull()
     val html = doc?.blocks?.filterIsInstance<StudyBlockNode.RichText>()?.firstOrNull()?.html.orEmpty()
-    val plainContent = html
+    val structuredContent = doc?.blocks.orEmpty().toVerticalShareText()
+    val plainContent = structuredContent.ifBlank { html }
         .replace(Regex("<[^>]*>"), " ")
         .replace("&nbsp;", " ")
         .replace(Regex("\\s+"), " ")

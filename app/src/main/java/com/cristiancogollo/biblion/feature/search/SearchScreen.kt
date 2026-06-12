@@ -140,7 +140,7 @@ fun SearchScreen(navController: NavController) {
             TopAppBar(
                 title = { Text(stringResource(R.string.search_title)) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = { navController.popBackStackOrNavigateHome() }) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.cd_back)

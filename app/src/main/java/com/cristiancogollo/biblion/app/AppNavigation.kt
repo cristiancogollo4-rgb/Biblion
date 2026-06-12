@@ -218,7 +218,7 @@ fun AppNavigation(
             if (!authState.isAuthenticated) {
                 LaunchedEffect(Unit) {
                     openAuthDialog(AuthDialogMode.LOGIN)
-                    navController.popBackStack()
+                    navController.popBackStackOrNavigateHome()
                 }
             } else {
                 ProfileScreen(
@@ -271,14 +271,14 @@ fun AppNavigation(
         composable(Screen.Login.route) {
             LaunchedEffect(Unit) {
                 openAuthDialog(AuthDialogMode.LOGIN)
-                navController.popBackStack()
+                navController.popBackStackOrNavigateHome()
             }
         }
 
         composable(Screen.Register.route) {
             LaunchedEffect(Unit) {
                 openAuthDialog(AuthDialogMode.REGISTER)
-                navController.popBackStack()
+                navController.popBackStackOrNavigateHome()
             }
         }
 

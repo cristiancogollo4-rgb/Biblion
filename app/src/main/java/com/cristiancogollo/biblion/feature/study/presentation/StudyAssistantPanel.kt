@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -292,7 +293,7 @@ private fun StudyAssistantPanel(
                         Image(
                             painter = painterResource(id = R.drawable.bibi_logo),
                             contentDescription = null,
-                            modifier = Modifier.padding(1.dp),
+                            modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Fit
                         )
                     }
@@ -385,7 +386,12 @@ private fun StudyAssistantLoadingBubble() {
         Surface(
             modifier = Modifier.fillMaxWidth(0.72f),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f),
-            shape = RoundedCornerShape(8.dp)
+            shape = RoundedCornerShape(
+                topStart = 16.dp,
+                topEnd = 16.dp,
+                bottomStart = 0.dp,
+                bottomEnd = 16.dp
+            )
         ) {
             Row(
                 modifier = Modifier.padding(10.dp),
@@ -419,6 +425,21 @@ private fun StudyAssistantMessageBubble(
     } else {
         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f)
     }
+    val bubbleShape = if (isUser) {
+        RoundedCornerShape(
+            topStart = 16.dp,
+            topEnd = 16.dp,
+            bottomStart = 16.dp,
+            bottomEnd = 0.dp
+        )
+    } else {
+        RoundedCornerShape(
+            topStart = 16.dp,
+            topEnd = 16.dp,
+            bottomStart = 0.dp,
+            bottomEnd = 16.dp
+        )
+    }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -427,7 +448,7 @@ private fun StudyAssistantMessageBubble(
         Surface(
             modifier = Modifier.fillMaxWidth(if (isUser) 0.86f else 0.94f),
             color = bubbleColor,
-            shape = RoundedCornerShape(8.dp)
+            shape = bubbleShape
         ) {
             Text(
                 text = message.text,

@@ -33,6 +33,10 @@ import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -170,7 +174,7 @@ fun ReaderScreen(
                     currentUserName = currentUserName,
                     onClose = {
                         // Al hacer popBackStack, el DisposableEffect de arriba se encargará de la orientación
-                        navController.popBackStack()
+                        navController.popBackStackOrNavigateHome()
                     }
                 )
             }
@@ -281,6 +285,31 @@ data class CitationVerseGroup(
     val reference: String,
     val text: String
 )
+
+enum class VerseSelectionRangePosition {
+    None,
+    Single,
+    Start,
+    Middle,
+    End
+}
+
+internal fun verseSelectionRangePosition(
+    verseNumber: String,
+    selectedVerseNumbers: Set<Int>
+): VerseSelectionRangePosition {
+    val number = verseNumber.toIntOrNull() ?: return VerseSelectionRangePosition.None
+    if (number !in selectedVerseNumbers) return VerseSelectionRangePosition.None
+
+    val hasPrevious = (number - 1) in selectedVerseNumbers
+    val hasNext = (number + 1) in selectedVerseNumbers
+    return when {
+        !hasPrevious && !hasNext -> VerseSelectionRangePosition.Single
+        !hasPrevious && hasNext -> VerseSelectionRangePosition.Start
+        hasPrevious && hasNext -> VerseSelectionRangePosition.Middle
+        else -> VerseSelectionRangePosition.End
+    }
+}
 
 private fun formatCitationVerseText(number: Int, text: String): String = "$number ${text.trim()}"
 
@@ -602,9 +631,8 @@ fun ReaderContent(
                 selectedChapter = selectedChapter,
                 fontSize = fontSize,
                 onNavigationIconClick = {
-                    if (!isStudyModeActive) {
-                        navController.popBackStack()
-                    } else if (!navController.popBackStack()) {
+                    val popped = navController.popBackStackOrNavigateHome()
+                    if (isStudyModeActive && !popped) {
                         context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                     }
                 },
@@ -640,6 +668,9 @@ fun ReaderContent(
                     floatingButtonOffset = boundedFloatingButtonOffset(floatingButtonOffset)
                 }
         ) {
+            val selectedVerseNumbers = remember(selectedVerseActions) {
+                selectedVerseActions.keys.mapNotNull { it.toIntOrNull() }.toSet()
+            }
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -700,6 +731,10 @@ fun ReaderContent(
                         fontSize = fontSize,
                         highlightColor = highlightPalette[verseHighlights[verseNumber] ?: 0],
                         isSelected = selectedVerseActions.containsKey(verseNumber),
+                        selectionRangePosition = verseSelectionRangePosition(
+                            verseNumber = verseNumber,
+                            selectedVerseNumbers = selectedVerseNumbers
+                        ),
                         isSelectionMode = selectedVerseActions.isNotEmpty(),
                         onShowActions = {
                             selectedVerseActions = if (selectedVerseActions.containsKey(verseNumber)) {
@@ -870,18 +905,59 @@ fun VerseItem(
     fontSize: TextUnit,
     highlightColor: Color,
     isSelected: Boolean,
+    selectionRangePosition: VerseSelectionRangePosition = VerseSelectionRangePosition.None,
     isSelectionMode: Boolean,
     onShowActions: () -> Unit,
     onToggleSelection: () -> Unit
 ) {
+    val isRangeSelected = isSelected && selectionRangePosition != VerseSelectionRangePosition.None
+    val selectedShape = when (selectionRangePosition) {
+        VerseSelectionRangePosition.Start -> RoundedCornerShape(
+            topStart = 8.dp,
+            topEnd = 8.dp,
+            bottomStart = 2.dp,
+            bottomEnd = 2.dp
+        )
+        VerseSelectionRangePosition.Middle -> RoundedCornerShape(2.dp)
+        VerseSelectionRangePosition.End -> RoundedCornerShape(
+            topStart = 2.dp,
+            topEnd = 2.dp,
+            bottomStart = 8.dp,
+            bottomEnd = 8.dp
+        )
+        else -> RoundedCornerShape(8.dp)
+    }
+    val bottomPadding = when (selectionRangePosition) {
+        VerseSelectionRangePosition.Start,
+        VerseSelectionRangePosition.Middle -> 2.dp
+        else -> 12.dp
+    }
+    val containerColor = if (isRangeSelected) {
+        BiblionBluePrimary.copy(alpha = 0.14f)
+    } else {
+        highlightColor
+    }
+    val sideBarColor = BiblionGoldPrimary
+
     Text(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 12.dp)
+            .padding(bottom = bottomPadding)
             .background(
-                if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else highlightColor,
-                RoundedCornerShape(8.dp)
+                color = containerColor,
+                shape = selectedShape
             )
+            .drawBehind {
+                if (isRangeSelected) {
+                    val width = 4.dp.toPx()
+                    drawRoundRect(
+                        color = sideBarColor,
+                        topLeft = Offset.Zero,
+                        size = Size(width = width, height = size.height),
+                        cornerRadius = CornerRadius(width / 2f, width / 2f)
+                    )
+                }
+            }
             .combinedClickable(onClick = onToggleSelection, onLongClick = onShowActions)
             .onPreviewKeyEvent { keyEvent ->
                 if (
@@ -899,7 +975,12 @@ fun VerseItem(
                 }
             }
             .focusable()
-            .padding(8.dp),
+            .padding(
+                start = if (isRangeSelected) 14.dp else 8.dp,
+                top = 8.dp,
+                end = 8.dp,
+                bottom = 8.dp
+            ),
         text = buildAnnotatedString {
             withStyle(
                 style = SpanStyle(

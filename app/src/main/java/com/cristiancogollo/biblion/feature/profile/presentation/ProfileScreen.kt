@@ -4,6 +4,11 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -11,7 +16,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,9 +34,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,6 +66,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
@@ -71,6 +80,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.URL
@@ -106,7 +117,7 @@ fun ProfileScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.profile_title)) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = { navController.popBackStackOrNavigateHome() }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.cd_back)
@@ -359,6 +370,7 @@ private fun ProfileIdentityPanel(
         .filter { it.isNotBlank() }
         .joinToString(" ")
         .ifBlank { uiState.alias.ifBlank { stringResource(R.string.profile_alias_placeholder) } }
+    val identityTextColor = Color.White
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) onProfilePhotoSelected(uri)
     }
@@ -368,8 +380,8 @@ private fun ProfileIdentityPanel(
             .fillMaxWidth()
             .widthIn(max = 980.dp),
         shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        color = BiblionBluePrimary,
+        border = BorderStroke(1.dp, BiblionGoldSoft.copy(alpha = 0.62f))
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
@@ -379,7 +391,7 @@ private fun ProfileIdentityPanel(
                 text = stringResource(R.string.profile_public_identity),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+                color = BiblionGoldSoft
             )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -398,6 +410,7 @@ private fun ProfileIdentityPanel(
                         text = fullName,
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
+                        color = identityTextColor,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -405,28 +418,28 @@ private fun ProfileIdentityPanel(
                         text = "@${uiState.alias.ifBlank { stringResource(R.string.profile_alias_placeholder) }}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = BiblionBluePrimary,
+                        color = BiblionGoldSoft,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = uiState.profile?.correo ?: uiState.currentUser?.email.orEmpty(),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+                        color = identityTextColor.copy(alpha = 0.72f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = uiState.biografia.ifBlank { stringResource(R.string.profile_biography_empty) },
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f),
+                        color = identityTextColor.copy(alpha = 0.86f),
                         maxLines = 3,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
             }
 
-            ProfileCompletionMeter(uiState)
+            ProfileCompletionMeter(uiState, onDarkSurface = true)
 
             if (showProfileActions) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -460,7 +473,10 @@ private fun ProfileIdentityPanel(
 }
 
 @Composable
-private fun ProfileCompletionMeter(uiState: ProfileUiState) {
+private fun ProfileCompletionMeter(
+    uiState: ProfileUiState,
+    onDarkSurface: Boolean = false
+) {
     val completed = listOf(
         uiState.nombres.isNotBlank(),
         uiState.apellidos.isNotBlank(),
@@ -469,6 +485,9 @@ private fun ProfileCompletionMeter(uiState: ProfileUiState) {
     ).count { it }
     val progress = completed / 4f
     val percent = (progress * 100).toInt()
+    val textColor = if (onDarkSurface) Color.White else MaterialTheme.colorScheme.onSurface
+    val accentColor = if (onDarkSurface) BiblionGoldSoft else BiblionBluePrimary
+    val trackColor = if (onDarkSurface) Color.White.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surfaceVariant
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
@@ -479,12 +498,13 @@ private fun ProfileCompletionMeter(uiState: ProfileUiState) {
             Text(
                 text = stringResource(R.string.profile_completion_title),
                 style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = textColor
             )
             Text(
                 text = stringResource(R.string.profile_completion_percent, percent),
                 style = MaterialTheme.typography.labelLarge,
-                color = BiblionBluePrimary,
+                color = accentColor,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -494,8 +514,8 @@ private fun ProfileCompletionMeter(uiState: ProfileUiState) {
                 .fillMaxWidth()
                 .height(6.dp)
                 .clip(RoundedCornerShape(50)),
-            color = BiblionBluePrimary,
-            trackColor = MaterialTheme.colorScheme.surfaceVariant
+            color = accentColor,
+            trackColor = trackColor
         )
     }
 }
@@ -505,6 +525,7 @@ private fun ProfileNetworkPanel(
     uiState: ProfileUiState,
     modifier: Modifier = Modifier
 ) {
+    var detailsExpanded by remember { mutableStateOf(true) }
     val profile = uiState.profile
     val role = profile?.rol ?: "LECTOR"
     val publisherStatus = profile?.estadoPublicador ?: "NO_APROBADO"
@@ -526,40 +547,64 @@ private fun ProfileNetworkPanel(
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = stringResource(R.string.profile_network_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = statusMessage,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.76f)
-                )
-            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Top
             ) {
-                ProfileStatusChip(
-                    label = stringResource(R.string.profile_role),
-                    value = role,
-                    modifier = Modifier.weight(1f)
-                )
-                ProfileStatusChip(
-                    label = stringResource(R.string.profile_plan),
-                    value = plan,
-                    modifier = Modifier.weight(1f)
-                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.profile_network_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = statusMessage,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.76f)
+                    )
+                }
+                IconButton(onClick = { detailsExpanded = !detailsExpanded }) {
+                    Icon(
+                        imageVector = if (detailsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = stringResource(R.string.profile_toggle_network_details)
+                    )
+                }
             }
-            ProfileStatusChip(
-                label = stringResource(R.string.profile_publisher_status),
-                value = publisherStatus,
-                modifier = Modifier.fillMaxWidth()
-            )
+
+            AnimatedVisibility(
+                visible = detailsExpanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        ProfileStatusChip(
+                            label = stringResource(R.string.profile_role),
+                            value = role,
+                            modifier = Modifier.weight(1f)
+                        )
+                        ProfileStatusChip(
+                            label = stringResource(R.string.profile_plan),
+                            value = plan,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    ProfileStatusChip(
+                        label = stringResource(R.string.profile_publisher_status),
+                        value = publisherStatus,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
         }
     }
 }
@@ -644,14 +689,31 @@ private fun ProfileAvatar(
     avatarColor: Color,
     isUploading: Boolean
 ) {
+    val avatarGradient = Brush.linearGradient(
+        colors = listOf(
+            avatarColor,
+            avatarColor.copy(alpha = 0.72f),
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.34f)
+        )
+    )
     Surface(
         modifier = Modifier
-            .size(108.dp)
-            .clip(CircleShape),
+            .size(112.dp)
+            .clip(CircleShape)
+            .border(
+                width = 2.dp,
+                color = BiblionGoldSoft.copy(alpha = 0.86f),
+                shape = CircleShape
+            ),
         shape = CircleShape,
-        color = avatarColor
+        color = Color.Transparent
     ) {
-        Box(contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(avatarGradient),
+            contentAlignment = Alignment.Center
+        ) {
             if (!photoUrl.isNullOrBlank()) {
                 RemoteProfileImage(
                     url = photoUrl,
@@ -661,7 +723,7 @@ private fun ProfileAvatar(
                 Icon(
                     imageVector = Icons.Default.AccountCircle,
                     contentDescription = null,
-                    modifier = Modifier.size(112.dp),
+                    modifier = Modifier.size(118.dp),
                     tint = Color.White
                 )
             }
@@ -855,24 +917,22 @@ private fun ProfileMetricsPanel(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
                 )
             }
-            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                val columns = if (maxWidth >= 720.dp) 3 else 2
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    metrics.chunked(columns).forEach { rowMetrics ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            rowMetrics.forEach { metric ->
-                                ProfileMetricCard(
-                                    label = metric.label,
-                                    value = metric.value,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                            repeat(columns - rowMetrics.size) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
+            val columns = 2
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                metrics.chunked(columns).forEach { rowMetrics ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        rowMetrics.forEach { metric ->
+                            ProfileMetricCard(
+                                label = metric.label,
+                                value = metric.value,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        repeat(columns - rowMetrics.size) {
+                            Spacer(modifier = Modifier.weight(1f))
                         }
                     }
                 }
@@ -887,26 +947,30 @@ private fun ProfileMetricCard(
     value: Int,
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    ElevatedCard(
         modifier = modifier.defaultMinSize(minHeight = 82.dp),
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f)
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = BiblionBluePrimary.copy(alpha = 0.06f)
+        )
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             Text(
                 text = value.toString(),
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Black,
-                color = BiblionBluePrimary
+                color = BiblionGoldPrimary
             )
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.74f)

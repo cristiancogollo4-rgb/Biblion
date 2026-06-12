@@ -95,6 +95,7 @@ fun HomeScreen(
 
     ModalNavigationDrawer(
         drawerState = drawerState,
+        gesturesEnabled = drawerState.isOpen,
         drawerContent = {
             BiblionAppDrawer(
                 drawerState = drawerState,

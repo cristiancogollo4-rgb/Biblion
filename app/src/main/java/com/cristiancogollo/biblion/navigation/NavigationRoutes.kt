@@ -66,6 +66,14 @@ fun NavController.navigateSingleTop(route: String) {
     }
 }
 
+fun NavController.popBackStackOrNavigateHome(): Boolean {
+    val popped = popBackStack()
+    if (!popped) {
+        navigateSingleTop(Screen.Home.route)
+    }
+    return popped
+}
+
 fun NavController.navigateTopLevel(route: String) {
     navigate(route) {
         popUpTo(graph.startDestinationId) {

@@ -68,6 +68,7 @@ Biblion ya incluye:
 - Cada pantalla debe mantener responsabilidad clara: render, estado local minimo y eventos UI.
 - La logica de negocio debe vivir en ViewModel, repositorios o helpers testeables.
 - Respetar `BiblionTheme` y `MaterialTheme`.
+- Mantener siempre la identidad visual de Biblion: azul, dorado y blanco en modo claro y oscuro. No activar colores dinamicos del sistema ni paletas ajenas que reemplacen la marca.
 - Usar componentes compartidos cuando aplique, por ejemplo `BiblionComponents` y `StudyTagSelector`.
 - Textos visibles nuevos deberian ir a `res/values/strings.xml` y `values-es` cuando el cambio lo amerite.
 - Mantener accesibilidad basica: `contentDescription` en iconos accionables.
