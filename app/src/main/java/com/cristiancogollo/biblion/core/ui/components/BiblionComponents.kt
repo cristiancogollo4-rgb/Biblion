@@ -321,12 +321,13 @@ private fun DarkModeMenuItem(
 @Composable
 fun TestamentSelector(
     selectedTab: Testament?,
-    onTabSelected: (Testament) -> Unit
+    onTabSelected: (Testament) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val tabs = listOf(Testament.OLD, Testament.NEW)
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(16.dp)
             .height(50.dp)
@@ -363,10 +364,11 @@ fun TestamentSelector(
 fun DailyVerseCard(
     verse: String,
     reference: String,
+    modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null
 ) {
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .then(
@@ -400,9 +402,13 @@ fun DailyVerseCard(
 
 // 4. BookCard: Representa un libro en la cuadrícula
 @Composable
-fun BookCard(bookName: String, onClick: () -> Unit) {
+fun BookCard(
+    bookName: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Card(
-        modifier = Modifier
+        modifier = modifier
             .aspectRatio(1f)
             .fillMaxWidth()
             .clickable(onClick = onClick),
@@ -507,7 +513,8 @@ fun BiblionReaderTopAppBar(
     onBookTitleClick: () -> Unit,
     onIncreaseFontSize: () -> Unit,
     onDecreaseFontSize: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    chapterSelectorModifier: Modifier = Modifier
 ) {
     val chapterListState = rememberLazyListState()
 
@@ -578,7 +585,7 @@ fun BiblionReaderTopAppBar(
 
         // Fila horizontal de capítulos
         LazyRow(
-            modifier = Modifier
+            modifier = chapterSelectorModifier
                 .fillMaxWidth()
                 .padding(bottom = 8.dp),
             state = chapterListState,

@@ -6,7 +6,7 @@ El proyecto esta en desarrollo activo. La experiencia visual, los flujos de estu
 
 ---
 
-## Estado actual
+## Estado actual (v0.9.0 - Jun 2026)
 
 Biblion ya cuenta con:
 
@@ -16,11 +16,12 @@ Biblion ya cuenta con:
 - Selector de version biblica.
 - Resaltado de versiculos.
 - Preferencias de lectura, incluyendo tamano de fuente.
-- Modo claro/oscuro global.
+- Modo claro/oscuro global (tema claro por defecto en primera instalacion).
 - Autenticacion con Firebase Auth, incluyendo inicio de sesion con Google.
 - Sincronizacion con Firestore para preferencias, resaltados, estudios y citas.
 - Perfil de usuario con datos reales, alias, biografia, foto o avatar de color.
 - Perfil con panel principal de identidad, metricas y edicion agrupada en un solo boton.
+- **Reiniciar tutorial de lectura** desde el perfil.
 - Base inicial para la red de Biblion sobre Firebase/Firestore.
 - Modo estudio con editor estructurado.
 - Gestion de "Mis ensenanzas".
@@ -28,6 +29,7 @@ Biblion ya cuenta con:
 - Sistema de etiquetas sugeridas y validacion de metadata.
 - Filtros de ensenanzas por titulo o etiquetas.
 - Bibi, asistente biblica online integrada al lector y al modo estudio.
+- **Tutorial guiado interactivo** con Bibi (auto-inicio en primera instalacion, logo de Bibi, scroll en textos largos).
 
 ---
 
@@ -44,6 +46,7 @@ Biblion ya cuenta con:
 - Seleccion multiple de versiculos.
 - Resaltado por color.
 - Insercion de citas al modo estudio.
+- **Tutorial guiado**: Bibi acompaña en primera instalacion con auto-scroll a versiculo 1, target ampliado (primeros 3 versiculos), y burbuja con logo de Bibi.
 
 ### Citas por rango
 

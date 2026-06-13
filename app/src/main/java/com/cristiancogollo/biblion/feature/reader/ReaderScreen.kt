@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.focusable
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -122,7 +124,12 @@ fun ReaderScreen(
     initialStudyId: Long? = null,
     isDarkTheme: Boolean = false,
     onToggleDarkTheme: (Boolean) -> Unit = {},
-    currentUserName: String? = null
+    currentUserName: String? = null,
+    guidedTutorial: GuidedTutorialProgress? = null,
+    onGuidedTutorialNext: () -> Unit = {},
+    onGuidedTutorialSkip: () -> Unit = {},
+    onGuidedTutorialRestart: () -> Unit = {},
+    onGuidedTutorialTargetAction: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -187,7 +194,12 @@ fun ReaderScreen(
             viewModel = studyViewModel,
             initialChapter = initialChapter,
             targetVerse = targetVerse,
-            currentUserName = currentUserName
+            currentUserName = currentUserName,
+            guidedTutorial = guidedTutorial,
+            onGuidedTutorialNext = onGuidedTutorialNext,
+            onGuidedTutorialSkip = onGuidedTutorialSkip,
+            onGuidedTutorialRestart = onGuidedTutorialRestart,
+            onGuidedTutorialTargetAction = onGuidedTutorialTargetAction
         )
     }
 }
@@ -239,7 +251,9 @@ private fun StudyModeNavigation(
                 isStudyModeActive = true,
                 viewModel = studyViewModel,
                 initialChapter = initialChapter,
-                targetVerse = targetVerse
+                targetVerse = targetVerse,
+                guidedTutorial = null,
+                onGuidedTutorialTargetAction = {}
             )
         }
         composable(
@@ -265,7 +279,9 @@ private fun StudyModeNavigation(
                 isStudyModeActive = true,
                 viewModel = studyViewModel,
                 initialChapter = initialChapter,
-                targetVerse = targetVerse
+                targetVerse = targetVerse,
+                guidedTutorial = null,
+                onGuidedTutorialTargetAction = {}
             )
         }
     }
@@ -379,7 +395,12 @@ fun ReaderContent(
     viewModel: StudyViewModel,
     initialChapter: Int = 1,
     targetVerse: String? = null,
-    currentUserName: String? = null
+    currentUserName: String? = null,
+    guidedTutorial: GuidedTutorialProgress? = null,
+    onGuidedTutorialNext: () -> Unit = {},
+    onGuidedTutorialSkip: () -> Unit = {},
+    onGuidedTutorialRestart: () -> Unit = {},
+    onGuidedTutorialTargetAction: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -422,6 +443,10 @@ fun ReaderContent(
             entryTtlMillis = 2 * 60 * 1000
         )
     }
+    val guidedStep = guidedTutorial
+        ?.currentStep()
+        ?.takeIf { it.screenTarget == GuidedTutorialScreenTarget.READER }
+    val tutorialTargetBounds = remember { mutableStateMapOf<String, Rect>() }
 
     fun boundedFloatingButtonOffset(offset: IntOffset, size: IntSize = floatingButtonSize): IntOffset {
         if (size == IntSize.Zero || readerContainerSize == IntSize.Zero) return offset
@@ -607,6 +632,15 @@ fun ReaderContent(
         }
     }
 
+    // Auto-scroll to verse 1 when highlight tutorial step becomes active
+    LaunchedEffect(guidedStep?.targetKey, verses) {
+        val isHighlightStep = guidedStep?.targetKey == GuidedTutorialTargets.READER_FIRST_VERSE
+        if (isHighlightStep && verses.isNotEmpty()) {
+            Log.d("GUIDE_DEBUG", "Auto-scrolling to verse 1 for highlight step")
+            lazyListState.animateScrollToItem(0)
+        }
+    }
+
     if (showDialog && bookName != null) {
         BiblionSelectionDialog(
             title = "Capítulo",
@@ -623,42 +657,48 @@ fun ReaderContent(
         )
     }
 
-    Scaffold(
-        topBar = {
-            BiblionReaderTopAppBar(
-                bookName = bookName ?: "",
-                chapters = (1..chapterCount).toList(),
-                selectedChapter = selectedChapter,
-                fontSize = fontSize,
-                onNavigationIconClick = {
-                    val popped = navController.popBackStackOrNavigateHome()
-                    if (isStudyModeActive && !popped) {
-                        context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                    }
-                },
-                onChapterClick = {
-                    navigateToChapterWithAnimation(
-                        targetChapter = it,
-                        direction = if (it >= selectedChapter) 1 else -1
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            topBar = {
+                BiblionReaderTopAppBar(
+                    bookName = bookName ?: "",
+                    chapters = (1..chapterCount).toList(),
+                    selectedChapter = selectedChapter,
+                    fontSize = fontSize,
+                    onNavigationIconClick = {
+                        val popped = navController.popBackStackOrNavigateHome()
+                        if (isStudyModeActive && !popped) {
+                            context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                        }
+                    },
+                    onChapterClick = {
+                        onGuidedTutorialTargetAction(GuidedTutorialTargets.READER_CHAPTER_SELECTOR)
+                        navigateToChapterWithAnimation(
+                            targetChapter = it,
+                            direction = if (it >= selectedChapter) 1 else -1
+                        )
+                    },
+                    onSearchIconClick = { navController.navigate(Screen.Search.route) },
+                    onBookTitleClick = { showDialog = true },
+                    onIncreaseFontSize = {
+                        if (fontSizeValue < 35f) {
+                            fontSizeValue++
+                            AppPreferencesSyncStore.setReaderFontSizeSp(context, fontSizeValue.toInt())
+                        }
+                    },
+                    onDecreaseFontSize = {
+                        if (fontSizeValue > 12f) {
+                            fontSizeValue--
+                            AppPreferencesSyncStore.setReaderFontSizeSp(context, fontSizeValue.toInt())
+                        }
+                    },
+                    chapterSelectorModifier = Modifier.guidedTutorialTarget(
+                        GuidedTutorialTargets.READER_CHAPTER_SELECTOR,
+                        tutorialTargetBounds
                     )
-                },
-                onSearchIconClick = { navController.navigate(Screen.Search.route) },
-                onBookTitleClick = { showDialog = true },
-                onIncreaseFontSize = {
-                    if (fontSizeValue < 35f) {
-                        fontSizeValue++
-                        AppPreferencesSyncStore.setReaderFontSizeSp(context, fontSizeValue.toInt())
-                    }
-                },
-                onDecreaseFontSize = {
-                    if (fontSizeValue > 12f) {
-                        fontSizeValue--
-                        AppPreferencesSyncStore.setReaderFontSizeSp(context, fontSizeValue.toInt())
-                    }
-                }
-            )
-        }
-    ) { padding ->
+                )
+            }
+        ) { padding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -674,6 +714,10 @@ fun ReaderContent(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
+                    .guidedTutorialTarget(
+                        GuidedTutorialTargets.READER_TEXT,
+                        tutorialTargetBounds
+                    )
                     .graphicsLayer {
                         val width = size.width.takeIf { it > 0f } ?: 1f
                         translationX = chapterSlideOffset.value
@@ -712,7 +756,7 @@ fun ReaderContent(
                 state = lazyListState,
                 contentPadding = PaddingValues(16.dp)
             ) {
-                items(verses, key = { it.first }) { (verseNumber, verseText) ->
+                itemsIndexed(verses, key = { _, verse -> verse.first }) { index, (verseNumber, verseText) ->
                     val chapterTitle = chapterTitles[verseNumber]
                     if (!chapterTitle.isNullOrBlank()) {
                         Text(
@@ -725,41 +769,65 @@ fun ReaderContent(
                         )
                     }
 
-                    VerseItem(
-                        verseNumber = verseNumber,
-                        verseText = verseText,
-                        fontSize = fontSize,
-                        highlightColor = highlightPalette[verseHighlights[verseNumber] ?: 0],
-                        isSelected = selectedVerseActions.containsKey(verseNumber),
-                        selectionRangePosition = verseSelectionRangePosition(
+                    Box(
+                        modifier = if (index < 3) {
+                            Modifier
+                                .fillMaxWidth()
+                                .guidedTutorialTarget(
+                                    GuidedTutorialTargets.READER_FIRST_VERSE,
+                                    tutorialTargetBounds
+                                )
+                        } else {
+                            Modifier.fillMaxWidth()
+                        }
+                    ) {
+                        VerseItem(
                             verseNumber = verseNumber,
-                            selectedVerseNumbers = selectedVerseNumbers
-                        ),
-                        isSelectionMode = selectedVerseActions.isNotEmpty(),
-                        onShowActions = {
-                            selectedVerseActions = if (selectedVerseActions.containsKey(verseNumber)) {
-                                selectedVerseActions - verseNumber
-                            } else {
-                                selectedVerseActions + (verseNumber to VerseAction(verseNumber, verseText))
-                            }
-                        },
-                        onToggleSelection = {
-                            if (selectedVerseActions.isNotEmpty()) {
-                                selectedVerseActions = if (selectedVerseActions.containsKey(verseNumber)) {
-                                    selectedVerseActions - verseNumber
+                            verseText = verseText,
+                            fontSize = fontSize,
+                            highlightColor = highlightPalette[verseHighlights[verseNumber] ?: 0],
+                            isSelected = selectedVerseActions.containsKey(verseNumber),
+                            selectionRangePosition = verseSelectionRangePosition(
+                                verseNumber = verseNumber,
+                                selectedVerseNumbers = selectedVerseNumbers
+                            ),
+                            isSelectionMode = selectedVerseActions.isNotEmpty(),
+                            modifier = Modifier.fillMaxWidth(),
+                            onShowActions = {
+                                val currentStep = guidedTutorial?.currentStep()?.takeIf { it.screenTarget == GuidedTutorialScreenTarget.READER }
+                                val isGuideHighlightStep = currentStep?.targetKey == GuidedTutorialTargets.READER_FIRST_VERSE
+                                val isTargetVerse = index < verses.size // Cualquier versículo visible
+                                Log.d("GUIDE_DEBUG", "onShowActions verse=$verseNumber index=$index isGuideStep=$isGuideHighlightStep isTarget=$isTargetVerse step=${currentStep?.id}")
+                                if (isGuideHighlightStep && isTargetVerse) {
+                                    saveHighlight(verseNumber, 1)
+                                    selectedVerseActions = emptyMap()
+                                    onGuidedTutorialTargetAction(GuidedTutorialTargets.READER_FIRST_VERSE)
                                 } else {
-                                    selectedVerseActions + (verseNumber to VerseAction(verseNumber, verseText))
+                                    selectedVerseActions = if (selectedVerseActions.containsKey(verseNumber)) {
+                                        selectedVerseActions - verseNumber
+                                    } else {
+                                        selectedVerseActions + (verseNumber to VerseAction(verseNumber, verseText))
+                                    }
+                                }
+                            },
+                            onToggleSelection = {
+                                if (selectedVerseActions.isNotEmpty()) {
+                                    selectedVerseActions = if (selectedVerseActions.containsKey(verseNumber)) {
+                                        selectedVerseActions - verseNumber
+                                    } else {
+                                        selectedVerseActions + (verseNumber to VerseAction(verseNumber, verseText))
+                                    }
                                 }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
 
             FloatingActionButton(
                 onClick = { showVersionDialog = true },
                 containerColor = BiblionGoldSoft,
-                contentColor = Color.White, // o Color.White si lo prefieres
+                contentColor = Color.White,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(20.dp)
@@ -779,6 +847,10 @@ fun ReaderContent(
                             )
                         }
                     }
+                    .guidedTutorialTarget(
+                        GuidedTutorialTargets.READER_VERSION_SELECTOR,
+                        tutorialTargetBounds
+                    )
             ) {
                 Icon(
                     imageVector = Icons.Default.MenuBook,
@@ -799,9 +871,16 @@ fun ReaderContent(
                         "${bookName ?: ""} $selectedChapter"
                     },
                     currentUserName = currentUserName,
+                    onOpen = {
+                        onGuidedTutorialTargetAction(GuidedTutorialTargets.READER_BIBI_BUTTON)
+                    },
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .padding(20.dp)
+                        .guidedTutorialTarget(
+                            GuidedTutorialTargets.READER_BIBI_BUTTON,
+                            tutorialTargetBounds
+                        )
                 )
             }
         }
@@ -835,8 +914,15 @@ fun ReaderContent(
                     null
                 },
                 onHighlight = { colorIndex ->
+                    val currentStep = guidedTutorial?.currentStep()?.takeIf { it.screenTarget == GuidedTutorialScreenTarget.READER }
+                    val isGuideHighlightStep = currentStep?.targetKey == GuidedTutorialTargets.READER_FIRST_VERSE
+                    val hasTargetVerse = selectedVerseActions.keys.isNotEmpty()
+                    Log.d("GUIDE_DEBUG", "onHighlight isGuideStep=$isGuideHighlightStep hasTarget=$hasTargetVerse step=${currentStep?.id} selectedVerses=${selectedVerseActions.keys.toList()}")
                     selectedVerseActions.keys.forEach { verseNumber ->
                         saveHighlight(verseNumber, colorIndex)
+                    }
+                    if (isGuideHighlightStep && hasTargetVerse) {
+                        onGuidedTutorialTargetAction(GuidedTutorialTargets.READER_FIRST_VERSE)
                     }
                     selectedVerseActions = emptyMap()
                 }
@@ -865,6 +951,14 @@ fun ReaderContent(
             )
         }
 
+        GuidedTutorialOverlay(
+            step = guidedStep,
+            targetBounds = tutorialTargetBounds,
+            onNext = onGuidedTutorialNext,
+            onSkip = onGuidedTutorialSkip,
+            onRestart = onGuidedTutorialRestart
+        )
+
         if (showVersionDialog) {
             BibleVersionDialog(
                 versions = availableVersions,
@@ -878,6 +972,7 @@ fun ReaderContent(
                 },
                 onDismiss = { showVersionDialog = false }
             )
+        }
         }
     }
 }
@@ -907,6 +1002,7 @@ fun VerseItem(
     isSelected: Boolean,
     selectionRangePosition: VerseSelectionRangePosition = VerseSelectionRangePosition.None,
     isSelectionMode: Boolean,
+    modifier: Modifier = Modifier,
     onShowActions: () -> Unit,
     onToggleSelection: () -> Unit
 ) {
@@ -940,7 +1036,7 @@ fun VerseItem(
     val sideBarColor = BiblionGoldPrimary
 
     Text(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(bottom = bottomPadding)
             .background(

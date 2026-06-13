@@ -28,11 +28,12 @@ Biblion ya incluye:
 - Selector de version biblica.
 - Deslizamiento entre testamentos en la pantalla de libros y entre capitulos en el lector.
 - Resaltado de versiculos con persistencia y sincronizacion.
-- Modo claro/oscuro global.
+- Modo claro/oscuro global (tema claro por defecto en primera instalacion).
 - Autenticacion y sincronizacion de datos de usuario.
 - Inicio de sesion con Google mediante Firebase Auth.
 - Perfil de usuario con nombres, apellidos, alias, biografia, foto o avatar de color.
 - Perfil con identidad, metricas visibles y edicion agrupada desde el boton "Actualizar perfil".
+- **Reiniciar tutorial de lectura** desde la seccion Perfil.
 - Base inicial para la red de Biblion sobre Firestore.
 - Modo estudio con editor de ensenanzas.
 - Listado de "Mis ensenanzas" con abrir, editar, eliminar, filtrar por titulo o etiqueta.
@@ -44,6 +45,34 @@ Biblion ya incluye:
 - Evaluador local de modelos de Bibi en `workers/bibi/evals/model_eval.mjs`.
 - Contexto para Bibi con versiones biblicas disponibles, version seleccionada, texto seleccionado, bloques actuales de la ensenanza, notas y diccionario biblico inicial.
 - Saludo local de Bibi con el nombre visible del usuario autenticado sin incluir ese nombre en la solicitud al Worker.
+- **Tutorial guiado interactivo (primera instalacion)**: inicio automatico en Home, Bibi con logo, auto-scroll a versiculo 1, target ampliado (primeros 3 versiculos), scroll en textos largos, debug logs `GUIDE_DEBUG`.
+- **Despues del tutorial**: mensaje de despedida de Bibi con mension a opcion de reinicio en Perfil.
+
+### Flujo de primera instalacion (onboarding)
+
+**Antes**: Pantalla con pregunta "¿Como quieres usar Biblion?" y tres opciones de navegacion.
+
+**Ahora (actual)**:
+1. Usuario abre la app por primera vez.
+2. Se muestra `HomeScreen` directamente (tema claro por defecto).
+3. `LaunchedEffect(Unit)` en `AppNavigation` detecta que `hasCompletedReadingGuide == false`.
+4. Inicia automaticamente `GuidedTutorialId.READING` en step 0 (`reading-welcome`).
+5. `GuideBubble` con logo de Bibi (48dp tablet / 40dp movil) aparece en `HomeScreen`.
+6. Paso 2: target `HOME_TESTAMENT_SELECTOR` -> usuario toca testamento.
+7. Navega a `BooksScreen` -> paso 3: target `BOOKS_FIRST_BOOK`.
+8. Usuario elige libro -> navega a `ReaderScreen` -> paso 4: target `READER_CHAPTER_SELECTOR`.
+9. Usuario elige capitulo -> paso 5: `READER_TEXT` (info del lector).
+10. **Paso clave**: `reader-highlight` con target `READER_FIRST_VERSE`:
+    - `LaunchedEffect` en `ReaderScreen` hace auto-scroll a versiculo 1 (`animateScrollToItem(0)`).
+    - Target ampliado: **primeros 3 versiculos** (`index < verses.size`).
+    - Long-press en cualquiera dispara `saveHighlight` + `onGuidedTutorialTargetAction`.
+    - Tambien funciona via boton "Resaltar" en menu flotante.
+11. Paso 7: `READER_VERSION_SELECTOR` (FAB).
+12. Paso 8-9: `READER_BIBI_BUTTON` (abrir chat Bibi).
+13. Paso 10: Info "Mas alla de la lectura" (modo estudio).
+14. Paso 11: `reading-finish` -> "Comenzar a leer" (completa) / "Ver recorrido nuevamente" (RESTART).
+15. Al completar: `KEY_HAS_COMPLETED_READING_GUIDE = true`, no vuelve a auto-iniciarse.
+16. **Reinicio**: Desde Perfil -> "Reiniciar tutorial de lectura" -> vuelve a step 0.
 
 ## 3) Principios de cambio
 
@@ -74,6 +103,34 @@ Biblion ya incluye:
 - Mantener accesibilidad basica: `contentDescription` en iconos accionables.
 - En pantallas compactas, evitar controles que saturen la barra superior.
 - En pantallas grandes, se permite UI expandida como lectura dividida, siempre con fallback vertical en movil.
+
+### GuidedTutorialOverlay y GuideBubble
+
+El sistema de tutorial guiado usa `GuidedTutorialOverlay` + `GuideBubble` para mostrar pasos contextuales.
+
+**Comportamiento actual**:
+- Inicio automatico en primera instalacion en `HomeScreen` (step `reading-welcome`).
+- `GuideBubble` muestra logo de Bibi (48dp tablet / 40dp movil) y texto con scroll vertical.
+- `heightIn(max = 500.dp)` en `Surface` + `verticalScroll(rememberScrollState())` en `Column` permite scroll en textos largos.
+- `maxLines` removido de descripcion para permitir expansion natural y activar scroll.
+- Texto titulo max 5 lineas, descripcion sin limite de lineas (solo ellipsis si excede).
+
+**Targets del tutorial READING**:
+1. `reading-welcome` - Home, sin target, "Comenzar recorrido"
+2. `reading-testament` - Home, `HOME_TESTAMENT_SELECTOR`
+3. `reading-book` - Books, `BOOKS_FIRST_BOOK`
+4. `reading-chapter` - Reader, `READER_CHAPTER_SELECTOR`
+5. `reader-text` - Reader, `READER_TEXT`
+6. `reader-highlight` - Reader, `READER_FIRST_VERSE` (auto-scroll a versiculo 1, target primeros 3 versiculos)
+7. `reader-version` - Reader, `READER_VERSION_SELECTOR`
+8. `reader-bibi` - Reader, `READER_BIBI_BUTTON`
+9. `reader-bibi-chat` - Reader, `READER_BIBI_BUTTON`
+10. `reader-deeper-path` - Reader, sin target
+11. `reading-finish` - Reader, "Comenzar a leer" / "Ver recorrido nuevamente" (RESTART)
+
+**Responsive**: En pantallas < 360dp se reducen padding (12dp), logo (40dp), tipografias (Small), botones (36dp), ancho max bubble = ancho pantalla.
+
+**Debug**: Logs `GUIDE_DEBUG` en `AppNavigation`, `ReaderScreen`, `GuideBubble` para rastrear estado.
 
 ## 6) Modo estudio: herramientas y responsabilidades
 
@@ -250,6 +307,7 @@ Reglas:
 - El alias es el nombre visible dentro de la red.
 - La foto de perfil es opcional; si no existe, se usa avatar de color.
 - No guardar imagenes ni claves en el repositorio.
+- **Reiniciar tutorial de lectura**: boton en panel de acciones del perfil que reinicia `GuidedTutorialId.READING` a step 0.
 
 ### Contadores sociales preparados
 

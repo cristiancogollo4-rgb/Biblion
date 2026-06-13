@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.input.pointer.pointerInput
@@ -55,7 +56,12 @@ fun BooksScreen(
     showSignedOutDialog: Boolean = false,
     onDismissSignedOutDialog: () -> Unit = {},
     onAuthActionClick: () -> Unit = {},
-    onNavigateToProfile: () -> Unit = {}
+    onNavigateToProfile: () -> Unit = {},
+    guidedTutorial: GuidedTutorialProgress? = null,
+    onGuidedTutorialNext: () -> Unit = {},
+    onGuidedTutorialSkip: () -> Unit = {},
+    onGuidedTutorialRestart: () -> Unit = {},
+    onGuidedTutorialTargetAction: (String) -> Unit = {}
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -69,6 +75,10 @@ fun BooksScreen(
     var showAboutDialog by remember { mutableStateOf(false) }
     var showComingSoonDialog by remember { mutableStateOf(false) }
     var testamentDrag by remember { mutableFloatStateOf(0f) }
+    val guidedStep = guidedTutorial
+        ?.currentStep()
+        ?.takeIf { it.screenTarget == GuidedTutorialScreenTarget.BOOKS }
+    val tutorialTargetBounds = remember { mutableStateMapOf<String, Rect>() }
 
     var currentSelectedTestamentArg by rememberSaveable { mutableStateOf(selectedTestament.toRouteArg()) }
     val currentSelectedTestament = Testament.fromRouteArg(currentSelectedTestamentArg)
@@ -89,46 +99,47 @@ fun BooksScreen(
         stringResource(currentSelectedTestament.labelRes)
     )
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        gesturesEnabled = drawerState.isOpen,
-        drawerContent = {
-            BiblionAppDrawer(
-                drawerState = drawerState,
-                isDarkTheme = isDarkTheme,
-                onToggleDarkTheme = onToggleDarkTheme,
-                currentUserName = currentUserName,
-                currentUserEmail = currentUserEmail,
-                isAuthenticated = isAuthenticated,
-                onClose = { scope.launch { drawerState.close() } },
-                onNavigateHome = {
-                    if (currentRoute != Screen.Home.route) {
-                        navController.navigateSingleTop(Screen.Home.route)
-                    }
-                },
-                onNavigateToProfile = onNavigateToProfile,
-                onNavigateToTeachings = {
-                    navController.navigateSingleTop(Screen.Ensenanzas.route)
-                },
-                onNavigateToStudyMode = {
-                    navController.navigateSingleTop(Screen.Reader.createRoute(studyMode = true))
-                },
-                onPickVersion = { showVersionDialog = true },
-                onShowAbout = { showAboutDialog = true },
-                onShowComingSoon = { showComingSoonDialog = true },
-                onAuthActionClick = onAuthActionClick
-            )
-        }
-    ) {
-        Scaffold(
-            topBar = {
-                BiblionTopAppBar(
-                    onNavigationIconClick = { scope.launch { drawerState.open() } },
-                    onSearchIconClick = { navController.navigateSingleTop(Screen.Search.route) },
-                    logoResId = biblionLogoRes(isDarkTheme),
+    Box(modifier = Modifier.fillMaxSize()) {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            gesturesEnabled = drawerState.isOpen,
+            drawerContent = {
+                BiblionAppDrawer(
+                    drawerState = drawerState,
+                    isDarkTheme = isDarkTheme,
+                    onToggleDarkTheme = onToggleDarkTheme,
+                    currentUserName = currentUserName,
+                    currentUserEmail = currentUserEmail,
+                    isAuthenticated = isAuthenticated,
+                    onClose = { scope.launch { drawerState.close() } },
+                    onNavigateHome = {
+                        if (currentRoute != Screen.Home.route) {
+                            navController.navigateSingleTop(Screen.Home.route)
+                        }
+                    },
+                    onNavigateToProfile = onNavigateToProfile,
+                    onNavigateToTeachings = {
+                        navController.navigateSingleTop(Screen.Ensenanzas.route)
+                    },
+                    onNavigateToStudyMode = {
+                        navController.navigateSingleTop(Screen.Reader.createRoute(studyMode = true))
+                    },
+                    onPickVersion = { showVersionDialog = true },
+                    onShowAbout = { showAboutDialog = true },
+                    onShowComingSoon = { showComingSoonDialog = true },
+                    onAuthActionClick = onAuthActionClick
                 )
             }
-        ) { innerPadding ->
+        ) {
+            Scaffold(
+                topBar = {
+                    BiblionTopAppBar(
+                        onNavigationIconClick = { scope.launch { drawerState.open() } },
+                        onSearchIconClick = { navController.navigateSingleTop(Screen.Search.route) },
+                        logoResId = biblionLogoRes(isDarkTheme),
+                    )
+                }
+            ) { innerPadding ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -179,11 +190,20 @@ fun BooksScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    // Optimizacion: Añadimos 'key' para que Compose identifique cada item y sea mas fluido
-                    items(booksToShow, key = { it }) { bookName ->
+                    // Optimización: usamos key para que Compose identifique cada item y sea fluido.
+                    itemsIndexed(booksToShow, key = { _, bookName -> bookName }) { index, bookName ->
                         BookCard(
                             bookName = bookName,
+                            modifier = if (index == 0) {
+                                Modifier.guidedTutorialTarget(
+                                    GuidedTutorialTargets.BOOKS_FIRST_BOOK,
+                                    tutorialTargetBounds
+                                )
+                            } else {
+                                Modifier
+                            },
                             onClick = {
+                                onGuidedTutorialTargetAction(GuidedTutorialTargets.BOOKS_FIRST_BOOK)
                                 navController.navigateSingleTop(
                                     Screen.Reader.createRoute(bookName = bookName, studyMode = openInStudyMode)
                                 )
@@ -193,6 +213,15 @@ fun BooksScreen(
                 }
             }
         }
+        }
+
+        GuidedTutorialOverlay(
+            step = guidedStep,
+            targetBounds = tutorialTargetBounds,
+            onNext = onGuidedTutorialNext,
+            onSkip = onGuidedTutorialSkip,
+            onRestart = onGuidedTutorialRestart
+        )
     }
 
     if (showVersionDialog) {

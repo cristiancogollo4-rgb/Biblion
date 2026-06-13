@@ -84,8 +84,8 @@ fun StudyAssistantOverlay(
         currentOutline = currentOutline,
         notes = notes,
         currentUserName = currentUserName,
-        initialMessage = "Hola, soy Bibi, tu asistente de estudio en Biblion. Puedo ayudarte con ideas, pasajes relacionados, contexto biblico y reflexiones para tu ensenanza.",
-        inputPlaceholder = "Pregunta sobre tu ensenanza...",
+        initialMessage = "Hola, soy Bibi, tu asistente de estudio en Biblion. Puedo ayudarte con ideas, pasajes relacionados, contexto bíblico y reflexiones para tu enseñanza.",
+        inputPlaceholder = "Pregunta sobre tu enseñanza...",
         onInsertNote = onInsertNote,
         onInsertReflection = onInsertReflection,
         modifier = modifier
@@ -98,9 +98,10 @@ fun ReaderAssistantOverlay(
     chapter: Int,
     selectedText: String,
     currentUserName: String? = null,
+    onOpen: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val title = listOfNotNull(bookName, chapter.takeIf { it > 0 }?.let { "capitulo $it" })
+    val title = listOfNotNull(bookName, chapter.takeIf { it > 0 }?.let { "capítulo $it" })
         .joinToString(" ")
     BibiAssistantOverlay(
         mode = StudyAssistantMode.READER,
@@ -110,10 +111,11 @@ fun ReaderAssistantOverlay(
         currentOutline = emptyList(),
         notes = emptyList(),
         currentUserName = currentUserName,
-        initialMessage = "Hola, soy Bibi, tu asistente biblico en Biblion. Puedo responder preguntas sencillas sobre el pasaje que estas leyendo.",
+        initialMessage = "Hola, soy Bibi, tu asistente bíblico en Biblion. Puedo responder preguntas sencillas sobre el pasaje que estás leyendo.",
         inputPlaceholder = "Pregunta sobre este pasaje...",
         onInsertNote = null,
         onInsertReflection = null,
+        onOpen = onOpen,
         modifier = modifier
     )
 }
@@ -131,6 +133,7 @@ private fun BibiAssistantOverlay(
     inputPlaceholder: String,
     onInsertNote: ((String) -> Unit)?,
     onInsertReflection: ((topic: String, text: String) -> Unit)?,
+    onOpen: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val fallbackUserName = remember {
@@ -230,7 +233,10 @@ private fun BibiAssistantOverlay(
             )
         } else {
             FloatingActionButton(
-                onClick = { isOpen = true },
+                onClick = {
+                    isOpen = true
+                    onOpen()
+                },
                 modifier = Modifier.align(Alignment.BottomEnd),
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
@@ -366,7 +372,7 @@ private fun StudyAssistantPanel(
                     minLines = 1,
                     maxLines = 4,
                     placeholder = {
-                        Text(if (isLoading) "Bibi esta pensando..." else inputPlaceholder)
+                        Text(if (isLoading) "Bibi está pensando..." else inputPlaceholder)
                     }
                 )
                 IconButton(onClick = onSend, enabled = !isLoading) {
@@ -404,7 +410,7 @@ private fun StudyAssistantLoadingBubble() {
                     color = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    text = "Bibi esta pensando...",
+                    text = "Bibi está pensando...",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -474,7 +480,7 @@ private fun StudyAssistantMessageBubble(
                         onClick = {
                             onInsertReflection("Bibi", message.text)
                         },
-                        label = { Text("Reflexion") },
+                        label = { Text("Reflexión") },
                         leadingIcon = { Icon(Icons.Default.Lightbulb, contentDescription = null) }
                     )
                 }
@@ -490,42 +496,43 @@ private fun buildStudyAssistantLocalAnswer(
     selectedText: String
 ): String {
     val normalized = question.lowercase()
+    val normalizedNoAccents = normalized.removeAccents()
     val context = buildList {
-        studyTitle.takeIf { it.isNotBlank() }?.let { add("titulo: $it") }
+        studyTitle.takeIf { it.isNotBlank() }?.let { add("título: $it") }
         studyTags.takeIf { it.isNotEmpty() }?.let { add("etiquetas: ${it.joinToString(", ")}") }
-        selectedText.takeIf { it.isNotBlank() }?.let { add("seleccion: $it") }
+        selectedText.takeIf { it.isNotBlank() }?.let { add("selección: $it") }
     }.joinToString("; ")
 
     val baseContext = if (context.isBlank()) {
-        "Aun no tengo contexto guardado de la ensenanza."
+        "Aún no tengo contexto guardado de la enseñanza."
     } else {
         "Estoy tomando como contexto $context."
     }
 
     return when {
-        "creacion" in normalized || "creacion" in normalized.removeAccents() -> {
-            "$baseContext Para hablar de la creacion, revisa Genesis 1:1-31, Genesis 2:1-3, Juan 1:1-3 y Hebreos 11:3. Puedes usar Genesis como texto base y Juan 1 para conectar la creacion con Cristo como Verbo eterno."
+        "creacion" in normalizedNoAccents -> {
+            "$baseContext Para hablar de la creación, revisa Génesis 1:1-31, Génesis 2:1-3, Juan 1:1-3 y Hebreos 11:3. Puedes usar Génesis como texto base y Juan 1 para conectar la creación con Cristo como Verbo eterno."
         }
         "amor" in normalized -> {
             "$baseContext El amor es central en la Biblia. Sugiero 1 Corintios 13 (el himno al amor), 1 Juan 4:7-21 (Dios es amor) y Juan 3:16."
         }
         "fe" in normalized -> {
-            "$baseContext Para estudiar la fe, Hebreos 11 es indispensable. Tambien considera Santiago 2:14-26 sobre la fe y las obras, y Romanos 10:17 sobre como viene la fe."
+            "$baseContext Para estudiar la fe, Hebreos 11 es indispensable. También considera Santiago 2:14-26 sobre la fe y las obras, y Romanos 10:17 sobre cómo viene la fe."
         }
         "gracia" in normalized -> {
             "$baseContext La gracia de Dios se explica muy bien en Efesios 2:8-9, Romanos 3:24 y Tito 2:11."
         }
         "perdon" in normalized -> {
-            "$baseContext El perdon es vital. Mira Mateo 18:21-35 (la parabola del siervo que no perdono), Colosenses 3:13 y Efesios 4:32."
+            "$baseContext El perdón es vital. Mira Mateo 18:21-35 (la parábola del siervo que no perdonó), Colosenses 3:13 y Efesios 4:32."
         }
         "ideas" in normalized || "ayuda" in normalized || "sugerencia" in normalized -> {
-            "$baseContext Como sugerencia, podrias estructurar tu ensenanza con: 1) Una introduccion basada en el contexto actual, 2) Tres puntos clave extraidos del texto seleccionado, y 3) Una aplicacion practica para la vida diaria."
+            "$baseContext Como sugerencia, podrías estructurar tu enseñanza con: 1) Una introducción basada en el contexto actual, 2) Tres puntos clave extraídos del texto seleccionado, y 3) Una aplicación práctica para la vida diaria."
         }
-        "reflexion" in normalized || "enseñanza" in normalized.removeAccents() -> {
-            "Basado en $context, una reflexion profunda podria ser: 'La Palabra de Dios no solo nos informa, sino que nos transforma cuando permitimos que su verdad penetre nuestro corazon'. Considera como los tags ${studyTags.joinToString()} se conectan con tu vida hoy."
+        "reflexion" in normalizedNoAccents || "ensenanza" in normalizedNoAccents -> {
+            "Basado en $context, una reflexión profunda podría ser: 'La Palabra de Dios no solo nos informa, sino que nos transforma cuando permitimos que su verdad penetre nuestro corazón'. Considera cómo las etiquetas ${studyTags.joinToString()} se conectan con tu vida hoy."
         }
         else -> {
-            "$baseContext No tengo una respuesta especifica para esa pregunta, pero puedo ayudarte a reflexionar mas sobre $studyTitle si me das mas detalles."
+            "$baseContext No tengo una respuesta específica para esa pregunta, pero puedo ayudarte a reflexionar más sobre $studyTitle si me das más detalles."
         }
     }
 }

@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -36,8 +37,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
@@ -99,7 +102,8 @@ fun ProfileScreen(
     onProfilePhotoSelected: (Uri) -> Unit,
     onClearProfilePhoto: () -> Unit,
     onSave: () -> Unit,
-    onClearSaveSuccess: () -> Unit
+    onClearSaveSuccess: () -> Unit,
+    onRestartTutorial: () -> Unit = {}
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val savedMessage = stringResource(R.string.profile_saved)
@@ -194,6 +198,7 @@ fun ProfileScreen(
 
             ProfileActionPanel(
                 onUpdateProfile = { showEditDialog = true },
+                onRestartTutorial = onRestartTutorial,
                 modifier = Modifier
                     .fillMaxWidth()
                     .widthIn(max = 980.dp)
@@ -324,6 +329,7 @@ private fun ProfileEditDialog(
 @Composable
 private fun ProfileActionPanel(
     onUpdateProfile: () -> Unit,
+    onRestartTutorial: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -332,25 +338,57 @@ private fun ProfileActionPanel(
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Row(
+        Column(
             modifier = Modifier.padding(18.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Button(
-                onClick = onUpdateProfile,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(8.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(stringResource(R.string.profile_update_profile))
+                Button(
+                    onClick = onUpdateProfile,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(stringResource(R.string.profile_update_profile))
+                }
+                OutlinedButton(
+                    onClick = {},
+                    enabled = false,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(stringResource(R.string.profile_update_plan_future))
+                }
             }
             OutlinedButton(
-                onClick = {},
-                enabled = false,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(8.dp)
+                onClick = onRestartTutorial,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, BiblionBluePrimary),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = BiblionBluePrimary
+                )
             ) {
-                Text(stringResource(R.string.profile_update_plan_future))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = BiblionBluePrimary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.profile_restart_tutorial),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
     }

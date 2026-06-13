@@ -47,6 +47,49 @@
     <string name="auth_logo_cd">Biblion logo</string>
     <string name="sync_cloud_error">Error syncing data in the cloud</string>
 
+    <string name="guide_next">Next</string>
+    <string name="guide_start_tour">Start tour</string>
+    <string name="guide_continue">Continue</string>
+    <string name="guide_understood">Got it</string>
+    <string name="guide_start_reading">Start reading</string>
+    <string name="guide_restart_tour">See tour again</string>
+    <string name="guide_skip">Skip for now</string>
+    <string name="guide_action_required">Use the highlighted element as described to continue.</string>
+    <string name="guide_reading_welcome_title">Hi, I am Bibi</string>
+    <string name="guide_reading_welcome_body">I am Biblion\'s virtual assistant.\n\nBefore you begin, I would like to guide you through a brief tour so you can understand how Biblion works and make the most of it from the first moment.\n\nBiblion was created to serve the whole Christian community. You can use it simply to read the Bible every day, or go deeper in study, organize your ideas, and consult teachings from other believers.</string>
+    <string name="guide_reading_testament_title">Find a book</string>
+    <string name="guide_reading_testament_body">Every experience in Biblion begins with reading the Word of God.\n\nFrom here you can navigate Bible books and quickly open the chapter you want to read. Let us open a book to continue.</string>
+    <string name="guide_reading_book_title">Choose a book</string>
+    <string name="guide_reading_book_body">Select a book to open the Bible reader. This step takes you to the place where you can read by chapters.</string>
+    <string name="guide_reading_chapter_title">Choose a chapter</string>
+    <string name="guide_reading_chapter_body">Perfect.\n\nNow select a chapter to begin reading. It does not matter which one you choose; the goal is to learn how the reading experience works.</string>
+    <string name="guide_reader_text_title">Meet the reader</string>
+    <string name="guide_reader_text_body">This is where you will spend most of your time.\n\nBiblion is designed to offer clear, comfortable reading so you can focus on the biblical text without unnecessary distractions.</string>
+    <string name="guide_reader_highlight_title">Highlight verses</string>
+    <string name="guide_reader_highlight_body">As you read, you will find verses you may want to remember later.\n\nPress and hold any part of the highlighted verse to save it as an important mark in your reading.</string>
+    <string name="guide_reader_version_title">Change Bible version</string>
+    <string name="guide_reader_version_body">Sometimes it is useful to compare different translations to better understand a passage.\n\nFrom here you can change the Bible version you are using at any time.</string>
+    <string name="guide_reader_bibi_title">Ask Bibi</string>
+    <string name="guide_reader_bibi_body">If you find a passage difficult to understand or have a question during your reading, you can ask me at any time.\n\nLet us open the chat so you know where to find me.</string>
+    <string name="guide_reader_bibi_chat_title">First conversation</string>
+    <string name="guide_reader_bibi_chat_body">Perfect.\n\nThis is the space where we can talk. You can ask questions about verses, people, biblical events, or any topic related to your reading.\n\nYou do not need to write anything now.</string>
+    <string name="guide_reader_deeper_title">Beyond reading</string>
+    <string name="guide_reader_deeper_body">For many people, daily reading is more than enough, and Biblion is ready to accompany them on that path.\n\nBut sometimes a reading awakens new questions, ideas, or themes that deserve deeper exploration.</string>
+    <string name="guide_reading_finish_title">¡Listo para comenzar!</string>
+    <string name="guide_reading_finish_body">¡Ya sabes lo esencial! 🎉\n\nPuedes encontrar libros, leer pasajes, resaltar versículos, cambiar de versión y preguntarme cuando tengas dudas.\n\nSi en el futuro quieres repetir este recorrido, ve a tu Perfil y toca "Reiniciar tutorial de lectura".\n\n¡Que disfrutes tu tiempo en la Palabra de Dios! 📖✨\n\n— Bibi</string>
+    <string name="guide_study_entry_title">Move from reading to preparing</string>
+    <string name="guide_study_entry_body">From here you can create a teaching and enter Biblion\'s real editor.</string>
+    <string name="guide_explore_reading_title">Bible reading</string>
+    <string name="guide_explore_reading_body">The testament selector is the quick entry point for navigating books and chapters.</string>
+    <string name="guide_explore_daily_title">Daily verse</string>
+    <string name="guide_explore_daily_body">Tap the daily verse to automatically open that passage in the reader.</string>
+    <string name="guide_explore_study_title">Study mode</string>
+    <string name="guide_explore_study_body">When you are ready to go deeper, use this section to create teachings and organize your ideas.</string>
+    <string name="home_guide_card_title">Want to go beyond reading?</string>
+    <string name="home_guide_card_body">Learn Biblion\'s main tools or create a teaching when you are ready.</string>
+    <string name="home_guide_card_tutorial">See guide</string>
+    <string name="home_guide_card_study">Create teaching</string>
+
     <string name="profile_title">Profile</string>
     <string name="profile_complete_title">Complete your profile</string>
     <string name="profile_complete_message">Biblion needs your basic profile information for your teachings and the Biblion network.</string>
@@ -93,6 +136,7 @@
     <string name="profile_update_plan_future">Update plan</string>
     <string name="profile_toggle_network_details">Show or hide profile details</string>
     <string name="close">Close</string>
+    <string name="profile_restart_tutorial">Reiniciar tutorial de lectura</string>
 
     <string name="testament_old_label">Old Testament</string>
     <string name="testament_new_label">New Testament</string>

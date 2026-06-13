@@ -29,6 +29,13 @@ object AppPreferencesSyncStore {
     const val KEY_SELECTED_BIBLE_VERSION = "selectedBibleVersion"
     const val KEY_FONT_SIZE = "fontSize"
     const val KEY_VERSE_HIGHLIGHTS = "verseHighlights"
+    const val KEY_HAS_SEEN_FULL_TUTORIAL = "onboarding.hasSeenFullTutorial"
+    const val KEY_ACTIVE_GUIDED_TUTORIAL = "onboarding.activeGuidedTutorial"
+    const val KEY_ACTIVE_GUIDED_TUTORIAL_STEP = "onboarding.activeGuidedTutorialStep"
+    const val KEY_CURRENT_READING_GUIDE_STEP = "onboarding.currentReadingGuideStep"
+    const val KEY_HAS_COMPLETED_READING_GUIDE = "onboarding.hasCompletedReadingGuide"
+    const val KEY_HAS_COMPLETED_STUDY_GUIDE = "onboarding.hasCompletedStudyGuide"
+    const val KEY_HAS_COMPLETED_EXPLORE_GUIDE = "onboarding.hasCompletedExploreGuide"
 
     private const val KEY_DARK_MODE_UPDATED_AT = "sync.darkMode.updatedAt"
     private const val KEY_SELECTED_VERSION_UPDATED_AT = "sync.selectedBibleVersion.updatedAt"
@@ -99,6 +106,82 @@ object AppPreferencesSyncStore {
         if (triggerSync) {
             FirestoreSyncManager.requestPreferencesSync()
         }
+    }
+
+    fun hasSeenFullTutorial(context: Context): Boolean {
+        return prefs(context).getBoolean(KEY_HAS_SEEN_FULL_TUTORIAL, false)
+    }
+
+    fun setHasSeenFullTutorial(context: Context, seen: Boolean) {
+        prefs(context).edit {
+            putBoolean(KEY_HAS_SEEN_FULL_TUTORIAL, seen)
+        }
+    }
+
+    fun getActiveGuidedTutorial(context: Context): GuidedTutorialProgress? {
+        val guideId = GuidedTutorialId.fromRouteArg(
+            prefs(context).getString(KEY_ACTIVE_GUIDED_TUTORIAL, null)
+        ) ?: return null
+        val stepIndex = if (guideId == GuidedTutorialId.READING) {
+            prefs(context).getInt(
+                KEY_CURRENT_READING_GUIDE_STEP,
+                prefs(context).getInt(KEY_ACTIVE_GUIDED_TUTORIAL_STEP, 0)
+            )
+        } else {
+            prefs(context).getInt(KEY_ACTIVE_GUIDED_TUTORIAL_STEP, 0)
+        }.coerceAtLeast(0)
+        return GuidedTutorialProgress(guideId = guideId, stepIndex = stepIndex)
+    }
+
+    fun startGuidedTutorial(context: Context, guideId: GuidedTutorialId, stepIndex: Int = 0) {
+        prefs(context).edit {
+            putString(KEY_ACTIVE_GUIDED_TUTORIAL, guideId.routeArg)
+            putInt(KEY_ACTIVE_GUIDED_TUTORIAL_STEP, stepIndex.coerceAtLeast(0))
+            if (guideId == GuidedTutorialId.READING) {
+                putInt(KEY_CURRENT_READING_GUIDE_STEP, stepIndex.coerceAtLeast(0))
+                putBoolean(KEY_HAS_COMPLETED_READING_GUIDE, false)
+            }
+        }
+    }
+
+    fun updateGuidedTutorialStep(context: Context, guideId: GuidedTutorialId, stepIndex: Int) {
+        prefs(context).edit {
+            putString(KEY_ACTIVE_GUIDED_TUTORIAL, guideId.routeArg)
+            putInt(KEY_ACTIVE_GUIDED_TUTORIAL_STEP, stepIndex.coerceAtLeast(0))
+            if (guideId == GuidedTutorialId.READING) {
+                putInt(KEY_CURRENT_READING_GUIDE_STEP, stepIndex.coerceAtLeast(0))
+            }
+        }
+    }
+
+    fun clearActiveGuidedTutorial(context: Context) {
+        prefs(context).edit {
+            remove(KEY_ACTIVE_GUIDED_TUTORIAL)
+            remove(KEY_ACTIVE_GUIDED_TUTORIAL_STEP)
+        }
+    }
+
+    fun completeGuidedTutorial(context: Context, guideId: GuidedTutorialId) {
+        prefs(context).edit {
+            remove(KEY_ACTIVE_GUIDED_TUTORIAL)
+            remove(KEY_ACTIVE_GUIDED_TUTORIAL_STEP)
+            when (guideId) {
+                GuidedTutorialId.READING -> putBoolean(KEY_HAS_COMPLETED_READING_GUIDE, true)
+                GuidedTutorialId.STUDY -> putBoolean(KEY_HAS_COMPLETED_STUDY_GUIDE, true)
+                GuidedTutorialId.EXPLORE -> {
+                    putBoolean(KEY_HAS_COMPLETED_EXPLORE_GUIDE, true)
+                    putBoolean(KEY_HAS_SEEN_FULL_TUTORIAL, true)
+                }
+            }
+        }
+    }
+
+    fun hasCompletedReadingGuide(context: Context): Boolean {
+        return prefs(context).getBoolean(KEY_HAS_COMPLETED_READING_GUIDE, false)
+    }
+
+    fun hasCompletedStudyGuide(context: Context): Boolean {
+        return prefs(context).getBoolean(KEY_HAS_COMPLETED_STUDY_GUIDE, false)
     }
 
     fun getAppPreferencesSnapshot(context: Context, defaultDarkMode: Boolean): AppPreferencesSnapshot {

@@ -43,7 +43,22 @@ fun AppNavigation(
     val activity = context.findActivity()
     var showAuthDialog by remember { mutableStateOf(false) }
     var authDialogMode by remember { mutableStateOf(AuthDialogMode.LOGIN) }
+    var activeGuidedTutorial by remember { mutableStateOf<GuidedTutorialProgress?>(null) }
     val currentUserName = preferredUserName(profileState, authState.currentUser)
+
+    LaunchedEffect(Unit) {
+        val saved = AppPreferencesSyncStore.getActiveGuidedTutorial(appContext)
+        Log.d("GUIDE_DEBUG", "LaunchedEffect(Unit) init - saved=$saved hasCompleted=${AppPreferencesSyncStore.hasCompletedReadingGuide(appContext)}")
+        activeGuidedTutorial = saved
+        if (saved == null && !AppPreferencesSyncStore.hasCompletedReadingGuide(appContext)) {
+            Log.d("GUIDE_DEBUG", "Starting reading guide on first install")
+            AppPreferencesSyncStore.startGuidedTutorial(appContext, GuidedTutorialId.READING)
+            activeGuidedTutorial = GuidedTutorialProgress(
+                guideId = GuidedTutorialId.READING,
+                stepIndex = 0
+            )
+        }
+    }
 
     fun openAuthDialog(mode: AuthDialogMode = AuthDialogMode.LOGIN) {
         authDialogMode = mode
@@ -161,7 +176,77 @@ fun AppNavigation(
         }
     }
 
+    fun startGuidedTutorial(guideId: GuidedTutorialId) {
+        AppPreferencesSyncStore.startGuidedTutorial(appContext, guideId)
+        activeGuidedTutorial = GuidedTutorialProgress(guideId = guideId, stepIndex = 0)
+    }
+
+    fun restartGuidedTutorial() {
+        val guideId = activeGuidedTutorial?.guideId ?: GuidedTutorialId.READING
+        startGuidedTutorial(guideId)
+        navController.navigate(Screen.Home.route) {
+            launchSingleTop = true
+        }
+    }
+
+    fun advanceGuidedTutorial() {
+        val current = activeGuidedTutorial ?: return
+        val nextIndex = current.stepIndex + 1
+        val steps = guidedTutorialSteps(current.guideId)
+        Log.d("GUIDE_DEBUG", "advanceGuidedTutorial currentStep=${current.stepIndex} (${steps.getOrNull(current.stepIndex)?.id}) nextIndex=$nextIndex totalSteps=${steps.size}")
+        if (nextIndex >= steps.size) {
+            Log.d("GUIDE_DEBUG", "Completing tutorial ${current.guideId}")
+            AppPreferencesSyncStore.completeGuidedTutorial(appContext, current.guideId)
+            activeGuidedTutorial = null
+        } else {
+            val next = current.copy(stepIndex = nextIndex)
+            Log.d("GUIDE_DEBUG", "Advancing to step $nextIndex (${steps.getOrNull(nextIndex)?.id})")
+            AppPreferencesSyncStore.updateGuidedTutorialStep(appContext, next.guideId, next.stepIndex)
+            activeGuidedTutorial = next
+        }
+    }
+
+    fun skipGuidedTutorial() {
+        val current = activeGuidedTutorial
+        if (current?.guideId == GuidedTutorialId.READING) {
+            AppPreferencesSyncStore.completeGuidedTutorial(appContext, current.guideId)
+        } else {
+            AppPreferencesSyncStore.clearActiveGuidedTutorial(appContext)
+        }
+        activeGuidedTutorial = null
+    }
+
+    fun handleGuidedTutorialTargetAction(targetKey: String) {
+        val currentStep = activeGuidedTutorial?.currentStep() ?: return
+        Log.d("GUIDE_DEBUG", "handleTargetAction targetKey=$targetKey currentStep=${currentStep.id} actionRequired=${currentStep.actionRequired} stepTargetKey=${currentStep.targetKey}")
+        if (currentStep.actionRequired && currentStep.targetKey == targetKey) {
+            Log.d("GUIDE_DEBUG", "Advancing tutorial from step ${currentStep.id}")
+            advanceGuidedTutorial()
+        } else {
+            Log.d("GUIDE_DEBUG", "NOT advancing - actionRequired=${currentStep.actionRequired} targetMatch=${currentStep.targetKey == targetKey}")
+        }
+    }
+
+    var didResumeGuidedTutorial by remember { mutableStateOf(false) }
+
+    LaunchedEffect(activeGuidedTutorial?.guideId, activeGuidedTutorial?.stepIndex) {
+        val current = activeGuidedTutorial ?: return@LaunchedEffect
+        Log.d("GUIDE_DEBUG", "LaunchedEffect resume: guideId=${current.guideId} stepIndex=${current.stepIndex} didResume=$didResumeGuidedTutorial")
+        if (!didResumeGuidedTutorial) {
+            didResumeGuidedTutorial = true
+            current.resumeRoute()?.let { route ->
+                Log.d("GUIDE_DEBUG", "Navigating to resume route: $route")
+                if (route != Screen.Home.route) {
+                    navController.navigate(route) {
+                        launchSingleTop = true
+                    }
+                }
+            }
+        }
+    }
+
     NavHost(navController = navController, startDestination = Screen.Home.route) {
+
         composable(Screen.Home.route) {
             HomeScreen(
                 navController = navController,
@@ -184,7 +269,13 @@ fun AppNavigation(
                         openAuthDialog(AuthDialogMode.LOGIN)
                     }
                 },
-                onNavigateToProfile = ::navigateToProfile
+                onNavigateToProfile = ::navigateToProfile,
+                guidedTutorial = activeGuidedTutorial,
+                onGuidedTutorialNext = ::advanceGuidedTutorial,
+                onGuidedTutorialSkip = ::skipGuidedTutorial,
+                onGuidedTutorialRestart = ::restartGuidedTutorial,
+                onGuidedTutorialTargetAction = ::handleGuidedTutorialTargetAction,
+                onStartGuidedTutorial = ::startGuidedTutorial
             )
         }
 
@@ -232,7 +323,8 @@ fun AppNavigation(
                     onProfilePhotoSelected = { uri -> profileViewModel.uploadProfilePhoto(appContext, uri) },
                     onClearProfilePhoto = profileViewModel::clearProfilePhoto,
                     onSave = { profileViewModel.saveProfile() },
-                    onClearSaveSuccess = profileViewModel::clearSaveSuccess
+                    onClearSaveSuccess = profileViewModel::clearSaveSuccess,
+                    onRestartTutorial = ::restartGuidedTutorial
                 )
             }
         }
@@ -264,7 +356,12 @@ fun AppNavigation(
                         openAuthDialog(AuthDialogMode.LOGIN)
                     }
                 },
-                onNavigateToProfile = ::navigateToProfile
+                onNavigateToProfile = ::navigateToProfile,
+                guidedTutorial = activeGuidedTutorial,
+                onGuidedTutorialNext = ::advanceGuidedTutorial,
+                onGuidedTutorialSkip = ::skipGuidedTutorial,
+                onGuidedTutorialRestart = ::restartGuidedTutorial,
+                onGuidedTutorialTargetAction = ::handleGuidedTutorialTargetAction
             )
         }
 
@@ -320,7 +417,12 @@ fun AppNavigation(
                 initialStudyId = studyId,
                 isDarkTheme = isDarkTheme,
                 onToggleDarkTheme = onToggleDarkTheme,
-                currentUserName = currentUserName
+                currentUserName = currentUserName,
+                guidedTutorial = activeGuidedTutorial,
+                onGuidedTutorialNext = ::advanceGuidedTutorial,
+                onGuidedTutorialSkip = ::skipGuidedTutorial,
+                onGuidedTutorialRestart = ::restartGuidedTutorial,
+                onGuidedTutorialTargetAction = ::handleGuidedTutorialTargetAction
             )
         }
 
@@ -358,7 +460,12 @@ fun AppNavigation(
                 initialStudyId = studyId,
                 isDarkTheme = isDarkTheme,
                 onToggleDarkTheme = onToggleDarkTheme,
-                currentUserName = currentUserName
+                currentUserName = currentUserName,
+                guidedTutorial = activeGuidedTutorial,
+                onGuidedTutorialNext = ::advanceGuidedTutorial,
+                onGuidedTutorialSkip = ::skipGuidedTutorial,
+                onGuidedTutorialRestart = ::restartGuidedTutorial,
+                onGuidedTutorialTargetAction = ::handleGuidedTutorialTargetAction
             )
         }
 
@@ -417,6 +524,15 @@ fun AppNavigation(
             onSave = { profileViewModel.saveProfile() },
             onDismiss = profileViewModel::dismissCompletionPrompt
         )
+    }
+}
+
+private fun GuidedTutorialProgress.resumeRoute(): String? {
+    return when (currentStep()?.screenTarget) {
+        GuidedTutorialScreenTarget.HOME -> Screen.Home.route
+        GuidedTutorialScreenTarget.BOOKS -> Screen.Books.createRoute(Testament.OLD)
+        GuidedTutorialScreenTarget.READER -> Screen.Reader.createRoute(bookName = "Genesis")
+        null -> null
     }
 }
 

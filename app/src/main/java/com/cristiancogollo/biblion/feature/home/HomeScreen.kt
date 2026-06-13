@@ -1,17 +1,16 @@
 package com.cristiancogollo.biblion
 
 import android.content.Context
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -20,6 +19,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
@@ -63,7 +65,13 @@ fun HomeScreen(
     loadDailyVerse: suspend (Context, String) -> DailyVerse = { ctx, versionKey ->
         getDailyVerse(ctx, versionKey)
     },
-    onDailyVerseLoaded: (DailyVerse, String) -> Unit = { _, _ -> }
+    onDailyVerseLoaded: (DailyVerse, String) -> Unit = { _, _ -> },
+    guidedTutorial: GuidedTutorialProgress? = null,
+    onGuidedTutorialNext: () -> Unit = {},
+    onGuidedTutorialSkip: () -> Unit = {},
+    onGuidedTutorialRestart: () -> Unit = {},
+    onGuidedTutorialTargetAction: (String) -> Unit = {},
+    onStartGuidedTutorial: (GuidedTutorialId) -> Unit = {}
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -79,6 +87,10 @@ fun HomeScreen(
     var showVersionDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var showComingSoonDialog by remember { mutableStateOf(false) }
+    val guidedStep = guidedTutorial
+        ?.currentStep()
+        ?.takeIf { it.screenTarget == GuidedTutorialScreenTarget.HOME }
+    val tutorialTargetBounds = remember { mutableStateMapOf<String, Rect>() }
 
     DailyVerseLoaderEffect(
         context = context,
@@ -93,7 +105,8 @@ fun HomeScreen(
         loadDailyVerse = loadDailyVerse
     )
 
-    ModalNavigationDrawer(
+    Box(modifier = modifier.fillMaxSize()) {
+        ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = drawerState.isOpen,
         drawerContent = {
@@ -146,9 +159,17 @@ fun HomeScreen(
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
             ) {
-                TestamentSelector(selectedTab = null) { testament ->
-                    navController.navigateSingleTop(Screen.Books.createRoute(testament))
-                }
+                TestamentSelector(
+                    selectedTab = null,
+                    onTabSelected = { testament ->
+                        onGuidedTutorialTargetAction(GuidedTutorialTargets.HOME_TESTAMENT_SELECTOR)
+                        navController.navigateSingleTop(Screen.Books.createRoute(testament))
+                    },
+                    modifier = Modifier.guidedTutorialTarget(
+                        GuidedTutorialTargets.HOME_TESTAMENT_SELECTOR,
+                        tutorialTargetBounds
+                    )
+                )
 
                 HorizontalDivider(thickness = 0.5.dp)
 
@@ -171,6 +192,10 @@ fun HomeScreen(
                     DailyVerseCard(
                         verse = dailyVerse!!.text,
                         reference = dailyVerse!!.reference,
+                        modifier = Modifier.guidedTutorialTarget(
+                            GuidedTutorialTargets.HOME_DAILY_VERSE,
+                            tutorialTargetBounds
+                        ),
                         onClick = {
                             dailyVerse!!.reference.toBibleNavigationTarget()?.let { target ->
                                 navController.navigateSingleTop(
@@ -189,6 +214,14 @@ fun HomeScreen(
             }
         }
     }
+
+    GuidedTutorialOverlay(
+        step = guidedStep,
+        targetBounds = tutorialTargetBounds,
+        onNext = onGuidedTutorialNext,
+        onSkip = onGuidedTutorialSkip,
+        onRestart = onGuidedTutorialRestart
+    )
 
     if (showVersionDialog) {
         BibleVersionDialog(
@@ -211,7 +244,7 @@ fun HomeScreen(
     if (showComingSoonDialog) {
         BiblionComingSoonDialog(onDismiss = { showComingSoonDialog = false })
     }
-
+}
 }
 
 private data class BibleNavigationTarget(
