@@ -404,16 +404,22 @@ fun DailyVerseCard(
 fun BookCard(
     bookName: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    colorSchema: com.cristiancogollo.biblion.feature.books.CategoryColorSchema? = null
 ) {
+    val bg = colorSchema?.bg ?: MaterialTheme.colorScheme.surfaceVariant
+    val textColor = colorSchema?.text ?: MaterialTheme.colorScheme.onSurface
+    val borderStroke = colorSchema?.border?.let { BorderStroke(1.dp, it) }
+
     Card(
         modifier = modifier
             .aspectRatio(1f)
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(containerColor = bg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        border = borderStroke
     ) {
         BoxWithConstraints(
             modifier = Modifier.fillMaxSize(),
@@ -434,7 +440,7 @@ fun BookCard(
                 text = bookName,
                 textAlign = TextAlign.Center,
                 fontSize = bookFontSize,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = textColor,
                 fontFamily = FontFamily.Serif,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,

@@ -692,75 +692,26 @@ fun StudyEditorScreen(
     }
 
     if (showSaveDialog) {
-        AlertDialog(
-            onDismissRequest = { showSaveDialog = false },
-            containerColor = MaterialTheme.colorScheme.surface,
-            titleContentColor = MaterialTheme.colorScheme.onSurface,
-            textContentColor = MaterialTheme.colorScheme.onSurface,
-            title = { Text("Guardar enseñanza") },
-            text = {
-                Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedTextField(
-                        value = saveTitle,
-                        onValueChange = {
-                            saveTitle = it
-                            saveError = null
-                        },
-                        singleLine = true,
-                        label = { Text("Título") },
-                        placeholder = { Text("Ej: La fe en tiempos difíciles") },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = BiblionNavy,
-                            unfocusedBorderColor = BiblionGoldPrimary,
-                            focusedLabelColor = BiblionNavy,
-                            cursorColor = BiblionNavy
-                        )
-                    )
-                    StudyTagSelector(
-                        value = saveTagsInput,
-                        onValueChange = {
-                            saveTagsInput = it
-                            saveError = null
-                        }
-                    )
-                    saveError?.let { error ->
-                        Text(
-                            text = error,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
+        SaveTeachingDialog(
+            title = saveTitle,
+            onTitleChange = { saveTitle = it; saveError = null },
+            tagsInput = saveTagsInput,
+            onTagsInputChange = { saveTagsInput = it; saveError = null },
+            error = saveError,
+            onDismiss = { showSaveDialog = false },
+            onSave = {
+                val cleanedTitle = saveTitle.trim()
+                val parsedTags = withDefaultStateTag(parseStudyTags(saveTagsInput))
+                val tagError = validateRequiredStudyTags(parsedTags)
+                saveError = when {
+                    !validateNonEmptyContent() -> "No puedes guardar una ensenanza vacia."
+                    cleanedTitle.isBlank() -> "Debes agregar un titulo para guardar."
+                    tagError != null -> tagError
+                    else -> null
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val cleanedTitle = saveTitle.trim()
-                    val parsedTags = withDefaultStateTag(parseStudyTags(saveTagsInput))
-                    val tagError = validateRequiredStudyTags(parsedTags)
-                    saveError = when {
-                        !validateNonEmptyContent() -> "No puedes guardar una enseñanza vacía."
-                        cleanedTitle.isBlank() -> "Debes agregar un titulo para guardar."
-                        tagError != null -> tagError
-                        else -> null
-                    }
-
-                    if (saveError == null) {
-                        viewModel.process(StudyIntent.SaveStudyWithMetadata(cleanedTitle, parsedTags))
-                        showSaveDialog = false
-                    }
-                }, colors = ButtonDefaults.textButtonColors(contentColor = BiblionGoldPrimary)) {
-                    Text("Guardar")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { showSaveDialog = false },
-                    colors = ButtonDefaults.textButtonColors(contentColor = BiblionBluePrimary)
-                ) {
-                    Text("Cancelar")
+                if (saveError == null) {
+                    viewModel.process(StudyIntent.SaveStudyWithMetadata(cleanedTitle, parsedTags))
+                    showSaveDialog = false
                 }
             }
         )

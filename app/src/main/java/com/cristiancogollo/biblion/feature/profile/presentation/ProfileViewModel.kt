@@ -25,7 +25,8 @@ data class ProfileUiState(
     val isUploadingAvatar: Boolean = false,
     val errorMessage: String? = null,
     val saveSuccess: Boolean = false,
-    val completionDismissedForUid: String? = null
+    val completionDismissedForUid: String? = null,
+    val totalLocalEnsenanzas: Int = 0
 ) {
     val isAuthenticated: Boolean
         get() = currentUser != null
@@ -46,12 +47,14 @@ class ProfileViewModel @JvmOverloads constructor(
     val state: StateFlow<ProfileUiState> = _state.asStateFlow()
 
     private var profileJob: Job? = null
+    private var studiesJob: Job? = null
 
     fun setCurrentUser(user: AuthUser?) {
         val currentUid = _state.value.currentUser?.uid
         if (currentUid == user?.uid) return
 
         profileJob?.cancel()
+        studiesJob?.cancel()
         _state.value = ProfileUiState(
             currentUser = user,
             nombres = user?.displayName?.substringBefore(" ").orEmpty(),
@@ -61,6 +64,13 @@ class ProfileViewModel @JvmOverloads constructor(
         )
 
         if (user == null) return
+
+        studiesJob = viewModelScope.launch {
+            StudyDatabase.getInstance(getApplication()).studyDao().observeAllStudies().collect { studies ->
+                val count = studies.count { it.ownerUid == user.uid || it.ownerUid.isNullOrBlank() }
+                _state.update { it.copy(totalLocalEnsenanzas = count) }
+            }
+        }
 
         profileJob = viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }

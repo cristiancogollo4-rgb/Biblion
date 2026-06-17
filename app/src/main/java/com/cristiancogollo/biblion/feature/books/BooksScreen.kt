@@ -20,6 +20,18 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import kotlinx.coroutines.launch
+import com.cristiancogollo.biblion.feature.books.BookCategory
+import com.cristiancogollo.biblion.feature.books.BookCategoryColors
+import com.cristiancogollo.biblion.feature.books.toBookCategory
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
+import androidx.compose.ui.Alignment
 
 // Optimizacion: Listas fuera del composable para evitar re-asignacion constante
 private val oldTestamentBooks = listOf(
@@ -63,6 +75,8 @@ fun BooksScreen(
     onGuidedTutorialRestart: () -> Unit = {},
     onGuidedTutorialTargetAction: (String) -> Unit = {}
 ) {
+    var showCategoryLegendSheet by remember { mutableStateOf(false) }
+    var selectedCategoryForLegend by remember { mutableStateOf<BookCategory?>(null) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -183,6 +197,61 @@ fun BooksScreen(
                     )
                 )
 
+                Spacer(modifier = Modifier.height(8.dp))
+
+                val activeCategories = remember(currentSelectedTestament) {
+                    if (currentSelectedTestament == Testament.OLD) {
+                        listOf(
+                            BookCategory.PENTATEUCO,
+                            BookCategory.HISTORICO,
+                            BookCategory.SAPIENCIAL,
+                            BookCategory.PROFETICO
+                        )
+                    } else {
+                        listOf(
+                            BookCategory.EVANGELIO,
+                            BookCategory.HISTORICO_NT,
+                            BookCategory.EPISTOLA_PAULINA,
+                            BookCategory.EPISTOLA_CATOLICA,
+                            BookCategory.APOCALIPSIS
+                        )
+                    }
+                }
+
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(activeCategories) { category ->
+                        val colors = BookCategoryColors.getColors(category, isDarkTheme)
+                        SuggestionChip(
+                            onClick = {
+                                selectedCategoryForLegend = category
+                                showCategoryLegendSheet = true
+                            },
+                            label = {
+                                Text(
+                                    text = category.labelEs,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            },
+                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                containerColor = colors.bg,
+                                labelColor = colors.text
+                            ),
+                            border = SuggestionChipDefaults.suggestionChipBorder(
+                                enabled = true,
+                                borderColor = colors.border,
+                                borderWidth = 1.dp
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                    }
+                }
+
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = bookCardMinSize),
                     contentPadding = PaddingValues(16.dp),
@@ -192,8 +261,11 @@ fun BooksScreen(
                 ) {
                     // Optimización: usamos key para que Compose identifique cada item y sea fluido.
                     itemsIndexed(booksToShow, key = { _, bookName -> bookName }) { index, bookName ->
+                        val category = bookName.toBookCategory()
+                        val colorSchema = BookCategoryColors.getColors(category, isDarkTheme)
                         BookCard(
                             bookName = bookName,
+                            colorSchema = colorSchema,
                             modifier = if (index == 0) {
                                 Modifier.guidedTutorialTarget(
                                     GuidedTutorialTargets.BOOKS_FIRST_BOOK,
@@ -222,6 +294,106 @@ fun BooksScreen(
             onSkip = onGuidedTutorialSkip,
             onRestart = onGuidedTutorialRestart
         )
+
+        if (showCategoryLegendSheet && selectedCategoryForLegend != null) {
+            val category = selectedCategoryForLegend!!
+            val colors = BookCategoryColors.getColors(category, isDarkTheme)
+            val booksInCategory = remember(category, currentSelectedTestament) {
+                val fullList = if (currentSelectedTestament == Testament.OLD) oldTestamentBooks else newTestamentBooks
+                fullList.filter { it.toBookCategory() == category }
+            }
+
+            @OptIn(ExperimentalMaterial3Api::class)
+            ModalBottomSheet(
+                onDismissRequest = { showCategoryLegendSheet = false },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 24.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(colors.bg)
+                                .border(1.dp, colors.border, RoundedCornerShape(6.dp))
+                        )
+                        Text(
+                            text = category.labelEs,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = colors.bg,
+                            border = BorderStroke(1.dp, colors.border)
+                        ) {
+                            Text(
+                                text = "${booksInCategory.size} libros",
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.text
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = category.description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                    Text(
+                        text = "Libros en esta categoría:",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
+                    ) {
+                        booksInCategory.forEach { bookName ->
+                            Surface(
+                                onClick = {
+                                    showCategoryLegendSheet = false
+                                    navController.navigateSingleTop(
+                                        Screen.Reader.createRoute(bookName = bookName, studyMode = openInStudyMode)
+                                    )
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                color = colors.bg,
+                                border = BorderStroke(1.dp, colors.border)
+                            ) {
+                                Text(
+                                    text = bookName,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.text
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     if (showVersionDialog) {

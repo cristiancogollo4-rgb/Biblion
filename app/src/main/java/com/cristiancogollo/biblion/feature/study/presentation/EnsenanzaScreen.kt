@@ -13,41 +13,47 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilePresent
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
@@ -60,6 +66,8 @@ import java.io.File
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,6 +83,7 @@ fun EnsenanzaScreen(navController: NavController) {
     var metadataError by remember { mutableStateOf<String?>(null) }
     var titleFilterInput by remember { mutableStateOf("") }
     var selectedTagFilters by remember { mutableStateOf<Set<String>>(emptySet()) }
+
     val studiesWithPreview = remember(state.allStudies) {
         state.allStudies.map { study ->
             study to buildStudyPreview(study.contentSerialized, json)
@@ -99,42 +108,118 @@ fun EnsenanzaScreen(navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Mis Enseñanzas", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
+                title = { },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStackOrNavigateHome() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás", tint = MaterialTheme.colorScheme.onSurface)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atras", tint = MaterialTheme.colorScheme.onSurface)
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Mas opciones", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
+            ExtendedFloatingActionButton(
                 onClick = {
                     navController.navigateSingleTop(Screen.Reader.createRoute(studyMode = true))
                 },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+                containerColor = BiblionNavy,
+                contentColor = Color.White,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.padding(end = 8.dp, bottom = 8.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Nueva Enseñanza")
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Nueva ensenanza", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
             }
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         if (state.isStudiesLoading) {
             TeachingListLoadingSkeleton(contentPadding = padding)
-        } else if (state.allStudies.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("No tienes enseñanzas guardadas aún.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f))
-            }
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
             ) {
-                item {
-                    TeachingFilters(
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(BiblionNavy),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.AutoStories,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = "Mis Ensenanzas",
+                                fontSize = 26.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Organiza, encuentra y reutiliza tus estudios.",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.List,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = "${state.allStudies.size} ensenanzas guardadas",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    item {
+                        TeachingFilters(
                         titleQuery = titleFilterInput,
                         onTitleQueryChange = { titleFilterInput = it },
                         tagGroups = tagFilterGroups,
@@ -149,15 +234,21 @@ fun EnsenanzaScreen(navController: NavController) {
                         onClearTags = { selectedTagFilters = emptySet() }
                     )
                 }
-                if (visibleStudies.isEmpty()) {
+
+                if (state.allStudies.isEmpty()) {
                     item {
-                        Text(
-                            text = "No hay ensenanzas que coincidan con el filtro.",
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) {
+                            Text("No tienes ensenanzas guardadas aun.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                } else if (visibleStudies.isEmpty()) {
+                    item {
+                        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
+                            Text("No hay ensenanzas que coincidan con el filtro.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
+
                 items(visibleStudies, key = { it.first.id }) { (study, preview) ->
                     EnsenanzaCard(
                         study = study,
@@ -181,26 +272,20 @@ fun EnsenanzaScreen(navController: NavController) {
                             viewModel.process(StudyIntent.DeleteStudy(study.id))
                         },
                         onEditMetadata = {
-                            val preview = buildStudyPreview(study.contentSerialized, json)
                             metadataStudy = study
                             metadataTitle = study.title
                             metadataTagsInput = preview.tags.joinToString(", ")
                             metadataError = null
                         },
-                        onShareText = {
-                            shareStudyText(context, study, json)
-                        },
-                        onShareBiblion = {
-                            shareStudyBiblionFile(context, study)
-                        },
-                        onSharePdf = {
-                            shareStudyPdf(context, study, json)
-                        }
+                        onShareText = { shareStudyText(context, study, json) },
+                        onShareBiblion = { shareStudyBiblionFile(context, study) },
+                        onSharePdf = { shareStudyPdf(context, study, json) }
                     )
                 }
             }
         }
     }
+}
 
     metadataStudy?.let { study ->
         AlertDialog(
@@ -208,7 +293,7 @@ fun EnsenanzaScreen(navController: NavController) {
             containerColor = MaterialTheme.colorScheme.surface,
             titleContentColor = MaterialTheme.colorScheme.onSurface,
             textContentColor = MaterialTheme.colorScheme.onSurface,
-            title = { Text("Editar título y etiquetas") },
+            title = { Text("Editar titulo y etiquetas", fontWeight = FontWeight.Bold) },
             text = {
                 Column(
                     modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -221,13 +306,12 @@ fun EnsenanzaScreen(navController: NavController) {
                             metadataError = null
                         },
                         singleLine = true,
-                        label = { Text("Título") },
+                        label = { Text("Titulo") },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = BiblionNavy,
-                            unfocusedBorderColor = BiblionGoldPrimary,
-                            focusedLabelColor = BiblionNavy,
-                            cursorColor = BiblionNavy
-                        )
+                            focusedBorderColor = BiblionBluePrimary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                        ),
+                        modifier = Modifier.fillMaxWidth()
                     )
                     StudyTagSelector(
                         value = metadataTagsInput,
@@ -237,41 +321,34 @@ fun EnsenanzaScreen(navController: NavController) {
                         }
                     )
                     metadataError?.let {
-                        Text(
-                            text = it,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
+                        Text(text = it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                    val cleanTitle = metadataTitle.trim()
-                    val cleanTags = parseStudyTags(metadataTagsInput)
-                    val tagError = validateRequiredStudyTags(cleanTags)
-                    metadataError = when {
-                        cleanTitle.isBlank() -> "El título es obligatorio."
-                        tagError != null -> tagError
-                        else -> null
-                    }
-                    if (metadataError == null) {
-                        viewModel.updateStudyMetadata(study.id, cleanTitle, cleanTags)
-                        metadataStudy = null
-                    }
-                },
-                    colors = ButtonDefaults.textButtonColors(contentColor = BiblionGoldPrimary)
+                        val cleanTitle = metadataTitle.trim()
+                        val cleanTags = parseStudyTags(metadataTagsInput)
+                        val tagError = validateRequiredStudyTags(cleanTags)
+                        metadataError = when {
+                            cleanTitle.isBlank() -> "El titulo es obligatorio."
+                            tagError != null -> tagError
+                            else -> null
+                        }
+                        if (metadataError == null) {
+                            viewModel.updateStudyMetadata(study.id, cleanTitle, cleanTags)
+                            metadataStudy = null
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = BiblionBluePrimary)
                 ) {
-                    Text("Guardar")
+                    Text("Guardar", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(
-                    onClick = { metadataStudy = null },
-                    colors = ButtonDefaults.textButtonColors(contentColor = BiblionBluePrimary)
-                ) {
-                    Text("Cancelar")
+                TextButton(onClick = { metadataStudy = null }) {
+                    Text("Cancelar", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         )
@@ -289,14 +366,13 @@ private fun TeachingFilters(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, BiblionGoldSoft.copy(alpha = 0.38f)),
-        tonalElevation = 1.dp
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             OutlinedTextField(
                 value = titleQuery,
@@ -304,23 +380,37 @@ private fun TeachingFilters(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 leadingIcon = {
-                    Icon(Icons.Default.Search, contentDescription = null)
+                    Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 },
-                label = { Text("Buscar por titulo") },
-                placeholder = { Text("Nombre de la ensenanza") },
+                trailingIcon = {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier.padding(end = 4.dp)
+                    ) {
+                        Text(
+                            text = "Ctrl + K",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                placeholder = { Text("Buscar ensenanza por titulo, etiquetas o contenido...", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)) },
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = BiblionNavy,
-                    unfocusedBorderColor = BiblionGoldPrimary,
-                    focusedLabelColor = BiblionNavy,
-                    cursorColor = BiblionNavy
-                )
+                    focusedBorderColor = MaterialTheme.colorScheme.outline,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                ),
+                shape = RoundedCornerShape(10.dp)
             )
 
             if (tagGroups.isNotEmpty()) {
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(end = 8.dp)
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     items(tagGroups, key = { it.title }) { group ->
                         TeachingTagFilterMenuButton(
@@ -333,9 +423,9 @@ private fun TeachingFilters(
                         item {
                             TextButton(
                                 onClick = onClearTags,
-                                colors = ButtonDefaults.textButtonColors(contentColor = BiblionGoldPrimary)
+                                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                             ) {
-                                Text("Limpiar")
+                                Text("Limpiar filtros", fontSize = 13.sp, fontWeight = FontWeight.Medium)
                             }
                         }
                     }
@@ -355,31 +445,40 @@ private fun TeachingTagFilterMenuButton(
     val selectedCount = group.tags.count { it in selectedTags }
     val hasSelection = selectedCount > 0
 
+    val groupIcon = when(group.title.lowercase()) {
+        "proposito" -> "\uD83C\uDFAF"
+        "audiencia" -> "\uD83D\uDC65"
+        "tema" -> "\uD83D\uDCD6"
+        "estado" -> "\uD83D\uDCCC"
+        else -> "\u2699\uFE0F"
+    }
+
     Box {
         OutlinedButton(
             onClick = { expanded = true },
-            shape = RoundedCornerShape(8.dp),
-            border = BorderStroke(
-                width = 1.dp,
-                color = if (hasSelection) BiblionGoldPrimary else BiblionGoldSoft.copy(alpha = 0.52f)
-            ),
+            shape = RoundedCornerShape(10.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = if (hasSelection) BiblionBluePrimary else MaterialTheme.colorScheme.surface,
-                contentColor = if (hasSelection) MaterialTheme.colorScheme.onPrimary else BiblionBluePrimary
+                containerColor = if (hasSelection) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                contentColor = if (hasSelection) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
             ),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
         ) {
+            Text(text = groupIcon, fontSize = 14.sp)
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = if (hasSelection) "${group.title} ($selectedCount)" else group.title,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold
+                fontSize = 13.sp,
+                fontWeight = if (hasSelection) FontWeight.SemiBold else FontWeight.Medium
             )
             Spacer(modifier = Modifier.width(4.dp))
             Icon(
                 imageVector = Icons.Default.ExpandMore,
-                contentDescription = null
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
@@ -392,26 +491,425 @@ private fun TeachingTagFilterMenuButton(
             group.tags.forEach { tag ->
                 val checked = tag in selectedTags
                 DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = tag,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    },
+                    text = { Text(text = tag, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     onClick = { onTagToggled(tag) },
                     leadingIcon = {
                         Checkbox(
                             checked = checked,
                             onCheckedChange = null,
-                            colors = CheckboxDefaults.colors(
-                                checkedColor = BiblionBluePrimary,
-                                uncheckedColor = BiblionGoldPrimary,
-                                checkmarkColor = MaterialTheme.colorScheme.onPrimary
-                            )
+                            colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary)
                         )
                     }
                 )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun EnsenanzaCard(
+    study: StudyEntity,
+    previewText: String = "",
+    tags: List<String> = emptyList(),
+    dateText: String,
+    onOpen: () -> Unit,
+    onEdit: () -> Unit,
+    onEditMetadata: () -> Unit,
+    onShareText: () -> Unit,
+    onShareBiblion: () -> Unit,
+    onSharePdf: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    val isPredicacion = study.title.lowercase().contains("demo") || tags.contains("predicacion")
+    val indicatorColor = if (isPredicacion) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary
+    val badgeBg = if (isPredicacion) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.tertiaryContainer
+    val badgeText = if (isPredicacion) "\uD83C\uDFAF Predicacion" else "\uD83D\uDCD6 Estudio Biblico"
+    val isWide = LocalConfiguration.current.screenWidthDp >= 600
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onOpen() }
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .align(Alignment.CenterVertically)
+                    .background(indicatorColor)
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(badgeBg),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isPredicacion) Icons.Filled.Bookmark else Icons.Filled.MenuBook,
+                        contentDescription = null,
+                        tint = indicatorColor,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                if (isWide) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            color = badgeBg,
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = badgeText,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                fontSize = 11.sp,
+                                color = indicatorColor,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Text(
+                            text = study.title.ifBlank { "Sin titulo" },
+                            fontSize = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.DateRange,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Text(
+                                text = "Actualizada hace unos dias  -  $dateText",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        if (previewText.isNotBlank()) {
+                            Text(
+                                text = previewText,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis,
+                                lineHeight = 18.sp
+                            )
+                        }
+
+                        if (tags.isNotEmpty()) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.padding(top = 4.dp)
+                            ) {
+                                tags.take(6).forEach { tag ->
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.surfaceVariant,
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Text(
+                                            text = "# $tag",
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                                if (tags.size > 6) {
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.surfaceVariant,
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Text(
+                                            text = "+",
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(24.dp),
+                        verticalAlignment = Alignment.Top,
+                        modifier = Modifier.padding(top = 4.dp)
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.Start,
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("\uD83D\uDC65", fontSize = 11.sp)
+                                Text("Audiencia", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
+                            }
+                            Surface(
+                                color = if (isPredicacion) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.tertiaryContainer,
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text(
+                                    text = if (isPredicacion) "Jovenes" else "Iglesia",
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    fontSize = 12.sp,
+                                    color = if (isPredicacion) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onTertiaryContainer,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+
+                        Column(
+                            horizontalAlignment = Alignment.Start,
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("\uD83D\uDCD6", fontSize = 11.sp)
+                                Text("Tema", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
+                            }
+                            Surface(
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text(
+                                    text = if (isPredicacion) "Identidad" else "Gracia",
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+
+                        Box {
+                            IconButton(
+                                onClick = { menuExpanded = true },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "Acciones",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            TeachingActionsMenu(
+                                expanded = menuExpanded,
+                                onDismiss = { menuExpanded = false },
+                                onEdit = onEdit,
+                                onEditMetadata = onEditMetadata,
+                                onShareText = onShareText,
+                                onShareBiblion = onShareBiblion,
+                                onSharePdf = onSharePdf,
+                                onDelete = onDelete
+                            )
+                        }
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            color = badgeBg,
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = badgeText,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                fontSize = 11.sp,
+                                color = indicatorColor,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Text(
+                            text = study.title.ifBlank { "Sin titulo" },
+                            fontSize = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.DateRange,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Text(
+                                text = "Actualizada hace unos dias  -  $dateText",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        if (previewText.isNotBlank()) {
+                            Text(
+                                text = previewText,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis,
+                                lineHeight = 18.sp
+                            )
+                        }
+
+                        if (tags.isNotEmpty()) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.padding(top = 4.dp)
+                            ) {
+                                tags.take(6).forEach { tag ->
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.surfaceVariant,
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Text(
+                                            text = "# $tag",
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                                if (tags.size > 6) {
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.surfaceVariant,
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Text(
+                                            text = "+",
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.Start,
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text("\uD83D\uDC65", fontSize = 11.sp)
+                                        Text("Audiencia", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
+                                    }
+                                    Surface(
+                                        color = if (isPredicacion) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.tertiaryContainer,
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Text(
+                                            text = if (isPredicacion) "Jovenes" else "Iglesia",
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                            fontSize = 12.sp,
+                                            color = if (isPredicacion) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onTertiaryContainer,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+
+                                Column(
+                                    horizontalAlignment = Alignment.Start,
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text("\uD83D\uDCD6", fontSize = 11.sp)
+                                        Text("Tema", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
+                                    }
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.secondaryContainer,
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Text(
+                                            text = if (isPredicacion) "Identidad" else "Gracia",
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            }
+
+                            Box {
+                                IconButton(
+                                    onClick = { menuExpanded = true },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "Acciones",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                TeachingActionsMenu(
+                                    expanded = menuExpanded,
+                                    onDismiss = { menuExpanded = false },
+                                    onEdit = onEdit,
+                                    onEditMetadata = onEditMetadata,
+                                    onShareText = onShareText,
+                                    onShareBiblion = onShareBiblion,
+                                    onSharePdf = onSharePdf,
+                                    onDelete = onDelete
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -535,125 +1033,6 @@ private fun ShimmerBlock(
             .clip(RoundedCornerShape(8.dp))
             .background(brush)
     )
-}
-
-@Composable
-fun EnsenanzaCard(
-    study: StudyEntity,
-    previewText: String = "",
-    tags: List<String> = emptyList(),
-    dateText: String,
-    onOpen: () -> Unit,
-    onEdit: () -> Unit,
-    onEditMetadata: () -> Unit,
-    onShareText: () -> Unit,
-    onShareBiblion: () -> Unit,
-    onSharePdf: () -> Unit,
-    onDelete: () -> Unit
-) {
-    var menuExpanded by remember { mutableStateOf(false) }
-
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onOpen() }
-        ) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-            ) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .fillMaxHeight()
-                        .width(6.dp)
-                        .background(BiblionGoldPrimary)
-                )
-            }
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        start = 20.dp,
-                        top = 16.dp,
-                        end = 16.dp,
-                        bottom = 16.dp
-                    ),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = study.title.ifBlank { "Sin titulo" },
-                            style = MaterialTheme.typography.titleLarge,
-                            color = BiblionBluePrimary,
-                            fontWeight = FontWeight.Black,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = "Ultima edicion: $dateText",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
-                        )
-                    }
-                    Box {
-                        IconButton(onClick = { menuExpanded = true }) {
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "Mas opciones",
-                                tint = BiblionBluePrimary
-                            )
-                        }
-                        TeachingActionsMenu(
-                            expanded = menuExpanded,
-                            onDismiss = { menuExpanded = false },
-                            onEdit = onEdit,
-                            onEditMetadata = onEditMetadata,
-                            onShareText = onShareText,
-                            onShareBiblion = onShareBiblion,
-                            onSharePdf = onSharePdf,
-                            onDelete = onDelete
-                        )
-                    }
-                }
-
-                if (previewText.isNotBlank()) {
-                    Text(
-                        text = previewText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                if (tags.isNotEmpty()) {
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        contentPadding = PaddingValues(end = 8.dp)
-                    ) {
-                        items(tags, key = { it }) { tag ->
-                            TeachingTagChip(tag)
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 @Composable
