@@ -80,6 +80,12 @@ private fun normalizeStudyTag(tag: String): String {
     return tag.trim()
         .removePrefix("#")
         .lowercase()
+        .replace(Regex("[áà]"), "a")
+        .replace(Regex("[éèë]"), "e")
+        .replace(Regex("[íìï]"), "i")
+        .replace(Regex("[óòö]"), "o")
+        .replace(Regex("[úùü]"), "u")
+        .replace(Regex("[ñ]"), "n")
         .replace(Regex("\\s+"), "-")
 }
 
@@ -98,6 +104,15 @@ internal fun validateRequiredStudyTags(tags: List<String>): String? {
         suggestedStudyTagGroups.last().selectedTags(tags).size != 1 ->
             "Debes seleccionar solo un estado."
         else -> null
+    }
+}
+
+internal fun withDefaultStateTag(tags: List<String>): List<String> {
+    val stateGroup = suggestedStudyTagGroups.last()
+    return if (stateGroup.selectedTags(tags).isEmpty()) {
+        tags + "borrador"
+    } else {
+        tags
     }
 }
 

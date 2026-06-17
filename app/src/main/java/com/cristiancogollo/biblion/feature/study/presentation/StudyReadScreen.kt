@@ -207,8 +207,19 @@ private data class StudyReadBlockActions(
 )
 
 private fun List<StudyBlockNode>.toReadItems(): List<StudyReadItem> {
+    val qvRefs = filterIsInstance<StudyBlockNode.QuotedVerse>()
+        .mapNotNull { StudyDocumentEngine.parseReference(it.reference) }
     var numberedIndex = 0
-    return map { block ->
+    return filter { block ->
+        if (block is StudyBlockNode.Citation) {
+            qvRefs.none { qv ->
+                qv.book == block.reference.book &&
+                    qv.chapter == block.reference.chapter &&
+                    qv.verseStart == block.reference.verseStart &&
+                    qv.verseEnd == block.reference.verseEnd
+            }
+        } else true
+    }.map { block ->
         if (block is StudyBlockNode.Paragraph && block.role == "numbered") {
             numberedIndex += 1
         }

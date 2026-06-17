@@ -68,7 +68,7 @@ fun EnsenanzaScreen(navController: NavController) {
     val viewModel: StudyViewModel = viewModel()
     val state by viewModel.state.collectAsState()
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()) }
-    val json = remember { Json { ignoreUnknownKeys = true; classDiscriminator = "nodeType" } }
+    val json = remember { StudyViewModel.sharedJson }
     var metadataStudy by remember { mutableStateOf<StudyEntity?>(null) }
     var metadataTitle by remember { mutableStateOf("") }
     var metadataTagsInput by remember { mutableStateOf("") }
@@ -719,141 +719,6 @@ private fun TeachingTagChip(tag: String) {
     }
 }
 
-@Composable
-private fun LegacyEnsenanzaCard(
-    study: StudyEntity,
-    previewText: String = "",
-    tags: List<String> = emptyList(),
-    dateText: String,
-    onOpen: () -> Unit,
-    onEdit: () -> Unit,
-    onEditMetadata: () -> Unit,
-    onShareText: () -> Unit,
-    onShareBiblion: () -> Unit,
-    onSharePdf: () -> Unit,
-    onDelete: () -> Unit
-) {
-    var menuExpanded by remember { mutableStateOf(false) }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { onOpen() }
-            ) {
-                Text(
-                    text = study.title.ifBlank { "Sin título" },
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Última edición: $dateText",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
-                )
-            }
-            Box {
-                    IconButton(onClick = { menuExpanded = true }) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = "Más opciones",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                DropdownMenu(
-                    expanded = menuExpanded,
-                    onDismissRequest = { menuExpanded = false },
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    offset = DpOffset(x = 0.dp, y = 6.dp) // aparece debajo del icono
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        IconButton(onClick = {
-                            menuExpanded = false
-                            onEdit()
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = "Editar",
-                                tint = BiblionGoldPrimary
-                            )
-                        }
-
-                        IconButton(onClick = {
-                            menuExpanded = false
-                            onEditMetadata()
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Configurar",
-                                tint = BiblionGoldPrimary
-                            )
-                        }
-
-                        IconButton(onClick = {
-                            menuExpanded = false
-                            onShareText()
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Share,
-                                contentDescription = "Compartir texto",
-                                tint = BiblionGoldPrimary
-                            )
-                        }
-
-                        IconButton(onClick = {
-                            menuExpanded = false
-                            onShareBiblion()
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.FilePresent,
-                                contentDescription = "Compartir archivo Biblion",
-                                tint = BiblionGoldPrimary
-                            )
-                        }
-
-                        IconButton(onClick = {
-                            menuExpanded = false
-                            onSharePdf()
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.PictureAsPdf,
-                                contentDescription = "Exportar PDF",
-                                tint = BiblionGoldPrimary.copy(alpha = 0.55f)
-                            )
-                        }
-
-                        IconButton(onClick = {
-                            menuExpanded = false
-                            onDelete()
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Eliminar",
-                                tint = BiblionGoldPrimary
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 private fun shareStudyText(context: android.content.Context, study: StudyEntity, json: Json) {
     val text = buildStudyShareText(study, json)
     val intent = Intent(Intent.ACTION_SEND).apply {
@@ -871,7 +736,7 @@ private fun shareStudyBiblionFile(context: android.content.Context, study: Study
         .trim('-')
         .ifBlank { "ensenanza-biblion" }
     val file = File(shareDir, "$safeName.biblion")
-    val payload = Json.encodeToString(
+    val payload = StudyViewModel.sharedJson.encodeToString(
         BiblionSharedStudyFile(
             title = study.title,
             remoteId = study.remoteId,

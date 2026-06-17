@@ -6,6 +6,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -76,6 +79,18 @@ sealed interface StudyIntent {
     data class UpdateParagraphParallelText(val blockId: String, val text: String) : StudyIntent
     data class UpdateParagraphRole(val blockId: String, val role: String) : StudyIntent
     data class UpdateParagraphAlignment(val blockId: String, val textAlign: String) : StudyIntent
+    data class ApplyRoleToSelection(
+        val blockId: String,
+        val role: String,
+        val selectionStart: Int,
+        val selectionEnd: Int
+    ) : StudyIntent
+    data class ApplyAlignmentToSelection(
+        val blockId: String,
+        val alignment: String,
+        val selectionStart: Int,
+        val selectionEnd: Int
+    ) : StudyIntent
     data class AddColumnEmbeddedBlock(
         val paragraphBlockId: String,
         val source: String,
@@ -160,9 +175,14 @@ class StudyViewModel @JvmOverloads constructor(
 ) : AndroidViewModel(application) {
     companion object {
         private const val TAG = "StudyViewModel"
+        val sharedJson = Json { ignoreUnknownKeys = true; encodeDefaults = true; classDiscriminator = "nodeType" }
     }
 
-    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; classDiscriminator = "nodeType" }
+    private val json = sharedJson
+    private val loadStudyMutex = Mutex()
+    private var loadStudyGeneration = 0L
+    private val versionLoadJobs = mutableMapOf<String, Job>()
+    private var seedDataReady = false
 
     private fun normalizeVersion(version: String): String {
         return when (version.trim().lowercase()) {
@@ -174,8 +194,10 @@ class StudyViewModel @JvmOverloads constructor(
     private val _state = MutableStateFlow(StudyUiState())
     val state: StateFlow<StudyUiState> = _state.asStateFlow()
 
-    private val undoStack = ArrayDeque<String>()
-    private val redoStack = ArrayDeque<String>()
+    // Gestores reutilizables
+    private val undoManager = StudyUndoManager(maxSize = 30)
+    private val autoSaveManager = StudyAutoSaveManager(dao, json, ioDispatcher)
+    val selectionState = StudyEditorSelectionState()
 
     private val notebooksFlow = dao.observeNotebooks().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     private val selectedNotebookFlow = MutableStateFlow<Long?>(null)
@@ -187,6 +209,7 @@ class StudyViewModel @JvmOverloads constructor(
         startAutoSaveObserver()
         viewModelScope.launch {
             ensureSeedData()
+            seedDataReady = true
         }
         viewModelScope.launch {
             notebooksFlow.collect { notebooks ->
@@ -227,6 +250,9 @@ class StudyViewModel @JvmOverloads constructor(
             is StudyIntent.SelectStudy -> viewModelScope.launch { loadStudy(intent.studyId) }
             is StudyIntent.DeleteStudy -> {
                 viewModelScope.launch {
+                    if (_state.value.selectedStudyId == intent.studyId) {
+                        _state.value = _state.value.copy(selectedStudyId = null)
+                    }
                     withContext(ioDispatcher) {
                         val existing = dao.getStudy(intent.studyId) ?: return@withContext
                         dao.updateStudy(
@@ -243,12 +269,15 @@ class StudyViewModel @JvmOverloads constructor(
                 _state.value = _state.value.copy(title = intent.title)
             }
             is StudyIntent.UpdateRichHtml -> {
-                undoStack.addLast(_state.value.richHtml)
+                val oldBlocks = _state.value.blocks
+                val newBlocks = StudyDocumentEngine.rebuildBlocks(intent.html, _state.value.blocks)
+                undoManager.recordOperation(
+                    StudyOperation.BlocksChanged(oldBlocks = oldBlocks, newBlocks = newBlocks)
+                )
                 _state.value = _state.value.copy(
                     richHtml = intent.html,
-                    blocks = StudyDocumentEngine.rebuildBlocks(intent.html, _state.value.blocks)
+                    blocks = newBlocks
                 )
-                redoStack.clear()
             }
             is StudyIntent.UpdateParagraphBlock -> {
                 applyDocumentBlocks(
@@ -300,6 +329,30 @@ class StudyViewModel @JvmOverloads constructor(
                         fallbackHtml = _state.value.richHtml,
                         blockId = intent.blockId,
                         textAlign = intent.textAlign
+                    )
+                )
+            }
+            is StudyIntent.ApplyRoleToSelection -> {
+                applyDocumentBlocks(
+                    StudyDocumentEngine.splitBlockForRole(
+                        blocks = _state.value.blocks,
+                        fallbackHtml = _state.value.richHtml,
+                        blockId = intent.blockId,
+                        newRole = intent.role,
+                        selectionStart = intent.selectionStart,
+                        selectionEnd = intent.selectionEnd
+                    )
+                )
+            }
+            is StudyIntent.ApplyAlignmentToSelection -> {
+                applyDocumentBlocks(
+                    StudyDocumentEngine.splitBlockForAlignment(
+                        blocks = _state.value.blocks,
+                        fallbackHtml = _state.value.richHtml,
+                        blockId = intent.blockId,
+                        newAlignment = intent.alignment,
+                        selectionStart = intent.selectionStart,
+                        selectionEnd = intent.selectionEnd
                     )
                 )
             }
@@ -393,12 +446,12 @@ class StudyViewModel @JvmOverloads constructor(
             }
             is StudyIntent.AddAudioBlock -> {
                 _state.value = _state.value.copy(
-                    blocks = _state.value.blocks + StudyBlockNode.Audio(intent.uri, intent.title)
+                    blocks = _state.value.blocks + StudyBlockNode.Audio(uri = intent.uri, title = intent.title)
                 )
             }
             is StudyIntent.AddImageBlock -> {
                 _state.value = _state.value.copy(
-                    blocks = _state.value.blocks + StudyBlockNode.Image(intent.uri, intent.caption)
+                    blocks = _state.value.blocks + StudyBlockNode.Image(uri = intent.uri, caption = intent.caption)
                 )
             }
             is StudyIntent.AddNoteBlock -> {
@@ -465,25 +518,75 @@ class StudyViewModel @JvmOverloads constructor(
             is StudyIntent.ChangeVersion -> {
                 _state.value = _state.value.copy(globalVersion = normalizeVersion(intent.version))
             }
-            StudyIntent.Undo -> if (undoStack.isNotEmpty()) {
-                val previous = undoStack.removeLast()
-                redoStack.addLast(_state.value.richHtml)
-                _state.value = _state.value.copy(
-                    richHtml = previous,
-                    blocks = StudyDocumentEngine.rebuildBlocks(previous, _state.value.blocks)
-                )
+            StudyIntent.Undo -> {
+                val operation = undoManager.undo() ?: return
+                when (operation) {
+                    is StudyOperation.BlocksChanged -> {
+                        _state.value = _state.value.copy(
+                            richHtml = StudyDocumentEngine.buildPlainTextSnapshot(operation.newBlocks),
+                            blocks = operation.newBlocks
+                        )
+                    }
+                    is StudyOperation.TextEdited -> {
+                        applyDocumentBlocks(
+                            StudyDocumentEngine.updateParagraphText(
+                                blocks = _state.value.blocks,
+                                fallbackHtml = _state.value.richHtml,
+                                blockId = operation.blockId,
+                                text = operation.newText
+                            )
+                        )
+                    }
+                    is StudyOperation.MetadataChanged -> {
+                        _state.value = _state.value.copy(
+                            title = operation.newTitle,
+                            tags = operation.newTags
+                        )
+                    }
+                    else -> { /* BlockInsert/Delete handled via BlocksChanged */ }
+                }
             }
-            StudyIntent.Redo -> if (redoStack.isNotEmpty()) {
-                val next = redoStack.removeLast()
-                undoStack.addLast(_state.value.richHtml)
-                _state.value = _state.value.copy(
-                    richHtml = next,
-                    blocks = StudyDocumentEngine.rebuildBlocks(next, _state.value.blocks)
-                )
+            StudyIntent.Redo -> {
+                val operation = undoManager.redo() ?: return
+                when (operation) {
+                    is StudyOperation.BlocksChanged -> {
+                        _state.value = _state.value.copy(
+                            richHtml = StudyDocumentEngine.buildPlainTextSnapshot(operation.newBlocks),
+                            blocks = operation.newBlocks
+                        )
+                    }
+                    is StudyOperation.TextEdited -> {
+                        applyDocumentBlocks(
+                            StudyDocumentEngine.updateParagraphText(
+                                blocks = _state.value.blocks,
+                                fallbackHtml = _state.value.richHtml,
+                                blockId = operation.blockId,
+                                text = operation.newText
+                            )
+                        )
+                    }
+                    is StudyOperation.MetadataChanged -> {
+                        _state.value = _state.value.copy(
+                            title = operation.newTitle,
+                            tags = operation.newTags
+                        )
+                    }
+                    else -> { /* BlockInsert/Delete handled via BlocksChanged */ }
+                }
             }
             StudyIntent.ExportPdf -> exportPdfStub()
             StudyIntent.SaveStudy, StudyIntent.Save -> saveStudyNow()
             is StudyIntent.SaveStudyWithMetadata -> {
+                val oldTitle = _state.value.title
+                val oldTags = _state.value.tags
+                undoManager.recordOperation(
+                    StudyOperation.MetadataChanged(
+                        oldTitle = oldTitle,
+                        newTitle = intent.title.trim(),
+                        oldTags = oldTags,
+                        newTags = intent.tags
+                    )
+                )
                 _state.value = _state.value.copy(
                     title = intent.title.trim(),
                     tags = intent.tags,
@@ -493,6 +596,9 @@ class StudyViewModel @JvmOverloads constructor(
             }
             StudyIntent.CreateNewStudy -> {
                 viewModelScope.launch {
+                    if (!seedDataReady) {
+                        kotlinx.coroutines.delay(200)
+                    }
                     val now = System.currentTimeMillis()
                     val notebookId = _state.value.selectedNotebookId ?: withContext(ioDispatcher) {
                         dao.observeNotebooks().firstOrNull()?.firstOrNull()?.id
@@ -517,6 +623,9 @@ class StudyViewModel @JvmOverloads constructor(
             }
             StudyIntent.StartNewDraft -> {
                 val initialBlocks = listOf(StudyBlockNode.Paragraph(text = ""))
+                undoManager.clearHistory()
+                autoSaveManager.reset()
+                selectionState.clear()
                 _state.value = _state.value.copy(
                     selectedStudyId = null,
                     title = "",
@@ -532,20 +641,10 @@ class StudyViewModel @JvmOverloads constructor(
     }
 
     fun addCitation(reference: String, text: String, includeFullText: Boolean) {
-        val parsed = parseReference(reference) ?: return
         val alwaysIncludeFullText = true
-        val id = CuidGenerator.create()
-        val citation = StudyBlockNode.Citation(
-            citationId = id,
-            reference = parsed,
-            text = text,
-            version = _state.value.globalVersion,
-            includeFullText = alwaysIncludeFullText
-        )
         _state.value = _state.value.copy(
-            blocks = _state.value.blocks + citation,
             pendingCitations = _state.value.pendingCitations + CitationInsertRequest(
-                id = id,
+                id = CuidGenerator.create(),
                 reference = reference,
                 text = text,
                 version = _state.value.globalVersion,
@@ -576,11 +675,12 @@ class StudyViewModel @JvmOverloads constructor(
             ?: return
         val reference = parseReference(block.reference) ?: return
 
-        viewModelScope.launch {
+        versionLoadJobs[blockId]?.cancel()
+        versionLoadJobs[blockId] = viewModelScope.launch {
             val loadedText = loadReferenceText(reference, normalizedVersion)
             if (loadedText.isBlank()) return@launch
-            _state.value = _state.value.copy(
-                blocks = _state.value.blocks.map { current ->
+            applyDocumentBlocks(
+                _state.value.blocks.map { current ->
                     if (current is StudyBlockNode.QuotedVerse && current.blockId == blockId) {
                         if (compare) {
                             current.copy(compareVersion = normalizedVersion, compareText = loadedText)
@@ -635,7 +735,11 @@ class StudyViewModel @JvmOverloads constructor(
 
     fun saveStudyNow(onComplete: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
-            val saved = persistCurrentStudy()
+            val saved = autoSaveManager.forceSave(_state.value)
+            if (saved) {
+                lastSavedSignature = autoSaveManager.getLastSignature()
+                FirestoreSyncManager.requestStudiesSync()
+            }
             onComplete(saved)
         }
     }
@@ -837,134 +941,52 @@ class StudyViewModel @JvmOverloads constructor(
     }
 
     private suspend fun loadStudy(studyId: Long) {
-        val study = withContext(ioDispatcher) { dao.getStudy(studyId) } ?: return
-        try {
-            val doc = runCatching { json.decodeFromString<SerializedStudyDocument>(study.contentSerialized) }
-                .getOrDefault(SerializedStudyDocument())
-            val normalizedBlocks = normalizeStudyFlow(ensureTextFlow(doc.blocks, ""))
-            val newState = _state.value.copy(
-                selectedStudyId = study.id,
-                title = study.title,
-                richHtml = buildPlainTextSnapshot(normalizedBlocks),
-                blocks = normalizedBlocks,
-                globalVersion = normalizeVersion(doc.globalVersion),
-                tags = doc.tags,
-                isDraftMode = false,
-                loadErrorMessage = null
-            )
-            val newSignature = buildSignature(newState)
-            _state.value = newState
-            lastSavedSignature = newSignature
-        } catch (e: Exception) {
-            Log.e(TAG, "Error loading study: $studyId", e)
-            _state.value = _state.value.copy(loadErrorMessage = "No se pudo cargar el estudio.")
+        val generation = ++loadStudyGeneration
+        loadStudyMutex.withLock {
+            if (generation != loadStudyGeneration) return@withLock
+            selectionState.clear()
+            val study = withContext(ioDispatcher) { dao.getStudy(studyId) } ?: return@withLock
+            try {
+                val doc = runCatching { json.decodeFromString<SerializedStudyDocument>(study.contentSerialized) }
+                    .getOrDefault(SerializedStudyDocument())
+                val normalizedBlocks = normalizeStudyFlow(ensureTextFlow(doc.blocks, ""))
+                val newState = _state.value.copy(
+                    selectedStudyId = study.id,
+                    title = study.title,
+                    richHtml = buildPlainTextSnapshot(normalizedBlocks),
+                    blocks = normalizedBlocks,
+                    globalVersion = normalizeVersion(doc.globalVersion),
+                    tags = doc.tags,
+                    isDraftMode = false,
+                    loadErrorMessage = null
+                )
+                _state.value = newState
+                undoManager.clearHistory()
+                autoSaveManager.markAsSaved(newState)
+                lastSavedSignature = autoSaveManager.getLastSignature()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading study: $studyId", e)
+                _state.value = _state.value.copy(loadErrorMessage = "No se pudo cargar el estudio.")
+            }
         }
     }
 
     private fun startAutoSaveObserver() {
         viewModelScope.launch {
             state
-                .map { current ->
-                    val selectedId = current.selectedStudyId ?: return@map ""
-                    val document = SerializedStudyDocument(
-                        blocks = current.blocks,
-                        globalVersion = current.globalVersion,
-                        tags = current.tags
-                    )
-                    "$selectedId|${current.title}|${json.encodeToString(document)}"
-                }
-                .filter { it.isNotBlank() }
+                .filter { it.selectedStudyId != null }
                 .debounce(autoSaveDebounceMs)
                 .distinctUntilChanged()
-                .collect { signature ->
-                    if (signature != lastSavedSignature) {
-                        persistCurrentStudy()
+                .collect { state ->
+                    if (autoSaveManager.hasChanged(state)) {
+                        val saved = autoSaveManager.autoSaveIfNeeded(state)
+                        if (saved) {
+                            lastSavedSignature = autoSaveManager.getLastSignature()
+                            FirestoreSyncManager.requestStudiesSync()
+                        }
                     }
                 }
         }
-    }
-
-    private suspend fun persistCurrentStudy(): Boolean {
-        val s = _state.value
-        val notebookId = s.selectedNotebookId ?: withContext(ioDispatcher) {
-            dao.observeNotebooks().firstOrNull()?.firstOrNull()?.id
-        } ?: return false
-        val notebook = withContext(ioDispatcher) { dao.getNotebook(notebookId) } ?: return false
-        val now = System.currentTimeMillis()
-        val document = SerializedStudyDocument(
-            blocks = s.blocks,
-            globalVersion = s.globalVersion,
-            tags = s.tags
-        )
-        val studyId = s.selectedStudyId
-        if (studyId == null) {
-            val newId = withContext(ioDispatcher) {
-                dao.insertStudy(
-                    StudyEntity(
-                        title = s.title.ifBlank { "Nueva Enseñanza" },
-                        notebookId = notebookId,
-                        notebookRemoteId = notebook.remoteId,
-                        contentSerialized = json.encodeToString(document),
-                        createdAt = now,
-                        updatedAt = now
-                    )
-                )
-            }
-            val citations = s.blocks.filterIsInstance<StudyBlockNode.Citation>().map {
-                LinkedCitationEntity(
-                    estudioId = newId,
-                    book = it.reference.book,
-                    chapter = it.reference.chapter,
-                    verseStart = it.reference.verseStart,
-                    verseEnd = it.reference.verseEnd,
-                    version = it.version,
-                    positionMetadata = "inline"
-                )
-            }
-            withContext(ioDispatcher) { dao.replaceCitations(newId, citations) }
-            _state.value = _state.value.copy(selectedStudyId = newId, selectedNotebookId = notebookId, isDraftMode = false)
-            lastSavedSignature = buildSignature(_state.value)
-            FirestoreSyncManager.requestStudiesSync()
-            return true
-        }
-
-        withContext(ioDispatcher) {
-            val existing = dao.getStudy(studyId)
-            dao.updateStudy(
-                existing?.copy(
-                    title = s.title.ifBlank { "Sin título" },
-                    notebookId = notebookId,
-                    notebookRemoteId = notebook.remoteId,
-                    contentSerialized = json.encodeToString(document),
-                    createdAt = existing.createdAt,
-                    updatedAt = now,
-                    deletedAt = null
-                ) ?: StudyEntity(
-                    id = studyId,
-                    title = s.title.ifBlank { "Sin título" },
-                    notebookId = notebookId,
-                    notebookRemoteId = notebook.remoteId,
-                    contentSerialized = json.encodeToString(document),
-                    createdAt = now,
-                    updatedAt = now
-                )
-            )
-        }
-        val citations = s.blocks.filterIsInstance<StudyBlockNode.Citation>().map {
-            LinkedCitationEntity(
-                estudioId = studyId,
-                book = it.reference.book,
-                chapter = it.reference.chapter,
-                verseStart = it.reference.verseStart,
-                verseEnd = it.reference.verseEnd,
-                version = it.version,
-                positionMetadata = "inline"
-            )
-        }
-        withContext(ioDispatcher) { dao.replaceCitations(studyId, citations) }
-        lastSavedSignature = buildSignature(_state.value)
-        FirestoreSyncManager.requestStudiesSync()
-        return true
     }
 
     fun preferredBookForStudy(study: StudyEntity): String? {
@@ -982,6 +1004,11 @@ class StudyViewModel @JvmOverloads constructor(
         return StudyDocumentEngine.detectReferences(text).firstOrNull()?.book
     }
 
+    fun canUndo(): Boolean = undoManager.canUndo()
+    fun canRedo(): Boolean = undoManager.canRedo()
+    fun undoDescription(): String? = undoManager.peekUndoDescription()
+    fun redoDescription(): String? = undoManager.peekRedoDescription()
+
     private fun buildSignature(state: StudyUiState): String {
         buildSignatureOverride?.let { return it(state) }
         val studyId = state.selectedStudyId ?: return ""
@@ -994,6 +1021,12 @@ class StudyViewModel @JvmOverloads constructor(
     }
 
     private fun applyDocumentBlocks(blocks: List<StudyBlockNode>) {
+        val oldBlocks = _state.value.blocks
+        if (oldBlocks != blocks) {
+            undoManager.recordOperation(
+                StudyOperation.BlocksChanged(oldBlocks = oldBlocks, newBlocks = blocks)
+            )
+        }
         _state.value = _state.value.copy(
             richHtml = StudyDocumentEngine.buildPlainTextSnapshot(blocks),
             blocks = blocks
@@ -1055,6 +1088,6 @@ class StudyViewModel @JvmOverloads constructor(
         StudyDocumentEngine.parseReference(reference)
 
     private fun exportPdfStub() {
-        // Punto de extensión: implementación de exportación PDF elegante del estudio.
+        Log.i(TAG, "ExportPdf: funcionalidad próximamente")
     }
 }

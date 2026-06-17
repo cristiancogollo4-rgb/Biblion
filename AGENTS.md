@@ -148,19 +148,23 @@ El modo estudio se compone principalmente de `StudyEditorScreen`, `StudyViewMode
 
 ### Herramientas del editor
 
-- **Texto libre / parrafos**: bloque principal para escribir la ensenanza.
-- **Encabezado**: cambia el rol visual del parrafo a titulo/seccion.
-- **Lista con vinetas**: transforma parrafos en items de lista.
-- **Lista numerada**: transforma parrafos en items numerados.
+- **Texto libre / parrafos**: bloque principal para escribir la ensenanza. Enter separa parrafos; en encabezados crea un nuevo parrafo; en listas crea un nuevo item del mismo tipo.
+- **Encabezado**: cambia el rol visual del parrafo a titulo/seccion. Enter en encabezado crea un nuevo parrafo debajo.
+- **Lista con vinetas**: transforma parrafos en items de lista. Enter crea nuevo item con vineta.
+- **Lista numerada**: transforma parrafos en items numerados. Enter crea nuevo item numerado.
 - **Columnas**: no es un bloque independiente; usa `StudyBlockNode.Paragraph` con `role = "columns"` y `parallelText`.
-- **Citar**: inserta citas biblicas como `StudyBlockNode.QuotedVerse`.
+- **Citar**: inserta citas biblicas como `StudyBlockNode.QuotedVerse` con soporte de comparacion de versiones.
 - **Nota**: inserta un bloque de nota para observaciones, aclaraciones o recordatorios.
 - **Reflexion**: inserta un bloque de reflexion vinculado a una idea o texto seleccionado.
-- **Estilos de texto**: color, fondo, negrita, cursiva, subrayado y tamano para rangos seleccionados.
+- **Estilos de texto**: color, fondo (resaltado), negrita, cursiva, subrayado y tamano para rangos seleccionados. Colores en burbuja flotante sobre barra de herramientas.
 - **Aumentar/disminuir fuente de seleccion**: aplica tamano al texto seleccionado.
 - **Modo enfoque**: oculta el panel del lector para concentrarse en el editor.
 - **Guardar con metadata**: exige titulo y etiquetas validas.
 - **Bibi**: asistente flotante para hacer preguntas biblicas, pedir ideas, pasajes relacionados, bosquejos, aplicaciones, notas o reflexiones. En modo estudio puede insertar respuestas como Nota o Reflexion.
+
+Herramientas eliminadas (no aportaban valor al estudio biblico):
+- Alineacion de texto (izquierda, centro, derecha).
+- Transformacion de mayusculas/minusculas.
 
 ### Bibi
 
@@ -261,10 +265,11 @@ Funciones actuales:
 - Cambio de version y comparacion en bloques de cita.
 - Modo claro/oscuro desde la lectura.
 - Aumentar/disminuir tamano de letra de lectura.
-- Lectura en pantalla dividida solo en pantallas grandes.
+- Lectura en pantalla dividida solo en pantallas grandes (>=840dp).
 - Lectura vertical en moviles.
 - Filtro y administracion desde "Mis ensenanzas".
 - Bibi en lector normal para preguntas biblicas basicas sobre el pasaje actual.
+- Deduplicacion de bloques de cita: si un mismo pasaje existe como `Citation` y `QuotedVerse`, se muestra solo el `QuotedVerse` (con soporte de comparacion).
 
 ## 7) Perfil y red de Biblion
 

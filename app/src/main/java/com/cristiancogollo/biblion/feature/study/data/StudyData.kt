@@ -110,6 +110,7 @@ sealed interface StudyBlockNode {
     @Serializable
     @SerialName("audio")
     data class Audio(
+        val blockId: String = CuidGenerator.create(),
         val uri: String,
         val title: String
     ) : StudyBlockNode
@@ -117,6 +118,7 @@ sealed interface StudyBlockNode {
     @Serializable
     @SerialName("image")
     data class Image(
+        val blockId: String = CuidGenerator.create(),
         val uri: String,
         val caption: String
     ) : StudyBlockNode

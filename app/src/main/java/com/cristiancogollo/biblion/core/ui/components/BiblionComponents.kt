@@ -9,7 +9,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -813,35 +812,23 @@ private fun LegacyVerseActionsFloatingMenu(
     }
 }
 
-/**
- * Menú contextual flotante del editor de estudio (estética píldora).
- */
 @Composable
-fun StudyEditorFloatingMenu(
-    isVisible: Boolean,
-    anchorOffset: IntOffset,
-    containerWidthPx: Int,
+fun StudyEditorBottomBar(
     hasSelection: Boolean,
     isParallelTextMode: Boolean = false,
     isBulletMode: Boolean = false,
     isNumberedMode: Boolean = false,
     pendingCitations: Int,
-    onDismiss: () -> Unit,
     onHeadlineUp: () -> Unit,
     onHeadlineDown: () -> Unit,
     onBold: () -> Unit,
     onItalic: () -> Unit,
     onUnderline: () -> Unit,
-    onUppercase: () -> Unit,
-    onLowercase: () -> Unit,
-    onAlignStart: () -> Unit,
-    onAlignCenter: () -> Unit,
-    onAlignEnd: () -> Unit,
-    onTextColor: (Color) -> Unit,
-    onBackgroundColor: (Color) -> Unit,
-    onClearTextColor: () -> Unit,
-    onClearBackground: () -> Unit,
-    onClearFormatting: () -> Unit,
+    onTextColor: (Color) -> Unit = {},
+    onBackgroundColor: (Color) -> Unit = {},
+    onClearTextColor: () -> Unit = {},
+    onClearBackground: () -> Unit = {},
+    onClearFormatting: () -> Unit = {},
     onIncreaseSize: () -> Unit,
     onDecreaseSize: () -> Unit,
     onBulletList: () -> Unit,
@@ -851,178 +838,8 @@ fun StudyEditorFloatingMenu(
     onInsertReflection: () -> Unit,
     onInsertTwoColumn: () -> Unit
 ) {
-    if (!isVisible) return
-    var expandedTool by remember { mutableStateOf<String?>(null) }
-    val textPalette = remember {
-        mutableStateListOf(
-        Color(0xFF1F2937),
-        Color(0xFFFFFFFF),
-        Color(0xFF111827),
-        Color(0xFF6B7280),
-        Color(0xFF0F766E),
-        Color(0xFF16A34A),
-        Color(0xFF2563EB),
-        Color(0xFF0891B2),
-        Color(0xFF7C3AED),
-        Color(0xFFDB2777),
-        Color(0xFFB42318),
-        Color(0xFFD97706)
-        )
-    }
-    val backgroundPalette = remember {
-        mutableStateListOf(
-        Color(0xFFFFFFFF),
-        Color(0xFFFFF3B0),
-        Color(0xFFFFE082),
-        Color(0xFFD7F9E9),
-        Color(0xFFA7F3D0),
-        Color(0xFFDDEBFF),
-        Color(0xFFBFDBFE),
-        Color(0xFFF2E3FF),
-        Color(0xFFE9D5FF),
-        Color(0xFFFFD9D6),
-        Color(0xFFFECACA),
-        Color(0xFFE5E7EB)
-        )
-    }
-
-    fun addCustomColor(palette: MutableList<Color>, color: Color) {
-        if (palette.none { it.value == color.value }) {
-            palette.add(color)
-        }
-    }
-
-    StudyEditorFloatingBubble(
-        anchorOffset = anchorOffset,
-        containerWidthPx = containerWidthPx,
-        hasSelection = hasSelection,
-        isParallelTextMode = isParallelTextMode,
-        isBulletMode = isBulletMode,
-        isNumberedMode = isNumberedMode,
-        pendingCitations = pendingCitations,
-        expandedTool = expandedTool,
-        onExpandedToolChange = { expandedTool = it },
-        textPalette = textPalette,
-        backgroundPalette = backgroundPalette,
-        onDismiss = onDismiss,
-        onHeadlineUp = onHeadlineUp,
-        onHeadlineDown = onHeadlineDown,
-        onBold = onBold,
-        onItalic = onItalic,
-        onUnderline = onUnderline,
-        onUppercase = onUppercase,
-        onLowercase = onLowercase,
-        onAlignStart = onAlignStart,
-        onAlignCenter = onAlignCenter,
-        onAlignEnd = onAlignEnd,
-        onTextColor = onTextColor,
-        onBackgroundColor = onBackgroundColor,
-        onCustomTextColor = { color ->
-            addCustomColor(textPalette, color)
-            onTextColor(color)
-        },
-        onCustomBackgroundColor = { color ->
-            addCustomColor(backgroundPalette, color)
-            onBackgroundColor(color)
-        },
-        onClearTextColor = onClearTextColor,
-        onClearBackground = onClearBackground,
-        onClearFormatting = onClearFormatting,
-        onIncreaseSize = onIncreaseSize,
-        onDecreaseSize = onDecreaseSize,
-        onBulletList = onBulletList,
-        onOrderedList = onOrderedList,
-        onInsertPendingCitations = onInsertPendingCitations,
-        onInsertNote = onInsertNote,
-        onInsertReflection = onInsertReflection,
-        onInsertTwoColumn = onInsertTwoColumn
-    )
-    return
-
-    Popup(
-        alignment = Alignment.BottomCenter,
-        offset = IntOffset(anchorOffset.x, anchorOffset.y - 180),
-        onDismissRequest = onDismiss,
-        properties = PopupProperties(focusable = false)
-    ) {
-        ElevatedCard(
-            shape = RoundedCornerShape(28.dp),
-            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 10.dp),
-            colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                IconButton(onClick = onHeadlineUp) { Icon(Icons.Default.Title, contentDescription = "H+") }
-                IconButton(onClick = onHeadlineDown) { Icon(Icons.Default.HorizontalRule, contentDescription = "H-") }
-                IconButton(onClick = onBold) { Icon(Icons.Default.FormatBold, contentDescription = "Negrita") }
-                IconButton(onClick = onItalic) { Icon(Icons.Default.FormatItalic, contentDescription = "Cursiva") }
-                IconButton(onClick = onIncreaseSize) { Icon(Icons.Default.TextIncrease, contentDescription = "A+") }
-                IconButton(onClick = onDecreaseSize) { Icon(Icons.Default.TextDecrease, contentDescription = "A-") }
-                IconButton(onClick = onBulletList) { Icon(Icons.Default.FormatListBulleted, contentDescription = "Viñetas") }
-                IconButton(onClick = onOrderedList) { Icon(Icons.Default.FormatListNumbered, contentDescription = "Numerada") }
-
-                AssistChip(
-                    onClick = onInsertPendingCitations,
-                    label = {
-                        Text(if (pendingCitations > 0) "Citar $pendingCitations" else "Citar")
-                    },
-                    leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun StudyEditorFloatingBubble(
-    anchorOffset: IntOffset,
-    containerWidthPx: Int,
-    hasSelection: Boolean,
-    isParallelTextMode: Boolean,
-    isBulletMode: Boolean,
-    isNumberedMode: Boolean,
-    pendingCitations: Int,
-    expandedTool: String?,
-    onExpandedToolChange: (String?) -> Unit,
-    textPalette: List<Color>,
-    backgroundPalette: List<Color>,
-    onDismiss: () -> Unit,
-    onHeadlineUp: () -> Unit,
-    onHeadlineDown: () -> Unit,
-    onBold: () -> Unit,
-    onItalic: () -> Unit,
-    onUnderline: () -> Unit,
-    onUppercase: () -> Unit,
-    onLowercase: () -> Unit,
-    onAlignStart: () -> Unit,
-    onAlignCenter: () -> Unit,
-    onAlignEnd: () -> Unit,
-    onTextColor: (Color) -> Unit,
-    onBackgroundColor: (Color) -> Unit,
-    onCustomTextColor: (Color) -> Unit,
-    onCustomBackgroundColor: (Color) -> Unit,
-    onClearTextColor: () -> Unit,
-    onClearBackground: () -> Unit,
-    onClearFormatting: () -> Unit,
-    onIncreaseSize: () -> Unit,
-    onDecreaseSize: () -> Unit,
-    onBulletList: () -> Unit,
-    onOrderedList: () -> Unit,
-    onInsertPendingCitations: () -> Unit,
-    onInsertNote: () -> Unit,
-    onInsertReflection: () -> Unit,
-    onInsertTwoColumn: () -> Unit
-) {
-    val configuration = LocalConfiguration.current
     val density = LocalDensity.current
-    val availableWidthPx = containerWidthPx.takeIf { it > 0 }
-        ?: with(density) { configuration.screenWidthDp.dp.roundToPx() }
-    val screenHeightPx = with(density) { configuration.screenHeightDp.dp.roundToPx() }
-    var popupSize by remember { mutableStateOf(IntSize.Zero) }
-    var popupOffset by remember(anchorOffset) { mutableStateOf(IntOffset(anchorOffset.x, anchorOffset.y - 180)) }
+    var expandedTool by remember { mutableStateOf<String?>(null) }
     var customRed by remember { mutableStateOf(31f) }
     var customGreen by remember { mutableStateOf(41f) }
     var customBlue by remember { mutableStateOf(55f) }
@@ -1031,161 +848,139 @@ private fun StudyEditorFloatingBubble(
         green = customGreen.toInt().coerceIn(0, 255),
         blue = customBlue.toInt().coerceIn(0, 255)
     )
-
-    fun boundedOffset(offset: IntOffset, size: IntSize = popupSize): IntOffset {
-        if (size == IntSize.Zero) return offset
-        val maxHorizontal = ((availableWidthPx - size.width) / 2).coerceAtLeast(0)
-        val minVertical = -(screenHeightPx - size.height).coerceAtMost(screenHeightPx).coerceAtLeast(0)
-        return IntOffset(
-            x = offset.x.coerceIn(-maxHorizontal, maxHorizontal),
-            y = offset.y.coerceIn(minVertical, 0)
+    val textPalette = remember {
+        mutableStateListOf(
+            Color(0xFF1F2937), Color(0xFFFFFFFF), Color(0xFF111827),
+            Color(0xFF6B7280), Color(0xFF0F766E), Color(0xFF16A34A),
+            Color(0xFF2563EB), Color(0xFF0891B2), Color(0xFF7C3AED),
+            Color(0xFFDB2777), Color(0xFFB42318), Color(0xFFD97706)
+        )
+    }
+    val backgroundPalette = remember {
+        mutableStateListOf(
+            Color(0xFFFFFFFF), Color(0xFFFFF3B0), Color(0xFFFFE082),
+            Color(0xFFD7F9E9), Color(0xFFA7F3D0), Color(0xFFDDEBFF),
+            Color(0xFFBFDBFE), Color(0xFFF2E3FF), Color(0xFFE9D5FF),
+            Color(0xFFFFD9D6), Color(0xFFFECACA), Color(0xFFE5E7EB)
         )
     }
 
-    Popup(
-        alignment = Alignment.BottomCenter,
-        offset = boundedOffset(popupOffset),
-        onDismissRequest = onDismiss,
-        properties = PopupProperties(focusable = false)
-    ) {
-        AnimatedVisibility(
-            visible = true,
-            enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
-            exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut()
-        ) {
-            ElevatedCard(
-            modifier = Modifier
-                .onGloballyPositioned { coordinates ->
-                    popupSize = coordinates.size
-                    popupOffset = boundedOffset(popupOffset, coordinates.size)
-                }
-                .pointerInput(availableWidthPx, screenHeightPx, popupSize) {
-                    detectDragGestures { change, dragAmount ->
-                        change.consume()
-                        popupOffset = boundedOffset(
-                            IntOffset(
-                                x = popupOffset.x + dragAmount.x.roundToInt(),
-                                y = popupOffset.y + dragAmount.y.roundToInt()
-                            )
-                        )
-                    }
-                },
-            shape = RoundedCornerShape(28.dp),
-            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 10.dp),
-            colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+    Box {
+        Surface(
+            tonalElevation = 3.dp,
+            shadowElevation = 8.dp,
+            color = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
         ) {
             Column(
                 modifier = Modifier
-                    .widthIn(max = 372.dp)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     TextEditorGlyphButton("H1", "Titulo", hasSelection, fontWeight = FontWeight.Bold, onClick = onHeadlineUp)
                     TextEditorGlyphButton("P", "Texto normal", hasSelection, onClick = onHeadlineDown)
                     TextEditorGlyphButton("B", "Negrita", hasSelection, fontWeight = FontWeight.Black, onClick = onBold)
                     TextEditorGlyphButton("I", "Cursiva", hasSelection, fontStyle = FontStyle.Italic, onClick = onItalic)
                     TextEditorGlyphButton("U", "Subrayado", hasSelection, textDecoration = TextDecoration.Underline, onClick = onUnderline)
-                    TextEditorGlyphButton("AA", "Mayusculas", hasSelection, fontWeight = FontWeight.Bold, onClick = onUppercase)
-                    TextEditorGlyphButton("aa", "Minusculas", hasSelection, onClick = onLowercase)
-                    TextEditorGlyphButton("|<", "Alinear izquierda", hasSelection, onClick = onAlignStart)
-                    TextEditorGlyphButton("||", "Centrar texto", hasSelection, onClick = onAlignCenter)
-                    TextEditorGlyphButton(">|", "Alinear derecha", hasSelection, onClick = onAlignEnd)
                     TextEditorGlyphButton("A+", "Aumentar texto", hasSelection, fontWeight = FontWeight.Bold, onClick = onIncreaseSize)
                     TextEditorGlyphButton("A-", "Reducir texto", hasSelection, fontWeight = FontWeight.Bold, onClick = onDecreaseSize)
-                    TextEditorGlyphButton("Tx", "Limpiar formato", hasSelection, textDecoration = TextDecoration.LineThrough, onClick = onClearFormatting)
                 }
-
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    EditorToolChip(Icons.Default.FormatColorText, "Color", expandedTool == "text", hasSelection) {
-                        onExpandedToolChange(if (expandedTool == "text") null else "text")
-                    }
-                    EditorToolChip(Icons.Default.FormatColorFill, "Resaltar", expandedTool == "background", hasSelection) {
-                        onExpandedToolChange(if (expandedTool == "background") null else "background")
-                    }
                     EditorToolChip(
                         Icons.AutoMirrored.Filled.FormatListBulleted,
                         if (isBulletMode) "Quitar vinetas" else "Vinetas",
-                        isBulletMode,
-                        hasSelection,
-                        onBulletList
+                        isBulletMode, hasSelection, onBulletList
                     )
                     EditorToolChip(
                         Icons.Default.FormatListNumbered,
                         if (isNumberedMode) "Quitar numeracion" else "Numerada",
-                        isNumberedMode,
-                        hasSelection,
-                        onOrderedList
+                        isNumberedMode, hasSelection, onOrderedList
                     )
                     EditorToolChip(
                         Icons.Default.ViewColumn,
                         if (isParallelTextMode) "Una columna" else "Columnas",
-                        isParallelTextMode,
-                        hasSelection,
-                        onInsertTwoColumn
+                        isParallelTextMode, hasSelection, onInsertTwoColumn
                     )
-                }
-
-                when (expandedTool.takeIf { hasSelection }) {
-                    "text" -> ColorTools(
-                        colors = textPalette,
-                        customColor = customColor,
-                        onRedChange = { customRed = it },
-                        onGreenChange = { customGreen = it },
-                        onBlueChange = { customBlue = it },
-                        onColorClick = onTextColor,
-                        onApplyCustom = { onCustomTextColor(customColor) },
-                        onClear = onClearTextColor,
-                        clearLabel = "Auto"
-                    )
-                    "background" -> ColorTools(
-                        colors = backgroundPalette,
-                        customColor = customColor,
-                        onRedChange = { customRed = it },
-                        onGreenChange = { customGreen = it },
-                        onBlueChange = { customBlue = it },
-                        onColorClick = onBackgroundColor,
-                        onApplyCustom = { onCustomBackgroundColor(customColor) },
-                        onClear = onClearBackground,
-                        clearLabel = "Sin fondo"
-                    )
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
                     EditorToolChip(Icons.Default.EditNote, "Nota", false, true, onInsertNote)
                     EditorToolChip(Icons.Default.Lightbulb, "Reflexion", false, true, onInsertReflection)
                     EditorToolChip(
                         Icons.Default.FormatQuote,
                         if (pendingCitations > 0) "Citar $pendingCitations" else "Citar",
-                        pendingCitations > 0,
-                        pendingCitations > 0,
-                        onInsertPendingCitations
+                        pendingCitations > 0, pendingCitations > 0, onInsertPendingCitations
                     )
+                    EditorToolChip(
+                        Icons.Default.FormatColorText,
+                        "Color", expandedTool == "text", hasSelection,
+                        { expandedTool = if (expandedTool == "text") null else "text" }
+                    )
+                    EditorToolChip(
+                        Icons.Default.FormatColorFill,
+                        "Resaltar", expandedTool == "background", hasSelection,
+                        { expandedTool = if (expandedTool == "background") null else "background" }
+                    )
+                    EditorToolChip(
+                        Icons.Default.FormatClear,
+                        "Limpiar", false, hasSelection, onClearFormatting
+                    )
+                }
+            }
+        }
+        if (expandedTool != null && hasSelection) {
+            Popup(
+                alignment = Alignment.TopCenter,
+                offset = IntOffset(0, with(density) { (-200).dp.roundToPx() }),
+                onDismissRequest = { expandedTool = null },
+                properties = PopupProperties(focusable = false)
+            ) {
+                Surface(
+                    tonalElevation = 4.dp,
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(modifier = Modifier.padding(8.dp)) {
+                        when (expandedTool) {
+                            "text" -> ColorTools(
+                                colors = textPalette,
+                                customColor = customColor,
+                                onRedChange = { customRed = it },
+                                onGreenChange = { customGreen = it },
+                                onBlueChange = { customBlue = it },
+                                onColorClick = onTextColor,
+                                onApplyCustom = { onTextColor(customColor) },
+                                onClear = onClearTextColor,
+                                clearLabel = "Auto"
+                            )
+                            "background" -> ColorTools(
+                                colors = backgroundPalette,
+                                customColor = customColor,
+                                onRedChange = { customRed = it },
+                                onGreenChange = { customGreen = it },
+                                onBlueChange = { customBlue = it },
+                                onColorClick = onBackgroundColor,
+                                onApplyCustom = { onBackgroundColor(customColor) },
+                                onClear = onClearBackground,
+                                clearLabel = "Sin fondo"
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 }
-}
+
+
 
 @Composable
 private fun TextEditorGlyphButton(

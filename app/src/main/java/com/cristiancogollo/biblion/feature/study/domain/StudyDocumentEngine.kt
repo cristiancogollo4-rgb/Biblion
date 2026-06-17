@@ -125,6 +125,66 @@ object StudyDocumentEngine {
         }
     }
 
+    fun splitBlockForRole(
+        blocks: List<StudyBlockNode>,
+        fallbackHtml: String,
+        blockId: String,
+        newRole: String,
+        selectionStart: Int,
+        selectionEnd: Int
+    ): List<StudyBlockNode> {
+        val safeStart = selectionStart.coerceAtLeast(0)
+        val safeEnd = selectionEnd.coerceAtLeast(safeStart)
+        return ensureTextFlow(blocks, fallbackHtml).flatMap { block ->
+            if (block !is StudyBlockNode.Paragraph || block.blockId != blockId || safeStart == safeEnd) {
+                listOf(block)
+            } else {
+                val before = block.text.substring(0, safeStart).trimEnd('\n')
+                val selected = block.text.substring(safeStart, safeEnd).trim('\n')
+                val after = block.text.substring(safeEnd).trimStart('\n')
+                buildList {
+                    if (before.isNotBlank()) {
+                        add(block.copy(blockId = CuidGenerator.create(), text = before))
+                    }
+                    add(block.copy(blockId = CuidGenerator.create(), text = selected, role = newRole))
+                    if (after.isNotBlank()) {
+                        add(block.copy(blockId = CuidGenerator.create(), text = after))
+                    }
+                }
+            }
+        }.let { normalizeStudyFlow(it) }
+    }
+
+    fun splitBlockForAlignment(
+        blocks: List<StudyBlockNode>,
+        fallbackHtml: String,
+        blockId: String,
+        newAlignment: String,
+        selectionStart: Int,
+        selectionEnd: Int
+    ): List<StudyBlockNode> {
+        val safeStart = selectionStart.coerceAtLeast(0)
+        val safeEnd = selectionEnd.coerceAtLeast(safeStart)
+        return ensureTextFlow(blocks, fallbackHtml).flatMap { block ->
+            if (block !is StudyBlockNode.Paragraph || block.blockId != blockId || safeStart == safeEnd) {
+                listOf(block)
+            } else {
+                val before = block.text.substring(0, safeStart).trimEnd('\n')
+                val selected = block.text.substring(safeStart, safeEnd).trim('\n')
+                val after = block.text.substring(safeEnd).trimStart('\n')
+                buildList {
+                    if (before.isNotBlank()) {
+                        add(block.copy(blockId = CuidGenerator.create(), text = before))
+                    }
+                    add(block.copy(blockId = CuidGenerator.create(), text = selected, textAlign = newAlignment))
+                    if (after.isNotBlank()) {
+                        add(block.copy(blockId = CuidGenerator.create(), text = after))
+                    }
+                }
+            }
+        }.let { normalizeStudyFlow(it) }
+    }
+
     fun updateParagraphAlignment(
         blocks: List<StudyBlockNode>,
         fallbackHtml: String,
@@ -320,7 +380,13 @@ object StudyDocumentEngine {
 
     fun rebuildBlocks(html: String, old: List<StudyBlockNode>): List<StudyBlockNode> {
         val nonText = old.filterNot { it is StudyBlockNode.RichText || it is StudyBlockNode.Paragraph }
-        return listOf(StudyBlockNode.Paragraph(text = html.asPlainStudyText())) + nonText
+        val textBlocks = old.filterIsInstance<StudyBlockNode.Paragraph>()
+        val updatedFirst = if (textBlocks.isNotEmpty()) {
+            textBlocks.first().copy(text = html.asPlainStudyText())
+        } else {
+            StudyBlockNode.Paragraph(text = html.asPlainStudyText())
+        }
+        return listOf(updatedFirst) + textBlocks.drop(1) + nonText
     }
 
     fun ensureTextFlow(blocks: List<StudyBlockNode>, fallbackHtml: String): List<StudyBlockNode> {
@@ -337,7 +403,15 @@ object StudyDocumentEngine {
                 block is StudyBlockNode.Paragraph &&
                 last is StudyBlockNode.Paragraph &&
                 block.role == "paragraph" &&
-                last.role == "paragraph"
+                last.role == "paragraph" &&
+                block.styles.isEmpty() &&
+                last.styles.isEmpty() &&
+                block.embeddedBlocks.isEmpty() &&
+                last.embeddedBlocks.isEmpty() &&
+                block.parallelText.isEmpty() &&
+                last.parallelText.isEmpty() &&
+                !block.text.contains('\n') &&
+                !last.text.contains('\n')
             ) {
                 val mergedText = mergePlainText(last.text, block.text)
                 normalized[normalized.lastIndex] = if (last.text.isBlank() && block.text.isNotBlank()) {
@@ -358,7 +432,7 @@ object StudyDocumentEngine {
                 block.parallelEmbeddedBlocks.isNotEmpty() ||
                 normalized.none { it is StudyBlockNode.Paragraph && it.hasTextContent() } ||
                 normalized.getOrNull(index - 1) !is StudyBlockNode.Paragraph ||
-                (normalized.getOrNull(index - 1) as? StudyBlockNode.Paragraph)?.role in setOf("columns", "bullet", "numbered")
+                (normalized.getOrNull(index - 1) as? StudyBlockNode.Paragraph)?.role in setOf("columns", "bullet", "numbered", "heading")
         }
 
         return withoutDuplicateEmptyText.ifEmpty {

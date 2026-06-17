@@ -138,6 +138,7 @@ fun ReaderScreen(
 
     var isStudyModeEnabled by remember { mutableStateOf(initialStudyMode) }
     val studyUi by studyViewModel.state.collectAsState()
+    val studyFocusMode by remember { derivedStateOf { studyUi.focusMode } }
 
     LaunchedEffect(initialStudyMode, initialStudyId) {
         if (initialStudyMode) {
@@ -165,12 +166,13 @@ fun ReaderScreen(
 
     if (isStudyModeEnabled && isLandscape) {
         Row(modifier = Modifier.fillMaxSize()) {
-            if (!studyUi.focusMode) {
+            if (!studyFocusMode) {
                 Box(modifier = Modifier.weight(1f)) {
                     StudyModeNavigation(
                         initialBook = bookName,
                         isDarkTheme = isDarkTheme,
-                        onToggleDarkTheme = onToggleDarkTheme
+                        onToggleDarkTheme = onToggleDarkTheme,
+                        studyViewModel = studyViewModel
                     )
                 }
             }
@@ -213,10 +215,10 @@ fun ReaderScreen(
 private fun StudyModeNavigation(
     initialBook: String?,
     isDarkTheme: Boolean,
-    onToggleDarkTheme: (Boolean) -> Unit
+    onToggleDarkTheme: (Boolean) -> Unit,
+    studyViewModel: StudyViewModel
 ) {
     val splitNavController = rememberNavController()
-    val studyViewModel: StudyViewModel = viewModel()
 
     NavHost(navController = splitNavController, startDestination = Screen.Home.route) {
         addSharedPrimaryDestinations(

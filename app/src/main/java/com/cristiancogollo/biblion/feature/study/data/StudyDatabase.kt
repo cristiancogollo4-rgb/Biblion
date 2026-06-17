@@ -58,6 +58,9 @@ interface StudyDao {
     @Query("SELECT * FROM studies ORDER BY updatedAt DESC")
     suspend fun getAllStudiesForSync(): List<StudyEntity>
 
+    @Query("SELECT * FROM studies WHERE lastSyncedAt IS NULL OR updatedAt > lastSyncedAt ORDER BY updatedAt DESC")
+    suspend fun getDirtyStudiesForSync(): List<StudyEntity>
+
     @Query("DELETE FROM studies WHERE id = :id")
     suspend fun deleteStudy(id: Long)
 
@@ -82,7 +85,7 @@ interface StudyDao {
 @Database(
     entities = [StudyNotebookEntity::class, StudyEntity::class, LinkedCitationEntity::class],
     version = 2,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class StudyDatabase : RoomDatabase() {
     abstract fun studyDao(): StudyDao

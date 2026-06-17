@@ -14,7 +14,7 @@ Biblion ya cuenta con:
 - Consulta biblica local desde una base SQLite/Room preempaquetada.
 - Busqueda de versiculos por texto.
 - Selector de version biblica.
-- Resaltado de versiculos.
+- Resaltado de versiculos con persistencia y sincronizacion.
 - Preferencias de lectura, incluyendo tamano de fuente.
 - Modo claro/oscuro global (tema claro por defecto en primera instalacion).
 - Autenticacion con Firebase Auth, incluyendo inicio de sesion con Google.
@@ -23,11 +23,10 @@ Biblion ya cuenta con:
 - Perfil con panel principal de identidad, metricas y edicion agrupada en un solo boton.
 - **Reiniciar tutorial de lectura** desde el perfil.
 - Base inicial para la red de Biblion sobre Firebase/Firestore.
-- Modo estudio con editor estructurado.
-- Gestion de "Mis ensenanzas".
-- Lectura enriquecida de ensenanzas.
+- Modo estudio con editor estructurado y barra de herramientas optimizada.
+- Gestion de "Mis ensenanzas" con filtros por titulo o etiquetas.
+- Lectura enriquecida de ensenanzas con soporte de comparacion de versiones biblicas.
 - Sistema de etiquetas sugeridas y validacion de metadata.
-- Filtros de ensenanzas por titulo o etiquetas.
 - Bibi, asistente biblica online integrada al lector y al modo estudio.
 - **Tutorial guiado interactivo** con Bibi (auto-inicio en primera instalacion, logo de Bibi, scroll en textos largos).
 
@@ -300,19 +299,19 @@ La logica pura del documento vive en `StudyDocumentEngine`. Este motor concentra
 
 #### Texto libre
 
-Bloque principal para redactar la ensenanza. Permite escribir parrafos continuos y separar ideas.
+Bloque principal para redactar la ensenanza. Permite escribir parrafos continuos y separar ideas. Enter separa parrafos en encabezados; en listas con vinetas y numeradas crea un nuevo item del mismo tipo.
 
 #### Encabezado
 
-Convierte un parrafo en titulo/seccion. Sirve para estructurar el bosquejo.
+Convierte un parrafo en titulo/seccion. Sirve para estructurar el bosquejo. Enter en un encabezado crea un nuevo parrafo debajo.
 
 #### Lista con vinetas
 
-Convierte parrafos en items de lista para puntos no secuenciales.
+Convierte parrafos en items de lista para puntos no secuenciales. Enter crea un nuevo item con vineta.
 
 #### Lista numerada
 
-Convierte parrafos en items ordenados para pasos, argumentos o secuencias.
+Convierte parrafos en items ordenados para pasos, argumentos o secuencias. Enter crea un nuevo item numerado.
 
 #### Columnas
 
@@ -327,7 +326,7 @@ Usos recomendados:
 
 #### Citar
 
-Inserta una cita biblica como bloque interactivo.
+Inserta una cita biblica como bloque interactivo `QuotedVerse`.
 
 Funciones:
 
@@ -337,6 +336,8 @@ Funciones:
 - cambiar version biblica;
 - comparar con otra version;
 - ocultar/mostrar comparacion.
+
+Las citas se acumulan como pendientes desde el lector y se insertan al tocar "Citar" en el editor.
 
 #### Nota
 
@@ -351,11 +352,13 @@ Bloque para desarrollar una idea espiritual o pastoral vinculada al tema.
 Permite aplicar estilos a rangos seleccionados:
 
 - color de texto;
-- color de fondo;
+- color de fondo (resaltado);
 - negrita;
 - cursiva;
 - subrayado;
-- tamano de fuente.
+- tamano de fuente (aumentar/disminuir).
+
+La seleccion de colores se muestra en una burbuja flotante sobre la barra de herramientas al tocar "Color" o "Resaltar".
 
 #### Modo enfoque
 
@@ -378,14 +381,15 @@ La pantalla de lectura de ensenanzas renderiza el documento estructurado, no sol
 Funciones actuales:
 
 - visualizacion de parrafos, encabezados, listas, columnas, notas, reflexiones y citas;
-- cambio de version en citas;
-- comparacion de versiones en citas;
-- ocultar/mostrar comparacion;
+- cambio de version en citas biblicas;
+- comparacion de versiones en citas biblicas (lado a lado o apilado);
+- ocultar/mostrar comparacion por cita;
 - numeracion inline de versiculos con color diferenciado para modo claro/oscuro;
 - aumentar/disminuir tamano de letra;
 - alternar modo claro/oscuro;
 - lectura vertical en moviles;
-- lectura en pantalla dividida en pantallas grandes.
+- lectura en pantalla dividida en pantallas grandes (>=840dp);
+- deduplicacion automatica de bloques de cita: si una cita existe como `Citation` y `QuotedVerse`, se muestra solo la version con soporte de comparacion.
 
 ---
 
@@ -842,12 +846,15 @@ Pruebas relevantes del modo estudio:
 
 Ideas pendientes o en evolucion:
 
-- Exportacion real de ensenanzas a PDF.
-- Mejoras de accesibilidad.
+- **Plantillas de estudio**: predicacion expositiva, devocional, estudio biblico, clase. Prellenado de estructura.
+- **Reordenar bloques**: agarre y arrastre para reorganizar secciones en el editor.
+- **Contador de palabras**: para conciencia de extension en predicaciones.
+- **Exportacion real de ensenanzas a PDF**.
+- **Busqueda avanzada dentro de ensenanzas**.
+- **Mejoras de accesibilidad**.
 - Mayor cobertura de pruebas UI.
 - Mejoras visuales para pantallas grandes.
 - Gestion avanzada de cuadernos.
-- Busqueda avanzada dentro de ensenanzas.
 - Sincronizacion mas robusta ante conflictos.
 - Implementacion completa de la red de Biblion: publicaciones, seguidores, likes, comentarios, favoritos y descargas publicas.
 - Reglas de seguridad Firestore/Storage para roles, publicadores aprobados y propiedad de documentos.

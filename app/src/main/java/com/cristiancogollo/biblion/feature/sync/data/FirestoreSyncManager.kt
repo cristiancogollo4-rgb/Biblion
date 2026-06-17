@@ -11,6 +11,7 @@ import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -104,6 +105,34 @@ object FirestoreSyncManager {
     private val firestore: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
     val syncErrors = _syncErrors.asSharedFlow()
 
+    /**
+     * Ejecuta una acción con retry y backoff exponencial.
+     * @param maxRetries Número máximo de reintentos.
+     * @param initialDelayMs Delay inicial en milisegundos.
+     * @param action Acción a ejecutar.
+     * @return true si tuvo éxito, false si agotó los reintentos.
+     */
+    private suspend fun withRetry(
+        maxRetries: Int = 3,
+        initialDelayMs: Long = 1000,
+        action: suspend () -> Unit
+    ): Boolean {
+        var currentDelay = initialDelayMs
+        repeat(maxRetries) { attempt ->
+            try {
+                action()
+                return true
+            } catch (e: Exception) {
+                Log.w(TAG, "Attempt ${attempt + 1}/$maxRetries failed", e)
+                if (attempt < maxRetries - 1) {
+                    delay(currentDelay)
+                    currentDelay *= 2 // Backoff exponencial
+                }
+            }
+        }
+        return false
+    }
+
     fun initialize(context: Context) {
         appContext = context.applicationContext
         FirebaseFirestore.setLoggingEnabled(true)
@@ -185,12 +214,13 @@ object FirestoreSyncManager {
         val context = appContext ?: return
         val user = currentUser ?: return
         scope.launch {
-            runCatching {
+            val success = withRetry(maxRetries = 3, initialDelayMs = 1000) {
                 syncMutex.withLock {
                     pushStudies(context, user.uid)
                 }
-            }.onFailure {
-                Log.w(TAG, "Failed to push studies", it)
+            }
+            if (!success) {
+                Log.w(TAG, "Failed to push studies after retries")
                 notifySyncError()
             }
         }
@@ -333,8 +363,8 @@ object FirestoreSyncManager {
             )
         }
 
-        val studies = dao.getAllStudiesForSync()
-        Log.d(TAG, "Found ${studies.size} studies to sync for uid=$userUid")
+        val studies = dao.getDirtyStudiesForSync()
+        Log.d(TAG, "Found ${studies.size} dirty studies to sync for uid=$userUid")
         studies.forEach { study ->
             val nextVersion = study.syncVersion + 1
             val citations = buildRemoteCitations(study, dao)

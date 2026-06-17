@@ -1,13 +1,11 @@
 package com.cristiancogollo.biblion
 
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -24,8 +22,6 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.*
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -41,7 +37,6 @@ import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -50,11 +45,11 @@ import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,26 +60,19 @@ fun StudyEditorScreen(
     currentUserName: String? = null
 ) {
     val ui by viewModel.state.collectAsState()
+    val selectionState = viewModel.selectionState
     val context = LocalContext.current
     var availableBibleVersions by remember { mutableStateOf<List<BibleVersionOption>>(emptyList()) }
-    var activeTextBlockId by remember { mutableStateOf<String?>(null) }
-    var activeTextRole by remember { mutableStateOf("paragraph") }
-    var activeTextAlignment by remember { mutableStateOf("start") }
-    var activeTextSource by remember { mutableStateOf("main") }
     var activeTextContent by remember { mutableStateOf("") }
-    var activeSelectionStart by remember { mutableStateOf(0) }
-    var activeSelectionEnd by remember { mutableStateOf(0) }
-    var activeSelectedText by remember { mutableStateOf("") }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    var menuOffset by remember { mutableStateOf(IntOffset(0, -120)) }
     var editorContainerWidthPx by remember { mutableStateOf(0) }
-    var showFloatingMenu by remember { mutableStateOf(false) }
     var showSaveDialog by remember { mutableStateOf(false) }
     var saveTitle by remember { mutableStateOf("") }
     var saveTagsInput by remember { mutableStateOf("") }
     var saveError by remember { mutableStateOf<String?>(null) }
     var pendingFocusBlockId by remember { mutableStateOf<String?>(null) }
+    val listState = rememberLazyListState()
 
     fun openMetadataDialog() {
         saveTitle = ui.title
@@ -94,40 +82,31 @@ fun StudyEditorScreen(
     }
 
     fun validateNonEmptyContent(): Boolean {
-        val blockContent = ui.blocks.joinToString(" ") { block ->
-            when (block) {
-                is StudyBlockNode.Paragraph -> "${block.text} ${block.parallelText}"
-                is StudyBlockNode.RichText -> block.html
-                is StudyBlockNode.Citation -> block.text
-                is StudyBlockNode.Note -> block.text
-                is StudyBlockNode.Reflection -> "${block.topic} ${block.text}"
-                is StudyBlockNode.QuotedVerse -> "${block.reference} ${block.primaryText} ${block.note}"
-                is StudyBlockNode.Question -> "${block.question} ${block.answer}"
-                is StudyBlockNode.TwoColumn -> "${block.leftTitle} ${block.leftText} ${block.rightTitle} ${block.rightText}"
-                is StudyBlockNode.Audio -> block.title
-                is StudyBlockNode.Image -> block.caption
-            }
-        }
-        val plainContent = (ui.richHtml + " " + blockContent)
-            .replace(Regex("<[^>]*>"), " ")
-            .replace("&nbsp;", " ")
-            .trim()
-        return plainContent.isNotBlank()
+        return StudyDocumentValidator.validateContent(ui.blocks).isValid
     }
 
     fun handleSave() {
-        if (ui.title.isBlank() && ui.tags.isEmpty()) {
-            openMetadataDialog()
-            return
-        }
-        if (!validateNonEmptyContent()) {
-            scope.launch { snackbarHostState.showSnackbar("No puedes guardar una enseñanza vacía.") }
+        val validation = StudyDocumentValidator.validateForSave(ui.title, ui.tags, ui.blocks)
+        if (!validation.isValid) {
+            val hasMetadataErrors = validation.errors.any { err ->
+                err is ValidationError.MissingTitle ||
+                    err is ValidationError.MissingPurposeTag ||
+                    err is ValidationError.MissingAudienceTag ||
+                    err is ValidationError.MissingTopicTag ||
+                    err is ValidationError.MissingStateTag ||
+                    err is ValidationError.MultipleStateTags
+            }
+            if (hasMetadataErrors) {
+                openMetadataDialog()
+            } else {
+                scope.launch { snackbarHostState.showSnackbar(validation.displayMessage) }
+            }
             return
         }
         viewModel.process(StudyIntent.SaveStudy)
     }
 
-    fun selectedText(): String = activeSelectedText.trim()
+    fun selectedText(): String = selectionState.selectedText.trim()
 
     fun assistantCurrentOutline(): List<String> = ui.blocks.mapNotNull { block ->
         when (block) {
@@ -162,25 +141,37 @@ fun StudyEditorScreen(
     }.take(8)
 
     fun updateActiveParagraphRole(role: String) {
-        activeTextBlockId?.let { blockId ->
-            activeTextRole = role
+        val blockId = selectionState.activeBlockId ?: return
+        val start = selectionState.selectionStart
+        val end = selectionState.selectionEnd
+        if (start != end && start >= 0 && end > start) {
+            selectionState.clear()
+            viewModel.process(StudyIntent.ApplyRoleToSelection(blockId, role, start, end))
+        } else {
+            selectionState.updateActiveBlock(blockId, role, selectionState.activeAlignment)
             viewModel.process(StudyIntent.UpdateParagraphRole(blockId, role))
         }
     }
 
     fun updateActiveParagraphAlignment(textAlign: String) {
-        activeTextBlockId?.let { blockId ->
-            activeTextAlignment = textAlign
+        val blockId = selectionState.activeBlockId ?: return
+        val start = selectionState.selectionStart
+        val end = selectionState.selectionEnd
+        if (start != end && start >= 0 && end > start) {
+            selectionState.clear()
+            viewModel.process(StudyIntent.ApplyAlignmentToSelection(blockId, textAlign, start, end))
+        } else {
+            selectionState.updateActiveBlock(blockId, selectionState.activeRole, textAlign)
             viewModel.process(StudyIntent.UpdateParagraphAlignment(blockId, textAlign))
         }
     }
 
-    fun insertNoteBlock() = viewModel.process(StudyIntent.AddNoteBlock(activeTextBlockId))
+    fun insertNoteBlock() = viewModel.process(StudyIntent.AddNoteBlock(selectionState.activeBlockId))
 
-    fun insertReflectionBlock() = viewModel.process(StudyIntent.AddReflectionBlock(selectedText(), activeTextBlockId))
+    fun insertReflectionBlock() = viewModel.process(StudyIntent.AddReflectionBlock(selectedText(), selectionState.activeBlockId))
 
     fun toggleParallelText() {
-        updateActiveParagraphRole(if (activeTextRole == "columns") "paragraph" else "columns")
+        updateActiveParagraphRole(if (selectionState.activeRole == "columns") "paragraph" else "columns")
     }
 
     fun updateActiveSelection(
@@ -189,46 +180,50 @@ fun StudyEditorScreen(
         selectionStart: Int,
         selectionEnd: Int
     ) {
-        activeTextSource = source
         activeTextContent = text
-        activeSelectionStart = selectionStart.coerceIn(0, text.length)
-        activeSelectionEnd = selectionEnd.coerceIn(0, text.length)
-        activeSelectedText = if (activeSelectionStart != activeSelectionEnd) {
-            text.substring(activeSelectionStart.coerceAtMost(activeSelectionEnd), activeSelectionStart.coerceAtLeast(activeSelectionEnd))
-        } else {
-            ""
-        }
+        selectionState.updateSelection(
+            blockId = selectionState.activeBlockId,
+            role = selectionState.activeRole,
+            alignment = selectionState.activeAlignment,
+            source = source,
+            start = selectionStart.coerceIn(0, text.length),
+            end = selectionEnd.coerceIn(0, text.length),
+            text = if (selectionStart != selectionEnd) {
+                text.substring(
+                    selectionStart.coerceAtMost(selectionEnd),
+                    selectionStart.coerceAtLeast(selectionEnd)
+                )
+            } else ""
+        )
     }
 
     fun replaceActiveTextRange(start: Int, end: Int, replacement: String) {
-        val blockId = activeTextBlockId ?: return
+        val blockId = selectionState.activeBlockId ?: return
         val updated = activeTextContent.replaceRange(start, end, replacement)
-        if (activeTextSource == "parallel") {
+        if (selectionState.isParallelSource()) {
             viewModel.process(StudyIntent.UpdateParagraphParallelText(blockId, updated))
         } else {
             viewModel.process(StudyIntent.UpdateParagraphBlock(blockId, updated))
         }
         activeTextContent = updated
-        activeSelectedText = replacement
-        activeSelectionEnd = start + replacement.length
+        selectionState.updateRange(start, start + replacement.length, replacement)
     }
 
     fun transformSelectedText(transform: (String) -> String) {
-        val start = activeSelectionStart.coerceAtMost(activeSelectionEnd)
-        val end = activeSelectionStart.coerceAtLeast(activeSelectionEnd)
+        val start = selectionState.selectionStart.coerceAtMost(selectionState.selectionEnd)
+        val end = selectionState.selectionStart.coerceAtLeast(selectionState.selectionEnd)
         if (start == end || activeTextContent.isEmpty()) return
         replaceActiveTextRange(start, end, transform(activeTextContent.substring(start, end)))
     }
 
     fun insertColumnEmbeddedBlock(block: ColumnEmbeddedBlock) {
-        val blockId = activeTextBlockId ?: return
-        val insertionPosition = activeSelectionStart
-            .coerceAtLeast(activeSelectionEnd)
+        val blockId = selectionState.activeBlockId ?: return
+        val insertionPosition = selectionState.selectionEnd
             .coerceIn(0, activeTextContent.length)
         viewModel.process(
             StudyIntent.AddColumnEmbeddedBlock(
                 paragraphBlockId = blockId,
-                source = activeTextSource,
+                source = selectionState.activeSource,
                 block = block.copy(position = insertionPosition)
             )
         )
@@ -236,8 +231,8 @@ fun StudyEditorScreen(
 
     fun transformSelectedLines(transform: (List<String>) -> List<String>) {
         if (activeTextContent.isEmpty()) return
-        val selectedStart = activeSelectionStart.coerceAtMost(activeSelectionEnd)
-        val selectedEnd = activeSelectionStart.coerceAtLeast(activeSelectionEnd)
+        val selectedStart = selectionState.selectionStart.coerceAtMost(selectionState.selectionEnd)
+        val selectedEnd = selectionState.selectionStart.coerceAtLeast(selectionState.selectionEnd)
         val hasSelectionRange = selectedStart != selectedEnd
         val start = if (hasSelectionRange) {
             selectedStart
@@ -264,14 +259,14 @@ fun StudyEditorScreen(
         underline: Boolean = false,
         fontSizeSp: Float? = null
     ) {
-        val blockId = activeTextBlockId ?: return
-        val start = activeSelectionStart.coerceAtMost(activeSelectionEnd)
-        val end = activeSelectionStart.coerceAtLeast(activeSelectionEnd)
+        val blockId = selectionState.activeBlockId ?: return
+        val start = selectionState.selectionStart.coerceAtMost(selectionState.selectionEnd)
+        val end = selectionState.selectionStart.coerceAtLeast(selectionState.selectionEnd)
         if (start == end) return
         viewModel.process(
             StudyIntent.ApplyParagraphTextStyle(
                 blockId = blockId,
-                source = activeTextSource,
+                source = selectionState.activeSource,
                 start = start,
                 end = end,
                 color = color?.toStudyColorLong(),
@@ -285,22 +280,22 @@ fun StudyEditorScreen(
     }
 
     fun clearSelectedStyle() {
-        val blockId = activeTextBlockId ?: return
-        val start = activeSelectionStart.coerceAtMost(activeSelectionEnd)
-        val end = activeSelectionStart.coerceAtLeast(activeSelectionEnd)
+        val blockId = selectionState.activeBlockId ?: return
+        val start = selectionState.selectionStart.coerceAtMost(selectionState.selectionEnd)
+        val end = selectionState.selectionStart.coerceAtLeast(selectionState.selectionEnd)
         if (start == end) return
-        viewModel.process(StudyIntent.ClearParagraphTextStyle(blockId, activeTextSource, start, end))
+        viewModel.process(StudyIntent.ClearParagraphTextStyle(blockId, selectionState.activeSource, start, end))
     }
 
     fun clearSelectedTextColor() {
-        val blockId = activeTextBlockId ?: return
-        val start = activeSelectionStart.coerceAtMost(activeSelectionEnd)
-        val end = activeSelectionStart.coerceAtLeast(activeSelectionEnd)
+        val blockId = selectionState.activeBlockId ?: return
+        val start = selectionState.selectionStart.coerceAtMost(selectionState.selectionEnd)
+        val end = selectionState.selectionStart.coerceAtLeast(selectionState.selectionEnd)
         if (start == end) return
         viewModel.process(
             StudyIntent.ClearParagraphTextStyle(
                 blockId = blockId,
-                source = activeTextSource,
+                source = selectionState.activeSource,
                 start = start,
                 end = end,
                 clearColor = true,
@@ -314,14 +309,14 @@ fun StudyEditorScreen(
     }
 
     fun clearSelectedBackground() {
-        val blockId = activeTextBlockId ?: return
-        val start = activeSelectionStart.coerceAtMost(activeSelectionEnd)
-        val end = activeSelectionStart.coerceAtLeast(activeSelectionEnd)
+        val blockId = selectionState.activeBlockId ?: return
+        val start = selectionState.selectionStart.coerceAtMost(selectionState.selectionEnd)
+        val end = selectionState.selectionStart.coerceAtLeast(selectionState.selectionEnd)
         if (start == end) return
         viewModel.process(
             StudyIntent.ClearParagraphTextStyle(
                 blockId = blockId,
-                source = activeTextSource,
+                source = selectionState.activeSource,
                 start = start,
                 end = end,
                 clearColor = false,
@@ -343,9 +338,8 @@ fun StudyEditorScreen(
 
     fun clearSelectionBackground() = clearSelectedBackground()
 
-    val hasSelection = activeSelectedText.isNotBlank()
-    val hasTextTarget = activeTextBlockId != null
-    val showMenu = hasSelection || hasTextTarget || showFloatingMenu || ui.pendingCitations.isNotEmpty()
+    val hasSelection = selectionState.selectedText.isNotBlank()
+    val hasTextTarget = selectionState.activeBlockId != null
     val starterTextBlock = remember { StudyBlockNode.Paragraph(text = "") }
     val documentBlocks = if (ui.blocks.isNotEmpty()) {
         ui.blocks
@@ -356,14 +350,10 @@ fun StudyEditorScreen(
 
     LaunchedEffect(hasSelection) {
         viewModel.process(StudyIntent.SetSelectionActive(hasSelection))
-        if (hasSelection) {
-            menuOffset = IntOffset(0, -220)
-        }
     }
 
     LaunchedEffect(ui.pendingCitations.size) {
         if (ui.pendingCitations.isNotEmpty()) {
-            showFloatingMenu = true
             snackbarHostState.showSnackbar("${ui.pendingCitations.size} cita(s) lista(s) para insertar")
         }
     }
@@ -423,6 +413,99 @@ fun StudyEditorScreen(
                     }
                 }
             }
+        },
+        bottomBar = {
+            StudyEditorBottomBar(
+                hasSelection = hasSelection || hasTextTarget,
+                isParallelTextMode = selectionState.activeRole == "columns",
+                isBulletMode = selectionState.activeRole == "bullet",
+                isNumberedMode = selectionState.activeRole == "numbered",
+                pendingCitations = ui.pendingCitations.size,
+                onHeadlineUp = { updateActiveParagraphRole("heading") },
+                onHeadlineDown = { updateActiveParagraphRole("paragraph") },
+                onBold = { applySelectedStyle(bold = true) },
+                onItalic = { applySelectedStyle(italic = true) },
+                onUnderline = { applySelectedStyle(underline = true) },
+                onIncreaseSize = {
+                    viewModel.process(StudyIntent.IncreaseSelectionFont)
+                    applySelectedStyle(fontSizeSp = (ui.selectionFontSizeSp + 2f).coerceAtMost(46f))
+                },
+                onDecreaseSize = {
+                    viewModel.process(StudyIntent.DecreaseSelectionFont)
+                    applySelectedStyle(fontSizeSp = (ui.selectionFontSizeSp - 2f).coerceAtLeast(12f))
+                },
+                onBulletList = {
+                    if (selectionState.activeRole == "columns") {
+                        transformSelectedLines { lines ->
+                            lines.map { line ->
+                                if (line.trim().startsWith("- ")) line else "- ${line.trimStart()}"
+                            }
+                        }
+                    } else {
+                        updateActiveParagraphRole(if (selectionState.activeRole == "bullet") "paragraph" else "bullet")
+                    }
+                },
+                onOrderedList = {
+                    if (selectionState.activeRole == "columns") {
+                        transformSelectedLines { lines ->
+                            lines.mapIndexed { index, line ->
+                                val clean = line.trimStart().replace(orderedListPrefixRegex, "")
+                                "${index + 1}. $clean"
+                            }
+                        }
+                    } else {
+                        updateActiveParagraphRole(if (selectionState.activeRole == "numbered") "paragraph" else "numbered")
+                    }
+                },
+                onInsertPendingCitations = {
+                    val pending = viewModel.consumePendingCitations()
+                    pending.forEach { request ->
+                        if (selectionState.activeRole == "columns" && selectionState.activeBlockId != null) {
+                            insertColumnEmbeddedBlock(
+                                ColumnEmbeddedBlock(
+                                    type = "quote",
+                                    title = request.reference,
+                                    text = request.text
+                                )
+                            )
+                        } else {
+                            viewModel.process(StudyIntent.AddQuotedVerseBlock(selectionState.activeBlockId, request))
+                        }
+                    }
+                },
+                onInsertNote = {
+                    if (selectionState.activeRole == "columns" && selectionState.activeBlockId != null) {
+                        insertColumnEmbeddedBlock(
+                            ColumnEmbeddedBlock(
+                                type = "note",
+                                title = "Nota",
+                                text = "Escribe una observacion, dato curioso o aclaracion del tema."
+                            )
+                        )
+                    } else {
+                        insertNoteBlock()
+                    }
+                },
+                onInsertReflection = {
+                    if (selectionState.activeRole == "columns" && selectionState.activeBlockId != null) {
+                        insertColumnEmbeddedBlock(
+                            ColumnEmbeddedBlock(
+                                type = "reflection",
+                                title = selectedText().ifBlank { "Reflexion" },
+                                text = "Desarrolla aqui una mirada mas profunda para la ensenanza."
+                            )
+                        )
+                    } else {
+                        insertReflectionBlock()
+                    }
+                },
+                onInsertTwoColumn = { toggleParallelText() },
+                onTextColor = { color -> applySelectedStyle(color = color) },
+                onBackgroundColor = { color -> applySelectedStyle(background = color) },
+                onClearTextColor = { clearSelectionTextColor() },
+                onClearBackground = { clearSelectionBackground() },
+                onClearFormatting = { clearSelectionFormatting() }
+            )
         }
     ) { padding ->
         Box(
@@ -432,30 +515,6 @@ fun StudyEditorScreen(
                 .padding(horizontal = if (ui.focusMode) 64.dp else 24.dp)
                 .onGloballyPositioned { coordinates ->
                     editorContainerWidthPx = coordinates.size.width
-                }
-                .pointerInput(Unit) {
-                    awaitEachGesture {
-                        val firstDown = awaitFirstDown(
-                            requireUnconsumed = false,
-                            pass = PointerEventPass.Initial
-                        )
-                        val firstUp = waitForUpOrCancellation(pass = PointerEventPass.Initial)
-                        if (firstUp != null) {
-                            val secondDown = withTimeoutOrNull(300L) {
-                                awaitFirstDown(
-                                    requireUnconsumed = false,
-                                    pass = PointerEventPass.Initial
-                                )
-                            }
-                            val secondUp = secondDown?.let {
-                                waitForUpOrCancellation(pass = PointerEventPass.Initial)
-                            }
-                            if (secondUp != null) {
-                                menuOffset = IntOffset(0, -220)
-                                showFloatingMenu = true
-                            }
-                        }
-                    }
                 }
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown || !event.isCtrlPressed) return@onPreviewKeyEvent false
@@ -477,9 +536,10 @@ fun StudyEditorScreen(
                 }
         ) {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = 24.dp),
+                    .padding(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 items(
@@ -496,9 +556,8 @@ fun StudyEditorScreen(
                                 focusOnAppear = pendingFocusBlockId == block.blockId,
                                 onFocusHandled = { pendingFocusBlockId = null },
                                 onActive = { source, text, start, end ->
-                                    activeTextBlockId = block.blockId
-                                    activeTextRole = block.role
-                                    activeTextAlignment = block.textAlign
+                                    selectionState.updateActiveBlock(block.blockId, block.role, block.textAlign)
+                                    selectionState.updateSource(source)
                                     updateActiveSelection(source, text, start, end)
                                 },
                                 onTextChanged = { text ->
@@ -508,7 +567,7 @@ fun StudyEditorScreen(
                                     viewModel.process(StudyIntent.UpdateParagraphParallelText(block.blockId, text))
                                 },
                                 onRoleChanged = { role ->
-                                    activeTextRole = role
+                                    selectionState.updateActiveBlock(selectionState.activeBlockId, role, selectionState.activeAlignment)
                                     viewModel.process(StudyIntent.UpdateParagraphRole(block.blockId, role))
                                 },
                                 onColumnEmbeddedBlockUpdate = { source, embedded ->
@@ -535,9 +594,8 @@ fun StudyEditorScreen(
                                 focusOnAppear = pendingFocusBlockId == block.blockId,
                                 onFocusHandled = { pendingFocusBlockId = null },
                                 onActive = { source, text, start, end ->
-                                    activeTextBlockId = block.blockId
-                                    activeTextRole = "paragraph"
-                                    activeTextAlignment = "start"
+                                    selectionState.updateActiveBlock(block.blockId, "paragraph", "start")
+                                    selectionState.updateSource(source)
                                     updateActiveSelection(source, text, start, end)
                                 },
                                 onTextChanged = { text ->
@@ -547,7 +605,7 @@ fun StudyEditorScreen(
                                     viewModel.process(StudyIntent.UpdateParagraphParallelText(block.blockId, text))
                                 },
                                 onRoleChanged = { role ->
-                                    activeTextRole = role
+                                    selectionState.updateActiveBlock(selectionState.activeBlockId, role, selectionState.activeAlignment)
                                     viewModel.process(StudyIntent.UpdateParagraphRole(block.blockId, role))
                                 },
                                 onColumnEmbeddedBlockUpdate = { source, embedded ->
@@ -588,129 +646,42 @@ fun StudyEditorScreen(
                         else -> Unit
                     }
                 }
+                item(key = "bottom-spacer") {
+                    Spacer(modifier = Modifier.height(160.dp))
+                }
             }
 
-            StudyEditorFloatingMenu(
-                isVisible = showMenu,
-                anchorOffset = menuOffset,
-                containerWidthPx = editorContainerWidthPx,
-                hasSelection = hasSelection || hasTextTarget || showFloatingMenu,
-                isParallelTextMode = activeTextRole == "columns",
-                isBulletMode = activeTextRole == "bullet",
-                isNumberedMode = activeTextRole == "numbered",
-                pendingCitations = ui.pendingCitations.size,
-                onDismiss = {
-                    showFloatingMenu = false
-                    viewModel.process(StudyIntent.SetContextMenuVisible(false))
-                },
-                onHeadlineUp = {
-                    updateActiveParagraphRole("heading")
-                },
-                onHeadlineDown = {
-                    updateActiveParagraphRole("paragraph")
-                },
-                onBold = { applySelectedStyle(bold = true) },
-                onItalic = { applySelectedStyle(italic = true) },
-                onUnderline = { applySelectedStyle(underline = true) },
-                onUppercase = { transformSelectedText { it.uppercase() } },
-                onLowercase = { transformSelectedText { it.lowercase() } },
-                onAlignStart = { updateActiveParagraphAlignment("start") },
-                onAlignCenter = { updateActiveParagraphAlignment("center") },
-                onAlignEnd = { updateActiveParagraphAlignment("end") },
-                onTextColor = { color -> applySelectedStyle(color = color) },
-                onBackgroundColor = { color -> applySelectedStyle(background = color) },
-                onClearTextColor = { clearSelectionTextColor() },
-                onClearBackground = { clearSelectionBackground() },
-                onClearFormatting = { clearSelectionFormatting() },
-                onIncreaseSize = {
-                    viewModel.process(StudyIntent.IncreaseSelectionFont)
-                    applySelectedStyle(fontSizeSp = (ui.selectionFontSizeSp + 2f).coerceAtMost(46f))
-                },
-                onDecreaseSize = {
-                    viewModel.process(StudyIntent.DecreaseSelectionFont)
-                    applySelectedStyle(fontSizeSp = (ui.selectionFontSizeSp - 2f).coerceAtLeast(12f))
-                },
-                onBulletList = {
-                    if (activeTextRole == "columns") {
-                        transformSelectedLines { lines ->
-                            lines.map { line ->
-                                if (line.trim().startsWith("- ")) line else "- ${line.trimStart()}"
-                            }
-                        }
-                    } else {
-                        updateActiveParagraphRole(if (activeTextRole == "bullet") "paragraph" else "bullet")
+            LaunchedEffect(pendingFocusBlockId) {
+                pendingFocusBlockId?.let { focusId ->
+                    val index = editorItems.indexOfFirst { it.block.editorBlockKey() == focusId }
+                    if (index >= 0) {
+                        listState.animateScrollToItem(index, scrollOffset = -200)
                     }
-                },
-                onOrderedList = {
-                    if (activeTextRole == "columns") {
-                        transformSelectedLines { lines ->
-                            lines.mapIndexed { index, line ->
-                                val clean = line.trimStart().replace(orderedListPrefixRegex, "")
-                                "${index + 1}. $clean"
-                            }
-                        }
-                    } else {
-                        updateActiveParagraphRole(if (activeTextRole == "numbered") "paragraph" else "numbered")
+                }
+            }
+
+            LaunchedEffect(selectionState.activeBlockId) {
+                selectionState.activeBlockId?.let { activeId ->
+                    val index = editorItems.indexOfFirst { it.block.editorBlockKey() == activeId }
+                    if (index >= 0 && !listState.layoutInfo.visibleItemsInfo.any { it.key == activeId }) {
+                        listState.animateScrollToItem(index, scrollOffset = -200)
                     }
-                },
-                onInsertPendingCitations = {
-                    val pending = viewModel.consumePendingCitations()
-                    pending.forEach { request ->
-                        if (activeTextRole == "columns" && activeTextBlockId != null) {
-                            insertColumnEmbeddedBlock(
-                                ColumnEmbeddedBlock(
-                                    type = "quote",
-                                    title = request.reference,
-                                    text = request.text
-                                )
-                            )
-                        } else {
-                            viewModel.process(StudyIntent.AddQuotedVerseBlock(activeTextBlockId, request))
-                        }
-                    }
-                },
-                onInsertNote = {
-                    if (activeTextRole == "columns" && activeTextBlockId != null) {
-                        insertColumnEmbeddedBlock(
-                            ColumnEmbeddedBlock(
-                                type = "note",
-                                title = "Nota",
-                                text = "Escribe una observacion, dato curioso o aclaracion del tema."
-                            )
-                        )
-                    } else {
-                        insertNoteBlock()
-                    }
-                },
-                onInsertReflection = {
-                    if (activeTextRole == "columns" && activeTextBlockId != null) {
-                        insertColumnEmbeddedBlock(
-                            ColumnEmbeddedBlock(
-                                type = "reflection",
-                                title = selectedText().ifBlank { "Reflexion" },
-                                text = "Desarrolla aqui una mirada mas profunda para la ensenanza."
-                            )
-                        )
-                    } else {
-                        insertReflectionBlock()
-                    }
-                },
-                onInsertTwoColumn = { toggleParallelText() }
-            )
+                }
+            }
 
             StudyAssistantOverlay(
                 studyTitle = ui.title,
                 studyTags = ui.tags,
-                selectedText = activeSelectedText,
+                selectedText = selectionState.selectedText,
                 currentOutline = assistantCurrentOutline(),
                 notes = assistantNotes(),
                 currentUserName = currentUserName,
                 onInsertNote = { text ->
-                    viewModel.process(StudyIntent.AddNoteBlock(activeTextBlockId, text))
+                    viewModel.process(StudyIntent.AddNoteBlock(selectionState.activeBlockId, text))
                     scope.launch { snackbarHostState.showSnackbar("Respuesta insertada como nota.") }
                 },
                 onInsertReflection = { topic, text ->
-                    viewModel.process(StudyIntent.AddReflectionBlock(topic, activeTextBlockId, text))
+                    viewModel.process(StudyIntent.AddReflectionBlock(topic, selectionState.activeBlockId, text))
                     scope.launch { snackbarHostState.showSnackbar("Respuesta insertada como reflexion.") }
                 },
                 modifier = Modifier
@@ -767,7 +738,7 @@ fun StudyEditorScreen(
             confirmButton = {
                 TextButton(onClick = {
                     val cleanedTitle = saveTitle.trim()
-                    val parsedTags = parseStudyTags(saveTagsInput)
+                    val parsedTags = withDefaultStateTag(parseStudyTags(saveTagsInput))
                     val tagError = validateRequiredStudyTags(parsedTags)
                     saveError = when {
                         !validateNonEmptyContent() -> "No puedes guardar una enseñanza vacía."
@@ -822,8 +793,8 @@ private fun StudyBlockNode.editorBlockKey(): String = when (this) {
     is StudyBlockNode.QuotedVerse -> blockId
     is StudyBlockNode.Question -> blockId
     is StudyBlockNode.TwoColumn -> blockId
-    is StudyBlockNode.Audio -> "audio:$uri"
-    is StudyBlockNode.Image -> "image:$uri"
+    is StudyBlockNode.Audio -> blockId
+    is StudyBlockNode.Image -> blockId
 }
 
 @Composable
@@ -851,15 +822,21 @@ private fun StudyParagraphBlockEditor(
 
     LaunchedEffect(block.text) {
         if (fieldValue.text != block.text) {
-            val cursor = fieldValue.selection.end.coerceIn(0, block.text.length)
-            fieldValue = fieldValue.copy(text = block.text, selection = TextRange(cursor))
+            delay(300)
+            if (fieldValue.text != block.text) {
+                val cursor = fieldValue.selection.end.coerceIn(0, block.text.length)
+                fieldValue = fieldValue.copy(text = block.text, selection = TextRange(cursor))
+            }
         }
     }
 
     LaunchedEffect(block.parallelText) {
         if (parallelFieldValue.text != block.parallelText) {
-            val cursor = parallelFieldValue.selection.end.coerceIn(0, block.parallelText.length)
-            parallelFieldValue = parallelFieldValue.copy(text = block.parallelText, selection = TextRange(cursor))
+            delay(300)
+            if (parallelFieldValue.text != block.parallelText) {
+                val cursor = parallelFieldValue.selection.end.coerceIn(0, block.parallelText.length)
+                parallelFieldValue = parallelFieldValue.copy(text = block.parallelText, selection = TextRange(cursor))
+            }
         }
     }
 
@@ -1021,7 +998,7 @@ private fun StudyParagraphBlockEditor(
         BasicTextField(
             value = fieldValue,
             onValueChange = { newValue ->
-                if ((block.role == "bullet" || block.role == "numbered") && newValue.text.contains('\n')) {
+                if ((block.role == "bullet" || block.role == "numbered" || block.role == "heading") && newValue.text.contains('\n')) {
                     val newlineIndex = (newValue.selection.start - 1)
                         .takeIf { it >= 0 && it < newValue.text.length && newValue.text[it] == '\n' }
                         ?: newValue.text.indexOf('\n')
@@ -1034,7 +1011,8 @@ private fun StudyParagraphBlockEditor(
                     } else {
                         fieldValue = TextFieldValue(before, selection = TextRange(before.length))
                         onActive("main", before, before.length, before.length)
-                        onSplitText(before, after, block.role)
+                        val nextRole = if (block.role == "heading") "paragraph" else block.role
+                        onSplitText(before, after, nextRole)
                     }
                     return@BasicTextField
                 }
@@ -1075,7 +1053,7 @@ private fun String.toComposeTextAlign(): TextAlign {
     }
 }
 
-private val columnBulletContinuationRegex = Regex("^(\\s*(?:-|\\u2022)\\s+)")
+private val columnBulletContinuationRegex = Regex("^(\\s*(?:-|\\u2022|\\u2023|\\u25E6)\\s+)")
 private val columnNumberContinuationRegex = Regex("^(\\s*)(\\d+)\\.\\s+")
 private val orderedListPrefixRegex = Regex("^\\d+\\.\\s*")
 
@@ -1747,13 +1725,6 @@ private fun InteractiveBlockShell(
     onDelete: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    var labelText by remember(title) { mutableStateOf(title) }
-
-    LaunchedEffect(labelText) {
-        if (labelText.isBlank()) {
-            onDelete()
-        }
-    }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -1772,27 +1743,32 @@ private fun InteractiveBlockShell(
                     .padding(start = 8.dp, end = 2.dp, top = 1.dp, bottom = 3.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                BasicTextField(
-                    value = labelText,
-                    onValueChange = { labelText = it },
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.labelLarge.copy(
-                        color = accent,
-                        fontFamily = FontFamily.Serif,
-                        fontWeight = FontWeight.Bold,
-                        fontStyle = FontStyle.Italic
-                    ),
-                    modifier = Modifier.weight(1f)
-                )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelLarge.copy(
+                color = accent,
+                fontFamily = FontFamily.Serif,
+                fontWeight = FontWeight.Bold,
+                fontStyle = FontStyle.Italic
+            ),
+            modifier = Modifier.weight(1f)
+        )
                 IconButton(onClick = onToggle) {
                     Icon(
                         imageVector = if (collapsed) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
                         contentDescription = if (collapsed) "Expandir bloque" else "Contraer bloque",
                         tint = accent
+                    )
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Eliminar bloque",
+                        tint = MaterialTheme.colorScheme.error
                     )
                 }
             }
