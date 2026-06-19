@@ -24,7 +24,9 @@ Biblion ya incluye:
 
 - Lectura biblica por testamento, libro y capitulo.
 - Consulta biblica local mediante Room sobre `app/src/main/assets/databases/bible_content.db`.
-- Busqueda de versiculos por texto.
+- **Busqueda de versiculos en vivo con filtros** (testamento + libro) sobre `SearchScreen`.
+- **Búsquedas recientes persistidas** en Room (`SearchHistoryEntity` + `SearchHistoryDao` + `SearchHistoryDatabase` en `search_history.db`).
+- **Versículos populares curados** como punto de partida en `SearchScreen` (`PopularVersesData` con 6 versículos: Amor, Fe, Gracia, Salvación, Esperanza, Paz).
 - Selector de version biblica.
 - Deslizamiento entre testamentos en la pantalla de libros y entre capitulos en el lector.
 - Resaltado de versiculos con persistencia y sincronizacion.
@@ -40,10 +42,13 @@ Biblion ya incluye:
 - Lectura de ensenanzas con controles de tamano de letra, modo claro/oscuro y pantalla dividida en pantallas grandes.
 - Sistema de etiquetas sugeridas por seccion: proposito, audiencia, tema y estado.
 - Validacion de guardado de ensenanzas: titulo obligatorio y etiquetas requeridas por seccion.
-- Asistente biblico Bibi en modo estudio y lector normal.
+- **Diccionario biblico local unificado** (`dictionary.db`) con 6,346 entradas Easton's + Theographic: definiciones, metadata (género, fechas, coordenadas GPS, aliases, featureType). Accesible vía `DictionaryEngine` con templates por categoría.
+- **Bibi mejorada** con respuestas estructuradas (`BibiResponse`), templates por categoría (persona/lugar/concepto/objeto/práctica/evento), sugerencias personalizadas con `chatHistory` ("Comparar con X"), anáforas, memoria conversacional e historial de chats persistido en Room.
+- **Placeholders rotativos (carousel)** en campos de búsqueda cada 3.5s con 5 ejemplos.
 - Integracion online de Bibi mediante Cloudflare Worker y Qwen3-8B por endpoint compatible con OpenAI.
+- **Local primero, Worker solo para DIVE_DEEPER** — la búsqueda en Biblia es local, Bibi usa IA solo cuando profundiza.
 - Evaluador local de modelos de Bibi en `workers/bibi/evals/model_eval.mjs`.
-- Contexto para Bibi con versiones biblicas disponibles, version seleccionada, texto seleccionado, bloques actuales de la ensenanza, notas y diccionario biblico inicial.
+- Contexto para Bibi con versiones biblicas disponibles, version seleccionada, texto seleccionado, bloques actuales de la ensenanza, notas y diccionario biblico.
 - Saludo local de Bibi con el nombre visible del usuario autenticado sin incluir ese nombre en la solicitud al Worker.
 - **Tutorial guiado interactivo (primera instalacion)**: inicio automatico en Home, Bibi con logo, auto-scroll a versiculo 1, target ampliado (primeros 3 versiculos), scroll en textos largos, debug logs `GUIDE_DEBUG`.
 - **Despues del tutorial**: mensaje de despedida de Bibi con mension a opcion de reinicio en Perfil.
@@ -173,7 +178,94 @@ Bibi es la asistente biblica oficial de Biblion. Esta integrada en:
 - **Modo estudio**: respuestas mas profundas para preparar ensenanzas, predicaciones, devocionales, clases biblicas y discipulado.
 - **Lector normal**: respuestas breves para comprender el pasaje actual, palabras, referencias y aplicaciones sencillas.
 
-Reglas funcionales:
+#### Arquitectura local de Bibi
+
+Bibi se compone de tres motores locales en `feature/bibi/`:
+
+- **`KnowledgeEngine`** (orquestador): detecta la intencion del usuario (WHO, WHERE, DEFINE, EXPLAIN_VERSE, RELATED, ORIGINAL_LANG, GREETING, DIVE_DEEPER, FALLBACK) y enruta al motor apropiado. Maneja anáforas: cuando el usuario pregunta algo corto sin sujeto claro (ej. "¿y qué más?"), Bibi busca el último `resolvedTerm` en el historial conversacional y lo usa como sujeto.
+
+- **`DictionaryEngine`** (motor de definiciones): convierte entradas del diccionario biblico en respuestas naturales. Tiene un template distinto por categoría:
+  - **Persona**: género, fechas de nacimiento/muerte, aliases, displayTitle.
+  - **Lugar**: coordenadas GPS, tipo de feature (ciudad, monte, río, etc.), aliases.
+  - **Concepto**: definición + versículos relacionados.
+  - **Objeto/Práctica/Evento/General**: definición.
+  - Las respuestas usan `BibiResponse` con `buildChatText()` que produce texto natural con etiqueta de metadatos (ej. "Género: Masculino", "Ubicación: 31.78, 35.21").
+  - **Las respuestas NO incluyen versículos completos** (solo metadatos). Para profundizar en versículos, Bibi sugiere "Pedir a IA: pasajes sobre X" que va al Worker.
+
+- **`AmbiguousTermResolver`**: cuando un término no se encuentra, busca alternativas similares (prefijo, ediciones cercanas) y ofrece opciones al usuario.
+
+- **`BibiHistoryRepository`**: persiste el historial de chats en Room (`bibi_chat.db`). Cada sesión es un `ChatSessionEntity` y cada mensaje un `ChatMessageEntity` con `resolvedTerm`, `intent`, `role`. El historial se carga al abrir Bibi y se guarda en cada mensaje.
+
+- **`ChatSessionRepository`**: gestión de sesiones (crear, listar, eliminar, renombrar). Permite múltiples conversaciones independientes.
+
+#### Detección de intención
+
+`KnowledgeEngine.detectIntent(question)` analiza el texto (con `removeAccents` para insensibilidad a acentos) y retorna:
+
+| Intención | Patrones |
+|-----------|----------|
+| `WHO` | "quién fue/es/era", "cuéntame de", "háblame de", "dime sobre", "información de" |
+| `WHERE` | "dónde queda/está/nació/vivió", "ubicación de" |
+| `DEFINE` | "qué significa", "define", "qué es", "explica", "dime qué" |
+| `EXPLAIN_VERSE` | "explica este versículo/pasaje" (requiere `verseText`) |
+| `RELATED` | "pasajes relacionados", "dónde más", "versículos similares" |
+| `ORIGINAL_LANG` | "en hebreo", "en griego", "Strong" + número (H1254, G25) |
+| `GREETING` | "hola", "buenas" |
+| `DIVE_DEEPER` | "profundiza", "amplía", "explica más", "cuéntame más", o frases muy cortas tras un historial |
+| `FALLBACK` | ninguno de los anteriores → va al Worker |
+
+#### Detección de dominio bíblico
+
+`StudyAssistantRequest.isBibleDomain()` valida que la pregunta es bíblica antes de enviar al Worker. Si el `KnowledgeEngine.detectIntent` retorna `WHO`, `WHERE`, `DEFINE`, `EXPLAIN_VERSE`, `RELATED`, `ORIGINAL_LANG` o `GREETING`, se considera dominio bíblico. También busca **~130 nombres bíblicos comunes** (patriarcas, reyes, profetas, apóstoles, lugares, ángeles) y **palabras bíblicas** (biblia, dios, jesús, etc.). Si no detecta nada bíblico y la pregunta contiene palabras no bíblicas (programación, política, etc.), responde con el mensaje de redirección.
+
+#### Filtro de contexto al Worker
+
+Para evitar que el Worker use el capítulo actual como contexto de respuestas independientes:
+
+- **WHO/WHERE/DEFINE/ORIGINAL_LANG** → NO se envía `studyTitle` ni `selectedText` al Worker.
+- **EXPLAIN_VERSE/RELATED/FALLBACK/DIVE_DEEPER** → SÍ se envía contexto completo.
+
+Esto se implementa en `StudyAssistantPanel.sendQuestion()` mediante `needsChapterContext = intent in setOf(...)`.
+
+#### Anáforas y memoria conversacional
+
+`chatHistory: List<ChatExchange>` se mantiene en memoria durante la sesión. Cada `ChatExchange` contiene:
+
+- `question: String`
+- `response: String`
+- `resolvedTerm: String?` — término resuelto (ej. "Abraham", "Galilea")
+- `intent: String`
+
+Anáfora: cuando el extractor no encuentra un término, busca el último `resolvedTerm` en el historial. Ejemplo:
+
+```
+P1: "¿quién fue Abraham?" → resolvedTerm = "Abraham"
+P2: "¿dónde vivió?" → cleaned.length < 2 → busca en historial → "Abraham"
+    → "¿dónde vivió Abraham?"
+```
+
+Para evitar contaminación con respuestas de error, `resolvedTerm` solo se setea si `bibiResponse.confidence != LOW` (no se incluye "No encontré X" como término válido).
+
+#### Sugerencias personalizadas (chips)
+
+Cada respuesta de `DictionaryEngine` incluye 2 sugerencias (`BibiSuggestion`):
+
+- **"Pedir a IA: pasajes sobre X"** (isAi=true) → query "profundiza qué pasajes hablan de X" → DIVE_DEEPER → Worker.
+- **"Comparar con Y"** (isAi=true) → si hay otro término en el historial → query "¿qué diferencia hay entre X y Y?" → DIVE_DEEPER → Worker.
+- **"Profundizar con IA"** (isAi=true) → query "profundiza sobre X" → DIVE_DEEPER → Worker.
+
+Las sugerencias de tipo `RELATED` o `FALLBACK` que caen en local sin lógica implementada fueron eliminadas.
+
+#### Filtro de `studyTitle`/`selectedText` al Worker
+
+Para evitar que el Worker use el capítulo actual como contexto de respuestas independientes:
+
+- WHO/WHERE/DEFINE/ORIGINAL_LANG → NO se envía `studyTitle` ni `selectedText` al Worker.
+- EXPLAIN_VERSE/RELATED/FALLBACK/DIVE_DEEPER → SÍ se envía contexto completo.
+
+Esto se implementa en `StudyAssistantPanel.sendQuestion()` mediante `needsChapterContext = intent in setOf(...)`.
+
+#### Reglas funcionales
 
 - Bibi no actua como asistente general.
 - Su dominio es exclusivamente biblico/cristiano: Biblia, estudio biblico, contexto, personajes, lugares, historia biblica relacionada con las Escrituras, doctrina cristiana, discipulado, devocionales, predicacion, ensenanzas, reflexion, aplicacion, palabras biblicas, referencias cruzadas y comparacion de pasajes.
@@ -184,7 +276,7 @@ Reglas funcionales:
 - Si una referencia no es segura, debe reconocerlo y sugerir verificar el pasaje.
 - Si compara versiones, debe usar solo textos proporcionados por Biblion; no debe inventar traducciones.
 - Si compara versiones y faltan textos, debe indicar que Biblion no proporciono esos textos.
-- No debe afirmar que Maria Magdalena fue prostituta; si menciona Lucas 7, debe aclarar que el texto no identifica a esa mujer como Maria Magdalena.
+- No debe afirmar que Maria Magdalena fue prostituta; si menciona Lucas 7, debe aclarar que el texto original no identifica a esa mujer como Maria Magdalena.
 - Puede saludar por nombre en la UI cuando el usuario inicio sesion, pero ese dato debe mantenerse local y no agregarse al payload del Worker salvo que una tarea futura lo justifique explicitamente.
 
 Contexto enviado a Bibi:
@@ -193,6 +285,9 @@ Contexto enviado a Bibi:
 - `intent`: `explain`, `define`, `cross_reference`, `application`, `outline`, `sermon`, `devotional`, `compare_versions` o `question`.
 - `study.title`, `study.tags`, `study.selectedText`, `study.currentOutline`, `study.notes`.
 - `bible.version`, `bible.availableVersions`, `bible.passages`.
+- `userName` (local, no se envía al Worker)
+- `lastQueries` (top 5 de queries recientes, solo si no fue skip por reset)
+- `chatHistory` (lista de `ChatExchange` con pregunta, respuesta, resolvedTerm, intent)
 
 El nombre visible del usuario no forma parte de este contexto por defecto; solo se usa para el mensaje inicial local del chat.
 
@@ -212,6 +307,7 @@ La UI debe mostrar solo `answer`. El repositorio Android limpia defensivamente r
 Infraestructura:
 
 - El cliente Android usa `HttpStudyAssistantRepository`.
+- **Estrategia "local primero"**: `HttpStudyAssistantRepository.ask()` primero llama a `LocalStudyAssistantRepository` (que ejecuta `KnowledgeEngine.answer`). Solo si la respuesta local tiene `confidence = LOW` o es null, se envía al Worker. Esto reduce la dependencia de la red y mejora la latencia.
 - La URL se configura con `bibiEndpointUrl` en `local.properties` y se inyecta como `BuildConfig.BIBI_ENDPOINT_URL`.
 - El Worker vive en `workers/bibi`.
 - El Worker usa `qwen3-8b` como modelo principal mediante proveedor `openai-compatible`.
@@ -221,6 +317,75 @@ Infraestructura:
 - Si el endpoint falla o esta vacio, Android usa respuesta local de respaldo.
 - El Worker tambien tiene respuestas de respaldo con diccionario biblico cuando el proveedor IA tarda.
 - Las pruebas comparativas de modelos se ejecutan con `npm run eval:models` dentro de `workers/bibi`; el evaluador valida JSON, dominio, idioma, referencias permitidas, textos obligatorios/prohibidos y latencia.
+
+### Diccionario biblico local unificado
+
+`dictionary.db` (`app/src/main/assets/databases/dictionary.db`) consolida **6,346 entradas** de dos fuentes:
+
+- **Easton's Bible Dictionary**: 3,932 entradas con definiciones en espanol (descargadas de `tools/eastons_dictionary_es.json`).
+- **Theographic Data**: 3,067 personas + 1,274 lugares con metadata enriquecida (genero, fechas, coordenadas GPS, aliases, featureType).
+
+#### Schema de la base
+
+```sql
+dictionary_entries(
+  id, term, normalized_term, definition, references_json, category,
+  display_title, gender, birth_year, death_year,
+  latitude, longitude, aliases, feature_type
+)
+```
+
+#### Deteccion de intencion y templates por categoria
+
+`DictionaryEngine.formatByCategory()` selecciona el template adecuado segun `entry.category`:
+
+| Categoria | Template | Metadata mostrada |
+|-----------|----------|-------------------|
+| `PERSON` | `formatPerson()` | gender, birthYear, deathYear, displayTitle, aliases |
+| `PLACE` | `formatPlace()` | latitude, longitude, featureType, aliases |
+| `CONCEPT` | `formatConcept()` | solo definicion |
+| `OBJECT` | `formatObject()` | solo definicion |
+| `PRACTICE` | `formatPractice()` | solo definicion |
+| `EVENT` | `formatEvent()` | solo definicion |
+| `OTHER` | `formatGeneric()` | solo definicion |
+
+#### Conversion de fechas ISO astronomicas
+
+`formatYear(isoYear)` convierte anos ISO astronomicos a texto legible:
+- `-1997` -> "1997 a.C."
+- `0` -> "1 a.C."
+- `1997` -> "1997 d.C."
+
+#### Traduccion de feature types
+
+`translateFeatureType(type)` traduce tipos de OpenStreetMap:
+- `city` -> "Ciudad"
+- `region` -> "Region"
+- `mountain` -> "Monte"
+- `river` -> "Rio"
+- etc.
+
+#### BibiResponse estructurado
+
+Cada respuesta usa `BibiResponse` con `buildChatText()` que produce texto natural con etiqueta de metadatos. El formato del chat incluye:
+
+```
+[Saludo personalizado: "¡Hola Juan! Veo que estás leyendo Mateo 5."]
+
+Abraham
+[Definicion completa]
+
+Genero: Masculino
+Nacimiento: 1997 a.C.
+
+[Sin versiculos completos - solo metadata]
+
+[Follow-up: "¿Quieres saber mas sobre el o algun aspecto en particular?"]
+```
+
+#### Importante: NO versiculos en respuestas locales
+
+Las respuestas del diccionario local **NO incluyen versiculos completos**. Esto evita que Bibi invente referencias. Para profundizar en versiculos sobre el tema, se sugiere via chips: **"Pedir a IA: pasajes sobre X"** que va al Worker.
 
 ### Citas biblicas
 
@@ -254,6 +419,65 @@ Reglas:
   - al menos una etiqueta de tema;
   - exactamente una etiqueta de estado.
 - Las etiquetas personalizadas pueden existir, pero no reemplazan las secciones obligatorias.
+
+### Busqueda de versiculos (SearchScreen)
+
+`SearchScreen` permite buscar versiculos en la Biblia local con filtros y busqueda en vivo.
+
+#### Arquitectura
+
+- **Biblia local**: `BibleRepository.searchVerses()` consulta `bible_verses` con SQL `LIKE '%query%' COLLATE NOCASE`.
+- **Filtros**: `BibleSearchFilter(testament, bookName)` se pasa a `searchVerses()` para restringir por testamento y/o libro.
+- **Persistencia de busquedas**: `SearchHistoryRepository` guarda cada query en Room (`search_history.db`) con normalizacion (sin acentos) y conteo de uso.
+
+#### Busqueda en vivo SEGURA
+
+Patron clave: `MutableStateFlow` + `collectLatest` para evitar race conditions:
+
+```kotlin
+val queryFlow = remember { MutableStateFlow("") }
+
+LaunchedEffect(Unit) {
+    queryFlow
+        .debounce(400L)                    // espera 400ms sin cambios
+        .filter { it.trim().length >= 2 }  // minimo 2 caracteres
+        .distinctUntilChanged()            // no busquedas duplicadas
+        .collectLatest { query ->           // CANCELA busqueda anterior
+            executeSearch(query)
+        }
+}
+```
+
+**`collectLatest` cancela la corutina anterior** cuando llega un nuevo valor, eliminando race conditions.
+
+#### Componentes
+
+- **`SearchInputCard`**: campo de busqueda con placeholder rotativo (carousel cada 3.5s: `Juan 3:16`, `amor`, `Salmo 23`, `perdon`, `fe`).
+- **`TestamentTabsRow`**: tabs `Toda la Biblia` / `Antiguo` / `Nuevo` que filtran la busqueda.
+- **`BookFilterRow`**: dropdown con los 66 libros (filtrados por testamento). Boton X para limpiar filtros.
+- **`RecentSearchesSection`**: ultimas 5 busquedas (top 10 con "Ver todo").
+- **`PopularVersesSection`**: 6 versiculos populares curados (Amor, Fe, Gracia, Salvacion, Esperanza, Paz). Se ocultan cuando el usuario empieza a escribir.
+- **`ResultsHeader`**: muestra "Resultados para X · testamento · libro" cuando hay filtros activos.
+- **`NoResultsState`**: estado contextual con icono y boton "Limpiar".
+
+#### Re-busqueda automatica
+
+- **Cambio de filtro** (testamento/libro) → re-busca inmediatamente con `runSearchImmediate()`.
+- **Enter** → busqueda inmediata sin esperar debounce.
+- **Typing** → espera 400ms (debounce) antes de buscar.
+- **Boton X (clear)** → `uiState = Idle`, query vacio.
+
+#### Versiculos populares
+
+6 versiculos curados en `PopularVersesData`:
+- Amor: 1 Corintios 13:4-7
+- Fe: Hebreos 11:1
+- Gracia: Efesios 2:8-9
+- Salvacion: Romanos 10:9
+- Esperanza: Romanos 15:13
+- Paz: Juan 14:27
+
+Tap en cualquier versiculo → abre el lector en la referencia exacta.
 
 ### Lectura de ensenanzas
 
@@ -368,6 +592,9 @@ Reglas principales:
 - La Biblia se consulta desde la base SQLite preempaquetada `app/src/main/assets/databases/bible_content.db`.
 - La base se genera desde los JSON fuente con `tools/build_bible_sqlite.py`; si se regeneran versiones, conservar la deduplicacion de libros por nombre normalizado para evitar duplicados como los de NVI.
 - Las citas vinculadas deben conservar `book`, `chapter`, `verseStart`, `verseEnd` y `version`.
+- **Diccionario biblico local unificado**: `app/src/main/assets/databases/dictionary.db` contiene 6,346 entradas (Easton's + Theographic). Generado por `tools/build_knowledge_sqlite.py`. Esquema version 2 (con metadata Theographic).
+- **Historial de busquedas**: Room database `search_history.db` con `SearchHistoryEntity` (query, normalized_query, use_count, last_used_at). Se usa para mostrar busquedas recientes en `SearchScreen`. Migracion destructiva aceptable (datos regenerables).
+- **Chats de Bibi**: Room database `bibi_chat.db` con `ChatSessionEntity` y `ChatMessageEntity`. Permite multiples sesiones independientes de conversacion.
 
 ## 10) Navegacion
 

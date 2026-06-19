@@ -12,7 +12,10 @@ Biblion ya cuenta con:
 
 - Lectura biblica por testamento, libro y capitulo.
 - Consulta biblica local desde una base SQLite/Room preempaquetada.
-- Busqueda de versiculos por texto.
+- **Busqueda de versiculos en vivo** con filtros por testamento y libro.
+- **Búsquedas recientes** persistidas en Room (top 5 visibles, top 10 con "Ver todo").
+- **Versículos populares curados** como punto de partida (Amor, Fe, Gracia, Salvación, Esperanza, Paz).
+- **Placeholder rotativo** en campos de busqueda (carousel cada 3.5s).
 - Selector de version biblica.
 - Resaltado de versiculos con persistencia y sincronizacion.
 - Preferencias de lectura, incluyendo tamano de fuente.
@@ -27,7 +30,9 @@ Biblion ya cuenta con:
 - Gestion de "Mis ensenanzas" con filtros por titulo o etiquetas.
 - Lectura enriquecida de ensenanzas con soporte de comparacion de versiones biblicas.
 - Sistema de etiquetas sugeridas y validacion de metadata.
-- Bibi, asistente biblica online integrada al lector y al modo estudio.
+- **Diccionario biblico local unificado** (6,346 entradas Easton's + Theographic) con metadata (género, fechas, coordenadas GPS, aliases).
+- **Bibi mejorada** con respuestas estructuradas, templates por categoría, anáforas, memoria conversacional e historial de chats persistido.
+- **Bibi local primero**: la búsqueda en Biblia es local, Bibi usa IA solo cuando profundiza.
 - **Tutorial guiado interactivo** con Bibi (auto-inicio en primera instalacion, logo de Bibi, scroll en textos largos).
 
 ---
@@ -143,6 +148,22 @@ Estas metricas se guardan como contadores en `users/{uid}` y arrancan en `0` has
 - **Modo lector**: ayuda con preguntas breves sobre el pasaje actual, contexto inmediato, palabras, referencias y aplicaciones sencillas.
 - **Modo estudio**: ayuda a preparar ensenanzas, predicaciones, devocionales, clases y materiales de discipulado. Puede sugerir bosquejos, ideas principales, aplicaciones, notas y reflexiones.
 
+### Arquitectura local de Bibi
+
+Bibi ahora es un sistema de tres motores locales que funcionan **offline**:
+
+- **KnowledgeEngine** (orquestador): detecta la intencion del usuario (WHO, WHERE, DEFINE, EXPLAIN_VERSE, RELATED, ORIGINAL_LANG, GREETING, DIVE_DEEPER, FALLBACK) y enruta al motor apropiado.
+- **DictionaryEngine**: convierte entradas del diccionario biblico en respuestas naturales con templates por categoría (persona, lugar, concepto, objeto, práctica, evento, general). Cada categoría tiene su propio template con metadata relevante (género, fechas, coordenadas GPS, aliases).
+- **AmbiguousTermResolver**: cuando un término no se encuentra, busca alternativas similares y ofrece opciones al usuario.
+
+### Memoria conversacional
+
+Bibi mantiene un historial de chat (`chatHistory`) que le permite:
+
+- **Anáforas**: cuando el usuario pregunta algo corto sin sujeto claro (ej. "¿y qué más?"), Bibi busca el último término resuelto en el historial y lo usa como sujeto.
+- **Sugerencias personalizadas**: si el usuario preguntó por Abraham antes, las sugerencias para una pregunta sobre Sara pueden incluir "Comparar con Abraham".
+- **Historial de chats persistido**: las sesiones de chat se guardan en Room (`bibi_chat.db`), permitiendo múltiples conversaciones independientes.
+
 ### Dominio de Bibi
 
 Bibi responde sobre:
@@ -157,20 +178,57 @@ Bibi responde sobre:
 
 Si el usuario pregunta algo fuera del contexto biblico o cristiano, Bibi redirige amablemente hacia el estudio de las Escrituras.
 
-### Contexto que recibe
+### Estrategia "local primero"
 
-Bibi no recibe toda la Biblia completa en cada pregunta. En cambio, Biblion le envia contexto relevante:
+Bibi sigue un patrón **local-first**:
+
+1. Android llama primero al `LocalStudyAssistantRepository` que ejecuta el `KnowledgeEngine` local
+2. Si la respuesta local tiene confianza ALTA o MEDIA, se devuelve sin tocar la red
+3. Si la respuesta local tiene confianza BAJA o es null, se envía al Worker
+4. Esto reduce latencia y dependencia de red
+
+### Filtro de contexto al Worker
+
+Para evitar que el Worker use el capítulo actual como contexto de respuestas independientes:
+
+- **WHO/WHERE/DEFINE/ORIGINAL_LANG** → NO se envía `studyTitle` ni `selectedText` al Worker
+- **EXPLAIN_VERSE/RELATED/FALLBACK/DIVE_DEEPER** → SÍ se envía contexto completo
+
+Esto se implementa en `StudyAssistantPanel.sendQuestion()` mediante `needsChapterContext = intent in setOf(...)`.
+
+### Sugerencias (chips)
+
+Cada respuesta de Bibi puede incluir hasta 2 sugerencias como chips clickables:
+
+- **"Pedir a IA: pasajes sobre X"** (isAi=true) → query "profundiza qué pasajes hablan de X" → DIVE_DEEPER → Worker
+- **"Comparar con Y"** (isAi=true) → si hay otro término en el historial → query "¿qué diferencia hay entre X y Y?" → DIVE_DEEPER → Worker
+- **"Profundizar con IA"** (isAi=true) → query "profundiza sobre X" → DIVE_DEEPER → Worker
+
+Solo se incluyen sugerencias que Bibi SÍ puede contestar (no se sugieren acciones sin lógica implementada).
+
+### Diccionario biblico local
+
+El diccionario biblico local unificado (`dictionary.db`) consolida 6,346 entradas de dos fuentes:
+
+- **Easton's Bible Dictionary**: 3,932 entradas con definiciones en espanol
+- **Theographic Data**: 3,067 personas + 1,274 lugares con metadata enriquecida
+
+El diccionario se usa como base para las respuestas de Bibi. Las respuestas locales **NO incluyen versiculos completos** (solo metadatos) para evitar que Bibi invente referencias. Para profundizar en versículos, se sugiere via el chip "Pedir a IA: pasajes sobre X".
+
+### Contexto que recibe el Worker
+
+Bibi online no recibe toda la Biblia completa. Biblion le envia contexto relevante:
 
 - modo actual: `reader` o `study`;
-- intencion inferida: `explain`, `define`, `cross_reference`, `application`, `outline`, `sermon`, `devotional`, `compare_versions` o `question`;
+- intencion inferida por el cliente Android (no por el Worker);
 - version biblica seleccionada;
 - versiones biblicas disponibles en Biblion;
-- texto seleccionado por el usuario;
-- pasajes biblicos proporcionados por Biblion;
+- texto seleccionado por el usuario (solo si la intención lo requiere);
 - titulo, etiquetas, bloques actuales y notas de la ensenanza;
-- entradas relevantes del diccionario biblico inicial.
+- historial conversacional (preguntas y respuestas previas);
+- entradas relevantes del diccionario biblico local.
 
-El saludo inicial puede usar el nombre visible del usuario de forma local en la UI. Ese nombre no se agrega al `StudyAssistantRequest`, por lo que no consume tokens ni se envia al Worker.
+El saludo inicial puede usar el nombre visible del usuario de forma local en la UI. Ese nombre **no** se agrega al payload del Worker.
 
 ### Versiones biblicas
 
@@ -185,33 +243,6 @@ Versiones actuales:
 - Nueva Traduccion Viviente (`ntv`)
 
 Si se agregan nuevas versiones como assets, Bibi puede recibirlas automaticamente.
-
-### Diccionario biblico
-
-El Worker de Bibi incluye un diccionario biblico inicial con entradas breves para conceptos como:
-
-- creacion;
-- pacto;
-- fe;
-- gracia;
-- pecado;
-- evangelio;
-- Mesias/Cristo;
-- discipulado;
-- Reino de Dios;
-- salvacion;
-- redencion;
-- santidad;
-- adoracion;
-- oracion;
-- iglesia;
-- justicia;
-- amor;
-- esperanza;
-- bautismo;
-- Santa Cena.
-
-El diccionario se usa como respaldo contextual rapido y no reemplaza los pasajes biblicos proporcionados por Biblion.
 
 ### Respuesta estructurada
 
@@ -488,12 +519,16 @@ Pantallas y componentes Compose:
 
 ### Data layer
 
-- `BibleRepository`: acceso a textos biblicos desde `assets` y cache.
+- `BibleRepository`: acceso a textos biblicos desde `assets` y cache. Soporta busqueda con filtros (`BibleSearchFilter` con testament y bookName).
+- `DictionaryRepository`: acceso al diccionario biblico unificado (Easton's + Theographic, 6,346 entradas). Usado por `DictionaryEngine` para generar respuestas locales de Bibi.
 - `StudyDatabase`: Room para cuadernos, estudios y citas vinculadas.
+- `SearchHistoryDatabase`: Room para historial de busquedas (`search_history.db`) con normalizacion y conteo de uso.
+- `ChatDatabase`: Room para historial de chats de Bibi (`bibi_chat.db`) con sesiones y mensajes persistidos.
 - `FirestoreSyncManager`: sincronizacion de preferencias, resaltados y estudios.
 - `AppPreferencesSyncStore`: preferencias locales sincronizables.
 - `UserProfileRepository`: lectura y escritura del perfil en Firestore, foto en Storage y color de avatar.
-- `StudyAssistantRepository`: contrato Android para Bibi, envio de contexto, limpieza de respuestas y respaldo local.
+- `StudyAssistantRepository`: contrato Android para Bibi con estrategia "local primero". `HttpStudyAssistantRepository` consulta primero `LocalStudyAssistantRepository` antes de ir al Worker. Soporta `chatHistory` para memoria conversacional.
+- `ChatSessionRepository`: gestion de sesiones de chat de Bibi (crear, listar, eliminar, renombrar).
 - `workers/bibi`: Cloudflare Worker que aplica prompts, dominio biblico, diccionario, versiones y conexion con Qwen/DashScope u otros proveedores compatibles.
 
 ### Navegacion
@@ -515,6 +550,19 @@ Biblion combina persistencia local con sincronizacion en Firebase.
 - `study_notebooks`: cuadernos de estudio.
 - `studies`: ensenanzas/documentos del usuario.
 - `linked_citations`: citas biblicas vinculadas a una ensenanza.
+
+`SearchHistoryDatabase` (`search_history.db`) persiste las busquedas del usuario:
+
+- `search_history`: tabla con `query`, `normalized_query`, `use_count`, `last_used_at`. Indice unico en `normalized_query` para deduplicar. Migracion destructiva aceptable (los datos se regeneran).
+
+`ChatDatabase` (`bibi_chat.db`) persiste el historial de chats de Bibi:
+
+- `chat_sessions`: sesiones de conversacion con Bibi (id, title, first_query, mode, created_at, updated_at).
+- `chat_messages`: mensajes dentro de una sesion (id, session_id FK con CASCADE, role "user"/"assistant", content, resolved_term, intent, created_at). Permite multiples conversaciones independientes.
+
+`DictionaryDatabase` (basada en asset preempaquetado `dictionary.db`) contiene el diccionario biblico unificado:
+
+- `dictionary_entries`: 6,346 entradas con definiciones y metadata (gender, birth_year, death_year, latitude, longitude, aliases, feature_type).
 
 Campos relevantes de sincronizacion:
 
@@ -707,7 +755,8 @@ Regla recomendada: solo comentar ensenanzas con `visibilidad = PUBLICA`.
 - Material 3
 - Navigation Compose
 - AndroidX Lifecycle
-- Room
+- Kotlinx Coroutines + Flow (para busqueda en vivo con debounce y collectLatest)
+- Room (con multiples databases: study, search_history, bibi_chat)
 - Kotlinx Serialization
 - KSP
 - Firebase Auth
