@@ -91,7 +91,11 @@ object DictionaryEngine {
                 "¿Quieres que profundice en alguno?"
             },
             suggestions = terms.take(3).map { term ->
-                BibiSuggestion("Ver pasajes sobre ${term.term}", "¿qué pasajes hablan de ${term.term}?")
+                BibiSuggestion(
+                    "Pedir a IA: pasajes sobre ${term.term}",
+                    "profundiza qué pasajes hablan de ${term.term}",
+                    isAi = true
+                )
             }
         )
     }
@@ -268,9 +272,10 @@ object DictionaryEngine {
     /**
      * Construye las sugerencias de seguimiento (chips) tras una respuesta.
      * Solo incluye sugerencias que Bibi SÍ puede contestar:
-     * - RELATED: pasajes vinculados al término (funciona vía CrossReferenceEngine)
-     * - ORIGINAL_LANG: término en hebreo/griego (funciona vía StrongEngine)
-     * - DIVE_DEEPER: profundiza con IA (vía Worker)
+     * - Buscar pasajes sobre X: usa DIVE_DEEPER → Worker (CrossReferenceEngine
+     *   solo busca por versículo actual, no por tema)
+     * - Comparar con último término: usa DIVE_DEEPER → Worker
+     * - Profundizar con IA: usa DIVE_DEEPER → Worker
      * Si hay historial conversacional con otro término, ofrece comparación.
      */
     private fun buildSuggestions(
@@ -280,7 +285,11 @@ object DictionaryEngine {
         val suggestions = mutableListOf<BibiSuggestion>()
 
         suggestions.add(
-            BibiSuggestion("Ver pasajes sobre $term", "¿qué pasajes hablan de $term?")
+            BibiSuggestion(
+                "Pedir a IA: pasajes sobre $term",
+                "profundiza qué pasajes hablan de $term",
+                isAi = true
+            )
         )
 
         val lastDifferentTerm = chatHistory
@@ -291,7 +300,7 @@ object DictionaryEngine {
             suggestions.add(
                 BibiSuggestion(
                     "Comparar con $lastDifferentTerm",
-                    "¿qué diferencia hay entre $term y $lastDifferentTerm?",
+                    "qué diferencia hay entre $term y $lastDifferentTerm",
                     isAi = true
                 )
             )
