@@ -179,6 +179,7 @@ fun ReaderScreen(
             Box(modifier = Modifier.weight(1f)) {
                 StudyEditorScreen(
                     viewModel = studyViewModel,
+                    navController = navController,
                     onFocusModeChanged = {},
                     currentUserName = currentUserName,
                     onClose = {

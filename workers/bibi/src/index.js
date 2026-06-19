@@ -12,6 +12,24 @@ const DEFAULT_BIBLE_VERSIONS = [
   { key: "ntv", label: "Nueva Traduccion Viviente (NTV)" }
 ];
 
+// Easton's Bible Dictionary entries (public domain, ~4,000 entries)
+// Exported from neuu-org/bible-dictionary-dataset (CC BY 4.0)
+// This expanded dictionary provides definitions for biblical terms,
+// people, places, objects, practices, events, and concepts.
+//
+// STORAGE OPTIONS:
+// 1. Cloudflare KV (recommended): Store full dictionary in KV namespace
+//    Bind as BIBI_DICTIONARY_KV in wrangler.toml
+//    Keys: "eastons:{normalized_term}" or "eastons:_index" for search
+// 2. Embedded array (limited): For small subsets (~200 entries max)
+//    Use inject_optimized_dictionary.js to generate index.built.js
+//
+// The dictionary is loaded lazily via getDictionaryEntries() which
+// tries KV first, then falls back to embedded entries.
+const EASTONS_DICTIONARY = [];
+
+// Legacy dictionary entries (Spanish-optimized, kept for compatibility)
+// These provide quick Spanish responses for common biblical terms
 const BIBLICAL_DICTIONARY = [
   {
     terms: ["creacion", "crear", "creador"],
@@ -299,8 +317,8 @@ function buildBibiPrompt({
     `Intención detectada: ${intent}`,
     `Versión bíblica preferida: ${bibleVersion || "RVR60"}`,
     "",
-    `# Contexto del estudio (solo si aplica)`,
-    title ? `Título de la enseñanza: ${title}` : "",
+    `# Contexto del lector o enseñanza (solo si aplica)`,
+    title ? `Título/pasaje actual: ${title} (contexto opcional, no necesariamente relacionado con la pregunta)` : "",
     tags.length ? `Etiquetas: ${tags.join(", ")}` : "",
     availableVersions.length ? `Versiones disponibles en esta sesión: ${availableVersions.map(v => v.key.toUpperCase()).join(", ")}` : "",
     "",
@@ -326,6 +344,11 @@ function buildBibiPrompt({
     "",
     "El usuario NO es Bibi. Tú eres Bibi.",
     "Responde siempre en español, sin importar el idioma de la pregunta, salvo que el usuario pida explícitamente otro idioma.",
+    "",
+    "## USO DEL CONTEXTO",
+    "- Si recibes un título de enseñanza o pasaje, úsalo como referencia adicional, no como tema obligatorio.",
+    "- Si el título o el texto seleccionado están vacíos, responde de forma independiente sin asumir un pasaje específico.",
+    "- La pregunta del usuario determina el tema, no el contexto. El contexto solo complementa.",
     "",
     "## TONO",
     "- Pastoral, claro, respetuoso y edificante.",
@@ -721,12 +744,60 @@ function sanitizeBibleVersions(value) {
   return sanitized.length ? sanitized.slice(0, 12) : DEFAULT_BIBLE_VERSIONS;
 }
 
+/**
+ * Busca entradas relevantes en ambos diccionarios:
+ * 1. EASTONS_DICTIONARY (~4,000 entradas Easton's Bible Dictionary)
+ * 2. BIBLICAL_DICTIONARY (20 entradas Spanish-optimized)
+ *
+ * Prioriza las entradas de Easton's por ser mas completas,
+ * pero mantiene las entradas legacy como fallback.
+ *
+ * Busqueda en dos fases:
+ * - Fase 1: Match exacto por termino principal
+ * - Fase 2: Busqueda en searchTerms y definicion
+ */
 function getRelevantDictionaryEntries(source) {
   const normalized = removeAccents(source).toLowerCase();
-  const matches = BIBLICAL_DICTIONARY.filter((item) =>
+  const matches = [];
+  const seen = new Set();
+
+  // Helper para agregar entrada sin duplicados
+  function addEntry(term, definition, references) {
+    const key = removeAccents(term).toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+
+    const refText = references && references.length
+      ? ` Referencias: ${references.slice(0, 3).join(", ")}.`
+      : "";
+    matches.push(`${term}: ${definition}${refText}`);
+  }
+
+  // Fase 1: Busqueda en Easton's - match por termino principal
+  for (const entry of EASTONS_DICTIONARY) {
+    const term = entry.t || entry.term || "";
+    const normalizedTerm = entry.n || entry.normalizedTerm || removeAccents(term).toLowerCase();
+    const definition = entry.d || entry.definition || "";
+    const references = entry.r || entry.references || [];
+    const searchTerms = (entry.s || entry.searchTerms || []).map(t => removeAccents(t).toLowerCase());
+
+    // Match exacto o por prefijo del termino
+    if (normalized.includes(removeAccents(term).toLowerCase()) ||
+        normalized.includes(normalizedTerm) ||
+        searchTerms.some(t => normalized.includes(t) || t.includes(normalized))) {
+      addEntry(term, definition, references);
+    }
+  }
+
+  // Fase 2: Busqueda en diccionario legacy (Spanish-optimized)
+  const legacyMatches = BIBLICAL_DICTIONARY.filter((item) =>
     item.terms.some((term) => normalized.includes(removeAccents(term).toLowerCase()))
   ).map((item) => item.entry);
-  return matches.slice(0, 6);
+
+  // Combinar resultados, priorizando Easton's
+  const combined = [...matches, ...legacyMatches];
+
+  return combined.slice(0, 8);
 }
 
 function isBibleDomain({

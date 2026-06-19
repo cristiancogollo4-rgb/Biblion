@@ -55,6 +55,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun StudyEditorScreen(
     viewModel: StudyViewModel,
+    navController: androidx.navigation.NavController,
     onClose: () -> Unit,
     onFocusModeChanged: (Boolean) -> Unit,
     currentUserName: String? = null

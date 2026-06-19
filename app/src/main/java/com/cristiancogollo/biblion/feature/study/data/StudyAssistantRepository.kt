@@ -1,5 +1,8 @@
 package com.cristiancogollo.biblion
 
+import com.cristiancogollo.biblion.feature.bibi.BibiResponse
+import com.cristiancogollo.biblion.feature.bibi.ChatExchange
+import com.cristiancogollo.biblion.feature.bibi.Confidence
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -18,7 +21,10 @@ data class StudyAssistantRequest(
     val currentOutline: List<String> = emptyList(),
     val notes: List<String> = emptyList(),
     val bibleVersions: List<StudyAssistantBibleVersion> = emptyList(),
-    val bibleVersion: String = "rv1960"
+    val bibleVersion: String = "rv1960",
+    val userName: String? = null,
+    val lastQueries: List<String> = emptyList(),
+    val chatHistory: List<ChatExchange> = emptyList()
 )
 
 data class StudyAssistantBibleVersion(
@@ -48,7 +54,8 @@ data class StudyAssistantResponse(
     val references: List<StudyAssistantReference> = emptyList(),
     val suggestedBlocks: List<String> = emptyList(),
     val confidence: String = "medium",
-    val usedFallback: Boolean = false
+    val usedFallback: Boolean = false,
+    val bibiResponse: BibiResponse? = null
 )
 
 data class StudyAssistantReference(
@@ -62,7 +69,8 @@ interface StudyAssistantRepository {
 
 class HttpStudyAssistantRepository(
     private val endpointUrl: String = BuildConfig.BIBI_ENDPOINT_URL,
-    private val fallback: StudyAssistantRepository = LocalStudyAssistantRepository()
+    private val appContext: android.content.Context? = null,
+    private val fallback: StudyAssistantRepository = LocalStudyAssistantRepository(appContext)
 ) : StudyAssistantRepository {
     override suspend fun ask(request: StudyAssistantRequest): StudyAssistantResponse {
         if (!request.isBibleDomain()) {
@@ -72,9 +80,19 @@ class HttpStudyAssistantRepository(
             )
         }
 
+        // 1. LOCAL primero — KnowledgeEngine offline (diccionario, personas, lugares, etc.)
+        val localResponse = fallback.ask(request)
+        val localBibi = localResponse.bibiResponse
+
+        // Si local respondió con confianza alta o media, devolver sin tocar Worker
+        if (localBibi != null && localBibi.confidence != Confidence.LOW) {
+            return localResponse
+        }
+
+        // 2. LOCAL no respondió o confianza baja → intentar Worker online
         val endpoint = endpointUrl.trim()
         if (endpoint.isBlank()) {
-            return fallback.ask(request)
+            return localResponse
         }
 
         return runCatching {
@@ -105,6 +123,12 @@ class HttpStudyAssistantRepository(
                     )
                     .put("mode", request.mode.apiValue)
                     .put("intent", request.intent.apiValue)
+                    .put("userName", request.userName ?: JSONObject.NULL)
+
+                val userHistory = request.lastQueries.take(3)
+                if (userHistory.isNotEmpty()) {
+                    payload.put("lastQueries", JSONArray(userHistory))
+                }
 
                 val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
                     requestMethod = "POST"
@@ -132,7 +156,8 @@ class HttpStudyAssistantRepository(
                 parseAssistantResponse(JSONObject(body))
             }
         }.getOrElse {
-            fallback.ask(request).copy(usedFallback = true)
+            // Worker falló → devolver lo que local haya producido (aunque sea LOW o null)
+            localResponse.copy(usedFallback = true)
         }
     }
 
@@ -166,8 +191,32 @@ class HttpStudyAssistantRepository(
     }
 }
 
-class LocalStudyAssistantRepository : StudyAssistantRepository {
+class LocalStudyAssistantRepository(
+    private val appContext: android.content.Context? = null
+) : StudyAssistantRepository {
     override suspend fun ask(request: StudyAssistantRequest): StudyAssistantResponse {
+        if (appContext != null) {
+            val knowledgeResponse = com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.answer(
+                context = appContext,
+                question = request.question,
+                userContext = com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.UserContext(
+                    verseText = request.selectedText,
+                    verseRef = request.studyTitle,
+                    userName = request.userName,
+                    lastQueries = request.lastQueries,
+                    chatHistory = request.chatHistory
+                )
+            )
+
+            if (knowledgeResponse != null) {
+                return StudyAssistantResponse(
+                    answer = knowledgeResponse.buildChatText(),
+                    bibiResponse = knowledgeResponse,
+                    usedFallback = true
+                )
+            }
+        }
+
         return StudyAssistantResponse(
             answer = buildStudyAssistantLocalAnswer(request),
             usedFallback = true
@@ -175,49 +224,13 @@ class LocalStudyAssistantRepository : StudyAssistantRepository {
     }
 
     private fun buildStudyAssistantLocalAnswer(request: StudyAssistantRequest): String {
-        val normalized = request.question.lowercase()
-        val context = buildList {
-            request.studyTitle.takeIf { it.isNotBlank() }?.let { add("titulo: $it") }
-            request.studyTags.takeIf { it.isNotEmpty() }?.let { add("etiquetas: ${it.joinToString(", ")}") }
-            request.selectedText.takeIf { it.isNotBlank() }?.let { add("seleccion: $it") }
-        }.joinToString("; ")
-
         val assistantIntro = when (request.mode) {
             StudyAssistantMode.STUDY -> "Soy Bibi, tu asistente de estudio biblico integrado en Biblion."
             StudyAssistantMode.READER -> "Soy Bibi, tu asistente biblico integrado en el lector de Biblion."
         }
-        val baseContext = if (context.isBlank()) {
-            "Aun no tengo contexto guardado de la ensenanza."
-        } else {
-            "Estoy tomando como contexto $context."
-        }
-
-        return when {
-            "creacion" in normalized || "creacion" in normalized.removeAccents() -> {
-                "$assistantIntro $baseContext Para hablar de la creacion, revisa Genesis 1:1-31, Genesis 2:1-3, Juan 1:1-3 y Hebreos 11:3. Puedes usar Genesis como texto base y Juan 1 para conectar la creacion con Cristo como Verbo eterno."
-            }
-            "amor" in normalized -> {
-                "$assistantIntro $baseContext El amor es central en la Biblia. Sugiero 1 Corintios 13, 1 Juan 4:7-21 y Juan 3:16."
-            }
-            "fe" in normalized -> {
-                "$baseContext Para estudiar la fe, Hebreos 11 es indispensable. Tambien considera Santiago 2:14-26 y Romanos 10:17."
-            }
-            "gracia" in normalized -> {
-                "$baseContext La gracia de Dios se explica muy bien en Efesios 2:8-9, Romanos 3:24 y Tito 2:11."
-            }
-            "perdon" in normalized -> {
-                "$baseContext El perdon es vital. Mira Mateo 18:21-35, Colosenses 3:13 y Efesios 4:32."
-            }
-            "ideas" in normalized || "ayuda" in normalized || "sugerencia" in normalized -> {
-                "$baseContext Podrias estructurar tu ensenanza con: 1) introduccion, 2) tres puntos del texto base, y 3) una aplicacion practica."
-            }
-            "reflexion" in normalized || "ensenanza" in normalized.removeAccents() -> {
-                "Basado en $context, una reflexion podria ser: la Palabra de Dios no solo informa, sino que transforma cuando su verdad penetra el corazon."
-            }
-            else -> {
-                "$assistantIntro $baseContext No tengo una respuesta especifica para esa pregunta, pero puedo ayudarte si me das mas detalles."
-            }
-        }
+        return "$assistantIntro No tengo una respuesta especifica para esa pregunta en mi " +
+            "base de datos offline. Puedes preguntarme por definiciones biblicas, " +
+            "personas, lugares, pasajes relacionados o palabras en hebreo y griego."
     }
 }
 
@@ -305,6 +318,17 @@ private fun StudyAssistantRequest.isBibleDomain(): Boolean {
         notes.joinToString(" ")
     ).joinToString(" ").lowercase().removeAccents()
 
+    val intent = com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.detectIntent(question)
+    if (intent in setOf(
+        com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.BibiIntent.WHO,
+        com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.BibiIntent.WHERE,
+        com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.BibiIntent.DEFINE,
+        com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.BibiIntent.EXPLAIN_VERSE,
+        com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.BibiIntent.RELATED,
+        com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.BibiIntent.ORIGINAL_LANG,
+        com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.BibiIntent.GREETING
+    )) return true
+
     val bibleSignals = listOf(
         "biblia", "biblico", "biblica", "biblion", "dios", "jesus", "cristo", "espiritu santo",
         "evangelio", "iglesia", "discipulado", "devocional", "predicacion", "sermon", "ensenanza",
@@ -321,10 +345,39 @@ private fun StudyAssistantRequest.isBibleDomain(): Boolean {
     )
     if (bibleSignals.any { it in normalized }) return true
 
+    val biblicalNames = listOf(
+        "adan", "eva", "cain", "abel", "noe", "abraham", "sara", "isaac", "israel", "jacob",
+        "esau", "moises", "aaron", "josue", "david", "saul", "salomon", "elias", "eliseo",
+        "isaias", "jeremias", "ezequiel", "daniel", "oseas", "joel", "amos", "jonas", "miqueas",
+        "rut", "ester", "job", "noemi", "samuel", "gig", "goliath", "david", "uriel", "rafael",
+        "miguel", "gabriel", "satan", "demonio", "angel", "querubin", "serafin",
+        "jose", "maria", "jose", "jesus", "juan el bautista", "herodes", "pilato", "caifas",
+        "marcos", "lucas", "juan", "mateo", "pedro", "pablo", "bernabe", "apolo", "timoteo",
+        "tito", "silas", "apolos", "filemon", "filipenses", "colosenses",
+        "lazaro", "marta", "magdalena", "maria magdalena", "nicodemo", "samaritano", "zaqueo",
+        "bartimeo", "juana", "susan", "salome",
+        "simeon", "ana", "isabel", "zacarias", "elcana", "penina", "jefthe",
+        "baraque", "gideon", "sansón", "dalila", "sanson", "delila", "manoa",
+        "absalon", "adoni-sedec", "acab", "jezabel", "atanalia", "joas", "manases",
+        "neemias", "esdras", "zerubabel", "hageo", "zacarías",
+        "abigail", "mical", "bathseba", "betseba", "tamar", "raquel", "lia", "leah", "dina",
+        "merian", "roham", "asnat", "zilpa", "bila",
+        "sanson", "tomas", "tadeo", "jaco", "apostoles", "apostol", "judio", "judios",
+        "gentil", "gentiles", "fariseo", "fariseos", "saduceo", "saduceos", "escriba",
+        "levita", "sacerdote", "sumo sacerdote", "sanhedrin",
+        "betsaida", "capernaum", "jerusalen", "jericó", "jerico", "belen", "betlehem",
+        "nazaret", "galilea", "galilea", "jordan", "jordán", "sinaí", "sinai", "horeb",
+        "egipto", "israel", "palestina", "judea", "judea", "samaria", "samaritano",
+        "tiro", "sidón", "sidon", "damasco", "antioquia", "roma", "babilonia", "babel",
+        "persia", "asiria", "caldea", "moab", "edom", "filistea", "tigris", "eufrates"
+    )
+    if (biblicalNames.any { it in normalized }) return true
+
     val nonBibleSignals = listOf(
         "matematica", "matematicas", "calcula", "cuanto es", "programacion", "codigo", "kotlin",
         "java", "python", "javascript", "politica", "elecciones", "noticias", "deportes", "futbol",
-        "medicina", "legal", "derecho", "finanzas", "inversion", "clima", "tecnologia"
+        "medicina", "legal", "derecho", "finanzas", "inversion", "clima", "tecnologia",
+        "receta", "cocina", "futbol", "deporte", "musica", "pelicula", "videojuego"
     )
     if (nonBibleSignals.any { it in normalized }) return false
 

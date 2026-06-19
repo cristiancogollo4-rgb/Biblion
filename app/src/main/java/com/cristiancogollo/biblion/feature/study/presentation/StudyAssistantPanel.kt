@@ -1,15 +1,19 @@
 package com.cristiancogollo.biblion
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -19,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.RestartAlt
@@ -35,6 +40,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +54,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.cristiancogollo.biblion.feature.bibi.BibiSuggestion
+import com.cristiancogollo.biblion.feature.bibi.ChatExchange
+import com.cristiancogollo.biblion.feature.bibi.data.BibiHistoryRepository
+import com.cristiancogollo.biblion.feature.bibi.data.ChatSession
+import com.cristiancogollo.biblion.feature.bibi.data.ChatSessionRepository
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
@@ -61,7 +72,15 @@ private enum class StudyAssistantAuthor {
 private data class StudyAssistantChatMessage(
     val id: String = CuidGenerator.create(),
     val author: StudyAssistantAuthor,
-    val text: String
+    val text: String,
+    val suggestions: List<BibiSuggestion> = emptyList()
+)
+
+private val DEFAULT_SUGGESTIONS = listOf(
+    BibiSuggestion("Buscar un personaje", "¿quién fue Moisés?"),
+    BibiSuggestion("Buscar un lugar", "¿dónde queda Jerusalén?"),
+    BibiSuggestion("Definir un concepto", "¿qué significa pacto?"),
+    BibiSuggestion("Explicar este versículo", "explícame este versículo")
 )
 
 @Composable
@@ -148,7 +167,8 @@ private fun BibiAssistantOverlay(
     val initialAssistantMessage = remember(personalizedInitialMessage) {
         StudyAssistantChatMessage(
             author = StudyAssistantAuthor.ASSISTANT,
-            text = personalizedInitialMessage
+            text = personalizedInitialMessage,
+            suggestions = DEFAULT_SUGGESTIONS
         )
     }
     var isOpen by rememberSaveable { mutableStateOf(false) }
@@ -158,12 +178,117 @@ private fun BibiAssistantOverlay(
     val context = LocalContext.current
     var availableBibleVersions by remember { mutableStateOf<List<StudyAssistantBibleVersion>>(emptyList()) }
     var selectedBibleVersion by remember { mutableStateOf("rv1960") }
-    val assistantRepository = remember { HttpStudyAssistantRepository() }
+    val assistantRepository = remember(context) { HttpStudyAssistantRepository(appContext = context.applicationContext) }
     val messages = remember(personalizedInitialMessage) {
         mutableStateOf(listOf(initialAssistantMessage))
     }
+    var recentQueries by remember { mutableStateOf<List<String>>(emptyList()) }
+    var chatHistory by remember { mutableStateOf<List<ChatExchange>>(emptyList()) }
+    var currentSessionId by remember { mutableStateOf<Long?>(null) }
+    var showHistory by remember { mutableStateOf(false) }
+    var historySessions by remember { mutableStateOf<List<ChatSession>>(emptyList()) }
+    var skipLastQueries by remember { mutableStateOf(false) }
 
-    androidx.compose.runtime.LaunchedEffect(Unit) {
+    fun sendQuestion(question: String) {
+        if (question.isBlank() || isLoading) return
+        messages.value = messages.value + StudyAssistantChatMessage(
+            author = StudyAssistantAuthor.USER,
+            text = question
+        )
+        input = ""
+        isLoading = true
+        scope.launch {
+            val recentHistory = if (skipLastQueries) emptyList()
+                else BibiHistoryRepository.getRecentQueries(context, 5)
+            if (skipLastQueries) skipLastQueries = false
+
+            // Detectar intención (fuente única, también se envía al Worker)
+            val intent = com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.detectIntent(question)
+            val needsChapterContext = intent in setOf(
+                com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.BibiIntent.EXPLAIN_VERSE,
+                com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.BibiIntent.RELATED,
+                com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.BibiIntent.FALLBACK,
+                com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.BibiIntent.DIVE_DEEPER
+            )
+
+            // Crear sesión en la primera pregunta
+            if (currentSessionId == null) {
+                currentSessionId = ChatSessionRepository.createSession(
+                    context = context,
+                    title = question.take(60),
+                    firstQuery = question,
+                    mode = mode.name
+                )
+            } else {
+                ChatSessionRepository.updateSessionTimestamp(context, currentSessionId!!)
+            }
+            ChatSessionRepository.saveUserMessage(context, currentSessionId!!, question)
+
+            val response = assistantRepository.ask(
+                StudyAssistantRequest(
+                    question = question,
+                    studyTitle = if (needsChapterContext) studyTitle else "",
+                    studyTags = studyTags,
+                    selectedText = if (needsChapterContext) selectedText else "",
+                    mode = mode,
+                    intent = mapBibiIntentToApi(intent),
+                    currentOutline = if (needsChapterContext) currentOutline else emptyList(),
+                    notes = if (needsChapterContext) notes else emptyList(),
+                    bibleVersions = availableBibleVersions,
+                    bibleVersion = selectedBibleVersion,
+                    userName = currentUserName ?: fallbackUserName,
+                    lastQueries = recentHistory,
+                    chatHistory = chatHistory
+                )
+            )
+            val suggestions = response.bibiResponse?.suggestions ?: DEFAULT_SUGGESTIONS
+            messages.value = messages.value + StudyAssistantChatMessage(
+                author = StudyAssistantAuthor.ASSISTANT,
+                text = response.answer,
+                suggestions = suggestions
+            )
+            if (response.bibiResponse != null) {
+                BibiHistoryRepository.save(
+                    context = context,
+                    query = question,
+                    response = response.bibiResponse,
+                    userContext = com.cristiancogollo.biblion.feature.bibi.BibiUserContext(
+                        userName = currentUserName ?: fallbackUserName,
+                        bibleVersion = selectedBibleVersion
+                    )
+                )
+            }
+
+            // Issue 2: solo guardar resolvedTerm si la respuesta tiene confianza real
+            // (evita contaminar chatHistory con "No encontré X" como término válido)
+            val resolvedTerm = response.bibiResponse
+                ?.takeIf { it.confidence != com.cristiancogollo.biblion.feature.bibi.Confidence.LOW }
+                ?.title?.let { title ->
+                    title.removePrefix("Lugar: ").removePrefix("Sobre ").takeIf { it.length > 2 }
+                }
+
+            ChatSessionRepository.saveAssistantMessage(
+                context = context,
+                sessionId = currentSessionId!!,
+                content = response.answer,
+                resolvedTerm = resolvedTerm,
+                intent = intent.name
+            )
+
+            // Issue 4: actualizar chatHistory también cuando el Worker responde
+            // (DIVE_DEEPER o FALLBACK donde bibiResponse es null) para no perder el hilo
+            val exchangeIntent = intent.name
+            chatHistory = (chatHistory + ChatExchange(
+                question = question,
+                response = response.answer,
+                resolvedTerm = resolvedTerm,
+                intent = exchangeIntent
+            )).takeLast(10)
+            isLoading = false
+        }
+    }
+
+    LaunchedEffect(Unit) {
         availableBibleVersions = BibleRepository.getAvailableVersions(context)
             .map { version ->
                 StudyAssistantBibleVersion(
@@ -174,12 +299,19 @@ private fun BibiAssistantOverlay(
         selectedBibleVersion = BibleRepository.getSelectedVersionKey(context)
     }
 
+    LaunchedEffect(messages.value.isEmpty()) {
+        if (messages.value.isEmpty() || messages.value.size == 1) {
+            recentQueries = BibiHistoryRepository.getRecentQueries(context, 5)
+        }
+    }
+
     Box(modifier = modifier) {
         if (isOpen) {
             StudyAssistantPanel(
                 messages = messages.value,
                 input = input,
                 isLoading = isLoading,
+                recentQueries = recentQueries,
                 inputPlaceholder = inputPlaceholder,
                 onInputChange = { input = it },
                 onClose = { isOpen = false },
@@ -189,53 +321,106 @@ private fun BibiAssistantOverlay(
                     )
                     input = ""
                     isLoading = false
+                    currentSessionId = null
+                    chatHistory = emptyList()
+                    skipLastQueries = true
                 },
                 onClear = {
+                    scope.launch {
+                        BibiHistoryRepository.clearHistory(context)
+                        currentSessionId?.let { ChatSessionRepository.deleteSession(context, it) }
+                    }
                     messages.value = emptyList()
                     input = ""
                     isLoading = false
+                    currentSessionId = null
+                    chatHistory = emptyList()
                 },
-                onSend = {
-                    val question = input.trim()
-                    if (question.isBlank() || isLoading) return@StudyAssistantPanel
-                    messages.value = messages.value + StudyAssistantChatMessage(
-                        author = StudyAssistantAuthor.USER,
-                        text = question
-                    )
-                    input = ""
-                    isLoading = true
+                onOpenHistory = {
                     scope.launch {
-                        val response = assistantRepository.ask(
-                            StudyAssistantRequest(
-                                question = question,
-                                studyTitle = studyTitle,
-                                studyTags = studyTags,
-                                selectedText = selectedText,
-                                mode = mode,
-                                intent = inferStudyAssistantIntent(question),
-                                currentOutline = currentOutline,
-                                notes = notes,
-                                bibleVersions = availableBibleVersions,
-                                bibleVersion = selectedBibleVersion
-                            )
-                        )
-                        val fallbackNote = if (response.usedFallback) "\n\nRespuesta local de respaldo." else ""
-                        messages.value = messages.value + StudyAssistantChatMessage(
-                            author = StudyAssistantAuthor.ASSISTANT,
-                            text = response.answer + fallbackNote
-                        )
-                        isLoading = false
+                        historySessions = ChatSessionRepository.getAllSessions(context)
+                        showHistory = true
                     }
                 },
+                onSend = { sendQuestion(input.trim()) },
+                onSuggestionClick = { query -> sendQuestion(query) },
                 onInsertNote = onInsertNote,
                 onInsertReflection = onInsertReflection,
                 modifier = Modifier.align(Alignment.BottomEnd)
             )
+
+            if (showHistory) {
+                ChatHistoryDialog(
+                    sessions = historySessions,
+                    currentSessionId = currentSessionId,
+                    onSelect = { sessionId ->
+                        scope.launch {
+                            val savedMessages = ChatSessionRepository.getSessionMessages(context, sessionId)
+                            if (savedMessages.isNotEmpty()) {
+                                val restored = mutableListOf<StudyAssistantChatMessage>()
+                                restored.add(initialAssistantMessage.copy(id = CuidGenerator.create()))
+                                for (msg in savedMessages) {
+                                    val author = if (msg.role == "user") {
+                                        StudyAssistantAuthor.USER
+                                    } else {
+                                        StudyAssistantAuthor.ASSISTANT
+                                    }
+                                    restored.add(
+                                        StudyAssistantChatMessage(
+                                            author = author,
+                                            text = msg.content
+                                        )
+                                    )
+                                }
+                                messages.value = restored
+                                chatHistory = ChatSessionRepository.buildChatHistory(savedMessages)
+                                currentSessionId = sessionId
+                                ChatSessionRepository.updateSessionTimestamp(context, sessionId)
+                            }
+                            showHistory = false
+                        }
+                    },
+                    onDelete = { sessionId ->
+                        scope.launch {
+                            ChatSessionRepository.deleteSession(context, sessionId)
+                            historySessions = ChatSessionRepository.getAllSessions(context)
+                        }
+                    },
+                    onDismiss = { showHistory = false }
+                )
+            }
         } else {
             FloatingActionButton(
                 onClick = {
                     isOpen = true
                     onOpen()
+                    // Cargar la sesión más reciente al abrir, si existe
+                    scope.launch {
+                        val lastSession = ChatSessionRepository.getMostRecentSession(context)
+                        if (lastSession != null) {
+                            val savedMessages = ChatSessionRepository.getSessionMessages(context, lastSession.id)
+                            if (savedMessages.isNotEmpty()) {
+                                val restored = mutableListOf<StudyAssistantChatMessage>()
+                                restored.add(initialAssistantMessage.copy(id = CuidGenerator.create()))
+                                for (msg in savedMessages) {
+                                    val author = if (msg.role == "user") {
+                                        StudyAssistantAuthor.USER
+                                    } else {
+                                        StudyAssistantAuthor.ASSISTANT
+                                    }
+                                    restored.add(
+                                        StudyAssistantChatMessage(
+                                            author = author,
+                                            text = msg.content
+                                        )
+                                    )
+                                }
+                                messages.value = restored
+                                chatHistory = ChatSessionRepository.buildChatHistory(savedMessages)
+                                currentSessionId = lastSession.id
+                            }
+                        }
+                    }
                 },
                 modifier = Modifier.align(Alignment.BottomEnd),
                 containerColor = MaterialTheme.colorScheme.primary,
@@ -261,17 +446,21 @@ private fun personalizeBibiGreeting(initialMessage: String, userName: String?): 
     return initialMessage.replace("Hola,", "Hola $cleanName,")
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StudyAssistantPanel(
     messages: List<StudyAssistantChatMessage>,
     input: String,
     isLoading: Boolean,
+    recentQueries: List<String>,
     inputPlaceholder: String,
     onInputChange: (String) -> Unit,
     onClose: () -> Unit,
     onReset: () -> Unit,
     onClear: () -> Unit,
+    onOpenHistory: () -> Unit,
     onSend: () -> Unit,
+    onSuggestionClick: (String) -> Unit,
     onInsertNote: ((String) -> Unit)?,
     onInsertReflection: ((topic: String, text: String) -> Unit)?,
     modifier: Modifier = Modifier
@@ -314,6 +503,9 @@ private fun StudyAssistantPanel(
                     IconButton(onClick = onReset) {
                         Icon(Icons.Default.RestartAlt, contentDescription = "Nuevo chat")
                     }
+                    IconButton(onClick = onOpenHistory) {
+                        Icon(Icons.Default.History, contentDescription = "Historial de chats")
+                    }
                     IconButton(onClick = onClear) {
                         Icon(Icons.Default.DeleteSweep, contentDescription = "Eliminar chat")
                     }
@@ -324,18 +516,37 @@ private fun StudyAssistantPanel(
             }
 
             if (messages.isEmpty()) {
-                Box(
+                Column(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
+                        .padding(16.dp)
                 ) {
                     Text(
                         text = "Chat eliminado. Escribe una pregunta o inicia un nuevo chat con Bibi.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f)
                     )
+                    if (recentQueries.isNotEmpty()) {
+                        Spacer(modifier = Modifier.size(16.dp))
+                        Text(
+                            text = "Consultas recientes:",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.74f)
+                        )
+                        Spacer(modifier = Modifier.size(8.dp))
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            recentQueries.forEach { query ->
+                                AssistChip(
+                                    onClick = { onSuggestionClick(query) },
+                                    label = { Text(query, maxLines = 1) }
+                                )
+                            }
+                        }
+                    }
                 }
             } else {
                 LazyColumn(
@@ -349,7 +560,8 @@ private fun StudyAssistantPanel(
                         StudyAssistantMessageBubble(
                             message = message,
                             onInsertNote = onInsertNote,
-                            onInsertReflection = onInsertReflection
+                            onInsertReflection = onInsertReflection,
+                            onSuggestionClick = onSuggestionClick
                         )
                     }
                     if (isLoading) {
@@ -419,11 +631,13 @@ private fun StudyAssistantLoadingBubble() {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StudyAssistantMessageBubble(
     message: StudyAssistantChatMessage,
     onInsertNote: ((String) -> Unit)?,
-    onInsertReflection: ((topic: String, text: String) -> Unit)?
+    onInsertReflection: ((topic: String, text: String) -> Unit)?,
+    onSuggestionClick: (String) -> Unit
 ) {
     val isUser = message.author == StudyAssistantAuthor.USER
     val bubbleColor = if (isUser) {
@@ -463,6 +677,8 @@ private fun StudyAssistantMessageBubble(
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
+
+        // Optional "Nota" / "Reflexión" chips (solo en modo estudio, en respuestas de Bibi)
         if (!isUser && (onInsertNote != null || onInsertReflection != null)) {
             Row(
                 modifier = Modifier.padding(top = 4.dp),
@@ -486,93 +702,147 @@ private fun StudyAssistantMessageBubble(
                 }
             }
         }
-    }
-}
 
-private fun buildStudyAssistantLocalAnswer(
-    question: String,
-    studyTitle: String,
-    studyTags: List<String>,
-    selectedText: String
-): String {
-    val normalized = question.lowercase()
-    val normalizedNoAccents = normalized.removeAccents()
-    val context = buildList {
-        studyTitle.takeIf { it.isNotBlank() }?.let { add("título: $it") }
-        studyTags.takeIf { it.isNotEmpty() }?.let { add("etiquetas: ${it.joinToString(", ")}") }
-        selectedText.takeIf { it.isNotBlank() }?.let { add("selección: $it") }
-    }.joinToString("; ")
-
-    val baseContext = if (context.isBlank()) {
-        "Aún no tengo contexto guardado de la enseñanza."
-    } else {
-        "Estoy tomando como contexto $context."
-    }
-
-    return when {
-        "creacion" in normalizedNoAccents -> {
-            "$baseContext Para hablar de la creación, revisa Génesis 1:1-31, Génesis 2:1-3, Juan 1:1-3 y Hebreos 11:3. Puedes usar Génesis como texto base y Juan 1 para conectar la creación con Cristo como Verbo eterno."
-        }
-        "amor" in normalized -> {
-            "$baseContext El amor es central en la Biblia. Sugiero 1 Corintios 13 (el himno al amor), 1 Juan 4:7-21 (Dios es amor) y Juan 3:16."
-        }
-        "fe" in normalized -> {
-            "$baseContext Para estudiar la fe, Hebreos 11 es indispensable. También considera Santiago 2:14-26 sobre la fe y las obras, y Romanos 10:17 sobre cómo viene la fe."
-        }
-        "gracia" in normalized -> {
-            "$baseContext La gracia de Dios se explica muy bien en Efesios 2:8-9, Romanos 3:24 y Tito 2:11."
-        }
-        "perdon" in normalized -> {
-            "$baseContext El perdón es vital. Mira Mateo 18:21-35 (la parábola del siervo que no perdonó), Colosenses 3:13 y Efesios 4:32."
-        }
-        "ideas" in normalized || "ayuda" in normalized || "sugerencia" in normalized -> {
-            "$baseContext Como sugerencia, podrías estructurar tu enseñanza con: 1) Una introducción basada en el contexto actual, 2) Tres puntos clave extraídos del texto seleccionado, y 3) Una aplicación práctica para la vida diaria."
-        }
-        "reflexion" in normalizedNoAccents || "ensenanza" in normalizedNoAccents -> {
-            "Basado en $context, una reflexión profunda podría ser: 'La Palabra de Dios no solo nos informa, sino que nos transforma cuando permitimos que su verdad penetre nuestro corazón'. Considera cómo las etiquetas ${studyTags.joinToString()} se conectan con tu vida hoy."
-        }
-        else -> {
-            "$baseContext No tengo una respuesta específica para esa pregunta, pero puedo ayudarte a reflexionar más sobre $studyTitle si me das más detalles."
+        // Suggestion chips (solo en respuestas de Bibi)
+        if (!isUser && message.suggestions.isNotEmpty()) {
+            Spacer(modifier = Modifier.size(4.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                message.suggestions.forEach { suggestion ->
+                    AssistChip(
+                        onClick = { onSuggestionClick(suggestion.query) },
+                        label = { Text(suggestion.label, maxLines = 1) }
+                    )
+                }
+            }
         }
     }
 }
 
-private fun inferStudyAssistantIntent(question: String): StudyAssistantIntent {
-    val normalized = question.lowercase().removeAccents()
-    return when {
-        listOf("bosquejo", "estructura", "organiza", "puntos").any { it in normalized } -> {
-            StudyAssistantIntent.OUTLINE
-        }
-        listOf("predicacion", "sermon", "predicar").any { it in normalized } -> {
-            StudyAssistantIntent.SERMON
-        }
-        listOf("devocional", "meditacion").any { it in normalized } -> {
-            StudyAssistantIntent.DEVOTIONAL
-        }
-        listOf("define", "definir", "significa", "significado", "palabra").any { it in normalized } -> {
-            StudyAssistantIntent.DEFINE
-        }
-        listOf("relacionado", "referencias", "pasajes", "donde dice").any { it in normalized } -> {
-            StudyAssistantIntent.CROSS_REFERENCE
-        }
-        listOf("aplicacion", "aplicar", "practica", "vida").any { it in normalized } -> {
-            StudyAssistantIntent.APPLICATION
-        }
-        listOf("compara", "comparar", "version", "traduccion").any { it in normalized } -> {
-            StudyAssistantIntent.COMPARE_VERSIONS
-        }
-        listOf("explica", "explicar", "contexto", "entiendo").any { it in normalized } -> {
-            StudyAssistantIntent.EXPLAIN
-        }
-        else -> StudyAssistantIntent.QUESTION
+/**
+ * Mapea BibiIntent (interno, usado por la lógica local) a StudyAssistantIntent
+ * (enviado al Worker en la API). Esto garantiza que el Worker reciba el mismo
+ * intent que la lógica local detectó.
+ */
+private fun mapBibiIntentToApi(intent: com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.BibiIntent): StudyAssistantIntent {
+    return when (intent) {
+        com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.BibiIntent.DEFINE -> StudyAssistantIntent.DEFINE
+        com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.BibiIntent.WHO,
+        com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.BibiIntent.WHERE -> StudyAssistantIntent.EXPLAIN
+        com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.BibiIntent.RELATED -> StudyAssistantIntent.CROSS_REFERENCE
+        com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.BibiIntent.ORIGINAL_LANG -> StudyAssistantIntent.EXPLAIN
+        com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.BibiIntent.EXPLAIN_VERSE -> StudyAssistantIntent.EXPLAIN
+        com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.BibiIntent.GREETING -> StudyAssistantIntent.QUESTION
+        com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.BibiIntent.DIVE_DEEPER -> StudyAssistantIntent.QUESTION
+        com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.BibiIntent.FALLBACK -> StudyAssistantIntent.QUESTION
     }
 }
 
-private fun String.removeAccents(): String {
-    val map = mapOf(
-        'á' to 'a', 'é' to 'e', 'í' to 'i', 'ó' to 'o', 'ú' to 'u',
-        'Á' to 'A', 'É' to 'E', 'Í' to 'I', 'Ó' to 'O', 'Ú' to 'U',
-        'ñ' to 'n', 'Ñ' to 'N'
+@Composable
+private fun ChatHistoryDialog(
+    sessions: List<ChatSession>,
+    currentSessionId: Long?,
+    onSelect: (Long) -> Unit,
+    onDelete: (Long) -> Unit,
+    onDismiss: () -> Unit
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Historial de chats") },
+        text = {
+            if (sessions.isEmpty()) {
+                Text(
+                    "Aún no tienes chats guardados. Inicia una conversación con Bibi para empezar.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.62f)
+                )
+            } else {
+                androidx.compose.foundation.lazy.LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 380.dp)
+                ) {
+                    items(sessions, key = { it.id }) { session ->
+                        ChatHistoryRow(
+                            session = session,
+                            isCurrent = session.id == currentSessionId,
+                            onSelect = { onSelect(session.id) },
+                            onDelete = { onDelete(session.id) }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text("Cerrar")
+            }
+        }
     )
-    return this.map { map[it] ?: it }.joinToString("")
+}
+
+@Composable
+private fun ChatHistoryRow(
+    session: ChatSession,
+    isCurrent: Boolean,
+    onSelect: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onSelect),
+            color = if (isCurrent) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+            } else {
+                androidx.compose.ui.graphics.Color.Transparent
+            },
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(8.dp)
+            ) {
+                Text(
+                    text = session.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal,
+                    maxLines = 2
+                )
+                Spacer(modifier = Modifier.size(2.dp))
+                Text(
+                    text = formatSessionDate(session.updatedAt),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                )
+            }
+        }
+        androidx.compose.material3.IconButton(onClick = onDelete) {
+            Icon(
+                Icons.Default.DeleteSweep,
+                contentDescription = "Eliminar sesión",
+                tint = MaterialTheme.colorScheme.error
+            )
+        }
+    }
+}
+
+private fun formatSessionDate(timestamp: Long): String {
+    val now = System.currentTimeMillis()
+    val diff = now - timestamp
+    return when {
+        diff < 60_000 -> "hace un momento"
+        diff < 3_600_000 -> "hace ${diff / 60_000} min"
+        diff < 86_400_000 -> "hace ${diff / 3_600_000} h"
+        diff < 7 * 86_400_000 -> "hace ${diff / 86_400_000} días"
+        else -> {
+            val sdf = java.text.SimpleDateFormat("dd MMM", java.util.Locale.getDefault())
+            sdf.format(java.util.Date(timestamp))
+        }
+    }
 }
