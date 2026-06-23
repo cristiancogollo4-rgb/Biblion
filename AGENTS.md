@@ -51,6 +51,8 @@ Biblion ya incluye:
 - Contexto para Bibi con versiones biblicas disponibles, version seleccionada, texto seleccionado, bloques actuales de la ensenanza, notas y diccionario biblico.
 - Saludo local de Bibi con el nombre visible del usuario autenticado sin incluir ese nombre en la solicitud al Worker.
 - **Tutorial guiado interactivo (primera instalacion)**: inicio automatico en Home, Bibi con logo, auto-scroll a versiculo 1, target ampliado (primeros 3 versiculos), scroll en textos largos, debug logs `GUIDE_DEBUG`.
+- **Referencias cruzadas con voto crowdsourced** (`app/src/main/assets/databases/cross_references_votes.db`): 340,645 pares del dataset openbile.info (CC-BY 2026-06-15). Reemplazo completo del antiguo TSK. Tabla `cross_reference_votes` con `source_book`, `source_normalized_book`, `source_chapter`, `source_verse`, `target_references` (formato Biblion), `votes` (1-1279, INTERNO). Esquema version 1. La columna `votes` se usa internamente para ranking y filtrado (default `votes >= 10`). **NUNCA** debe exponerse al usuario en la UI de Bibi.
+- **Temas canonicos v3** (`app/src/main/assets/databases/topics.db`): 693 temas canonicos en 11 categorias (BOOK 66, PERSON 126, PLACE 70, EVENT 43, ATTRIBUTE_OF_GOD 32, PROPHECY 33, COMPARATIVE_RELIGION 17, SIN 70, DOCTRINE 101, CHURCH 50, CHRISTIAN_LIFE 85). Esquema v3 con 4 tablas: `topics` (con `description` generada por Bibi Worker qwen3-8b o manual, `verse_count`, `total_aliases`, `parent_slug` para jerarquia), `topic_aliases` (1689 aliases de OpenBible con `score` 0.85-0.94 y flag `low_confidence`), `topic_references` (4704 versiculos del OSIS original con `score` 2-100), `topic_relationships` (236 jerarquias parent/child). Las traducciones ES curadas viven en `tools/topic_aliases.json`. Ver seccion "Busqueda de versiculos y temas" para detalles del pipeline de 6 fases y la pantalla "Explorar temas".
 - **Despues del tutorial**: mensaje de despedida de Bibi con mension a opcion de reinicio en Perfil.
 
 ### Flujo de primera instalacion (onboarding)
@@ -140,6 +142,38 @@ El sistema de tutorial guiado usa `GuidedTutorialOverlay` + `GuideBubble` para m
 ## 6) Modo estudio: herramientas y responsabilidades
 
 El modo estudio se compone principalmente de `StudyEditorScreen`, `StudyViewModel`, `StudyDocumentEngine`, `StudyData`, `ReaderScreen`, `StudyReadScreen` y `EnsenanzaScreen`.
+
+### Referencias cruzadas y temas (openbile.info)
+
+Biblion usa los datasets de **openbile.info** (CC-BY 2026-06-15) para referencias cruzadas y busqueda tematica. Hay **dos DBs separadas** generadas por scripts Python en `tools/`:
+
+- **`cross_references_votes.db`** (32 MB, 340,645 pares): relaciones versiculo-a-versiculo con voto crowdsourced. Reemplaza al antiguo TSK.
+- **`topics.db`** (12.6 MB, 71,039 filas, 6,698 temas): versiculos agrupados por tema con quality score.
+
+#### Scripts de build
+
+- `tools/build_crossrefs_votes_sqlite.py` → genera `cross_references_votes.db`
+- `tools/build_topics_sqlite.py` → genera `topics.db`
+
+Ambos normalizan libros al formato Biblion (`Exodo` no `Éxodo`), usan `source_normalized_book` lowercase sin acentos, y formatean referencias como `Libro Cap:V` o `Libro Cap:V-V` (compatible con `BiblicalCrossReference.resolve`).
+
+#### Componentes Kotlin (feature/bibi/)
+
+- `CrossReferenceVoteEntity` + `CrossReferenceVoteDao` + `CrossReferenceVoteDatabase` (Room v1)
+- `TopicEntity` + `TopicAliasEntity` + `TopicReferenceEntity` + `TopicRelationshipEntity` (Room v3, 4 entidades)
+- `CrossReferenceVoteEngine` - reemplaza al antiguo `CrossReferenceEngine`. Usa el voto internamente para filtrar (default `votes >= 10`) y ordenar. **NUNCA expone el voto al usuario.**
+- `TopicEngine` - busqueda por tema (pipeline de 6 fases sin scoring), topicos para un versiculo, fuzzy search, rotacion de temas populares. **Filtra por `verseCount > 0`** para no devolver temas sin contenido.
+- `RelatedVerse` y `TopicInfo` - DTOs publicos. `RelatedVerse` NO incluye el campo `votes` (verificado en tests).
+- `VerseResolver` - detecta el versiculo activo para Bibi con dos formas:
+  - **Forma 1 (primaria)**: versiculo seleccionado por long-press en el lector
+  - **Forma 2 (fallback)**: versiculo extraido del texto de la pregunta del usuario
+  - Si ninguna aplica, Bibi responde a nivel de capitulo o pide aclaracion.
+
+#### Regla critica de UX
+
+**Bibi NUNCA debe mencionar al usuario la votacion, puntuacion, ni score.** Estos datos son INTERNOS solo para ranking y toma de decisiones. Tests E2E deben verificar que ninguna respuesta de Bibi contenga "voto", "puntos", "score" o numeros crudos asociados a referencias.
+
+
 
 ### Arquitectura del documento de estudio
 
@@ -387,6 +421,63 @@ Nacimiento: 1997 a.C.
 
 Las respuestas del diccionario local **NO incluyen versiculos completos**. Esto evita que Bibi invente referencias. Para profundizar en versiculos sobre el tema, se sugiere via chips: **"Pedir a IA: pasajes sobre X"** que va al Worker.
 
+### Referencias cruzadas y temas (openbile.info) - version actual
+
+Reemplaza al antiguo sistema TSK. Bibilion usa dos DBs separadas:
+
+#### `cross_references_votes.db` (340,645 pares)
+
+Generado por `tools/build_crossrefs_votes_sqlite.py` desde el dataset openbile.info (CC-BY 2026-06-15). Tabla `cross_reference_votes` con `source_book`, `source_normalized_book`, `source_chapter`, `source_verse`, `target_references` (formato Biblion `Libro Cap:V` o `Libro Cap:V-V`), `votes` (1-1279, INTERNO).
+
+**Reglas de filtrado y ranking:**
+- Default: `votes >= 10` (12.6% mas confiable del dataset)
+- `votes > 0`: 99.0% (descarta negativos y ceros por baja calidad)
+- `votes >= 50`: 1.3% (curado, alta calidad)
+
+**Donde se consume:**
+- **Bibi** (`CrossReferenceVoteEngine.getRelatedBySource`): retorna versiculos relacionados. **NUNCA** expone el voto al usuario.
+- **Editor de ensenanzas** (`StudyEditorScreen.kt`): el boton `+ xrefs` en cada bloque `QuotedVerse` abre un dialog con versiculos relacionados como `AssistChip` (uno por versiculo, no por anchor). Click inserta como `QuotedVerse` block.
+- **VerseResolver** (`feature/bibi/VerseResolver.kt`): detecta el versiculo activo con Forma 1 (seleccion long-press) o Forma 2 (regex en pregunta del usuario).
+
+#### `topics.db` (693 temas canonicos, 4 tablas, esquema v3)
+
+Generado por el script v3 que produce la DB con 4 tablas. **El script `tools/build_topics_v2_db.py` (sistema antiguo) esta obsoleto**; el sistema actual usa `canonical_topics.json` como fuente canonica y genera la DB con schema v3.
+
+**Tablas**:
+- `topics`: 693 canonicos con `description` (generada por Bibi Worker qwen3-8b o manual), `verse_count`, `total_aliases`, `parent_slug` (jerarquia), `slug` UNIQUE.
+- `topic_aliases`: 1689 aliases de OpenBible con `score` 0.85-0.94, `low_confidence` (1 si score < 0.86).
+- `topic_references`: 4704 versiculos del OSIS original con `score` 2-100 (INTERNO, no exponer al usuario).
+- `topic_relationships`: 236 jerarquias parent/child.
+
+**Indices UNIQUE** declarados en el entity Kotlin (deben coincidir con la DB preempaquetada):
+- `idx_topics_slug` (UNIQUE)
+- `index_topic_relationships_parent_slug_child_slug_relationship_type` (UNIQUE)
+
+**Traducciones y curaduria**:
+- `tools/canonical_topics.json` con 693 temas canonicos y descripciones.
+- `tools/topic_aliases.json` con 1689 aliases de OpenBible con score >= 0.85.
+- `tools/topic_translations_es.json` (286 entradas, sistema v2 antiguo, ya no se usa).
+
+**Donde se consume:**
+- **TopicEngine** (`feature/bibi/TopicEngine.kt`): busqueda por tema (pipeline de 6 fases), topicos para un versiculo, fuzzy search, rotacion de temas populares. Filtra por `verseCount > 0` para no devolver temas sin contenido.
+- **Bibi**: integracion futura para "¿de que temas habla este versiculo?" y "versiculos sobre X".
+
+**Codigo de motores en `feature/bibi/`:**
+
+- `CrossReferenceVoteEngine.getRelatedBySource(context, book, chapter, verse, minVotes, maxTotal)`: devuelve `List<RelatedVerse>` ordenadas por relevancia.
+- `CrossReferenceVoteEngine.getTopForSource(context, book, chapter, verse, maxTotal)`: top N sin filtrar.
+- `TopicEngine.getVersesForTopic(context, topicKey, minScore, maxTotal)`: versiculos para un tema.
+- `TopicEngine.getTopicsForVerse(context, book, chapter, verse, minScore, maxTotal)`: temas para un versiculo.
+- `TopicEngine.searchTopicsByText(context, query, minScore, maxTotal)`: fuzzy search.
+- `VerseResolver.resolve(reader, question)`: retorna `Resolution` con versiculo activo segun Forma 1 / Forma 2.
+
+#### Tests
+
+- `app/src/test/.../VerseResolverTest.kt`: Forma 1, Forma 2, fallbacks, casos edge.
+- `app/src/test/.../RelatedVerseTest.kt`: verifica que DTO NO expone votos.
+- `app/src/test/.../CrossReferenceVoteEntityTest.kt`: estructura del entity.
+
+
 ### Citas biblicas
 
 - Al seleccionar versiculos contiguos en el lector, deben agruparse en una sola cita.
@@ -420,15 +511,16 @@ Reglas:
   - exactamente una etiqueta de estado.
 - Las etiquetas personalizadas pueden existir, pero no reemplazan las secciones obligatorias.
 
-### Busqueda de versiculos (SearchScreen)
+### Busqueda de versiculos y temas (SearchScreen)
 
-`SearchScreen` permite buscar versiculos en la Biblia local con filtros y busqueda en vivo.
+`SearchScreen` permite buscar versiculos en la Biblia local y temas canonicos, con filtros y busqueda en vivo. Ademas incluye un carrusel rotativo de temas populares y acceso a la pantalla "Explorar temas".
 
 #### Arquitectura
 
 - **Biblia local**: `BibleRepository.searchVerses()` consulta `bible_verses` con SQL `LIKE '%query%' COLLATE NOCASE`.
 - **Filtros**: `BibleSearchFilter(testament, bookName)` se pasa a `searchVerses()` para restringir por testamento y/o libro.
 - **Persistencia de busquedas**: `SearchHistoryRepository` guarda cada query en Room (`search_history.db`) con normalizacion (sin acentos) y conteo de uso.
+- **Temas canonicos**: `TopicDatabase` (Room v3) consulta `topics.db` con schema v3 (4 tablas: topics, topic_aliases, topic_references, topic_relationships).
 
 #### Busqueda en vivo SEGURA
 
@@ -448,15 +540,40 @@ LaunchedEffect(Unit) {
 }
 ```
 
-**`collectLatest` cancela la corutina anterior** cuando llega un nuevo valor, eliminando race conditions.
+**`collectLatest` cancela la corutina anterior** cuando llega un nuevo valor, eliminando race conditions. `executeSearch` lanza en paralelo: versiculos biblicos (via `BibleRepository.searchVerses`) y temas canonicos (via `TopicEngine.searchTopics`).
 
-#### Componentes
+#### Pipeline de 6 fases para busqueda de temas
+
+`TopicEngine.searchTopics` ejecuta un pipeline de fases binarias, cada una con una query SQL simple. Sin scoring, sin parametros magicos:
+
+1. **Slug exacto** (`findBySlug`) — ej. "fe" -> topic "fe"
+2. **Nombre exacto ES o EN** (`findByNameExact`) — ej. "Fe" -> topic "fe"
+3. **Palabra completa en nombre** (`findByWordInName`) — ej. "fe" -> "Falta de fe", "Bautismo de profesion de fe"
+4. **Alias exacto o palabra completa** (`findByWordInAlias`) — ej. "fear" -> "temor-de-dios" (alias "fear")
+5. **Prefijo en alias con score >= 0.92** (`findByPrefixInAlias`) — ej. "fe" -> "fear of the lord" (alias)
+6. **Prefijo de palabra en nombre** (filtrado Kotlin sobre `getTopicsPaged`) — ej. "feli" -> Felipe, Felipe
+
+**Reglas**:
+- Las fases se acumulan: si fase 1 tiene match, se anade y se continua a fase 2.
+- Corte cuando `results.size >= maxTotal`.
+- Filtrado automatico: descarta temas con `verseCount <= 0` (los 269 sin versiculos).
+- SQL exige match de **palabra completa** (delimitada por espacios) o **prefijo de palabra** (no substring). Esto evita ruido tipo "fe" -> "confesion", "enfermedad", "blasfemia".
+- Sin desempate por `verseCount` que introducia ruido (ej. esposa con 46 versiculos entrando en lugar de temor-de-dios con 3).
+
+**Resultado para `q="Fe"` con maxTotal=4**: `fe` (25 versiculos), `falta-de-fe` (16), `bautismo-profesional-de-fe` (12), `temor-de-dios` (3 via alias "fear of the lord").
+
+**Resultado para `q="feli"` con maxTotal=10**: `felipe-apostol`, `felipe-evangelista` (fase 6, prefijo de palabra).
+
+#### Componentes de SearchScreen
 
 - **`SearchInputCard`**: campo de busqueda con placeholder rotativo (carousel cada 3.5s: `Juan 3:16`, `amor`, `Salmo 23`, `perdon`, `fe`).
 - **`TestamentTabsRow`**: tabs `Toda la Biblia` / `Antiguo` / `Nuevo` que filtran la busqueda.
 - **`BookFilterRow`**: dropdown con los 66 libros (filtrados por testamento). Boton X para limpiar filtros.
 - **`RecentSearchesSection`**: ultimas 5 busquedas (top 10 con "Ver todo").
-- **`PopularVersesSection`**: 6 versiculos populares curados (Amor, Fe, Gracia, Salvacion, Esperanza, Paz). Se ocultan cuando el usuario empieza a escribir.
+- **`AutoScrollingTopicCarousel`**: carrusel horizontal de 4 cards con rotacion aleatoria de temas. Ver seccion dedicada abajo.
+- **`ExploreTopicsButton`**: boton "Explorar temas" debajo del carrusel que navega a `Screen.ExploreTopics`.
+- **`TopicsSection`**: contenedor de `ExpandableTopicCard`s con los resultados de busqueda de temas.
+- **`ExpandableTopicCard`**: tarjeta expandible que muestra nombre, descripcion completa y versiculos al expandir. Muestra conteo "N versiculos".
 - **`ResultsHeader`**: muestra "Resultados para X · testamento · libro" cuando hay filtros activos.
 - **`NoResultsState`**: estado contextual con icono y boton "Limpiar".
 
@@ -467,17 +584,87 @@ LaunchedEffect(Unit) {
 - **Typing** → espera 400ms (debounce) antes de buscar.
 - **Boton X (clear)** → `uiState = Idle`, query vacio.
 
+#### Carrusel de "Temas populares" con rotacion aleatoria
+
+`AutoScrollingTopicCarousel` muestra 4 cards horizontales (160dp cada una) con temas del pool rotativo. **Regla de unicidad estricta entre cards**: nunca se repite el mismo tema en 2 o mas cards al mismo tiempo.
+
+**Pool**: los 424 temas con versiculos se cargan con `getRotatableTopics(limit=500)` y se **barajan** (`.shuffled()`) en cada carga. Esto da variedad: las 4 cards iniciales muestran temas como Fe, Alianza, Celos de Dios, etc., no solo los top por versiculos (Matrimonio, Oracion, etc.).
+
+**Logica**:
+- El `LazyRow` mantiene un `SnapshotStateList<String>` con los slugs activos por card.
+- Cada `RotatingCard` recibe un callback `occupied: (Int) -> Set<String>` que retorna los slugs de las otras cards.
+- Al saltar: `available = pool.filter { it.slug !in occupied }`. Si todas las opciones estan bloqueadas, la card mantiene su tema.
+- Rotacion cada 5 segundos, con offset escalonado de `indexOfInitial * 1100ms` para que no cambien al unisono.
+
+**Card** (`PopularTopicCard`):
+- Avatar circular con la inicial en color solido de la categoria y texto blanco.
+- Titulo: nombre del subtema (Fe, Celos de Dios, Alianza, etc.) en color solido de la categoria con `FontWeight.Bold`.
+- Descripcion del tema debajo en `MaterialTheme.colorScheme.onSurface`, max 3 lineas.
+- Conteo "N versiculos" al final en color solido de la categoria.
+- **No muestra el nombre de la categoria** (tema principal) para evitar duplicacion visual.
+
+**Color por categoria** (`CategoryLabels.color(category)`):
+- PERSON: marron `0xFF8D6E63`
+- PLACE: verde `0xFF4CAF50`
+- EVENT: naranja `0xFFFF9800`
+- ATTRIBUTE_OF_GOD: rojo claro `0xFFE57373`
+- DOCTRINE: azul `0xFF1976D2`
+- CHRISTIAN_LIFE: verde claro `0xFF66BB6A`
+- CHURCH: morado `0xFF7B1FA2`
+- PROPHECY: rojo oscuro `0xFFD32F2F`
+- SIN: rojo `0xFFC62828`
+- COMPARATIVE_RELIGION: gris azulado `0xFF607D8B`
+- BOOK: marron oscuro `0xFF5D4037` (no usado en el carrusel de categorias)
+- Default: `BiblionGoldPrimary`
+
+**Tipo de color**: `PopularTopic.topicColor: Int` (packed ARGB de 32 bits). Se obtiene con `CategoryLabels.color(category).toArgb()`. **Nunca** usar `Color.value.toLong()` porque interpreta el color como packed float (RGBA 64 bits) y produce un color gris/desaturado.
+
+#### Pantalla "Explorar temas" con jerarquia
+
+Dos pantallas nuevas para explorar los 424 temas con versiculos:
+
+**`ExploreTopicsScreen`**: muestra 10 cards de categorias (sin BOOK porque los libros se acceden desde `BooksScreen`) con color, conteo de temas e icono de flecha. Tap en una card navega a `ExploreCategoryScreen`. Orden: BOOK, PERSON, PLACE, EVENT, ATTRIBUTE_OF_GOD, DOCTRINE, CHRISTIAN_LIFE, CHURCH, PROPHECY, SIN, COMPARATIVE_RELIGION (BOOK se filtra, queda con 10).
+
+**`ExploreCategoryScreen`**: recibe `category: String` como argumento. Muestra los temas de esa categoria con un `OutlinedTextField` con busqueda en vivo (filtrado por `nameEs`, `nameEn`, `description`). Cada tema es un `ExpandableTopicCard` con la misma logica que en `SearchScreen`: tap en la cabecera expande y carga los versiculos via `TopicEngine.getVersesForTopic`. Tap en un versiculo navega al lector con la referencia exacta.
+
+**Rutas**: `Screen.ExploreTopics` (route `explore_topics`) y `Screen.ExploreCategory` (route `explore_category/{category}`).
+
+#### Esquema v3 de topics.db
+
+`app/src/main/assets/databases/topics.db` contiene el esquema v3 con **693 temas canonicos** en 11 categorias, **1689 aliases** de OpenBible, **4704 referencias** de versiculos, y **236 relaciones** jerarquicas. De los 693 temas, **424 tienen versiculos** (61%) y **269 no** (39%).
+
+**Tablas**:
+- `topics`: 693 canonicos con descripcion y jerarquia
+- `topic_aliases`: 1689 aliases de OpenBible con score (0.85-0.94)
+- `topic_references`: 4704 versiculos del OSIS original
+- `topic_relationships`: 236 jerarquias parent/child
+
+**Indices UNIQUE** (declarados en `TopicEntity` Kotlin para coincidir con la DB):
+- `idx_topics_slug` (UNIQUE en topics.slug)
+- `idx_rel_parent`, `idx_rel_child`
+- `index_topic_relationships_parent_slug_child_slug_relationship_type` (UNIQUE)
+
+**Nota historica**: hubo un bug de schema mismatch entre la DB preempaquetada (v2) y el entity Kotlin (v3). Se resolvio anadiendo el UNIQUE index faltante al entity. **No se regenero la DB** una vez que el entity reconocio el schema correcto.
+
+**Reglas de filtrado**:
+- `verse_count > 0` para que un tema aparezca en busquedas, carrusel, o Explorar temas.
+- `low_confidence = 0` en aliases para busqueda fuzzy.
+
+**Queries principales en `TopicDao`**:
+- `findBySlug(slug)` — fase 1 del pipeline
+- `findByNameExact(q)` — fase 2
+- `findByWordInName(word)` — fase 3
+- `findByWordInAlias(word)` — fase 4
+- `findByPrefixInAlias(prefix)` — fase 5
+- `getTopicsPaged(limit, offset)` — fase 6 (filtrado Kotlin)
+- `getTopicsWithVerses(limit, offset)` — Explorar temas (categorias)
+- `getTopicsByCategory(category)` — Explorar temas (temas de una categoria)
+- `getRotatableTopics(limit)` — pool del carrusel
+- `getVersesForTopicSlug(slug, minScore, limit)` — versiculos al expandir card
+
 #### Versiculos populares
 
-6 versiculos curados en `PopularVersesData`:
-- Amor: 1 Corintios 13:4-7
-- Fe: Hebreos 11:1
-- Gracia: Efesios 2:8-9
-- Salvacion: Romanos 10:9
-- Esperanza: Romanos 15:13
-- Paz: Juan 14:27
-
-Tap en cualquier versiculo → abre el lector en la referencia exacta.
+Los 6 versiculos populares curados en `PopularVersesData` ya no se usan en el carrusel (ahora se rotan temas del pool). Se mantienen para compatibilidad con codigo legacy.
 
 ### Lectura de ensenanzas
 
@@ -595,6 +782,7 @@ Reglas principales:
 - **Diccionario biblico local unificado**: `app/src/main/assets/databases/dictionary.db` contiene 6,346 entradas (Easton's + Theographic). Generado por `tools/build_knowledge_sqlite.py`. Esquema version 2 (con metadata Theographic).
 - **Historial de busquedas**: Room database `search_history.db` con `SearchHistoryEntity` (query, normalized_query, use_count, last_used_at). Se usa para mostrar busquedas recientes en `SearchScreen`. Migracion destructiva aceptable (datos regenerables).
 - **Chats de Bibi**: Room database `bibi_chat.db` con `ChatSessionEntity` y `ChatMessageEntity`. Permite multiples sesiones independientes de conversacion.
+- **Referencias cruzadas con voto crowdsourced** (`app/src/main/assets/databases/cross_references_votes.db`): 340,645 pares del dataset openbile.info (CC-BY 2026-06-15). Reemplazo completo del antiguo TSK. Tabla `cross_reference_votes` con `source_book`, `source_normalized_book`, `source_chapter`, `source_verse`, `target_references` (formato Biblion), `votes` (1-1279, INTERNO). Esquema version 1. La columna `votes` se usa internamente para ranking y filtrado (default `votes >= 10`). **NUNCA** debe exponerse al usuario en la UI de Bibi.
 
 ## 10) Navegacion
 

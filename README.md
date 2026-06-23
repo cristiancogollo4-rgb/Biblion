@@ -16,6 +16,9 @@ Biblion ya cuenta con:
 - **Búsquedas recientes** persistidas en Room (top 5 visibles, top 10 con "Ver todo").
 - **Versículos populares curados** como punto de partida (Amor, Fe, Gracia, Salvación, Esperanza, Paz).
 - **Placeholder rotativo** en campos de busqueda (carousel cada 3.5s).
+- **Temas canonicos v3**: 693 temas en 11 categorias con 424 que tienen versiculos. Busqueda por pipeline de 6 fases (slug exacto, nombre exacto, palabra completa, alias, prefijo de alias con score >= 0.92, prefijo de nombre).
+- **Carrusel de "Temas populares"** con rotacion aleatoria entre los 424 temas y regla de unicidad estricta entre cards (nunca se repite el mismo tema en 2+ cards).
+- **Pantalla "Explorar temas"** con 10 categorias (sin BOOK) y buscador en vivo por categoria. Cada tema es una card expandible con versiculos.
 - Selector de version biblica.
 - Resaltado de versiculos con persistencia y sincronizacion.
 - Preferencias de lectura, incluyendo tamano de fuente.
@@ -62,6 +65,43 @@ Genesis 1:1-3
 ```
 
 Esto evita crear tres componentes separados para una sola referencia.
+
+### Temas canonicos y busqueda por tema
+
+Ademas de buscar versiculos, Biblion incluye un sistema de **temas canonicos** con 11 categorias, alimentado por el dataset de openbile.info (CC-BY).
+
+- **693 temas canonicos** curados: BOOK (66), PERSON (126), PLACE (70), EVENT (43), ATTRIBUTE_OF_GOD (32), PROPHECY (33), COMPARATIVE_RELIGION (17), SIN (70), DOCTRINE (101), CHURCH (50), CHRISTIAN_LIFE (85).
+- **424 temas con versiculos disponibles** (61% del canon). Los 269 restantes quedan ocultos en la UI.
+- **1689 aliases** de OpenBible mapeados a canonicos con score coseno 0.85-0.94.
+- **4704 referencias** a versiculos del OSIS original con quality score 2-100.
+- **236 relaciones jerarquicas** parent/child.
+
+**Pipeline de busqueda de 6 fases** (sin scoring, sin parametros magicos):
+
+1. Slug exacto — ej. "fe" -> topic "fe"
+2. Nombre exacto ES o EN
+3. Palabra completa en nombre — ej. "fe" -> "Falta de fe", "Bautismo de profesion de fe"
+4. Alias exacto o palabra completa — ej. "fear" -> "temor-de-dios"
+5. Prefijo en alias con score >= 0.92 — ej. "fe" -> "fear of the lord"
+6. Prefijo de palabra en nombre — ej. "feli" -> Felipe, Felipe
+
+Las fases se acumulan hasta alcanzar el `maxTotal` de resultados. Solo se devuelven temas con `verseCount > 0`.
+
+**Carrusel de "Temas populares"** con rotacion aleatoria:
+
+- 4 cards horizontales de 160dp.
+- Pool de 500 temas con versiculos (los 424 canonicos), barajados en cada carga.
+- Regla de unicidad estricta: nunca se repite el mismo tema en 2+ cards al mismo tiempo.
+- Rotacion cada 5 segundos, con offset escalonado de 1.1 segundos entre cards.
+- Tap en una card -> pre-llena la busqueda del tema en SearchScreen.
+
+**Pantalla "Explorar temas"** con jerarquia:
+
+- `ExploreTopicsScreen`: 10 cards de categorias (sin BOOK) con color, conteo de temas e icono de flecha.
+- `ExploreCategoryScreen`: temas de una categoria con buscador en vivo, cada tema como card expandible con versiculos.
+- Tap en un versiculo -> abre el lector en la referencia exacta.
+
+**Colores por categoria**: PERSON (marron), PLACE (verde), EVENT (naranja), ATTRIBUTE_OF_GOD (rojo claro), DOCTRINE (azul), CHRISTIAN_LIFE (verde claro), CHURCH (morado), PROPHECY (rojo oscuro), SIN (rojo), COMPARATIVE_RELIGION (gris azulado).
 
 ### Mis ensenanzas
 
