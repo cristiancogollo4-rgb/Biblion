@@ -53,6 +53,12 @@ sealed class Screen(val route: String) {
     data object StudyRead : Screen("study-read/{studyId}") {
         fun createRoute(studyId: Long): String = "study-read/$studyId"
     }
+
+    data object ExploreTopics : Screen("explore_topics")
+
+    data object ExploreCategory : Screen("explore_category/{category}") {
+        fun createRoute(category: String): String = "explore_category/${encodeArg(category)}"
+    }
 }
 
 fun encodeArg(value: String): String = URLEncoder.encode(value, utf8)

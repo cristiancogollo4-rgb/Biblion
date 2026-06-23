@@ -24,7 +24,13 @@ data class StudyAssistantRequest(
     val bibleVersion: String = "rv1960",
     val userName: String? = null,
     val lastQueries: List<String> = emptyList(),
-    val chatHistory: List<ChatExchange> = emptyList()
+    val chatHistory: List<ChatExchange> = emptyList(),
+    /** Libro activo en el lector (modo READER). Null en modo STUDY. */
+    val bookName: String? = null,
+    /** Capitulo activo en el lector. 0 en modo STUDY. */
+    val chapter: Int = 0,
+    /** Versiculos seleccionados por el usuario (Forma 1 del VerseResolver). */
+    val selectedVerses: Set<Int> = emptySet()
 )
 
 data class StudyAssistantBibleVersion(
@@ -200,6 +206,9 @@ class LocalStudyAssistantRepository(
                 context = appContext,
                 question = request.question,
                 userContext = com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine.UserContext(
+                    book = request.bookName.orEmpty(),
+                    chapter = request.chapter,
+                    selectedVerses = request.selectedVerses,
                     verseText = request.selectedText,
                     verseRef = request.studyTitle,
                     userName = request.userName,

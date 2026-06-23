@@ -149,6 +149,10 @@ sealed interface StudyIntent {
         val afterBlockId: String?,
         val citation: CitationInsertRequest? = null
     ) : StudyIntent
+    data class AddCrossReferenceBlocks(
+        val afterBlockId: String?,
+        val citations: List<CitationInsertRequest>
+    ) : StudyIntent
     data class ChangeQuotedVerseVersion(val blockId: String, val version: String) : StudyIntent
     data class CompareQuotedVerseVersion(val blockId: String, val version: String) : StudyIntent
     data class AddQuestionBlock(val afterBlockId: String?) : StudyIntent
@@ -483,6 +487,23 @@ class StudyViewModel @JvmOverloads constructor(
                     ),
                     afterBlockId = intent.afterBlockId
                 )
+            }
+            is StudyIntent.AddCrossReferenceBlocks -> {
+                if (intent.citations.isEmpty()) return
+                var anchorBlockId: String? = intent.afterBlockId
+                for (citation in intent.citations) {
+                    val newId = com.cristiancogollo.biblion.CuidGenerator.create()
+                    insertInteractiveBlock(
+                        block = StudyBlockNode.QuotedVerse(
+                            blockId = newId,
+                            reference = citation.reference,
+                            primaryVersion = citation.version,
+                            primaryText = citation.text
+                        ),
+                        afterBlockId = anchorBlockId
+                    )
+                    anchorBlockId = newId
+                }
             }
             is StudyIntent.ChangeQuotedVerseVersion -> {
                 loadQuotedVerseVersion(

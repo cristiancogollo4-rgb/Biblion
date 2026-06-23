@@ -165,7 +165,24 @@
     <string name="search_recent_see_all">See all</string>
     <string name="search_recent_clear">Clear history</string>
     <string name="search_recent_empty">No recent searches yet. Try a search above.</string>
-    <string name="search_popular_title">Popular verses</string>
+    <string name="search_popular_title">Popular topics</string>
+    <string name="search_topics_section_title">Related topics</string>
+    <string name="search_topics_expand">Show verses</string>
+    <string name="search_topics_collapse">Hide verses</string>
+    <plurals name="search_topics_verse_count">
+        <item quantity="one">%d verse</item>
+        <item quantity="other">%d verses</item>
+    </plurals>
+    <string name="search_topics_empty">No verses available for this topic</string>
+    <string name="search_topics_loading_verses">Loading verses…</string>
+    <string name="search_topics_only_topics">No direct verse matches, but these topics may help you.</string>
+    <string name="search_topics_see_more">Ver %d versículos más</string>
+    <string name="search_topics_see_less">Ver menos</string>
+    <string name="search_explore_topics">Explore topics</string>
+    <string name="explore_topics_title">Explore topics</string>
+    <string name="explore_topics_subtitle">Tap a topic to search for related verses</string>
+    <string name="explore_category_search_hint">Search in this category</string>
+    <string name="explore_category_empty">No topics match your search</string>
     <string name="search_results_header">Results for "%1$s"</string>
     <string name="search_no_results_header">No results for "%1$s"</string>
     <string name="search_no_results_suggestion">Try a different word or check the reference.</string>

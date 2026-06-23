@@ -59,6 +59,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.BaselineShift
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -423,6 +424,8 @@ fun ReaderContent(
     var verses by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     var chapterTitles by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var verseHighlights by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
+    var anchorSpans by remember { mutableStateOf<Map<String, Pair<IntRange, String>>>(emptyMap()) }
+    // anchorSpans queda obsoleto (TSK eliminado). Se mantiene vacio para no romper compilación.
     var showDialog by remember { mutableStateOf(false) }
     var showVersionDialog by remember { mutableStateOf(false) }
     var selectedVersionKey by remember { mutableStateOf(BibleRepository.getSelectedVersionKey(context)) }
@@ -796,6 +799,7 @@ fun ReaderContent(
                             ),
                             isSelectionMode = selectedVerseActions.isNotEmpty(),
                             modifier = Modifier.fillMaxWidth(),
+                            anchorSpan = null,  // Subrayado de anchor eliminado (TSK reemplazado)
                             onShowActions = {
                                 val currentStep = guidedTutorial?.currentStep()?.takeIf { it.screenTarget == GuidedTutorialScreenTarget.READER }
                                 val isGuideHighlightStep = currentStep?.targetKey == GuidedTutorialTargets.READER_FIRST_VERSE
@@ -867,9 +871,13 @@ fun ReaderContent(
                     .joinToString("\n") { selected ->
                         "${bookName ?: ""} $selectedChapter:${selected.number} ${selected.text}"
                     }
+                val selectedVerseNumbers = selectedVerseActions.keys
+                    .mapNotNull { it.toIntOrNull() }
+                    .toSet()
                 ReaderAssistantOverlay(
                     bookName = bookName,
                     chapter = selectedChapter,
+                    selectedVerses = selectedVerseNumbers,
                     selectedText = selectedContext.ifBlank {
                         "${bookName ?: ""} $selectedChapter"
                     },
@@ -1007,7 +1015,8 @@ fun VerseItem(
     isSelectionMode: Boolean,
     modifier: Modifier = Modifier,
     onShowActions: () -> Unit,
-    onToggleSelection: () -> Unit
+    onToggleSelection: () -> Unit,
+    anchorSpan: IntRange? = null
 ) {
     val isRangeSelected = isSelected && selectionRangePosition != VerseSelectionRangePosition.None
     val selectedShape = when (selectionRangePosition) {
@@ -1091,7 +1100,22 @@ fun VerseItem(
             ) {
                 append(verseNumber)
             }
-            append("  $verseText")
+            val textToRender = "  $verseText"
+            if (anchorSpan != null && anchorSpan.first >= 0 && anchorSpan.last < textToRender.length) {
+                append(textToRender.substring(0, anchorSpan.first))
+                withStyle(
+                    style = SpanStyle(
+                        background = BiblionGoldPrimary.copy(alpha = 0.25f),
+                        textDecoration = TextDecoration.Underline,
+                        color = BiblionBluePrimary
+                    )
+                ) {
+                    append(textToRender.substring(anchorSpan.first, anchorSpan.last + 1))
+                }
+                append(textToRender.substring(anchorSpan.last + 1))
+            } else {
+                append(textToRender)
+            }
         },
         style = MaterialTheme.typography.bodyLarge.merge(
             TextStyle(

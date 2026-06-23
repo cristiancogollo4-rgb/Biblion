@@ -165,7 +165,24 @@
     <string name="search_recent_see_all">Ver todo</string>
     <string name="search_recent_clear">Borrar historial</string>
     <string name="search_recent_empty">Aún no hay búsquedas recientes. Prueba escribiendo arriba.</string>
-    <string name="search_popular_title">Versículos populares</string>
+    <string name="search_popular_title">Temas populares</string>
+    <string name="search_topics_section_title">Temas relacionados</string>
+    <string name="search_topics_expand">Ver versículos</string>
+    <string name="search_topics_collapse">Ocultar versículos</string>
+    <plurals name="search_topics_verse_count">
+        <item quantity="one">%d versículo</item>
+        <item quantity="other">%d versículos</item>
+    </plurals>
+    <string name="search_topics_empty">No hay versículos para este tema</string>
+    <string name="search_topics_loading_verses">Cargando versículos…</string>
+    <string name="search_topics_only_topics">No se encontraron versículos directos, pero estos temas pueden orientarte.</string>
+    <string name="search_topics_see_more">Ver %d versículos más</string>
+    <string name="search_topics_see_less">Ver menos</string>
+    <string name="search_explore_topics">Explorar temas</string>
+    <string name="explore_topics_title">Explorar temas</string>
+    <string name="explore_topics_subtitle">Toca una categoría para ver los temas</string>
+    <string name="explore_category_search_hint">Buscar en esta categoría</string>
+    <string name="explore_category_empty">Ningún tema coincide con tu búsqueda</string>
     <string name="search_results_header">Resultados para "%1$s"</string>
     <string name="search_no_results_header">Sin resultados para "%1$s"</string>
     <string name="search_no_results_suggestion">Prueba con otra palabra o verifica la referencia.</string>

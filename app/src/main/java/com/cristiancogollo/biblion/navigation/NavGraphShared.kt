@@ -5,6 +5,8 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.cristiancogollo.biblion.feature.search.ExploreTopicsScreen
+import com.cristiancogollo.biblion.feature.search.ExploreCategoryScreen
 
 /**
  * Destinos compartidos entre navegación principal y navegación interna de modo estudio.
@@ -70,6 +72,21 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
 
     composable(Screen.Search.route) {
         SearchScreen(navController)
+    }
+
+    composable(Screen.ExploreTopics.route) {
+        ExploreTopicsScreen(navController)
+    }
+
+    composable(
+        route = Screen.ExploreCategory.route,
+        arguments = listOf(navArgument("category") { type = NavType.StringType })
+    ) { backStackEntry ->
+        val category = backStackEntry.arguments?.getString("category").orEmpty()
+        ExploreCategoryScreen(
+            navController = navController,
+            category = category
+        )
     }
 
     composable(

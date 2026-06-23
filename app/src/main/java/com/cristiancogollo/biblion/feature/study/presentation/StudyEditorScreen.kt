@@ -73,6 +73,7 @@ fun StudyEditorScreen(
     var saveTagsInput by remember { mutableStateOf("") }
     var saveError by remember { mutableStateOf<String?>(null) }
     var pendingFocusBlockId by remember { mutableStateOf<String?>(null) }
+    var crossRefDialog by remember { mutableStateOf<CrossRefDialogState?>(null) }
     val listState = rememberLazyListState()
 
     fun openMetadataDialog() {
@@ -641,7 +642,32 @@ fun StudyEditorScreen(
                                     viewModel.process(StudyIntent.CompareQuotedVerseVersion(blockId, version))
                                 },
                                 onToggleCollapsed = { blockId -> viewModel.process(StudyIntent.ToggleBlockCollapsed(blockId)) },
-                                onDelete = { blockId -> viewModel.process(StudyIntent.DeleteBlock(blockId)) }
+                                onDelete = { blockId -> viewModel.process(StudyIntent.DeleteBlock(blockId)) },
+                                onAddCrossReferences = { blockId, reference ->
+                                    scope.launch {
+                                        val parsed = com.cristiancogollo.biblion.feature.bibi.BiblicalCrossReference.resolve(
+                                            context = context,
+                                            reference = reference
+                                        )
+                                        if (parsed == null) return@launch
+                                        val related = com.cristiancogollo.biblion.feature.bibi.CrossReferenceVoteEngine.getTopForSource(
+                                            context = context,
+                                            book = parsed.book,
+                                            chapter = parsed.chapter,
+                                            verse = parsed.verseStart,
+                                            maxTotal = 12
+                                        )
+                                        if (related.isNotEmpty()) {
+                                            crossRefDialog = CrossRefDialogState(
+                                                reference = reference,
+                                                afterBlockId = blockId,
+                                                verses = related
+                                            )
+                                        } else {
+                                            snackbarHostState.showSnackbar("Sin referencias cruzadas para $reference")
+                                        }
+                                    }
+                                }
                             )
                         }
                         else -> Unit
@@ -690,6 +716,63 @@ fun StudyEditorScreen(
                     .padding(16.dp)
             )
         }
+    }
+
+    if (crossRefDialog != null) {
+        val dialog = crossRefDialog!!
+        AlertDialog(
+            onDismissRequest = { crossRefDialog = null },
+            title = { Text("Referencias cruzadas") },
+            text = {
+                Column {
+                    Text(
+                        text = "Para ${dialog.reference} - tocá un versículo para insertarlo:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    dialog.verses.forEach { verse ->
+                        AssistChip(
+                            onClick = {
+                                val citation = com.cristiancogollo.biblion.CitationInsertRequest(
+                                    id = com.cristiancogollo.biblion.CuidGenerator.create(),
+                                    reference = verse.reference,
+                                    version = ui.globalVersion,
+                                    text = verse.text,
+                                    includeFullText = true
+                                )
+                                viewModel.process(
+                                    StudyIntent.AddCrossReferenceBlocks(
+                                        afterBlockId = dialog.afterBlockId,
+                                        citations = listOf(citation)
+                                    )
+                                )
+                                crossRefDialog = null
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Versículo insertado")
+                                }
+                            },
+                            label = {
+                                Column {
+                                    Text(verse.reference, style = MaterialTheme.typography.titleSmall)
+                                    Text(
+                                        text = verse.text.take(80) + if (verse.text.length > 80) "..." else "",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 2
+                                    )
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 2.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { crossRefDialog = null }) { Text("Cerrar") }
+            }
+        )
     }
 
     if (showSaveDialog) {
@@ -1290,7 +1373,8 @@ private fun StudyInteractiveBlockCard(
     onChangeQuotedVerseVersion: (String, String) -> Unit,
     onCompareQuotedVerseVersion: (String, String) -> Unit,
     onToggleCollapsed: (String) -> Unit,
-    onDelete: (String) -> Unit
+    onDelete: (String) -> Unit,
+    onAddCrossReferences: ((blockId: String, reference: String) -> Unit)? = null
 ) {
     when (block) {
         is StudyBlockNode.Note -> InteractiveBlockShell(
@@ -1347,6 +1431,13 @@ private fun StudyInteractiveBlockCard(
                 onToggleCompare = { showCompareTools = !showCompareTools },
                 onCompareVersionSelected = { version ->
                     onCompareQuotedVerseVersion(block.blockId, version)
+                },
+                onAddCrossReferences = onAddCrossReferences?.let { callback ->
+                    {
+                        if (block.reference.isNotBlank()) {
+                            callback(block.blockId, block.reference)
+                        }
+                    }
                 }
             )
             if (showCompareTools) {
@@ -1499,7 +1590,8 @@ private fun QuotedVerseReferenceHeader(
     showCompareTools: Boolean,
     onVersionSelected: (String) -> Unit,
     onToggleCompare: () -> Unit,
-    onCompareVersionSelected: (String) -> Unit
+    onCompareVersionSelected: (String) -> Unit,
+    onAddCrossReferences: (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
@@ -1536,6 +1628,17 @@ private fun QuotedVerseReferenceHeader(
                 selectedVersion = block.compareVersion,
                 onVersionSelected = onCompareVersionSelected
             )
+        }
+        if (onAddCrossReferences != null && block.reference.isNotBlank()) {
+            TextButton(
+                onClick = onAddCrossReferences,
+                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
+            ) {
+                Text(
+                    text = "+ xrefs",
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
         }
     }
 }
@@ -1731,3 +1834,9 @@ private fun InteractiveBlockShell(
             }
     }
 }
+
+private data class CrossRefDialogState(
+    val reference: String,
+    val afterBlockId: String,
+    val verses: List<com.cristiancogollo.biblion.feature.bibi.RelatedVerse>
+)

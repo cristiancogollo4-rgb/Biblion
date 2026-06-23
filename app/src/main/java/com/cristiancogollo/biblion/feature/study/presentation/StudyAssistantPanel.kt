@@ -118,6 +118,7 @@ fun ReaderAssistantOverlay(
     selectedText: String,
     currentUserName: String? = null,
     onOpen: () -> Unit = {},
+    selectedVerses: Set<Int> = emptySet(),
     modifier: Modifier = Modifier
 ) {
     val title = listOfNotNull(bookName, chapter.takeIf { it > 0 }?.let { "capítulo $it" })
@@ -127,6 +128,9 @@ fun ReaderAssistantOverlay(
         studyTitle = title,
         studyTags = emptyList(),
         selectedText = selectedText,
+        selectedVerses = selectedVerses,
+        bookName = bookName,
+        chapter = chapter,
         currentOutline = emptyList(),
         notes = emptyList(),
         currentUserName = currentUserName,
@@ -153,6 +157,9 @@ private fun BibiAssistantOverlay(
     onInsertNote: ((String) -> Unit)?,
     onInsertReflection: ((topic: String, text: String) -> Unit)?,
     onOpen: () -> Unit = {},
+    selectedVerses: Set<Int> = emptySet(),
+    bookName: String? = null,
+    chapter: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val fallbackUserName = remember {
@@ -238,7 +245,10 @@ private fun BibiAssistantOverlay(
                     bibleVersion = selectedBibleVersion,
                     userName = currentUserName ?: fallbackUserName,
                     lastQueries = recentHistory,
-                    chatHistory = chatHistory
+                    chatHistory = chatHistory,
+                    bookName = bookName,
+                    chapter = chapter,
+                    selectedVerses = selectedVerses
                 )
             )
             val suggestions = response.bibiResponse?.suggestions ?: DEFAULT_SUGGESTIONS

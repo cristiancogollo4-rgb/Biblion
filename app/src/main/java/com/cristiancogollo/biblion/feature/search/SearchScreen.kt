@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FilterAlt
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Lightbulb
@@ -68,6 +69,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -77,13 +79,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.cristiancogollo.biblion.feature.search.PopularVerse
-import com.cristiancogollo.biblion.feature.search.PopularVersesData
+import com.cristiancogollo.biblion.feature.search.AutoScrollingTopicCarousel
+import com.cristiancogollo.biblion.feature.search.CategoryLabels
+import com.cristiancogollo.biblion.feature.search.PopularTopic
+import com.cristiancogollo.biblion.feature.search.PopularTopicsData
+import com.cristiancogollo.biblion.feature.search.TopicHit
+import com.cristiancogollo.biblion.feature.search.TopicsSection
 import com.cristiancogollo.biblion.feature.search.data.SearchHistoryEntry
 import com.cristiancogollo.biblion.feature.search.data.SearchHistoryRepository
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -119,7 +128,10 @@ data class SearchResult(
 sealed interface SearchUiState {
     data object Idle : SearchUiState
     data object Loading : SearchUiState
-    data class Success(val results: List<SearchResult>) : SearchUiState
+    data class Success(
+        val topicHits: List<TopicHit> = emptyList(),
+        val results: List<SearchResult>
+    ) : SearchUiState
     data class Empty(val query: String) : SearchUiState
     data class Error(val message: String) : SearchUiState
 }
@@ -136,8 +148,14 @@ fun SearchScreen(navController: NavController) {
     var showAllRecent by remember { mutableStateOf(false) }
     var selectedTestament by remember { mutableStateOf(BibleSearchTestament.ALL) }
     var selectedBook by remember { mutableStateOf<String?>(null) }
+    var expandedTopicSlug by remember { mutableStateOf<String?>(null) }
+    // Indica si el primer render ya termino. Se usa para diferir la carga
+    // de secciones pesadas (carrusel, busquedas recientes) y evitar el bloqueo
+    // del primer frame que causa "Skipped 89 frames" en el Choreographer.
+    var isReady by remember { mutableStateOf(false) }
+    var rotationPool by remember { mutableStateOf<List<PopularTopic>>(emptyList()) }
 
-    // Flow para búsqueda en vivo con debounce seguro (collectLatest cancela la corutina anterior)
+    // Flow para búsqueda en vivo con debounce seguro (collectLatest cancela la corutina anterior).
     val queryFlow = remember { MutableStateFlow("") }
 
     val availableBooks = remember(selectedTestament) {
@@ -148,8 +166,38 @@ fun SearchScreen(navController: NavController) {
         }
     }
 
+    // Diferir la carga del primer frame: primero pintar la UI vacia
+    // y despues cargar las secciones pesadas. Evita "Skipped 89 frames"
+    // en el Choreographer que congela la app al entrar a Search.
     LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(50)  // Da tiempo a Compose a pintar el primer frame
+        isReady = true
         recentSearches = SearchHistoryRepository.getRecent(context, 10)
+    }
+
+    // Pool de temas para el carrusel de "Temas populares".
+    // Carga los 424 temas canonicos con versiculos y los baraja
+    // aleatoriamente para que las cards iniciales tengan variedad
+    // (no solo los top por cantidad de versiculos). El carrusel
+    // mantiene la regla de unicidad entre cards.
+    LaunchedEffect(Unit) {
+        val entities = com.cristiancogollo.biblion.feature.bibi.TopicDatabase
+            .getInstance(context)
+            .topicDao()
+            .getRotatableTopics(limit = 500)
+        rotationPool = entities
+            .shuffled()
+            .map { e ->
+                PopularTopic(
+                    slug = e.slug,
+                    nameEs = e.nameEs,
+                    nameEn = e.nameEn,
+                    description = e.description.ifBlank { CategoryLabels.label(e.category) },
+                    category = e.category,
+                    topicColor = CategoryLabels.color(e.category).toArgb(),
+                    verseCount = e.verseCount
+                )
+            }
     }
 
     suspend fun executeSearch(query: String) {
@@ -157,34 +205,66 @@ fun SearchScreen(navController: NavController) {
         if (trimmed.isBlank()) return
         uiState = SearchUiState.Loading
         SearchHistoryRepository.recordQuery(context, trimmed)
-        runCatching {
-            BibleRepository.searchVerses(
-                context = context,
-                query = trimmed,
-                filter = BibleSearchFilter(
-                    testament = selectedTestament,
-                    bookName = selectedBook
-                )
-            )
-        }.onSuccess { results ->
-            uiState = if (results.isEmpty()) {
-                SearchUiState.Empty(trimmed)
-            } else {
-                SearchUiState.Success(results)
+        try {
+            // Búsqueda paralela: versículos bíblicos + temas canónicos.
+            val results: List<SearchResult>
+            val topicHits: List<TopicHit>
+            coroutineScope {
+                val versesDeferred = async {
+                    BibleRepository.searchVerses(
+                        context = context,
+                        query = trimmed,
+                        filter = BibleSearchFilter(
+                            testament = selectedTestament,
+                            bookName = selectedBook
+                        )
+                    )
+                }
+                val topicsDeferred = async {
+                    com.cristiancogollo.biblion.feature.bibi.TopicEngine
+                        .searchTopics(context, trimmed, maxTotal = 4)
+                        .map { entity ->
+                            TopicHit(
+                                slug = entity.slug,
+                                nameEs = entity.nameEs,
+                                nameEn = entity.nameEn,
+                                description = entity.description,
+                                category = entity.category,
+                                verseCount = entity.verseCount
+                            )
+                        }
+                }
+                results = versesDeferred.await()
+                topicHits = topicsDeferred.await()
             }
-        }.onFailure { error ->
-            uiState = SearchUiState.Error(
-                error.message ?: context.getString(R.string.search_error_unexpected)
-            )
+            // Verificar que la query no ha cambiado durante la ejecucion
+            val currentQuery = searchQuery.trim()
+            if (currentQuery == trimmed || currentQuery.isEmpty()) {
+                val noTopics = topicHits.isEmpty()
+                val noVerses = results.isEmpty()
+                uiState = when {
+                    noTopics && noVerses -> SearchUiState.Empty(trimmed)
+                    else -> SearchUiState.Success(topicHits = topicHits, results = results)
+                }
+            }
+        } catch (e: Exception) {
+            val currentQuery = searchQuery.trim()
+            if (currentQuery == trimmed || currentQuery.isEmpty()) {
+                uiState = SearchUiState.Error(
+                    e.message ?: context.getString(R.string.search_error_unexpected)
+                )
+            }
         }
-        recentSearches = SearchHistoryRepository.getRecent(context, 10)
+        if (searchQuery.trim() == trimmed) {
+            recentSearches = SearchHistoryRepository.getRecent(context, 10)
+        }
     }
 
     fun runSearchImmediate(query: String) {
-        scope.launch { executeSearch(query) }
+        queryFlow.value = query
     }
 
-    // Sincronizar el input con el flow
+    // Sincronizar el input con el flow cuando el usuario escribe manualmente
     LaunchedEffect(searchQuery) {
         queryFlow.value = searchQuery
     }
@@ -196,7 +276,7 @@ fun SearchScreen(navController: NavController) {
             .filter { it.trim().length >= 2 }
             .distinctUntilChanged()
             .collectLatest { query ->
-                executeSearch(query)
+                scope.launch { executeSearch(query) }
             }
     }
 
@@ -290,7 +370,11 @@ fun SearchScreen(navController: NavController) {
             )
 
             val isTyping = searchQuery.isNotBlank()
-            val showPopular = uiState is SearchUiState.Idle && !isTyping
+            // Solo mostrar el carrusel y busquedas recientes si:
+            // 1) el primer frame ya termino (isReady)
+            // 2) NO hay query activa
+            // 3) estamos en Idle
+            val showPopular = isReady && uiState is SearchUiState.Idle && !isTyping
 
             SearchContent(
                 uiState = uiState,
@@ -299,28 +383,43 @@ fun SearchScreen(navController: NavController) {
                 showPopular = showPopular,
                 recentSearches = recentSearches,
                 showAllRecent = showAllRecent,
+                rotationPool = rotationPool,
                 onToggleShowAll = { showAllRecent = !showAllRecent },
                 onRecentClick = { query ->
                     searchQuery = query
                     runSearchImmediate(query)
                 },
                 onClearHistory = { clearAllHistory() },
-                onPopularClick = { verse ->
-                    openVerse(verse.bookName, verse.chapter, verse.verse)
+                onPopularClick = { topic ->
+                    expandedTopicSlug = null
+                    searchQuery = topic.nameEs
+                    runSearchImmediate(topic.nameEs)
                 },
                 onClearSearch = {
                     searchQuery = ""
+                    queryFlow.value = ""
                     uiState = SearchUiState.Idle
+                    expandedTopicSlug = null
                 },
                 onResultClick = { result ->
                     openVerse(result.bookName, result.chapter, result.verse)
                 },
+                onTopicVerseClick = { verse ->
+                    openVerse(verse.book, verse.chapter, verse.verseStart.toString())
+                },
+                onToggleTopicExpansion = { topic ->
+                    expandedTopicSlug = if (expandedTopicSlug == topic.slug) null else topic.slug
+                },
+                expandedTopicSlug = expandedTopicSlug,
                 selectedTestament = selectedTestament,
                 onTestamentSelected = { setTestament(it) },
                 availableBooks = availableBooks,
                 selectedBook = selectedBook,
                 onBookSelected = { setBook(it) },
-                onClearFilters = { clearAllFilters() }
+                onClearFilters = { clearAllFilters() },
+                onExploreTopics = {
+                    navController.navigate(Screen.ExploreTopics.route)
+                }
             )
         }
     }
@@ -408,18 +507,23 @@ private fun SearchContent(
     showPopular: Boolean,
     recentSearches: List<SearchHistoryEntry>,
     showAllRecent: Boolean,
+    rotationPool: List<PopularTopic>,
     onToggleShowAll: () -> Unit,
     onRecentClick: (String) -> Unit,
     onClearHistory: () -> Unit,
-    onPopularClick: (PopularVerse) -> Unit,
+    onPopularClick: (PopularTopic) -> Unit,
     onClearSearch: () -> Unit,
     onResultClick: (SearchResult) -> Unit,
+    onTopicVerseClick: (com.cristiancogollo.biblion.feature.bibi.RelatedVerse) -> Unit = {},
+    onToggleTopicExpansion: (TopicHit) -> Unit = {},
+    expandedTopicSlug: String? = null,
     selectedTestament: BibleSearchTestament,
     onTestamentSelected: (BibleSearchTestament) -> Unit,
     availableBooks: List<String>,
     selectedBook: String?,
     onBookSelected: (String?) -> Unit,
-    onClearFilters: () -> Unit
+    onClearFilters: () -> Unit,
+    onExploreTopics: () -> Unit = {}
 ) {
     val displayedRecent = if (showAllRecent) recentSearches else recentSearches.take(5)
     val hasActiveFilters = selectedTestament != BibleSearchTestament.ALL || selectedBook != null
@@ -460,9 +564,14 @@ private fun SearchContent(
             SearchUiState.Idle -> {
                 if (showPopular) {
                     item {
-                        PopularVersesSection(
-                            verses = PopularVersesData.popular,
-                            onClick = onPopularClick
+                        AutoScrollingTopicCarousel(
+                            pool = rotationPool,
+                            onTopicClick = onPopularClick
+                        )
+                    }
+                    item {
+                        ExploreTopicsButton(
+                            onClick = onExploreTopics
                         )
                     }
                     item { EmptyStateHint() }
@@ -492,22 +601,54 @@ private fun SearchContent(
             }
 
             is SearchUiState.Success -> {
-                item {
-                    ResultsHeader(
-                        query = currentQuery,
-                        count = state.results.size,
-                        filterLabel = buildFilterLabel(
-                            testament = selectedTestament,
-                            book = selectedBook
+                // 1) Seccion de temas relacionados (si hay)
+                if (state.topicHits.isNotEmpty()) {
+                    item {
+                        TopicsSection(
+                            topics = state.topicHits,
+                            expandedSlug = expandedTopicSlug,
+                            onToggleExpansion = onToggleTopicExpansion,
+                            onVerseClick = onTopicVerseClick
                         )
-                    )
+                    }
+                    item { Spacer(modifier = Modifier.height(8.dp)) }
                 }
-                items(state.results) { result ->
-                    DailyVerseCard(
-                        verse = result.text,
-                        reference = result.reference,
-                        onClick = { onResultClick(result) }
-                    )
+                // 2) Header de versiculos
+                if (state.results.isNotEmpty()) {
+                    item {
+                        ResultsHeader(
+                            query = currentQuery,
+                            count = state.results.size,
+                            filterLabel = buildFilterLabel(
+                                testament = selectedTestament,
+                                book = selectedBook
+                            )
+                        )
+                    }
+                    items(state.results) { result ->
+                        DailyVerseCard(
+                            verse = result.text,
+                            reference = result.reference,
+                            onClick = { onResultClick(result) }
+                        )
+                    }
+                } else if (state.topicHits.isNotEmpty()) {
+                    // Solo hay temas, no versiculos
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = stringResource(R.string.search_topics_only_topics),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
                 }
                 item { Spacer(modifier = Modifier.height(16.dp)) }
             }
@@ -890,99 +1031,6 @@ private fun RecentSearchesSection(
 }
 
 @Composable
-private fun PopularVersesSection(
-    verses: List<PopularVerse>,
-    onClick: (PopularVerse) -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 20.dp)
-        ) {
-            Icon(
-                Icons.Default.Star,
-                contentDescription = null,
-                tint = BiblionGoldPrimary,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = stringResource(R.string.search_popular_title),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-        Spacer(modifier = Modifier.height(10.dp))
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            items(verses) { verse ->
-                PopularVerseCard(verse = verse, onClick = { onClick(verse) })
-            }
-        }
-    }
-}
-
-@Composable
-private fun PopularVerseCard(
-    verse: PopularVerse,
-    onClick: () -> Unit
-) {
-    val color = Color(verse.topicColor)
-    Card(
-        modifier = Modifier
-            .width(140.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.12f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    modifier = Modifier.size(28.dp),
-                    color = color.copy(alpha = 0.18f),
-                    shape = CircleShape
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = verse.topic.take(1).uppercase(),
-                            color = color,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = verse.topic,
-                    color = color,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = verse.reference,
-                color = color.copy(alpha = 0.85f),
-                style = MaterialTheme.typography.bodySmall,
-                fontSize = 12.sp
-            )
-        }
-    }
-}
-
-@Composable
 private fun EmptyStateHint() {
     Column(
         modifier = Modifier
@@ -1009,6 +1057,30 @@ private fun EmptyStateHint() {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun ExploreTopicsButton(onClick: () -> Unit) {
+    androidx.compose.material3.OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 32.dp, vertical = 8.dp),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+    ) {
+        Icon(
+            Icons.Default.GridView,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = BiblionGoldPrimary
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = stringResource(R.string.search_explore_topics),
+            color = BiblionGoldPrimary,
+            fontWeight = FontWeight.SemiBold
         )
     }
 }

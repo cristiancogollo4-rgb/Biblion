@@ -23,6 +23,7 @@ object KnowledgeEngine {
         val book: String = "",
         val chapter: Int = 0,
         val verse: Int = 0,
+        val selectedVerses: Set<Int> = emptySet(),
         val verseText: String = "",
         val verseRef: String = "",
         val userName: String? = null,
@@ -255,7 +256,15 @@ object KnowledgeEngine {
         question: String,
         userContext: UserContext
     ): BibiResponse? {
-        if (userContext.book.isEmpty() || userContext.chapter == 0 || userContext.verse == 0) {
+        // Resolver versiculo activo con Forma 1 (seleccion) o Forma 2 (texto)
+        val readerSnapshot = VerseResolver.ReaderSnapshot(
+            bookName = userContext.book.takeIf { it.isNotBlank() },
+            chapter = userContext.chapter,
+            selectedVerses = userContext.selectedVerses
+        )
+        val resolution = VerseResolver.resolve(readerSnapshot, question)
+
+        if (resolution.source == VerseResolver.Source.NONE) {
             return BibiResponse(
                 title = "Para buscar pasajes relacionados",
                 definition = "Necesito que estés leyendo un versículo. " +
@@ -265,21 +274,65 @@ object KnowledgeEngine {
             )
         }
 
-        val result = CrossReferenceEngine.getRelatedPassages(
-            context, userContext.book, userContext.chapter, userContext.verse
-        ) ?: return BibiResponse(
-            title = "Sin resultados",
-            definition = "No encontré pasajes relacionados para ${userContext.book} ${userContext.chapter}:${userContext.verse}.",
-            followUp = "¿Quieres buscar otro versículo?"
+        // Si no hay versiculo exacto, pedir aclaracion
+        if (!resolution.hasVerse) {
+            return BibiResponse(
+                title = "Necesito el versículo específico",
+                definition = "Estás en ${resolution.book} ${resolution.chapter}. " +
+                    "¿Sobre qué versículo quieres que busque pasajes relacionados? " +
+                    "Puedes seleccionarlo en el lector o escribirlo en tu pregunta " +
+                    "(por ejemplo: 'versículos relacionados con ${resolution.book} 1:1').",
+                followUp = "Indícame el versículo exacto para darte referencias relevantes.",
+                suggestions = listOf(
+                    BibiSuggestion("Versículos sobre este capítulo", "versículos sobre ${resolution.book} ${resolution.chapter}"),
+                    BibiSuggestion("Saber más con IA", "explícame ${resolution.book} ${resolution.chapter}", isAi = true)
+                )
+            )
+        }
+
+        // Usar el nuevo motor basado en openbile (voto INTERNO, no se muestra)
+        val related = CrossReferenceVoteEngine.getRelatedBySource(
+            context = context,
+            book = resolution.book,
+            chapter = resolution.chapter,
+            verse = resolution.verse!!,
+            minVotes = CrossReferenceVoteEngine.DEFAULT_MIN_VOTES,
+            maxTotal = 6
         )
 
+        if (related.isEmpty()) {
+            return BibiResponse(
+                title = "Sin resultados",
+                definition = "No encontré pasajes relacionados para ${resolution.book} ${resolution.chapter}:${resolution.verse}.",
+                followUp = "¿Quieres buscar otro versículo?",
+                suggestions = listOf(
+                    BibiSuggestion("Explicar este versículo", "explícame ${resolution.book} ${resolution.chapter}:${resolution.verse}"),
+                    BibiSuggestion("Saber más con IA", "profundiza en ${resolution.book} ${resolution.chapter}:${resolution.verse}", isAi = true)
+                )
+            )
+        }
+
+        val sb = StringBuilder()
+        sb.append("Estás leyendo ${resolution.book} ${resolution.chapter}:${resolution.verse}. ")
+        sb.append("Estos son otros pasajes que se relacionan con lo que estás leyendo:\n\n")
+        sb.append("🔗 Pasajes relacionados:\n\n")
+
+        for (verse in related) {
+            val text = verse.text.take(110)
+            val ellipsis = if (verse.text.length > 110) "..." else ""
+            sb.append("  • ${verse.reference}: \"$text$ellipsis\"\n")
+        }
+
+        sb.append("\n¿Quieres que profundice en alguno de estos pasajes?")
+
         return BibiResponse(
-            title = "Pasajes relacionados con ${userContext.book} ${userContext.chapter}:${userContext.verse}",
-            definition = result,
+            title = "Pasajes relacionados con ${resolution.book} ${resolution.chapter}:${resolution.verse}",
+            definition = sb.toString(),
             followUp = "¿Te interesa alguno de estos pasajes?",
             suggestions = listOf(
-                BibiSuggestion("Explicar este versículo", "explícame ${userContext.book} ${userContext.chapter}:${userContext.verse}"),
-                BibiSuggestion("Saber más con IA", "profundiza en ${userContext.book} ${userContext.chapter}:${userContext.verse}", isAi = true)
+                BibiSuggestion("Explicar este versículo", "explícame ${resolution.book} ${resolution.chapter}:${resolution.verse}"),
+                BibiSuggestion("Saber más con IA", "profundiza en ${resolution.book} ${resolution.chapter}:${resolution.verse}", isAi = true),
+                BibiSuggestion("¿De qué temas habla este versículo?", "temas de ${resolution.book} ${resolution.chapter}:${resolution.verse}")
             )
         )
     }
