@@ -298,46 +298,46 @@ fun StudyDocEditorScreen(
                         isZoomModified = zoomState.value.scale != EditorZoomState.Initial.scale,
                         onResetZoom = { zoomState.value = EditorZoomState.Initial },
                     )
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        color = Color.White,
-                        shadowElevation = 2.dp,
-                        shape = RoundedCornerShape(4.dp),
-                    ) {
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .verticalPinchZoom(zoomState)
-                                .zoomGraphics(zoomState.value),
-                            contentPadding = PaddingValues(vertical = 16.dp, horizontal = 24.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            itemsIndexed(uiState.doc.blocks, key = { _, b -> b.id.value }) { index, block ->
-                BlockWithHandle(
-                    block = block,
-                    blockIndex = index,
-                    isSelected = uiState.selectedBlockId == block.id.value,
-                    blockAlignments = viewModel.blockAlignments,
-                                    selectionState = selectionState,
-                                    onClick = { viewModel.selectBlock(block.id.value) },
-                                    onSelectionChange = { range ->
-                                        selectionState.set(block.id.value, range)
-                                        viewModel.setActiveRange(block.id, range)
-                                        viewModel.selectBlock(block.id.value)
-                                    },
-                                    onReplace = { newBlock ->
-                                        viewModel.applyOp(StudyOp.ReplaceBlock(block.id, newBlock))
-                                    },
-                                    onInsert = { atIndex, newBlock ->
-                                        viewModel.applyOp(StudyOp.InsertBlock(atIndex, newBlock))
-                                    },
-                                    onDelete = { viewModel.applyOp(StudyOp.DeleteBlock(block.id)) },
-                                    onFieldValueChange = { tfv ->
-                                        viewModel.blockTextStates[block.id] = tfv
-                                    },
-                                    onRegisterFocus = { fr -> focusRequesters[block.id] = fr },
-                                )
+                    // Overlay invisible para capturar gestos de pinch.
+                    // PointerEventPass.Initial permite que el LazyColumn scrollee
+                    // mientras el pinch detecta 2+ dedos simultaneamente.
+                    Box(Modifier.fillMaxSize()) {
+                        Box(Modifier.fillMaxSize().verticalPinchZoom(zoomState))
+                        PaperSheet(
+                            zoomState = zoomState,
+                        ) { innerModifier ->
+                            LazyColumn(
+                                state = listState,
+                                modifier = innerModifier.fillMaxSize(),
+                                contentPadding = PaddingValues(vertical = 60.dp, horizontal = 72.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                itemsIndexed(uiState.doc.blocks, key = { _, b -> b.id.value }) { index, block ->
+                                    BlockWithHandle(
+                                        block = block,
+                                        blockIndex = index,
+                                        isSelected = uiState.selectedBlockId == block.id.value,
+                                        blockAlignments = viewModel.blockAlignments,
+                                        selectionState = selectionState,
+                                        onClick = { viewModel.selectBlock(block.id.value) },
+                                        onSelectionChange = { range ->
+                                            selectionState.set(block.id.value, range)
+                                            viewModel.setActiveRange(block.id, range)
+                                            viewModel.selectBlock(block.id.value)
+                                        },
+                                        onReplace = { newBlock ->
+                                            viewModel.applyOp(StudyOp.ReplaceBlock(block.id, newBlock))
+                                        },
+                                        onInsert = { atIndex, newBlock ->
+                                            viewModel.applyOp(StudyOp.InsertBlock(atIndex, newBlock))
+                                        },
+                                        onDelete = { viewModel.applyOp(StudyOp.DeleteBlock(block.id)) },
+                                        onFieldValueChange = { tfv ->
+                                            viewModel.blockTextStates[block.id] = tfv
+                                        },
+                                        onRegisterFocus = { fr -> focusRequesters[block.id] = fr },
+                                    )
+                                }
                             }
                         }
                     }
