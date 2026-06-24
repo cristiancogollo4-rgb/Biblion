@@ -298,15 +298,11 @@ fun StudyDocEditorScreen(
                         isZoomModified = zoomState.value.scale != EditorZoomState.Initial.scale,
                         onResetZoom = { zoomState.value = EditorZoomState.Initial },
                     )
-                    // El pinch-to-zoom se aplica al Box contenedor (padre)
-                    // para que todos los hijos reciban eventos de toque sin
-                    // conflicto de Z-order. PointerEventPass.Initial observa
-                    // sin consumir; el LazyColumn recibe scroll normalmente.
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalPinchZoom(zoomState),
-                    ) {
+                    // El pinch-to-zoom se aplica a un overlay invisible
+                    // que es el ULTIMO hijo (encima en Z-order), para recibir
+                    // eventos en toda la pantalla. PointerEventPass.Initial
+                    // observa sin consumir; el LazyColumn recibe scroll.
+                    Box(Modifier.fillMaxSize()) {
                         PaperSheet(
                             zoomState = zoomState,
                         ) { innerModifier ->
@@ -344,6 +340,7 @@ fun StudyDocEditorScreen(
                                 }
                             }
                         }
+                        Box(Modifier.fillMaxSize().verticalPinchZoom(zoomState))
                     }
                 }
             }

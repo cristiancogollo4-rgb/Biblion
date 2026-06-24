@@ -1,6 +1,8 @@
 package com.cristiancogollo.biblion.feature.studydocs.ui.editor
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -83,7 +85,10 @@ fun EditorTopBar(
         shadowElevation = 2.dp,
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ToolbarIconButton(Icons.Filled.Undo, undoDescription ?: "Deshacer", canUndo, onUndo)
