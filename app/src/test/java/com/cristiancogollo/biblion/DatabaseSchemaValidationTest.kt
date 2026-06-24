@@ -213,6 +213,134 @@ class DatabaseSchemaValidationTest {
         }
     }
 
+    // === Tests para dictionary_v2.db (v2 con categoria 'book') ===
+
+    @Test
+    fun `dictionary_v2 - existe y es abrible`() {
+        copyAssetToInternalStorage("databases/dictionary_v2.db", "dict_v2_test.db")
+        try {
+            val db = openTestDb("dict_v2_test.db")
+            val count = db.compileStatement("SELECT COUNT(*) FROM dictionary_entries").simpleQueryForLong()
+            db.close()
+            assertTrue("dictionary_v2 debe tener >=6000 entries, tiene $count", count >= 6000)
+        } finally {
+            deleteTestDb("dict_v2_test.db")
+        }
+    }
+
+    @Test
+    fun `dictionary_v2 - tiene 69 libros en categoria book`() {
+        copyAssetToInternalStorage("databases/dictionary_v2.db", "dict_v2_test.db")
+        try {
+            val db = openTestDb("dict_v2_test.db")
+            val count = db.compileStatement(
+                "SELECT COUNT(*) FROM dictionary_entries WHERE category='book'"
+            ).simpleQueryForLong()
+            db.close()
+            // 66 libros canonicos + 3 meta-entries (epistolas catolicas, Laodicea, Trabajo)
+            assertEquals(
+                "Debe haber 69 entradas en book (66 canonicos + 3 meta)",
+                69L, count
+            )
+        } finally {
+            deleteTestDb("dict_v2_test.db")
+        }
+    }
+
+    @Test
+    fun `dictionary_v2 - todos los libros tienen descripcion ge80 chars`() {
+        copyAssetToInternalStorage("databases/dictionary_v2.db", "dict_v2_test.db")
+        try {
+            val db = openTestDb("dict_v2_test.db")
+            val cursor = db.rawQuery(
+                "SELECT term, length(definition) FROM dictionary_entries WHERE category='book'",
+                null
+            )
+            val short = mutableListOf<String>()
+            cursor.use {
+                val termIdx = it.getColumnIndexOrThrow("term")
+                val lenIdx = it.getColumnIndexOrThrow("length(definition)")
+                while (it.moveToNext()) {
+                    if (it.getInt(lenIdx) < 80) {
+                        short.add(it.getString(termIdx))
+                    }
+                }
+            }
+            db.close()
+            assertTrue(
+                "Los siguientes libros tienen descripcion muy corta (<80 chars): $short",
+                short.isEmpty()
+            )
+        } finally {
+            deleteTestDb("dict_v2_test.db")
+        }
+    }
+
+    @Test
+    fun `dictionary_v2 - categorias validas solo incluyen book nuevo`() {
+        copyAssetToInternalStorage("databases/dictionary_v2.db", "dict_v2_test.db")
+        try {
+            val db = openTestDb("dict_v2_test.db")
+            val cursor = db.rawQuery(
+                "SELECT DISTINCT category FROM dictionary_entries",
+                null
+            )
+            val actual = mutableSetOf<String>()
+            cursor.use {
+                val idx = it.getColumnIndexOrThrow("category")
+                while (it.moveToNext()) {
+                    actual.add(it.getString(idx))
+                }
+            }
+            db.close()
+            val expected = setOf("person", "place", "concept", "object", "practice", "event", "book", "other")
+            assertEquals(
+                "Categorias invalidas encontradas: ${actual - expected}",
+                expected, actual
+            )
+        } finally {
+            deleteTestDb("dict_v2_test.db")
+        }
+    }
+
+    @Test
+    fun `dictionary_v2 - columnas requeridas existen`() {
+        copyAssetToInternalStorage("databases/dictionary_v2.db", "dict_v2_test.db")
+        try {
+            val db = openTestDb("dict_v2_test.db")
+            val required = setOf(
+                "id", "term", "normalized_term", "definition", "references_json",
+                "category", "display_title", "gender", "birth_year", "death_year",
+                "latitude", "longitude", "aliases", "feature_type"
+            )
+            val actual = getColumnNames(db, "dictionary_entries")
+            db.close()
+            assertTrue(
+                "Faltan columnas: ${required - actual}",
+                actual.containsAll(required)
+            )
+        } finally {
+            deleteTestDb("dict_v2_test.db")
+        }
+    }
+
+    @Test
+    fun `dictionary_v2 - indices coinciden con entity`() {
+        copyAssetToInternalStorage("databases/dictionary_v2.db", "dict_v2_test.db")
+        try {
+            val db = openTestDb("dict_v2_test.db")
+            val expected = setOf("idx_dict_normalized", "idx_dict_category", "idx_dict_term")
+            val actual = getUserIndices(db, "dictionary_entries")
+            db.close()
+            assertEquals(
+                "Indices deben coincidir con @Index del entity",
+                expected, actual
+            )
+        } finally {
+            deleteTestDb("dict_v2_test.db")
+        }
+    }
+
     // --- Helpers ---
 
     private fun getContext(): Context =

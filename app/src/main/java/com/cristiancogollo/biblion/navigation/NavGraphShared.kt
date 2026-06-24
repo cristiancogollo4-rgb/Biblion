@@ -7,6 +7,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.cristiancogollo.biblion.feature.search.ExploreTopicsScreen
 import com.cristiancogollo.biblion.feature.search.ExploreCategoryScreen
+import com.cristiancogollo.biblion.feature.studydocs.ui.StudyDocEditorRoute
+import com.cristiancogollo.biblion.feature.studydocs.ui.StudyDocReadRoute
+import com.cristiancogollo.biblion.feature.studydocs.ui.StudyDocsListRoute
+import com.cristiancogollo.biblion.feature.studydocs.ui.Screen as StudyDocScreen
 
 /**
  * Destinos compartidos entre navegación principal y navegación interna de modo estudio.
@@ -99,6 +103,34 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
             studyId = studyId,
             isDarkTheme = isDarkTheme,
             onToggleDarkTheme = onToggleDarkTheme
+        )
+    }
+
+    // Rutas del modo estudio v2 (estudydocs)
+    composable(StudyDocScreen.StudyDocsList.route) {
+        StudyDocsListRoute(navController = navController)
+    }
+
+    composable(
+        route = StudyDocScreen.StudyDocEditor.route,
+        arguments = listOf(navArgument(StudyDocScreen.StudyDocEditor.ARG_REMOTE_ID) { type = NavType.StringType })
+    ) { backStackEntry ->
+        val remoteId = backStackEntry.arguments?.getString(StudyDocScreen.StudyDocEditor.ARG_REMOTE_ID)
+        StudyDocEditorRoute(
+            navController = navController,
+            remoteId = if (remoteId == "new") null else remoteId,
+        )
+    }
+
+    composable(
+        route = StudyDocScreen.StudyDocRead.route,
+        arguments = listOf(navArgument(StudyDocScreen.StudyDocRead.ARG_REMOTE_ID) { type = NavType.StringType })
+    ) { backStackEntry ->
+        val remoteId = backStackEntry.arguments?.getString(StudyDocScreen.StudyDocRead.ARG_REMOTE_ID)
+            ?: return@composable
+        StudyDocReadRoute(
+            navController = navController,
+            remoteId = remoteId,
         )
     }
 }

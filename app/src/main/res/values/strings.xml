@@ -167,6 +167,21 @@
     <string name="search_recent_empty">No recent searches yet. Try a search above.</string>
     <string name="search_popular_title">Popular topics</string>
     <string name="search_topics_section_title">Related topics</string>
+    <string name="search_topics_section_subtitle">Biblical themes connected to your search</string>
+    <string name="search_dictionary_section_title">Biblical terms</string>
+    <string name="search_dictionary_section_subtitle">People, places, books and concepts in the dictionary</string>
+    <string name="search_dictionary_hint">Tap a term to read its full definition</string>
+    <string name="search_dictionary_browse_all">Browse all dictionary terms</string>
+    <string name="search_browse_dictionary">Browse biblical terms</string>
+
+    <!-- Dictionary browse screen -->
+    <string name="dictionary_browse_title">Biblical dictionary</string>
+    <string name="dictionary_browse_search_hint">Search a person, place, book or concept</string>
+    <string name="dictionary_browse_all">All</string>
+    <string name="dictionary_browse_count_sample">%1$d shown (top results)</string>
+    <string name="dictionary_browse_see_more">See more…</string>
+    <string name="dictionary_browse_no_results">No terms match your search</string>
+    <string name="dictionary_browse_results_count">%1$d term(s) found</string>
     <string name="search_topics_expand">Show verses</string>
     <string name="search_topics_collapse">Hide verses</string>
     <plurals name="search_topics_verse_count">
@@ -213,6 +228,22 @@
     <string name="cd_back">Back</string>
     <string name="cd_decrease_font_size">Decrease font size</string>
     <string name="cd_increase_font_size">Increase font size</string>
+
+    <!-- Dictionary term detail screen -->
+    <string name="dictionary_detail_title">Biblical term</string>
+    <string name="dictionary_detail_aliases">Also known as</string>
+    <string name="dictionary_detail_definition">Definition</string>
+    <string name="dictionary_detail_references">Related verses</string>
+    <string name="dictionary_detail_gender">Gender</string>
+    <string name="dictionary_detail_birth">Born</string>
+    <string name="dictionary_detail_death">Died</string>
+    <string name="dictionary_detail_type">Type</string>
+    <string name="dictionary_detail_location">Location</string>
+    <string name="dictionary_detail_ask_bibi">Ask Bibi about this term</string>
+    <string name="dictionary_detail_view_verses">View related verses</string>
+    <string name="dictionary_detail_not_found">Term not found</string>
+    <string name="dictionary_detail_bibi_first_query">Tell me about %1$s in the Bible</string>
+    <string name="dictionary_detail_bibi_started">Chat with Bibi opened in your history</string>
 
     <string name="cancel">CANCEL</string>
 </resources>

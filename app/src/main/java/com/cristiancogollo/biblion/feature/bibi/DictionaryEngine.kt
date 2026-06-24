@@ -278,7 +278,7 @@ object DictionaryEngine {
      * - Profundizar con IA: usa DIVE_DEEPER → Worker
      * Si hay historial conversacional con otro término, ofrece comparación.
      */
-    private fun buildSuggestions(
+    internal fun buildSuggestions(
         term: String,
         chatHistory: List<ChatExchange> = emptyList()
     ): List<BibiSuggestion> {
@@ -335,7 +335,7 @@ object DictionaryEngine {
         return "$greeting$contextNote Te cuento."
     }
 
-    private fun formatYear(isoYear: String): String {
+    internal fun formatYear(isoYear: String): String {
         val year = isoYear.toIntOrNull() ?: return isoYear
         return if (year < 0) {
             "${-year} a.C."
@@ -346,7 +346,7 @@ object DictionaryEngine {
         }
     }
 
-    private fun translateFeatureType(type: String): String {
+    internal fun translateFeatureType(type: String): String {
         return when (type.lowercase()) {
             "city" -> "Ciudad"
             "region" -> "Región"
@@ -362,7 +362,7 @@ object DictionaryEngine {
         }
     }
 
-    private fun extractSignificantWords(text: String): List<String> {
+    internal fun extractSignificantWords(text: String): List<String> {
         val stopwords = setOf(
             "the", "and", "was", "were", "from", "with", "that", "this", "have",
             "been", "which", "their", "there", "would", "will", "into", "upon",
@@ -383,7 +383,7 @@ object DictionaryEngine {
             .distinct()
     }
 
-    private fun truncateText(text: String, maxLen: Int): String {
+    internal fun truncateText(text: String, maxLen: Int): String {
         if (text.length <= maxLen) return text
         val truncated = text.take(maxLen)
         val lastPeriod = truncated.lastIndexOf(".")
@@ -394,3 +394,4 @@ object DictionaryEngine {
         }
     }
 }
+

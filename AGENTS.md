@@ -37,11 +37,17 @@ Biblion ya incluye:
 - Perfil con identidad, metricas visibles y edicion agrupada desde el boton "Actualizar perfil".
 - **Reiniciar tutorial de lectura** desde la seccion Perfil.
 - Base inicial para la red de Biblion sobre Firestore.
-- Modo estudio con editor de ensenanzas.
-- Listado de "Mis ensenanzas" con abrir, editar, eliminar, filtrar por titulo o etiqueta.
-- Lectura de ensenanzas con controles de tamano de letra, modo claro/oscuro y pantalla dividida en pantallas grandes.
-- Sistema de etiquetas sugeridas por seccion: proposito, audiencia, tema y estado.
-- Validacion de guardado de ensenanzas: titulo obligatorio y etiquetas requeridas por seccion.
+- **Modo estudio v2 (Biblion Docs)**: editor estilo Google Docs con modelo por operaciones puras.
+  - **Editor visual**: `StudyDocEditorScreen` con `LazyColumn`, drag handles, slash commands, outline panel, zoom con gestos.
+  - **Modelo inmutable**: `StudyDoc` con `List<StudyBlock>` (12 tipos: Paragraph, Heading, BulletList, NumberedList, Quote, Table, Verse, Note, Reflection, Callout, Divider, PageBreak).
+  - **Motor puro**: `StudyDocEngine.apply(doc, op): Pair<StudyDoc, OpResult>` — 10 operaciones selladas (InsertBlock, DeleteBlock, MoveBlock, ReplaceBlock, EditText, ApplyStyle, ClearStyle, UpdateTitle, UpdateMetadata, BulkApply).
+  - **StyledText**: texto con rangos de estilo inmutables (bold, italic, underline, strikethrough, color, background, fontSize, link).
+  - **Persistencia Room v1**: `StudyDocEntity` + `StudyDocDao` + `StudyDocRepository` en `study_docs.db`. Documento serializado como JSON blob con kotlinx.serialization.
+  - **Listado "Mis Documentos"**: `StudyDocsListScreen` con vista de tarjetas, conteo de bloques y palabras.
+  - **Modo lectura**: `StudyDocReadScreen` con render completo de todos los tipos de bloque.
+  - **Sistema de etiquetas**: `DocMetadata` con `DocTagGroups` (proposito, audiencia, tema, estado) validado por `StudyDocValidator`.
+  - **Navegacion**: rutas `study_docs_list`, `study_doc_editor/{remoteId}`, `study_doc_read/{remoteId}`.
+  - **Compatibilidad temporal**: `StudyViewModelStub.kt` mantiene `ReaderScreen` compilando (citation insert y Bibi overlay son stubs).
 - **Diccionario biblico local unificado** (`dictionary.db`) con 6,346 entradas Easton's + Theographic: definiciones, metadata (género, fechas, coordenadas GPS, aliases, featureType). Accesible vía `DictionaryEngine` con templates por categoría.
 - **Bibi mejorada** con respuestas estructuradas (`BibiResponse`), templates por categoría (persona/lugar/concepto/objeto/práctica/evento), sugerencias personalizadas con `chatHistory` ("Comparar con X"), anáforas, memoria conversacional e historial de chats persistido en Room.
 - **Placeholders rotativos (carousel)** en campos de búsqueda cada 3.5s con 5 ejemplos.
@@ -84,7 +90,7 @@ Biblion ya incluye:
 ## 3) Principios de cambio
 
 1. Mantener cambios pequenos y enfocados.
-2. No romper navegacion ni flujos existentes: `Home`, `Books`, `Reader`, `Search`, `Study`, `Mis ensenanzas`.
+2. No romper navegacion ni flujos existentes: `Home`, `Books`, `Reader`, `Search`, `StudyDocsList`, `StudyDocEditor`.
 3. Priorizar legibilidad sobre micro-optimizaciones prematuras.
 4. Preservar compatibilidad con datos locales existentes.
 5. No tocar cambios ajenos en el working tree.
@@ -141,69 +147,54 @@ El sistema de tutorial guiado usa `GuidedTutorialOverlay` + `GuideBubble` para m
 
 ## 6) Modo estudio: herramientas y responsabilidades
 
-El modo estudio se compone principalmente de `StudyEditorScreen`, `StudyViewModel`, `StudyDocumentEngine`, `StudyData`, `ReaderScreen`, `StudyReadScreen` y `EnsenanzaScreen`.
+> **NOTA (23 Jun 2026)**: El modo estudio fue completamente reestructurado a una arquitectura por operaciones puras estilo Google Docs.
+> El sistema viejo (`feature/study/`) fue eliminado y reemplazado por `feature/studydocs/`.
+> Ver `STUDY_DOCS_V2.md` para documentacion completa de la nueva arquitectura.
 
-### Referencias cruzadas y temas (openbile.info)
+El modo estudio v2 se compone de `StudyDocEditorScreen`, `StudyDocViewModel`, `StudyDocEngine`, `StudyDoc`, `StudyDocReadScreen` y `StudyDocsListScreen`.
 
-Biblion usa los datasets de **openbile.info** (CC-BY 2026-06-15) para referencias cruzadas y busqueda tematica. Hay **dos DBs separadas** generadas por scripts Python en `tools/`:
+### Arquitectura del documento de estudio (v2)
 
-- **`cross_references_votes.db`** (32 MB, 340,645 pares): relaciones versiculo-a-versiculo con voto crowdsourced. Reemplaza al antiguo TSK.
-- **`topics.db`** (12.6 MB, 71,039 filas, 6,698 temas): versiculos agrupados por tema con quality score.
+- **`StudyDoc`** (`feature/studydocs/model/StudyDoc.kt`): documento inmutable con `id: DocId`, `title`, `blocks: List<StudyBlock>`, `metadata: DocMetadata`, `version: Int`.
+- **`StudyBlock`** (`feature/studydocs/model/StudyBlock.kt`): sealed interface con **12 tipos**: `Paragraph`, `Heading` (1-6), `BulletList`, `NumberedList`, `Quote`, `Table`, `Verse` (con `primaryVersion`/`compareVersion`/`compareText`), `Note`, `Reflection`, `Callout`, `Divider`, `PageBreak`.
+- **`StyledText`** (`feature/studydocs/model/StyledText.kt`): texto con lista inmutable de `StyleRange` (bold, italic, underline, strikethrough, color, background, fontSizeSp, link). Soporta `withText(range, replacement)`, `withStyle(range, patch)`, `clearStyle(range, kind)`.
+- **`StudyOp`** (`feature/studydocs/engine/StudyOp.kt`): 10 operaciones selladas — `InsertBlock`, `DeleteBlock`, `MoveBlock`, `ReplaceBlock`, `EditText`, `ApplyStyle`, `ClearStyle`, `UpdateTitle`, `UpdateMetadata`, `BulkApply`.
+- **`StudyDocEngine`** (`feature/studydocs/engine/StudyDocEngine.kt`): motor puro. `apply(doc, op): Pair<StudyDoc, OpResult>`. Sin estado mutable, 100% testeable.
+- **`StudyDocValidator`** (`feature/studydocs/engine/StudyDocValidator.kt`): 8 tipos de `ValidationIssue` (duplicate block ids, invalid heading level, verse compare mismatch, style out of bounds, table shape, missing required tags).
+- **`StudyDocNormalizer`** (`feature/studydocs/engine/StudyDocNormalizer.kt`): merge de rangos de estilo, dedup de dividers consecutivos, strip de parrafos vacios al final, intro block automatico.
+- **`StudyDocViewModel`** (`feature/studydocs/domain/StudyDocViewModel.kt`): MVVM con `StudyEditorUiState` (doc, selectedBlockId, isLoading, lastError, isSaving). Expone `applyOp(op)`, `applyAll(ops)`, `saveNow()`, `loadByRemoteId(id)`.
+- **`StudyDocEditorScreen`** (`feature/studydocs/ui/editor/StudyDocEditorScreen.kt`): lienzo con `LazyColumn` + drag handles + toolbar (bold/italic/underline) + slash commands + outline panel.
+- **`StudyDocReadScreen`** (`feature/studydocs/ui/read/StudyDocReadScreen.kt`): render de todos los 12 tipos de bloque con `AnnotatedString` para estilos inline.
+- **`StudyDocsListScreen`** (`feature/studydocs/ui/list/StudyDocsListScreen.kt`): lista de "Mis Documentos" con tarjetas, conteo de bloques y palabras.
 
-#### Scripts de build
+### Persistencia
 
-- `tools/build_crossrefs_votes_sqlite.py` → genera `cross_references_votes.db`
-- `tools/build_topics_sqlite.py` → genera `topics.db`
+- **`study_docs.db`**: Room v1 con `StudyDocEntity` (id, remoteId, title, notebookRemoteId, ownerUid, tagsCsv, blockCount, version, docJson, createdAt, updatedAt, deletedAt, isDirty).
+- **`StudyDocDao`**: 13 queries (observeAll, observeByNotebook, observeByOwner, getById, getByRemoteId, search, getDirtyForSync, insert, update, softDelete, hardDelete, markSynced, countActive).
+- **`StudyDocRepository`**: fachada con `save(doc)`, `getByRemoteId`, `observeAll`, `search`, `softDelete`, `hardDelete`, `markSynced`.
+- **`StudyDocJson`**: serializacion JSON via kotlinx.serialization con `classDiscriminator = "type"` y `ignoreUnknownKeys = true`.
 
-Ambos normalizan libros al formato Biblion (`Exodo` no `Éxodo`), usan `source_normalized_book` lowercase sin acentos, y formatean referencias como `Libro Cap:V` o `Libro Cap:V-V` (compatible con `BiblicalCrossReference.resolve`).
+### Herramientas del editor (v2)
 
-#### Componentes Kotlin (feature/bibi/)
+- **Slash commands**: boton "+" en toolbar abre un `AlertDialog` con 14 tipos de bloque. Fabrica el bloque y lo inserta via `StudyOp.InsertBlock`.
+- **Drag handles**: icono de arrastre lateral en cada bloque. Detecta seleccion via long-press para modo multi-bloque.
+- **Outline panel**: panel lateral que lista `StudyDoc.headings()` jerarquicamente por nivel.
+- **Zoom con gestos**: `Modifier.canvasZoom` con `detectTransformGestures` (pinch-to-zoom 0.5x-3.0x y pan).
+- **Texto inline**: `StyledTextEditor` con `BasicTextField` + `AnnotatedString` derivado de `StyledText.ranges`.
+- **Estilos de texto**: toolbar con bold/italic/underline que aplica `TextStylePatch` via `StudyOp.ApplyStyle`.
+- **Citar versiculo**: bloque `StudyBlock.Verse` con `VerseRef` (book, chapter, verseStart, verseEnd, version). Soporta comparacion de versiones via `compareVersion` + `compareText`.
+- **Nota / Reflexion**: bloques `Note` y `Reflection` con cards coloreadas (tertiaryContainer y secondaryContainer).
+- **Listas**: `BulletList` y `NumberedList` con items editables independientes y boton de eliminar item.
+- **Callout**: bloque destacado con color personalizable e icono.
+- **Separadores**: `Divider` (HorizontalDivider) y `PageBreak` (indicador visual de salto de pagina).
+- **Tabla**: bloque con filas y celdas, render basico.
+- **Guardar**: boton Save en top bar llama a `viewModel.saveNow()` que persiste via `StudyDocRepository.save()`.
 
-- `CrossReferenceVoteEntity` + `CrossReferenceVoteDao` + `CrossReferenceVoteDatabase` (Room v1)
-- `TopicEntity` + `TopicAliasEntity` + `TopicReferenceEntity` + `TopicRelationshipEntity` (Room v3, 4 entidades)
-- `CrossReferenceVoteEngine` - reemplaza al antiguo `CrossReferenceEngine`. Usa el voto internamente para filtrar (default `votes >= 10`) y ordenar. **NUNCA expone el voto al usuario.**
-- `TopicEngine` - busqueda por tema (pipeline de 6 fases sin scoring), topicos para un versiculo, fuzzy search, rotacion de temas populares. **Filtra por `verseCount > 0`** para no devolver temas sin contenido.
-- `RelatedVerse` y `TopicInfo` - DTOs publicos. `RelatedVerse` NO incluye el campo `votes` (verificado en tests).
-- `VerseResolver` - detecta el versiculo activo para Bibi con dos formas:
-  - **Forma 1 (primaria)**: versiculo seleccionado por long-press en el lector
-  - **Forma 2 (fallback)**: versiculo extraido del texto de la pregunta del usuario
-  - Si ninguna aplica, Bibi responde a nivel de capitulo o pide aclaracion.
+### Stubs temporales
 
-#### Regla critica de UX
-
-**Bibi NUNCA debe mencionar al usuario la votacion, puntuacion, ni score.** Estos datos son INTERNOS solo para ranking y toma de decisiones. Tests E2E deben verificar que ninguna respuesta de Bibi contenga "voto", "puntos", "score" o numeros crudos asociados a referencias.
-
-
-
-### Arquitectura del documento de estudio
-
-- `StudyBlockNode` es el modelo estructurado de la ensenanza.
-- `StudyDocumentEngine` es la fuente de verdad para transformaciones puras del documento.
-- `StudyViewModel` orquesta estado, autosave, persistencia, citas y sincronizacion; no debe duplicar reglas internas de mutacion de bloques.
-- `StudyEditorScreen` debe enfocarse en renderizar UI, seleccion, herramientas flotantes y eventos de usuario.
-- Nuevas herramientas que modifiquen texto, estilos, columnas, notas, reflexiones, citas o bloques interactivos deben agregarse primero como operaciones testeables en `StudyDocumentEngine`.
-- El editor visual usa `LazyColumn` con claves estables por bloque para mejorar rendimiento en ensenanzas largas; no volver a un `Column` con `verticalScroll` para el lienzo completo salvo que exista una razon validada.
-- Las pruebas de transformaciones del documento deben vivir en `StudyDocumentEngineTest` o un test equivalente de dominio.
-
-### Herramientas del editor
-
-- **Texto libre / parrafos**: bloque principal para escribir la ensenanza. Enter separa parrafos; en encabezados crea un nuevo parrafo; en listas crea un nuevo item del mismo tipo.
-- **Encabezado**: cambia el rol visual del parrafo a titulo/seccion. Enter en encabezado crea un nuevo parrafo debajo.
-- **Lista con vinetas**: transforma parrafos en items de lista. Enter crea nuevo item con vineta.
-- **Lista numerada**: transforma parrafos en items numerados. Enter crea nuevo item numerado.
-- **Columnas**: no es un bloque independiente; usa `StudyBlockNode.Paragraph` con `role = "columns"` y `parallelText`.
-- **Citar**: inserta citas biblicas como `StudyBlockNode.QuotedVerse` con soporte de comparacion de versiones.
-- **Nota**: inserta un bloque de nota para observaciones, aclaraciones o recordatorios.
-- **Reflexion**: inserta un bloque de reflexion vinculado a una idea o texto seleccionado.
-- **Estilos de texto**: color, fondo (resaltado), negrita, cursiva, subrayado y tamano para rangos seleccionados. Colores en burbuja flotante sobre barra de herramientas.
-- **Aumentar/disminuir fuente de seleccion**: aplica tamano al texto seleccionado.
-- **Modo enfoque**: oculta el panel del lector para concentrarse en el editor.
-- **Guardar con metadata**: exige titulo y etiquetas validas.
-- **Bibi**: asistente flotante para hacer preguntas biblicas, pedir ideas, pasajes relacionados, bosquejos, aplicaciones, notas o reflexiones. En modo estudio puede insertar respuestas como Nota o Reflexion.
-
-Herramientas eliminadas (no aportaban valor al estudio biblico):
-- Alineacion de texto (izquierda, centro, derecha).
-- Transformacion de mayusculas/minusculas.
+- **`StudyViewModelStub.kt`**: `StudyViewModel` + `StudyIntent` + `StudyUiState` stubs para que `ReaderScreen` compile mientras se termina de migrar.
+- **`ReaderAssistantOverlay`**: stub vacio del Bibi overlay en el lector.
+- **Sync deshabilitado**: `FirestoreSyncManager.pushStudies`, `applyRemoteStudies`, `applyRemoteNotebooks`, `createMissingNotebook`, `buildRemoteCitations` eliminados. `requestStudiesSync()` es no-op. El listener de notebooks redirige a coleccion `notebooks_legacy_disabled`.
 
 ### Bibi
 
@@ -668,19 +659,15 @@ Los 6 versiculos populares curados en `PopularVersesData` ya no se usan en el ca
 
 ### Lectura de ensenanzas
 
-`StudyReadScreen` debe mostrar el documento estructurado, no solo texto plano.
+`StudyDocReadScreen` debe mostrar el documento estructurado, no solo texto plano.
 
 Funciones actuales:
 
-- Render de parrafos, encabezados, listas, columnas, notas, reflexiones y citas.
-- Cambio de version y comparacion en bloques de cita.
+- Render de todos los 12 tipos de bloque con `AnnotatedString`.
+- Cambio de version y comparacion en bloques `Verse`.
 - Modo claro/oscuro desde la lectura.
-- Aumentar/disminuir tamano de letra de lectura.
-- Lectura en pantalla dividida solo en pantallas grandes (>=840dp).
-- Lectura vertical en moviles.
-- Filtro y administracion desde "Mis ensenanzas".
-- Bibi en lector normal para preguntas biblicas basicas sobre el pasaje actual.
-- Deduplicacion de bloques de cita: si un mismo pasaje existe como `Citation` y `QuotedVerse`, se muestra solo el `QuotedVerse` (con soporte de comparacion).
+- Filtro y administracion desde "Mis Documentos".
+- Boton de editar que navega al `StudyDocEditorScreen`.
 
 ## 7) Perfil y red de Biblion
 
@@ -764,10 +751,11 @@ Reglas principales:
 
 ## 8) Estado y ViewModel
 
-- Nuevas acciones de usuario deben agregarse de forma consistente en `StudyIntent`.
-- El estado visible debe modelarse en `StudyUiState`.
+- Nuevas acciones de usuario deben agregarse de forma consistente en `StudyOp` (operaciones puras) y aplicarse via `StudyDocViewModel.applyOp(op)`.
+- El estado visible en el editor se modela en `StudyEditorUiState` (doc, selectedBlockId, isLoading, lastError, isSaving).
+- La lista de documentos usa `StudyDocsListViewModel` con `StudyDocsListState` (docs, isLoading).
 - Evitar efectos secundarios ocultos; preferir flujos explicitos con corrutinas/Flow.
-- Si se agrega logica testeable, preferir funciones puras o helpers internos con pruebas unitarias.
+- Si se agrega logica testeable, preferir funciones puras en `StudyDocEngine` o helpers internos con pruebas unitarias.
 - Para tests, se permite inyectar dispatchers o desactivar semillas demo cuando mejore determinismo.
 
 ## 9) Datos, repositorios y Room
@@ -779,6 +767,7 @@ Reglas principales:
 - La Biblia se consulta desde la base SQLite preempaquetada `app/src/main/assets/databases/bible_content.db`.
 - La base se genera desde los JSON fuente con `tools/build_bible_sqlite.py`; si se regeneran versiones, conservar la deduplicacion de libros por nombre normalizado para evitar duplicados como los de NVI.
 - Las citas vinculadas deben conservar `book`, `chapter`, `verseStart`, `verseEnd` y `version`.
+- **Documentos de estudio**: Room database `study_docs.db` con `StudyDocEntity` (id, remoteId, title, notebookRemoteId, ownerUid, tagsCsv, blockCount, version, docJson). Migracion destructiva aceptable en v1 ya que los datos viejos del sistema anterior (`feature/study/`) no son compatibles.
 - **Diccionario biblico local unificado**: `app/src/main/assets/databases/dictionary.db` contiene 6,346 entradas (Easton's + Theographic). Generado por `tools/build_knowledge_sqlite.py`. Esquema version 2 (con metadata Theographic).
 - **Historial de busquedas**: Room database `search_history.db` con `SearchHistoryEntity` (query, normalized_query, use_count, last_used_at). Se usa para mostrar busquedas recientes en `SearchScreen`. Migracion destructiva aceptable (datos regenerables).
 - **Chats de Bibi**: Room database `bibi_chat.db` con `ChatSessionEntity` y `ChatMessageEntity`. Permite multiples sesiones independientes de conversacion.
@@ -790,6 +779,11 @@ Reglas principales:
 - Evitar duplicidad de rutas.
 - Respetar `launchSingleTop` y `popUpTo` usados en la app.
 - Las pantallas compartidas deben recibir dependencias como tema global mediante parametros, no accediendo a estado global oculto.
+- **Rutas del nuevo modo estudio (v2)**:
+  - `Screen.StudyDocsList` (route `study_docs_list`) → `StudyDocsListScreen`.
+  - `Screen.StudyDocEditor` (route `study_doc_editor/{remoteId}`) → `StudyDocEditorScreen`.
+  - `Screen.StudyDocRead` (route `study_doc_read/{remoteId}`) → `StudyDocReadScreen`.
+- **Rutas legacy (mantenidas para compatibilidad)**: `Screen.Ensenanzas` y `Screen.StudyRead` redirigen a `StudyDocsListRoute`.
 
 ## 11) Pruebas y validacion
 
@@ -808,6 +802,20 @@ Antes de proponer merge, validar al menos:
 ```
 
 Si se ejecuta un subconjunto, reportarlo claramente.
+
+**Tests del nuevo modo estudio (v2)**: viven en `app/src/test/java/com/cristiancogollo/biblion/feature/studydocs/`:
+- `engine/StudyDocEngineInsertTest.kt` (5 tests)
+- `engine/StudyDocEngineEditTest.kt` (6 tests)
+- `engine/StudyDocEngineStyleTest.kt` (4 tests)
+- `engine/StudyDocEngineMoveTest.kt` (5 tests)
+- `engine/StudyDocValidatorTest.kt` (6 tests)
+- `data/StudyDocJsonTest.kt` (6 tests)
+- `data/StudyDocDaoTest.kt` (9 tests) — Robolectric con `Room.inMemoryDatabaseBuilder`
+
+Para ejecutar solo los tests del modo estudio:
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests "com.cristiancogollo.biblion.feature.studydocs.*"
+```
 
 ## 12) Dependencias y build
 
