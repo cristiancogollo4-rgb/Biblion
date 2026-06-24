@@ -28,6 +28,7 @@ import com.cristiancogollo.biblion.feature.studydocs.model.isTextEditable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.update
 
 data class StudyEditorUiState(
@@ -202,7 +203,33 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
         _uiState.update { it.copy(isLoading = false, wasJustCreated = false) }
     }
 
-    fun saveNow() { _uiState.update { it.copy(lastSavedAt = System.currentTimeMillis()) } }
+    /**
+     * Persiste el documento actual con el titulo y tags proporcionados.
+     * Usado por SaveTeachingDialog para validar antes de guardar.
+     */
+    fun saveNow(title: String, tags: List<String>) {
+        val current = _uiState.value.doc
+        val cleanTitle = title.trim()
+        val nextMetadata = current.metadata.copy(tags = tags)
+        viewModelScope.launch {
+            applyOp(StudyOp.UpdateTitle(cleanTitle))
+            applyOp(StudyOp.UpdateMetadata(nextMetadata))
+            repository.save(_uiState.value.doc)
+            _uiState.update { it.copy(lastSavedAt = System.currentTimeMillis()) }
+        }
+    }
+
+    /**
+     * Persistencia rapida sin pasar por el dialog. Usado internamente;
+     * la UI debe preferir [saveNow] con titulo y tags.
+     */
+    fun saveNow() {
+        viewModelScope.launch {
+            repository.save(_uiState.value.doc)
+            _uiState.update { it.copy(lastSavedAt = System.currentTimeMillis()) }
+        }
+    }
+
     fun updateTitle(newTitle: String) { applyOp(StudyOp.UpdateTitle(newTitle)) }
 
     class Factory(private val repository: StudyDocRepository) : ViewModelProvider.Factory {

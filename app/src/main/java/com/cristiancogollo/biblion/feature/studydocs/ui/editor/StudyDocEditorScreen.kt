@@ -93,6 +93,7 @@ fun StudyDocEditorScreen(
     var showOutline by remember { mutableStateOf(false) }
     var showSlashMenu by remember { mutableStateOf(false) }
     var showColorPicker by remember { mutableStateOf(false) }
+    var showSaveDialog by remember { mutableStateOf(false) }
     val selectionState = remember { SelectionState() }
     val focusRequesters = remember { androidx.compose.runtime.mutableStateMapOf<BlockId, androidx.compose.ui.focus.FocusRequester>() }
     val zoomState = remember { mutableStateOf(EditorZoomState.Initial) }
@@ -180,7 +181,7 @@ fun StudyDocEditorScreen(
                     IconButton(onClick = { showOutline = !showOutline }) {
                         Icon(androidx.compose.material.icons.Icons.Filled.MenuBook, contentDescription = "Outline")
                     }
-                    IconButton(onClick = { viewModel.saveNow() }) {
+                    IconButton(onClick = { showSaveDialog = true }) {
                         Icon(Icons.Filled.Save, contentDescription = "Guardar")
                     }
                 },
@@ -392,7 +393,58 @@ fun StudyDocEditorScreen(
 
         // El boton de alineacion en la toolbar cicla directamente la alineacion
         // del bloque activo. No se necesita dialog.
+
+        if (showSaveDialog) {
+            SaveTeachingDialogHost(
+                viewModel = viewModel,
+                currentTitle = uiState.doc.title,
+                currentTags = uiState.doc.metadata.tags,
+                onDismiss = { showSaveDialog = false },
+            )
+        }
     }
+}
+
+@Composable
+private fun SaveTeachingDialogHost(
+    viewModel: StudyDocViewModel,
+    currentTitle: String,
+    currentTags: List<String>,
+    onDismiss: () -> Unit,
+) {
+    var titleInput by remember { mutableStateOf(currentTitle) }
+    var tagsInput by remember { mutableStateOf(currentTags.joinToString(", ")) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    SaveTeachingDialog(
+        title = titleInput,
+        onTitleChange = {
+            titleInput = it
+            error = null
+        },
+        tagsInput = tagsInput,
+        onTagsInputChange = {
+            tagsInput = it
+            error = null
+        },
+        error = error,
+        onDismiss = onDismiss,
+        onSave = {
+            val cleanTitle = titleInput.trim()
+            if (cleanTitle.isBlank()) {
+                error = "El titulo es obligatorio."
+                return@SaveTeachingDialog
+            }
+            val cleanTags = parseStudyTags(tagsInput)
+            val tagError = validateRequiredStudyTags(cleanTags)
+            if (tagError != null) {
+                error = tagError
+                return@SaveTeachingDialog
+            }
+            viewModel.saveNow(title = cleanTitle, tags = cleanTags)
+            onDismiss()
+        },
+    )
 }
 
 private fun applyStyleToFocused(
