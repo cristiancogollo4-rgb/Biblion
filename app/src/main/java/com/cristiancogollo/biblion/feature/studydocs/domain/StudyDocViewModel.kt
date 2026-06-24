@@ -78,14 +78,21 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
     fun onBlockFocused(blockId: BlockId) { _lastFocusedBlockId.value = blockId }
 
     fun newDraft() {
-        val doc = StudyDoc.empty()
-        val firstBlockId = doc.blocks.firstOrNull()?.id
-        if (firstBlockId != null) {
-            blockTextStates[firstBlockId] = TextFieldValue(
+        // Documento de prueba con 20 parrafos para garantizar
+        // que el LazyColumn tenga contenido suficiente para scrollear.
+        val blocks = (1..20).map { i ->
+            StudyBlock.Paragraph(
+                text = StyledText.plain("Parrafo $i. Este es un texto de prueba para verificar que el scroll del editor funciona correctamente."),
+            )
+        }
+        val doc = StudyDoc(blocks = blocks)
+        blocks.forEach { block ->
+            blockTextStates[block.id] = TextFieldValue(
                 annotatedString = AnnotatedString(""),
                 selection = TextRange(0),
             )
         }
+        val firstBlockId = blocks.firstOrNull()?.id
         _uiState.value = StudyEditorUiState(
             doc = doc,
             selectedBlockId = firstBlockId?.value,

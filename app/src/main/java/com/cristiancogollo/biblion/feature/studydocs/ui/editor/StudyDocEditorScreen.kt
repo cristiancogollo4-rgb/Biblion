@@ -97,34 +97,54 @@ fun StudyDocEditorScreen(
     var showSaveDialog by remember { mutableStateOf(false) }
     val selectionState = remember { SelectionState() }
     val focusRequesters = remember { androidx.compose.runtime.mutableStateMapOf<BlockId, androidx.compose.ui.focus.FocusRequester>() }
-    val context = androidx.compose.ui.platform.LocalContext.current
     val zoomState = remember { mutableStateOf(EditorZoomState.Initial) }
 
-    // ScaleGestureDetector nativo de Android para pinch-to-zoom.
-    // Se registra en el decorView de la Activity (raiz de la ventana),
-    // que recibe eventos ANTES que cualquier View de Compose. Esto
-    // permite que el pinch se detecte sin interferir con el pipeline
-    // de eventos del LazyColumn (scroll + edicion de texto).
-    val activity = (context as android.app.Activity)
+    // --- ZOOM + SCROLL DEBUG ---
+    val activity = (androidx.compose.ui.platform.LocalContext.current as android.app.Activity)
     val scaleDetector = remember {
         android.view.ScaleGestureDetector(
-            context,
+            activity,
             object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                override fun onScaleBegin(detector: android.view.ScaleGestureDetector): Boolean {
+                    android.util.Log.d("ZOOM", "onScaleBegin span=${detector.currentSpan}")
+                    return true
+                }
                 override fun onScale(detector: android.view.ScaleGestureDetector): Boolean {
+                    android.util.Log.d("ZOOM", "onScale factor=${detector.scaleFactor} span=${detector.currentSpan}")
                     zoomState.value = zoomState.value.applyPinch(detector.scaleFactor)
                     return true
+                }
+                override fun onScaleEnd(detector: android.view.ScaleGestureDetector) {
+                    android.util.Log.d("ZOOM", "onScaleEnd")
                 }
             },
         ).apply { isQuickScaleEnabled = true }
     }
+    // Window.Callback intercepta eventos a nivel de ventana (por debajo
+    // de cualquier View, incluido decorView). Compatible con Android 15
+    // donde decorView.setOnTouchListener no funciona con Compose.
+    val windowCallback = remember { activity.window.callback }
     DisposableEffect(Unit) {
-        activity.window.decorView.setOnTouchListener { _, event ->
-            scaleDetector.onTouchEvent(event)
-            false // NUNCA consumir: pasar a Compose -> LazyColumn
+        android.util.Log.d("ZOOM", "ScaleGestureDetector attach to window.callback")
+        activity.window.callback = object : android.view.Window.Callback by windowCallback {
+            override fun dispatchTouchEvent(event: android.view.MotionEvent?): Boolean {
+                event?.let { scaleDetector.onTouchEvent(it) }
+                return windowCallback.dispatchTouchEvent(event)
+            }
         }
         onDispose {
-            activity.window.decorView.setOnTouchListener(null)
+            android.util.Log.d("ZOOM", "ScaleGestureDetector detach from window.callback")
+            activity.window.callback = windowCallback
         }
+    }
+
+    // Log de scroll + layout del LazyColumn
+    LaunchedEffect(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) {
+        val info = listState.layoutInfo
+        android.util.Log.d("ZOOM", "LazyColumn scroll: visible=${info.visibleItemsInfo.size} " +
+            "firstIdx=${listState.firstVisibleItemIndex} offset=${listState.firstVisibleItemScrollOffset} " +
+            "total=${info.totalItemsCount} vpHeight=${info.viewportSize.height} " +
+            "canScrollForward=${listState.canScrollForward}")
     }
 
     // Auto-foco en el primer bloque cuando se acaba de crear el doc.
