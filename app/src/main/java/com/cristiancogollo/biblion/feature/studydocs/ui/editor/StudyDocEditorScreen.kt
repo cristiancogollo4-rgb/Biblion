@@ -31,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -97,6 +98,31 @@ fun StudyDocEditorScreen(
     val selectionState = remember { SelectionState() }
     val focusRequesters = remember { androidx.compose.runtime.mutableStateMapOf<BlockId, androidx.compose.ui.focus.FocusRequester>() }
     val zoomState = remember { mutableStateOf(EditorZoomState.Initial) }
+
+    // ScaleGestureDetector nativo de Android para pinch-to-zoom.
+    // Opera a nivel de View (no Compose), asi no interfiere con el
+    // scroll del LazyColumn ni con la edicion de texto.
+    val view = androidx.compose.ui.platform.LocalView.current
+    val scaleDetector = remember {
+        android.view.ScaleGestureDetector(
+            view.context,
+            object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                override fun onScale(detector: android.view.ScaleGestureDetector): Boolean {
+                    zoomState.value = zoomState.value.applyPinch(detector.scaleFactor)
+                    return true
+                }
+            },
+        )
+    }
+    DisposableEffect(Unit) {
+        view.setOnTouchListener { _, event ->
+            scaleDetector.onTouchEvent(event)
+            false // NUNCA consumir: pasar a Compose -> LazyColumn
+        }
+        onDispose {
+            view.setOnTouchListener(null)
+        }
+    }
 
     // Auto-foco en el primer bloque cuando se acaba de crear el doc.
     LaunchedEffect(uiState.wasJustCreated) {
@@ -297,11 +323,13 @@ fun StudyDocEditorScreen(
                         zoomPercent = zoomState.value.displayPercent(),
                         isZoomModified = zoomState.value.scale != EditorZoomState.Initial.scale,
                         onResetZoom = { zoomState.value = EditorZoomState.Initial },
+                        onZoomIn = { zoomState.value = zoomState.value.stepIn() },
+                        onZoomOut = { zoomState.value = zoomState.value.stepOut() },
                     )
-                    // El pinch-to-zoom se aplica a un overlay invisible
-                    // que es el ULTIMO hijo (encima en Z-order), para recibir
-                    // eventos en toda la pantalla. PointerEventPass.Initial
-                    // observa sin consumir; el LazyColumn recibe scroll.
+                    // El pinch-to-zoom usa ScaleGestureDetector nativo de Android
+                    // a nivel de View (no Compose), por lo que no interfiere con
+                    // el scroll del LazyColumn ni con la edicion de texto.
+                    // Los botones +/- en el EditorTopBar son una alternativa al pinch.
                     Box(Modifier.fillMaxSize()) {
                         PaperSheet(
                             zoomState = zoomState,
@@ -340,7 +368,6 @@ fun StudyDocEditorScreen(
                                 }
                             }
                         }
-                        Box(Modifier.fillMaxSize().verticalPinchZoom(zoomState))
                     }
                 }
             }

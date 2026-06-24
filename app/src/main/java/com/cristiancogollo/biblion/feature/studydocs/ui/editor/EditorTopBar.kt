@@ -77,6 +77,8 @@ fun EditorTopBar(
     zoomPercent: String = "100%",
     isZoomModified: Boolean = false,
     onResetZoom: () -> Unit = {},
+    onZoomIn: () -> Unit = {},
+    onZoomOut: () -> Unit = {},
 ) {
     Surface(
         modifier = modifier.fillMaxWidth().zIndex(10f),
@@ -115,13 +117,25 @@ fun EditorTopBar(
             VerticalDivider(Modifier.padding(horizontal = 6.dp).height(24.dp),
                 color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
 
-            // Indicador de zoom vertical
+            // Indicador de zoom con botones +/- y reset
+            ToolbarTextButton(
+                text = "\u2212",
+                contentDescription = "Reducir zoom",
+                enabled = true,
+                onClick = onZoomOut,
+            )
             Text(
                 text = zoomPercent,
                 style = MaterialTheme.typography.labelSmall,
                 color = if (isZoomModified) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 modifier = Modifier.padding(horizontal = 4.dp),
+            )
+            ToolbarTextButton(
+                text = "+",
+                contentDescription = "Aumentar zoom",
+                enabled = true,
+                onClick = onZoomIn,
             )
             ToolbarIconButton(
                 Icons.Filled.Refresh,
@@ -178,7 +192,28 @@ private fun TypeDropdown(
                     expanded = false
                     onTypeSelected(index)
                 })
-            }
+        }
+    }
+}
+
+@Composable
+private fun ToolbarTextButton(
+    text: String,
+    contentDescription: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    androidx.compose.material3.IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.size(32.dp),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (enabled) MaterialTheme.colorScheme.onSurface
+            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+        )
     }
 }
 

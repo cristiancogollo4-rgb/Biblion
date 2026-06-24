@@ -40,6 +40,16 @@ data class EditorZoomState(
     fun reset(): EditorZoomState = Initial
 
     /**
+     * Sube un nivel de zoom (0.25x). Limita a [MAX_SCALE].
+     */
+    fun stepIn(): EditorZoomState = copy(scale = (scale + 0.25f).coerceAtMost(MAX_SCALE))
+
+    /**
+     * Baja un nivel de zoom (0.25x). Limita a [MIN_SCALE].
+     */
+    fun stepOut(): EditorZoomState = copy(scale = (scale - 0.25f).coerceAtLeast(MIN_SCALE))
+
+    /**
      * Porcentaje legible para la UI (p.ej. "150%").
      */
     fun displayPercent(): String = "${(scale * 100).toInt()}%"
