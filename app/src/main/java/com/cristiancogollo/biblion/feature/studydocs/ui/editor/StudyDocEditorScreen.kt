@@ -5,6 +5,10 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -97,55 +101,44 @@ fun StudyDocEditorScreen(
     var showSaveDialog by remember { mutableStateOf(false) }
     val selectionState = remember { SelectionState() }
     val focusRequesters = remember { androidx.compose.runtime.mutableStateMapOf<BlockId, androidx.compose.ui.focus.FocusRequester>() }
-    val zoomState = remember { mutableStateOf(EditorZoomState.Initial) }
+    val zoomState = remember { mutableStateOf(CameraState.Initial) }
 
-    // --- ZOOM + SCROLL DEBUG ---
+    // --- ZOOM + SCROLL: Camera/Viewport/Document architecture ---
+    // Camera: zoom + offset. Viewport: pantalla (clipped). Document: PaginatedPaperSheet.
+    // screen = world * zoom + offset
+    // world  = (screen - offset) / zoom
     val activity = (androidx.compose.ui.platform.LocalContext.current as android.app.Activity)
     val scaleDetector = remember {
         android.view.ScaleGestureDetector(
             activity,
             object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
-                override fun onScaleBegin(detector: android.view.ScaleGestureDetector): Boolean {
-                    android.util.Log.d("ZOOM", "onScaleBegin span=${detector.currentSpan}")
-                    return true
-                }
                 override fun onScale(detector: android.view.ScaleGestureDetector): Boolean {
-                    android.util.Log.d("ZOOM", "onScale factor=${detector.scaleFactor} span=${detector.currentSpan}")
-                    zoomState.value = zoomState.value.applyPinch(detector.scaleFactor)
+                    zoomState.value = zoomState.value.focalZoom(
+                        newZoom = zoomState.value.zoom * detector.scaleFactor,
+                        focusX = detector.focusX,
+                        focusY = detector.focusY,
+                    )
                     return true
                 }
                 override fun onScaleEnd(detector: android.view.ScaleGestureDetector) {
-                    android.util.Log.d("ZOOM", "onScaleEnd")
+                    zoomState.value = zoomState.value.snapZoom()
                 }
             },
         ).apply { isQuickScaleEnabled = true }
     }
-    // Window.Callback intercepta eventos a nivel de ventana (por debajo
-    // de cualquier View, incluido decorView). Compatible con Android 15
-    // donde decorView.setOnTouchListener no funciona con Compose.
     val windowCallback = remember { activity.window.callback }
     DisposableEffect(Unit) {
-        android.util.Log.d("ZOOM", "ScaleGestureDetector attach to window.callback")
         activity.window.callback = object : android.view.Window.Callback by windowCallback {
             override fun dispatchTouchEvent(event: android.view.MotionEvent?): Boolean {
                 event?.let { scaleDetector.onTouchEvent(it) }
                 return windowCallback.dispatchTouchEvent(event)
             }
         }
-        onDispose {
-            android.util.Log.d("ZOOM", "ScaleGestureDetector detach from window.callback")
-            activity.window.callback = windowCallback
-        }
+        onDispose { activity.window.callback = windowCallback }
     }
 
-    // Log de scroll + layout del LazyColumn
-    LaunchedEffect(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) {
-        val info = listState.layoutInfo
-        android.util.Log.d("ZOOM", "LazyColumn scroll: visible=${info.visibleItemsInfo.size} " +
-            "firstIdx=${listState.firstVisibleItemIndex} offset=${listState.firstVisibleItemScrollOffset} " +
-            "total=${info.totalItemsCount} vpHeight=${info.viewportSize.height} " +
-            "canScrollForward=${listState.canScrollForward}")
-    }
+    // Tamaño del documento medido para clamp() de la camara
+    var docSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
 
     // Auto-foco en el primer bloque cuando se acaba de crear el doc.
     LaunchedEffect(uiState.wasJustCreated) {
@@ -344,19 +337,27 @@ fun StudyDocEditorScreen(
                         onColorClick = onColorClick,
                         onAlignClick = onAlignClick,
                         zoomPercent = zoomState.value.displayPercent(),
-                        isZoomModified = zoomState.value.scale != EditorZoomState.Initial.scale,
-                        onResetZoom = { zoomState.value = EditorZoomState.Initial },
+                        isZoomModified = zoomState.value.zoom != CameraState.Initial.zoom,
+                        onResetZoom = { zoomState.value = CameraState.Initial },
                         onZoomIn = { zoomState.value = zoomState.value.stepIn() },
                         onZoomOut = { zoomState.value = zoomState.value.stepOut() },
                     )
-                    // El pinch-to-zoom usa ScaleGestureDetector nativo de Android
-                    // a nivel de View (no Compose), por lo que no interfiere con
-                    // el scroll del LazyColumn ni con la edicion de texto.
-                    // Los botones +/- en el EditorTopBar son una alternativa al pinch.
-                    Box(Modifier.fillMaxSize()) {
-                        ZoomedLayout(
-                            zoom = zoomState.value.scale,
-                            modifier = Modifier.fillMaxSize(),
+                    // Viewport (clipea el contenido que excede la pantalla)
+                    // Camera (graphicsLayer con zoom + offset)
+                    // Document (PaginatedPaperSheet a tamano nativo)
+                    Box(Modifier.fillMaxSize()
+                        .clipToBounds()
+                        .onGloballyPositioned { coords -> docSize = coords.size }
+                    ) {
+                        Box(
+                            modifier = Modifier.graphicsLayer {
+                                val cam = zoomState.value
+                                scaleX = cam.zoom
+                                scaleY = cam.zoom
+                                translationX = cam.offsetX
+                                translationY = cam.offsetY
+                                transformOrigin = TransformOrigin(0f, 0f)
+                            },
                         ) {
                             PaginatedPaperSheet(
                                 blocks = uiState.doc.blocks,
