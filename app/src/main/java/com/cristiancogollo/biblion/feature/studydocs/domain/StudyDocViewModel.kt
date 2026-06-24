@@ -78,11 +78,16 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
     fun onBlockFocused(blockId: BlockId) { _lastFocusedBlockId.value = blockId }
 
     fun newDraft() {
-        // Documento de prueba con 20 parrafos para garantizar
-        // que el LazyColumn tenga contenido suficiente para scrollear.
-        val blocks = (1..20).map { i ->
+        // Documento de prueba con 60 parrafos (~2-3 lineas c/u).
+        // A ~30 bloques por pagina carta, produce 2 paginas completas
+        // con gap gris entre ellas (ver PaginatedPaperSheet).
+        val blocks = (1..60).map { i ->
             StudyBlock.Paragraph(
-                text = StyledText.plain("Parrafo $i. Este es un texto de prueba para verificar que el scroll del editor funciona correctamente."),
+                text = StyledText.plain(
+                    "Parrafo $i. Este es un bloque de texto de prueba para verificar " +
+                    "el funcionamiento del scroll y la paginacion del editor. " +
+                    "Cada pagina carta contiene aproximadamente 30 bloques."
+                ),
             )
         }
         val doc = StudyDoc(blocks = blocks)
