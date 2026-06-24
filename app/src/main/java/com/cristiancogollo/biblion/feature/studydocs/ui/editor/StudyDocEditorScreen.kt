@@ -295,8 +295,7 @@ fun StudyDocEditorScreen(
                         onColorClick = onColorClick,
                         onAlignClick = onAlignClick,
                         zoomPercent = zoomState.value.displayPercent(),
-                        isZoomModified = zoomState.value.scale != EditorZoomState.Initial.scale
-                            || zoomState.value.offsetY != EditorZoomState.Initial.offsetY,
+                        isZoomModified = zoomState.value.scale != EditorZoomState.Initial.scale,
                         onResetZoom = { zoomState.value = EditorZoomState.Initial },
                     )
                     Surface(

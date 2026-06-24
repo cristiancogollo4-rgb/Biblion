@@ -1,19 +1,16 @@
 package com.cristiancogollo.biblion.feature.studydocs.ui.editor
 
 /**
- * State holder inmutable para el zoom vertical del editor.
+ * State holder inmutable para el zoom del editor.
  *
- * El zoom afecta **solo al eje Y** (escala vertical de la linea de
- * tiempo de bloques). El eje X mantiene el tamano de fuente original
- * para que el texto siga siendo legible mientras el usuario "abre" o
- * "compacta" la altura del lienzo.
+ * El zoom es **uniforme** (scaleX = scaleY = scale), continuo,
+ * sin snap: el factor puede ser cualquier float en [MIN_SCALE, MAX_SCALE].
  *
- * El zoom es **continuo, sin snap**: el factor puede ser cualquier
- * float en [MIN_SCALE, MAX_SCALE].
+ * El scroll del LazyColumn se maneja independientemente; este state
+ * solo controla la escala visual aplicada via graphicsLayer.
  */
 data class EditorZoomState(
     val scale: Float = 1f,
-    val offsetY: Float = 0f,
     val isZooming: Boolean = false,
 ) {
     companion object {
@@ -23,35 +20,14 @@ data class EditorZoomState(
     }
 
     /**
-     * Limita [scale] al rango permitido. No modifica el offset.
-     */
-    fun clamped(): EditorZoomState = copy(scale = scale.coerceIn(MIN_SCALE, MAX_SCALE))
-
-    /**
-     * Aplica un pinch (multiplicador de escala, p.ej. 1.05f) y un
-     * delta de pan en pixeles del eje Y (focal point).
+     * Aplica un factor de escala (multiplicador) y lo limita al rango permitido.
      *
-     * @param scaleFactor multiplicador que viene de detectTransformGestures.
-     * @param panDeltaY desplazamiento vertical en pixeles.
+     * @param scaleFactor multiplicador del pinch (p.ej. 1.05f o 0.95f).
      */
-    fun applyPinchAndPan(
-        scaleFactor: Float,
-        panDeltaY: Float,
-    ): EditorZoomState {
+    fun applyPinch(scaleFactor: Float): EditorZoomState {
         val nextScale = (scale * scaleFactor).coerceIn(MIN_SCALE, MAX_SCALE)
-        return copy(
-            scale = nextScale,
-            offsetY = offsetY + panDeltaY,
-            isZooming = true,
-        )
+        return copy(scale = nextScale, isZooming = true)
     }
-
-    /**
-     * Aplica solo pan (un dedo) sin cambiar el zoom. Util cuando el
-     * usuario arrastra con un solo dedo estando en modo zoom.
-     */
-    fun applyPan(panDeltaY: Float): EditorZoomState =
-        copy(offsetY = offsetY + panDeltaY, isZooming = true)
 
     /**
      * Marca fin del gesto de zoom.
