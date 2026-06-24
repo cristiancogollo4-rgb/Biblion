@@ -3,12 +3,9 @@ package com.cristiancogollo.biblion
 import android.os.Bundle
 import android.content.Intent
 import android.content.SharedPreferences
-import android.net.Uri
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.lifecycle.lifecycleScope
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -30,12 +27,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.cristiancogollo.biblion.ui.theme.BiblionTheme
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 
 /**
  * Punto de entrada Android de la aplicación.
@@ -48,11 +39,6 @@ import kotlinx.serialization.json.Json
  * Esta clase no contiene lógica de negocio; solo configuración de arranque.
  */
 class MainActivity : ComponentActivity() {
-    private val sharedStudyJson = Json {
-        ignoreUnknownKeys = true
-        encodeDefaults = true
-        classDiscriminator = "nodeType"
-    }
 
     /**
      * Ciclo de vida inicial del Activity.
@@ -63,7 +49,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         FirestoreSyncManager.initialize(this)
-        handleIncomingBiblionStudy(intent)
         setContent {
             BiblionApp()
         }
@@ -72,79 +57,6 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleIncomingBiblionStudy(intent)
-    }
-
-    private fun handleIncomingBiblionStudy(intent: Intent?) {
-        @Suppress("DEPRECATION")
-        val sharedStreamUri = intent?.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
-        val uri = intent?.data
-            ?: sharedStreamUri
-            ?: return
-        val action = intent?.action
-        if (action != Intent.ACTION_VIEW && action != Intent.ACTION_SEND) return
-        lifecycleScope.launch {
-            val result = runCatching {
-                importBiblionStudy(uri)
-            }
-            result.onSuccess { title ->
-                Toast.makeText(
-                    this@MainActivity,
-                    "Ensenanza importada: $title",
-                    Toast.LENGTH_LONG
-                ).show()
-            }.onFailure { error ->
-                Toast.makeText(
-                    this@MainActivity,
-                    error.message ?: "No se pudo importar la ensenanza.",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-        }
-    }
-
-    private suspend fun importBiblionStudy(uri: Uri): String = withContext(Dispatchers.IO) {
-        val raw = contentResolver.openInputStream(uri)?.use { input ->
-            input.bufferedReader(Charsets.UTF_8).readText()
-        } ?: error("No se pudo abrir el archivo compartido.")
-
-        val shared = sharedStudyJson.decodeFromString<BiblionSharedStudyFile>(raw)
-        require(shared.format == BIBLION_STUDY_SHARE_FORMAT) {
-            "El archivo no es una ensenanza compatible con Biblion."
-        }
-        val document = sharedStudyJson.decodeFromString<SerializedStudyDocument>(shared.contentSerialized)
-        val title = shared.title.trim().ifBlank { "Ensenanza importada" }
-        val dao = StudyDatabase.getInstance(applicationContext).studyDao()
-        val now = System.currentTimeMillis()
-        val notebook = dao.getAllNotebooksForSync()
-            .firstOrNull { it.deletedAt == null && it.title == "Ensenanzas importadas" }
-            ?: StudyNotebookEntity(
-                title = "Ensenanzas importadas",
-                createdAt = now,
-                updatedAt = now
-            ).let { created ->
-                val id = dao.insertNotebook(created)
-                created.copy(id = id)
-            }
-
-        dao.insertStudy(
-            StudyEntity(
-                title = title,
-                notebookId = notebook.id,
-                notebookRemoteId = notebook.remoteId,
-                contentSerialized = sharedStudyJson.encodeToString(
-                    SerializedStudyDocument(
-                        blocks = document.blocks,
-                        globalVersion = document.globalVersion,
-                        tags = document.tags
-                    )
-                ),
-                createdAt = now,
-                updatedAt = now
-            )
-        )
-        FirestoreSyncManager.requestStudiesSync()
-        title
     }
 
 }

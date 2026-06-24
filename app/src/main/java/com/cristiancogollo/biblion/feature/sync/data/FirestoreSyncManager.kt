@@ -211,19 +211,9 @@ object FirestoreSyncManager {
     }
 
     fun requestStudiesSync() {
-        val context = appContext ?: return
-        val user = currentUser ?: return
-        scope.launch {
-            val success = withRetry(maxRetries = 3, initialDelayMs = 1000) {
-                syncMutex.withLock {
-                    pushStudies(context, user.uid)
-                }
-            }
-            if (!success) {
-                Log.w(TAG, "Failed to push studies after retries")
-                notifySyncError()
-            }
-        }
+        // Sync de ensenanzas deshabilitado tras migracion a StudyDoc (v2).
+        // El DAO legacy `StudyDatabase` ya no existe; la nueva DB es `study_docs.db`.
+        // Se reimplementara en una iteracion futura del proyecto.
     }
 
     fun requestHighlightsSync(book: String, chapter: Int, verses: Map<String, Int>) {
@@ -337,58 +327,10 @@ object FirestoreSyncManager {
         Log.d(TAG, "Wrote users/${user.uid}/preferences/app")
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private suspend fun pushStudies(context: Context, userUid: String = currentUser?.uid.orEmpty()) {
-        if (userUid.isBlank()) return
-        val dao = StudyDatabase.getInstance(context).studyDao()
-        val notebooks = dao.getAllNotebooksForSync()
-        Log.d(TAG, "Found ${notebooks.size} notebooks to sync for uid=$userUid")
-        notebooks.forEach { notebook ->
-            val nextVersion = notebook.syncVersion + 1
-            val remote = mapOf(
-                "remoteId" to notebook.remoteId,
-                "title" to notebook.title,
-                "createdAt" to notebook.createdAt,
-                "updatedAt" to notebook.updatedAt,
-                "ownerUid" to userUid,
-                "deletedAt" to notebook.deletedAt,
-                "syncVersion" to nextVersion
-            )
-            notebookDocument(userUid, notebook.remoteId).set(remote, SetOptions.merge()).awaitCompletion()
-            dao.updateNotebook(
-                notebook.copy(
-                    ownerUid = userUid,
-                    lastSyncedAt = System.currentTimeMillis(),
-                    syncVersion = nextVersion
-                )
-            )
-        }
-
-        val studies = dao.getDirtyStudiesForSync()
-        Log.d(TAG, "Found ${studies.size} dirty studies to sync for uid=$userUid")
-        studies.forEach { study ->
-            val nextVersion = study.syncVersion + 1
-            val citations = buildRemoteCitations(study, dao)
-            val remote = mapOf(
-                "remoteId" to study.remoteId,
-                "notebookRemoteId" to study.notebookRemoteId,
-                "title" to study.title,
-                "contentSerialized" to study.contentSerialized,
-                "createdAt" to study.createdAt,
-                "updatedAt" to study.updatedAt,
-                "ownerUid" to userUid,
-                "deletedAt" to study.deletedAt,
-                "syncVersion" to nextVersion,
-                "citations" to citations
-            )
-            studyDocument(userUid, study.remoteId).set(remote, SetOptions.merge()).awaitCompletion()
-            dao.updateStudy(
-                study.copy(
-                    ownerUid = userUid,
-                    lastSyncedAt = System.currentTimeMillis(),
-                    syncVersion = nextVersion
-                )
-            )
-        }
+        // Sync de ensenanzas deshabilitado tras migracion a StudyDoc (v2).
+        // El DAO legacy `StudyDatabase` ya no existe; la nueva DB es `study_docs.db`.
     }
 
     private suspend fun pushAllHighlights(context: Context, userUid: String = currentUser?.uid.orEmpty()) {
@@ -431,6 +373,8 @@ object FirestoreSyncManager {
     }
 
     private suspend fun attachListeners(context: Context, userUid: String) {
+        // Listeners de notebooks/studies removidos tras migracion a StudyDoc (v2).
+        // Solo preferences y highlights siguen sincronizandose.
         listeners = listOf(
             preferencesDocument(userUid).addSnapshotListener { snapshot, error ->
                 if (error != null) {
@@ -440,24 +384,6 @@ object FirestoreSyncManager {
                 }
                 if (snapshot == null || !snapshot.exists()) return@addSnapshotListener
                 scope.launch { applyRemotePreferences(context, snapshot.data.orEmpty()) }
-            },
-            notebookCollection(userUid).addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    Log.w(TAG, "Notebook listener failed", error)
-                    notifySyncError()
-                    return@addSnapshotListener
-                }
-                if (snapshot == null) return@addSnapshotListener
-                scope.launch { applyRemoteNotebooks(context, snapshot) }
-            },
-            studyCollection(userUid).addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    Log.w(TAG, "Study listener failed", error)
-                    notifySyncError()
-                    return@addSnapshotListener
-                }
-                if (snapshot == null) return@addSnapshotListener
-                scope.launch { applyRemoteStudies(context, snapshot) }
             },
             highlightsCollection(userUid).addSnapshotListener { snapshot, error ->
                 if (error != null) {
@@ -515,98 +441,14 @@ object FirestoreSyncManager {
         }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private suspend fun applyRemoteNotebooks(context: Context, snapshot: QuerySnapshot) {
-        val dao = StudyDatabase.getInstance(context).studyDao()
-        snapshot.documents.forEach { doc ->
-            val remote = doc.toObject(RemoteNotebookDocument::class.java) ?: return@forEach
-            val local = dao.getNotebookByRemoteId(remote.remoteId)
-            if (local != null && local.updatedAt > remote.updatedAt) return@forEach
-
-            if (local == null) {
-                dao.insertNotebook(
-                    StudyNotebookEntity(
-                        remoteId = remote.remoteId,
-                        title = remote.title,
-                        createdAt = remote.createdAt,
-                        updatedAt = remote.updatedAt,
-                        ownerUid = remote.ownerUid,
-                        deletedAt = remote.deletedAt,
-                        lastSyncedAt = remote.updatedAt,
-                        syncVersion = remote.syncVersion
-                    )
-                )
-            } else {
-                dao.updateNotebook(
-                    local.copy(
-                        title = remote.title,
-                        createdAt = remote.createdAt,
-                        updatedAt = remote.updatedAt,
-                        ownerUid = remote.ownerUid,
-                        deletedAt = remote.deletedAt,
-                        lastSyncedAt = remote.updatedAt,
-                        syncVersion = remote.syncVersion
-                    )
-                )
-            }
-        }
+        // Sync de notebooks deshabilitado tras migracion a StudyDoc (v2).
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private suspend fun applyRemoteStudies(context: Context, snapshot: QuerySnapshot) {
-        val dao = StudyDatabase.getInstance(context).studyDao()
-        snapshot.documents.forEach { doc ->
-            val remote = doc.toObject(RemoteStudyDocument::class.java) ?: return@forEach
-            val notebook = dao.getNotebookByRemoteId(remote.notebookRemoteId)
-                ?: createMissingNotebook(dao, remote.notebookRemoteId, remote.ownerUid)
-            val local = dao.getStudyByRemoteId(remote.remoteId)
-            if (local != null && local.updatedAt > remote.updatedAt) return@forEach
-
-            val localId = if (local == null) {
-                dao.insertStudy(
-                    StudyEntity(
-                        remoteId = remote.remoteId,
-                        title = remote.title,
-                        notebookId = notebook.id,
-                        notebookRemoteId = remote.notebookRemoteId,
-                        contentSerialized = remote.contentSerialized,
-                        createdAt = remote.createdAt,
-                        updatedAt = remote.updatedAt,
-                        ownerUid = remote.ownerUid,
-                        deletedAt = remote.deletedAt,
-                        lastSyncedAt = remote.updatedAt,
-                        syncVersion = remote.syncVersion
-                    )
-                )
-            } else {
-                dao.updateStudy(
-                    local.copy(
-                        title = remote.title,
-                        notebookId = notebook.id,
-                        notebookRemoteId = remote.notebookRemoteId,
-                        contentSerialized = remote.contentSerialized,
-                        createdAt = remote.createdAt,
-                        updatedAt = remote.updatedAt,
-                        ownerUid = remote.ownerUid,
-                        deletedAt = remote.deletedAt,
-                        lastSyncedAt = remote.updatedAt,
-                        syncVersion = remote.syncVersion
-                    )
-                )
-                local.id
-            }
-
-            val citations = remote.citations.map {
-                LinkedCitationEntity(
-                    estudioId = localId,
-                    book = it.book,
-                    chapter = it.chapter,
-                    verseStart = it.verseStart,
-                    verseEnd = it.verseEnd,
-                    version = it.version,
-                    positionMetadata = it.positionMetadata
-                )
-            }
-            dao.replaceCitations(localId, citations)
-        }
+        // Sync de studies deshabilitado tras migracion a StudyDoc (v2).
     }
 
     private suspend fun applyRemoteHighlights(context: Context, snapshot: QuerySnapshot) {
@@ -623,67 +465,8 @@ object FirestoreSyncManager {
         }
     }
 
-    private suspend fun createMissingNotebook(
-        dao: StudyDao,
-        remoteId: String,
-        ownerUid: String?
-    ): StudyNotebookEntity {
-        val now = System.currentTimeMillis()
-        val localId = dao.insertNotebook(
-            StudyNotebookEntity(
-                remoteId = remoteId.ifBlank { CuidGenerator.create() },
-                title = "Mis Notas de Estudio",
-                createdAt = now,
-                updatedAt = now,
-                ownerUid = ownerUid,
-                lastSyncedAt = now
-            )
-        )
-        return checkNotNull(dao.getNotebook(localId))
-    }
-
-    private suspend fun buildRemoteCitations(
-        study: StudyEntity,
-        dao: StudyDao
-    ): List<Map<String, Any>> {
-        val linked = dao.getLinkedCitations(study.id)
-        if (linked.isNotEmpty()) {
-            return linked.map {
-                mapOf(
-                    "book" to it.book,
-                    "chapter" to it.chapter,
-                    "verseStart" to it.verseStart,
-                    "verseEnd" to it.verseEnd,
-                    "version" to it.version,
-                    "positionMetadata" to it.positionMetadata
-                )
-            }
-        }
-
-        val document = runCatching {
-            json.decodeFromString<SerializedStudyDocument>(study.contentSerialized)
-        }.getOrDefault(SerializedStudyDocument())
-
-        return document.blocks
-            .filterIsInstance<StudyBlockNode.Citation>()
-            .map {
-                mapOf(
-                    "book" to it.reference.book,
-                    "chapter" to it.reference.chapter,
-                    "verseStart" to it.reference.verseStart,
-                    "verseEnd" to it.reference.verseEnd,
-                    "version" to it.version,
-                    "positionMetadata" to "inline"
-                )
-            }
-    }
-
     private fun userRoot(uid: String) = firestore.collection("users").document(uid)
     private fun preferencesDocument(uid: String) = userRoot(uid).collection("preferences").document("app")
-    private fun notebookCollection(uid: String) = userRoot(uid).collection("notebooks")
-    private fun notebookDocument(uid: String, remoteId: String) = notebookCollection(uid).document(remoteId)
-    private fun studyCollection(uid: String) = userRoot(uid).collection("studies")
-    private fun studyDocument(uid: String, remoteId: String) = studyCollection(uid).document(remoteId)
     private fun highlightsCollection(uid: String) = userRoot(uid).collection("chapter_highlights")
     private fun highlightDocument(uid: String, documentId: String) = highlightsCollection(uid).document(documentId)
 }

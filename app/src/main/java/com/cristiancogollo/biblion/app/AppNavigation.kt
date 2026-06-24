@@ -23,6 +23,7 @@ import androidx.navigation.navArgument
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cristiancogollo.biblion.feature.auth.data.GoogleCredentialsAuth
 import com.cristiancogollo.biblion.feature.auth.data.GoogleCredentialsResult
+import com.cristiancogollo.biblion.feature.studydocs.ui.Screen as StudyDocScreen
 import kotlinx.coroutines.launch
 
 @Composable
@@ -408,22 +409,33 @@ fun AppNavigation(
             val studyId = backStackEntry.arguments?.getLong("studyId")?.takeIf { it > 0 }
             val decodedBookName = decodeArg(encodedBookName).ifBlank { null }
 
-            ReaderScreen(
-                navController = navController,
-                bookName = decodedBookName,
-                initialStudyMode = studyMode,
-                initialChapter = initialChapter,
-                targetVerse = initialVerse,
-                initialStudyId = studyId,
-                isDarkTheme = isDarkTheme,
-                onToggleDarkTheme = onToggleDarkTheme,
-                currentUserName = currentUserName,
-                guidedTutorial = activeGuidedTutorial,
-                onGuidedTutorialNext = ::advanceGuidedTutorial,
-                onGuidedTutorialSkip = ::skipGuidedTutorial,
-                onGuidedTutorialRestart = ::restartGuidedTutorial,
-                onGuidedTutorialTargetAction = ::handleGuidedTutorialTargetAction
-            )
+            if (studyMode) {
+                LaunchedEffect(Unit) {
+                    navController.navigate(StudyDocScreen.StudyDocEditor.newRoute()) {
+                        popUpTo(backStackEntry.destination.route ?: Screen.ReaderWithBook.route) {
+                            inclusive = true
+                        }
+                        launchSingleTop = true
+                    }
+                }
+            } else {
+                ReaderScreen(
+                    navController = navController,
+                    bookName = decodedBookName,
+                    initialStudyMode = false,
+                    initialChapter = initialChapter,
+                    targetVerse = initialVerse,
+                    initialStudyId = studyId,
+                    isDarkTheme = isDarkTheme,
+                    onToggleDarkTheme = onToggleDarkTheme,
+                    currentUserName = currentUserName,
+                    guidedTutorial = activeGuidedTutorial,
+                    onGuidedTutorialNext = ::advanceGuidedTutorial,
+                    onGuidedTutorialSkip = ::skipGuidedTutorial,
+                    onGuidedTutorialRestart = ::restartGuidedTutorial,
+                    onGuidedTutorialTargetAction = ::handleGuidedTutorialTargetAction
+                )
+            }
         }
 
         composable(
@@ -451,22 +463,33 @@ fun AppNavigation(
             val initialChapter = backStackEntry.arguments?.getInt("chapter") ?: 1
             val initialVerse = decodeArg(backStackEntry.arguments?.getString("verse") ?: "").ifBlank { null }
             val studyId = backStackEntry.arguments?.getLong("studyId")?.takeIf { it > 0 }
-            ReaderScreen(
-                navController = navController,
-                bookName = null,
-                initialStudyMode = studyMode,
-                initialChapter = initialChapter,
-                targetVerse = initialVerse,
-                initialStudyId = studyId,
-                isDarkTheme = isDarkTheme,
-                onToggleDarkTheme = onToggleDarkTheme,
-                currentUserName = currentUserName,
-                guidedTutorial = activeGuidedTutorial,
-                onGuidedTutorialNext = ::advanceGuidedTutorial,
-                onGuidedTutorialSkip = ::skipGuidedTutorial,
-                onGuidedTutorialRestart = ::restartGuidedTutorial,
-                onGuidedTutorialTargetAction = ::handleGuidedTutorialTargetAction
-            )
+            if (studyMode) {
+                LaunchedEffect(Unit) {
+                    navController.navigate(StudyDocScreen.StudyDocEditor.newRoute()) {
+                        popUpTo(backStackEntry.destination.route ?: Screen.ReaderWithoutBook.route) {
+                            inclusive = true
+                        }
+                        launchSingleTop = true
+                    }
+                }
+            } else {
+                ReaderScreen(
+                    navController = navController,
+                    bookName = null,
+                    initialStudyMode = false,
+                    initialChapter = initialChapter,
+                    targetVerse = initialVerse,
+                    initialStudyId = studyId,
+                    isDarkTheme = isDarkTheme,
+                    onToggleDarkTheme = onToggleDarkTheme,
+                    currentUserName = currentUserName,
+                    guidedTutorial = activeGuidedTutorial,
+                    onGuidedTutorialNext = ::advanceGuidedTutorial,
+                    onGuidedTutorialSkip = ::skipGuidedTutorial,
+                    onGuidedTutorialRestart = ::restartGuidedTutorial,
+                    onGuidedTutorialTargetAction = ::handleGuidedTutorialTargetAction
+                )
+            }
         }
 
         composable(
@@ -480,14 +503,14 @@ fun AppNavigation(
         ) { entry ->
             val encodedName = entry.arguments?.getString("bookName") ?: ""
             val bookName = decodeArg(encodedName).ifBlank { null }
-            ReaderScreen(
-                navController = navController,
-                bookName = bookName,
-                initialStudyMode = true,
-                isDarkTheme = isDarkTheme,
-                onToggleDarkTheme = onToggleDarkTheme,
-                currentUserName = currentUserName
-            )
+            LaunchedEffect(Unit) {
+                navController.navigate(StudyDocScreen.StudyDocEditor.newRoute()) {
+                    popUpTo(entry.destination.route ?: Screen.Study.route) {
+                        inclusive = true
+                    }
+                    launchSingleTop = true
+                }
+            }
         }
     }
 

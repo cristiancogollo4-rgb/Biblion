@@ -5,10 +5,12 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDatabase
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -66,8 +68,8 @@ class ProfileViewModel @JvmOverloads constructor(
         if (user == null) return
 
         studiesJob = viewModelScope.launch {
-            StudyDatabase.getInstance(getApplication()).studyDao().observeAllStudies().collect { studies ->
-                val count = studies.count { it.ownerUid == user.uid || it.ownerUid.isNullOrBlank() }
+            StudyDocDatabase.getInstance(getApplication()).studyDocDao().observeAll().collect { docs ->
+                val count = docs.count { it.ownerUid == user.uid || it.ownerUid.isNullOrBlank() }
                 _state.update { it.copy(totalLocalEnsenanzas = count) }
             }
         }

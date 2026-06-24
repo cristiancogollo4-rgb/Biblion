@@ -132,171 +132,23 @@ fun ReaderScreen(
     onGuidedTutorialRestart: () -> Unit = {},
     onGuidedTutorialTargetAction: (String) -> Unit = {}
 ) {
-    val context = LocalContext.current
-    val configuration = LocalConfiguration.current
-    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val studyViewModel: StudyViewModel = viewModel()
+    @Suppress("UNUSED_PARAMETER")
+    val deprecatedInitialStudyMode = initialStudyMode
+    @Suppress("UNUSED_PARAMETER")
+    val deprecatedInitialStudyId = initialStudyId
 
-    var isStudyModeEnabled by remember { mutableStateOf(initialStudyMode) }
-    val studyUi by studyViewModel.state.collectAsState()
-    val studyFocusMode by remember { derivedStateOf { studyUi.focusMode } }
-
-    LaunchedEffect(initialStudyMode, initialStudyId) {
-        if (initialStudyMode) {
-            if (initialStudyId != null) {
-                studyViewModel.process(StudyIntent.SelectStudy(initialStudyId))
-            } else {
-                studyViewModel.process(StudyIntent.StartNewDraft)
-            }
-        }
-    }
-
-    // EFECTO DE ENTRADA: Forza horizontal solo si el modo estudio está activo
-    LaunchedEffect(isStudyModeEnabled, isLandscape) {
-        if (isStudyModeEnabled && !isLandscape) {
-            context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        }
-    }
-
-    // EFECTO DE SALIDA: Restaura vertical SIEMPRE que se destruya esta pantalla
-    DisposableEffect(Unit) {
-        onDispose {
-            context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
-        }
-    }
-
-    if (isStudyModeEnabled && isLandscape) {
-        Row(modifier = Modifier.fillMaxSize()) {
-            if (!studyFocusMode) {
-                Box(modifier = Modifier.weight(1f)) {
-                    StudyModeNavigation(
-                        initialBook = bookName,
-                        isDarkTheme = isDarkTheme,
-                        onToggleDarkTheme = onToggleDarkTheme,
-                        studyViewModel = studyViewModel
-                    )
-                }
-            }
-            Box(modifier = Modifier.weight(1f)) {
-                StudyEditorScreen(
-                    viewModel = studyViewModel,
-                    navController = navController,
-                    onFocusModeChanged = {},
-                    currentUserName = currentUserName,
-                    onClose = {
-                        // Al hacer popBackStack, el DisposableEffect de arriba se encargará de la orientación
-                        navController.popBackStackOrNavigateHome()
-                    }
-                )
-            }
-        }
-    } else {
-        ReaderContent(
-            navController = navController,
-            bookName = bookName,
-            isStudyModeActive = false,
-            viewModel = studyViewModel,
-            initialChapter = initialChapter,
-            targetVerse = targetVerse,
-            currentUserName = currentUserName,
-            guidedTutorial = guidedTutorial,
-            onGuidedTutorialNext = onGuidedTutorialNext,
-            onGuidedTutorialSkip = onGuidedTutorialSkip,
-            onGuidedTutorialRestart = onGuidedTutorialRestart,
-            onGuidedTutorialTargetAction = onGuidedTutorialTargetAction
-        )
-    }
-}
-
-@Composable
-/**
- * Navegación interna usada solo en el panel izquierdo cuando el modo estudio está activo.
- *
- * @param initialBook libro a abrir automáticamente al iniciar la navegación dividida.
- */
-private fun StudyModeNavigation(
-    initialBook: String?,
-    isDarkTheme: Boolean,
-    onToggleDarkTheme: (Boolean) -> Unit,
-    studyViewModel: StudyViewModel
-) {
-    val splitNavController = rememberNavController()
-
-    NavHost(navController = splitNavController, startDestination = Screen.Home.route) {
-        addSharedPrimaryDestinations(
-            navController = splitNavController,
-            openBooksInStudyMode = true,
-            isDarkTheme = isDarkTheme,
-            onToggleDarkTheme = onToggleDarkTheme
-        )
-        composable(
-            route = Screen.ReaderWithBook.route,
-            arguments = listOf(
-                navArgument("bookName") { type = NavType.StringType },
-                navArgument("studyMode") { type = NavType.BoolType; defaultValue = true },
-                navArgument("chapter") { type = NavType.IntType; defaultValue = 1 },
-                navArgument("verse") { type = NavType.StringType; defaultValue = "" },
-                navArgument("studyId") { type = NavType.LongType; defaultValue = -1L }
-            )
-        ) { backStackEntry ->
-            val encodedBook = backStackEntry.arguments?.getString("bookName") ?: ""
-            val book = decodeArg(encodedBook).ifBlank { null }
-            val initialChapter = backStackEntry.arguments?.getInt("chapter") ?: 1
-            val targetVerse = decodeArg(backStackEntry.arguments?.getString("verse") ?: "").ifBlank { null }
-            val studyId = backStackEntry.arguments?.getLong("studyId")?.takeIf { it > 0 }
-            LaunchedEffect(studyId) {
-                if (studyId != null) {
-                    studyViewModel.process(StudyIntent.SelectStudy(studyId))
-                }
-            }
-            ReaderContent(
-                navController = splitNavController,
-                bookName = book,
-                isStudyModeActive = true,
-                viewModel = studyViewModel,
-                initialChapter = initialChapter,
-                targetVerse = targetVerse,
-                guidedTutorial = null,
-                onGuidedTutorialTargetAction = {}
-            )
-        }
-        composable(
-            route = Screen.ReaderWithoutBook.route,
-            arguments = listOf(
-                navArgument("studyMode") { type = NavType.BoolType; defaultValue = true },
-                navArgument("chapter") { type = NavType.IntType; defaultValue = 1 },
-                navArgument("verse") { type = NavType.StringType; defaultValue = "" },
-                navArgument("studyId") { type = NavType.LongType; defaultValue = -1L }
-            )
-        ) { backStackEntry ->
-            val initialChapter = backStackEntry.arguments?.getInt("chapter") ?: 1
-            val targetVerse = decodeArg(backStackEntry.arguments?.getString("verse") ?: "").ifBlank { null }
-            val studyId = backStackEntry.arguments?.getLong("studyId")?.takeIf { it > 0 }
-            LaunchedEffect(studyId) {
-                if (studyId != null) {
-                    studyViewModel.process(StudyIntent.SelectStudy(studyId))
-                }
-            }
-            ReaderContent(
-                navController = splitNavController,
-                bookName = null,
-                isStudyModeActive = true,
-                viewModel = studyViewModel,
-                initialChapter = initialChapter,
-                targetVerse = targetVerse,
-                guidedTutorial = null,
-                onGuidedTutorialTargetAction = {}
-            )
-        }
-    }
-
-    LaunchedEffect(initialBook) {
-        if (!initialBook.isNullOrBlank()) {
-            splitNavController.navigate(Screen.Reader.createRoute(bookName = initialBook, studyMode = true)) {
-                popUpTo(Screen.Home.route)
-            }
-        }
-    }
+    ReaderContent(
+        navController = navController,
+        bookName = bookName,
+        initialChapter = initialChapter,
+        targetVerse = targetVerse,
+        currentUserName = currentUserName,
+        guidedTutorial = guidedTutorial,
+        onGuidedTutorialNext = onGuidedTutorialNext,
+        onGuidedTutorialSkip = onGuidedTutorialSkip,
+        onGuidedTutorialRestart = onGuidedTutorialRestart,
+        onGuidedTutorialTargetAction = onGuidedTutorialTargetAction
+    )
 }
 
 data class VerseAction(val number: String, val text: String)
@@ -395,8 +247,6 @@ internal fun buildCitationVerseGroups(
 fun ReaderContent(
     navController: NavController,
     bookName: String?,
-    isStudyModeActive: Boolean,
-    viewModel: StudyViewModel,
     initialChapter: Int = 1,
     targetVerse: String? = null,
     currentUserName: String? = null,
@@ -509,18 +359,10 @@ fun ReaderContent(
     }
 
     fun addSelectedCitations(includeFullText: Boolean) {
-        val targetBook = bookName ?: return
-        buildCitationVerseGroups(
-            bookName = targetBook,
-            chapter = selectedChapter,
-            selections = selectedVerseActions.values
-        ).forEach { group ->
-            viewModel.addCitation(
-                reference = group.reference,
-                text = group.text,
-                includeFullText = includeFullText
-            )
-        }
+        // La insercion de citas en el cuaderno se movio al flujo de StudyDocEditorRoute
+        // (modo estudio v2). Esta funcion queda como no-op para preservar la API interna.
+        @Suppress("UNUSED_PARAMETER")
+        val ignored = includeFullText
     }
 
     fun loadChapter(book: String, chapter: Int) {
@@ -673,7 +515,7 @@ fun ReaderContent(
                     fontSize = fontSize,
                     onNavigationIconClick = {
                         val popped = navController.popBackStackOrNavigateHome()
-                        if (isStudyModeActive && !popped) {
+                        if (!popped) {
                             context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                         }
                     },
@@ -865,35 +707,8 @@ fun ReaderContent(
                 )
             }
 
-            if (!isStudyModeActive) {
-                val selectedContext = selectedVerseActions.values
-                    .sortedBy { it.number.toIntOrNull() ?: Int.MAX_VALUE }
-                    .joinToString("\n") { selected ->
-                        "${bookName ?: ""} $selectedChapter:${selected.number} ${selected.text}"
-                    }
-                val selectedVerseNumbers = selectedVerseActions.keys
-                    .mapNotNull { it.toIntOrNull() }
-                    .toSet()
-                ReaderAssistantOverlay(
-                    bookName = bookName,
-                    chapter = selectedChapter,
-                    selectedVerses = selectedVerseNumbers,
-                    selectedText = selectedContext.ifBlank {
-                        "${bookName ?: ""} $selectedChapter"
-                    },
-                    currentUserName = currentUserName,
-                    onOpen = {
-                        onGuidedTutorialTargetAction(GuidedTutorialTargets.READER_BIBI_BUTTON)
-                    },
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(20.dp)
-                        .guidedTutorialTarget(
-                            GuidedTutorialTargets.READER_BIBI_BUTTON,
-                            tutorialTargetBounds
-                        )
-                )
-            }
+            // Overlay de Bibi removido con el modo estudio v1.
+            // La integracion de Bibi con el lector se reimplementara en una iteracion futura.
         }
 
         if (selectedVerseActions.isNotEmpty()) {
@@ -916,14 +731,7 @@ fun ReaderContent(
                     }
                     selectedVerseActions = emptyMap()
                 },
-                onAddCitation = if (isStudyModeActive) {
-                    {
-                        addSelectedCitations(includeFullText = true)
-                        selectedVerseActions = emptyMap()
-                    }
-                } else {
-                    null
-                },
+                onAddCitation = null,
                 onHighlight = { colorIndex ->
                     val currentStep = guidedTutorial?.currentStep()?.takeIf { it.screenTarget == GuidedTutorialScreenTarget.READER }
                     val isGuideHighlightStep = currentStep?.targetKey == GuidedTutorialTargets.READER_FIRST_VERSE

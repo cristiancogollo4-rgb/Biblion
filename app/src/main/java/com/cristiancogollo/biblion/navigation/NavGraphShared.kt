@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion
 
+import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
@@ -47,8 +48,16 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
         }
     }
 
-    composable(Screen.Ensenanzas.route) {
-        EnsenanzaScreen(navController)
+    // Alias deprecado: redirige a la lista de documentos v2
+    composable(Screen.Ensenanzas.route) { backStackEntry ->
+        LaunchedEffect(Unit) {
+            navController.navigate(StudyDocScreen.StudyDocsList.route) {
+                popUpTo(backStackEntry.destination.route ?: Screen.Ensenanzas.route) {
+                    inclusive = true
+                }
+                launchSingleTop = true
+            }
+        }
     }
 
     if (includeBooks) {
@@ -93,17 +102,19 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
         )
     }
 
+    // Alias deprecado: redirige a la lista de documentos v2
     composable(
         route = Screen.StudyRead.route,
         arguments = listOf(navArgument("studyId") { type = NavType.LongType })
     ) { backStackEntry ->
-        val studyId = backStackEntry.arguments?.getLong("studyId") ?: return@composable
-        StudyReadScreen(
-            navController = navController,
-            studyId = studyId,
-            isDarkTheme = isDarkTheme,
-            onToggleDarkTheme = onToggleDarkTheme
-        )
+        LaunchedEffect(Unit) {
+            navController.navigate(StudyDocScreen.StudyDocsList.route) {
+                popUpTo(backStackEntry.destination.route ?: Screen.StudyRead.route) {
+                    inclusive = true
+                }
+                launchSingleTop = true
+            }
+        }
     }
 
     // Rutas del modo estudio v2 (estudydocs)
