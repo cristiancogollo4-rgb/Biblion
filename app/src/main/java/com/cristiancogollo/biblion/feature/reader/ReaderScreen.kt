@@ -132,22 +132,174 @@ fun ReaderScreen(
     onGuidedTutorialRestart: () -> Unit = {},
     onGuidedTutorialTargetAction: (String) -> Unit = {}
 ) {
-    @Suppress("UNUSED_PARAMETER")
-    val deprecatedInitialStudyMode = initialStudyMode
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    var isStudyModeEnabled by remember { mutableStateOf(initialStudyMode) }
+    var isFocusMode by remember { mutableStateOf(false) }
+
     @Suppress("UNUSED_PARAMETER")
     val deprecatedInitialStudyId = initialStudyId
 
-    ReaderContent(
-        navController = navController,
-        bookName = bookName,
-        initialChapter = initialChapter,
-        targetVerse = targetVerse,
-        currentUserName = currentUserName,
-        guidedTutorial = guidedTutorial,
-        onGuidedTutorialNext = onGuidedTutorialNext,
-        onGuidedTutorialSkip = onGuidedTutorialSkip,
-        onGuidedTutorialRestart = onGuidedTutorialRestart,
-        onGuidedTutorialTargetAction = onGuidedTutorialTargetAction
+    // EFECTO DE ENTRADA: Forzar horizontal solo si el modo estudio está activo
+    LaunchedEffect(isStudyModeEnabled, isLandscape) {
+        if (isStudyModeEnabled && !isLandscape) {
+            context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        }
+    }
+
+    // EFECTO DE SALIDA: Restaura vertical SIEMPRE que se destruya esta pantalla
+    DisposableEffect(Unit) {
+        onDispose {
+            context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
+        }
+    }
+
+    if (isStudyModeEnabled && isLandscape) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            if (!isFocusMode) {
+                Box(modifier = Modifier.weight(1f)) {
+                    StudyModeNavigation(
+                        initialBook = bookName,
+                        isDarkTheme = isDarkTheme,
+                        onToggleDarkTheme = onToggleDarkTheme,
+                        currentUserName = currentUserName,
+                    )
+                }
+            }
+            Box(modifier = Modifier.weight(if (isFocusMode) 1f else 1f)) {
+                StudyDocEditorSplitContent(
+                    navController = navController,
+                    onFocusModeChanged = { isFocusMode = !isFocusMode },
+                )
+            }
+        }
+    } else {
+        ReaderContent(
+            navController = navController,
+            bookName = bookName,
+            initialChapter = initialChapter,
+            targetVerse = targetVerse,
+            currentUserName = currentUserName,
+            guidedTutorial = guidedTutorial,
+            onGuidedTutorialNext = onGuidedTutorialNext,
+            onGuidedTutorialSkip = onGuidedTutorialSkip,
+            onGuidedTutorialRestart = onGuidedTutorialRestart,
+            onGuidedTutorialTargetAction = onGuidedTutorialTargetAction
+        )
+    }
+}
+
+@Composable
+/**
+ * Navegación interna usada solo en el panel izquierdo cuando el modo estudio está activo.
+ *
+ * Provee un sub-NavHost con Biblion (Home, Books, Reader) para que el usuario
+ * pueda leer un capitulo a la izquierda mientras edita una ensenanza a la derecha.
+ *
+ * @param initialBook libro a abrir automáticamente al iniciar la navegación dividida.
+ */
+private fun StudyModeNavigation(
+    initialBook: String?,
+    isDarkTheme: Boolean,
+    onToggleDarkTheme: (Boolean) -> Unit,
+    currentUserName: String?,
+) {
+    val splitNavController = rememberNavController()
+
+    NavHost(navController = splitNavController, startDestination = Screen.Home.route) {
+        addSharedPrimaryDestinations(
+            navController = splitNavController,
+            openBooksInStudyMode = true,
+            isDarkTheme = isDarkTheme,
+            onToggleDarkTheme = onToggleDarkTheme,
+            currentUserName = currentUserName,
+        )
+        composable(
+            route = Screen.ReaderWithBook.route,
+            arguments = listOf(
+                navArgument("bookName") { type = NavType.StringType },
+                navArgument("studyMode") { type = NavType.BoolType; defaultValue = true },
+                navArgument("chapter") { type = NavType.IntType; defaultValue = 1 },
+                navArgument("verse") { type = NavType.StringType; defaultValue = "" },
+                navArgument("studyId") { type = NavType.LongType; defaultValue = -1L }
+            )
+        ) { backStackEntry ->
+            val encodedBook = backStackEntry.arguments?.getString("bookName") ?: ""
+            val book = decodeArg(encodedBook).ifBlank { null }
+            val initialChapter = backStackEntry.arguments?.getInt("chapter") ?: 1
+            val targetVerse = decodeArg(backStackEntry.arguments?.getString("verse") ?: "").ifBlank { null }
+            ReaderContent(
+                navController = splitNavController,
+                bookName = book,
+                initialChapter = initialChapter,
+                targetVerse = targetVerse,
+                currentUserName = currentUserName,
+                guidedTutorial = null,
+                onGuidedTutorialTargetAction = {}
+            )
+        }
+        composable(
+            route = Screen.ReaderWithoutBook.route,
+            arguments = listOf(
+                navArgument("studyMode") { type = NavType.BoolType; defaultValue = true },
+                navArgument("chapter") { type = NavType.IntType; defaultValue = 1 },
+                navArgument("verse") { type = NavType.StringType; defaultValue = "" },
+                navArgument("studyId") { type = NavType.LongType; defaultValue = -1L }
+            )
+        ) { backStackEntry ->
+            val initialChapter = backStackEntry.arguments?.getInt("chapter") ?: 1
+            val targetVerse = decodeArg(backStackEntry.arguments?.getString("verse") ?: "").ifBlank { null }
+            ReaderContent(
+                navController = splitNavController,
+                bookName = null,
+                initialChapter = initialChapter,
+                targetVerse = targetVerse,
+                currentUserName = currentUserName,
+                guidedTutorial = null,
+                onGuidedTutorialTargetAction = {}
+            )
+        }
+    }
+
+    LaunchedEffect(initialBook) {
+        if (!initialBook.isNullOrBlank()) {
+            splitNavController.navigate(
+                Screen.Reader.createRoute(bookName = initialBook, studyMode = true)
+            ) {
+                popUpTo(Screen.Home.route)
+            }
+        }
+    }
+}
+
+@Composable
+/**
+ * Panel derecho del split-screen: editor v2 con un boton de focus mode.
+ *
+ * El editor mantiene su propio StudyDocViewModel autocontenido (no comparte estado
+ * con el sub-NavHost de la izquierda).
+ */
+private fun StudyDocEditorSplitContent(
+    navController: NavController,
+    onFocusModeChanged: () -> Unit,
+) {
+    val context = LocalContext.current
+    val repository = remember {
+        com.cristiancogollo.biblion.feature.studydocs.data.StudyDocRepository(
+            com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDatabase.getInstance(context).studyDocDao()
+        )
+    }
+    val viewModel: com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel = viewModel(
+        factory = com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel.Factory(repository)
+    )
+    LaunchedEffect(Unit) { viewModel.newDraft() }
+
+    com.cristiancogollo.biblion.feature.studydocs.ui.editor.StudyDocEditorScreen(
+        viewModel = viewModel,
+        onBack = { navController.popBackStackOrNavigateHome() },
+        onFocusModeChanged = onFocusModeChanged,
     )
 }
 

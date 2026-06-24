@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.HorizontalDivider
@@ -84,6 +85,7 @@ import com.cristiancogollo.biblion.feature.studydocs.ui.outline.OutlinePanel
 fun StudyDocEditorScreen(
     viewModel: StudyDocViewModel,
     onBack: () -> Unit,
+    onFocusModeChanged: (() -> Unit)? = null,
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
@@ -167,6 +169,14 @@ fun StudyDocEditorScreen(
                     }
                 },
                 actions = {
+                    if (onFocusModeChanged != null) {
+                        IconButton(onClick = onFocusModeChanged) {
+                            Icon(
+                                Icons.Filled.AspectRatio,
+                                contentDescription = "Focus mode",
+                            )
+                        }
+                    }
                     IconButton(onClick = { showOutline = !showOutline }) {
                         Icon(androidx.compose.material.icons.Icons.Filled.MenuBook, contentDescription = "Outline")
                     }
