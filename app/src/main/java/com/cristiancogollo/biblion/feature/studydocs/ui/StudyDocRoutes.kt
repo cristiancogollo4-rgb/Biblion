@@ -24,6 +24,7 @@ fun StudyDocsListRoute(navController: NavController) {
         viewModel = viewModel,
         onBack = { navController.popBackStack() },
         onOpenDoc = { doc -> navController.navigate(Screen.StudyDocRead.createRoute(doc.id.value)) },
+        onEditDoc = { doc -> navController.navigate(Screen.StudyDocEditor.createRoute(doc.id.value)) },
         onNewDoc = { navController.navigate(Screen.StudyDocEditor.newRoute()) },
     )
 }
@@ -78,3 +79,6 @@ object Screen {
         const val ARG_REMOTE_ID: String = "remoteId"
     }
 }
+
+@Suppress("unused")
+private fun unusedDoc(@Suppress("UNUSED_PARAMETER") doc: StudyDoc) = Unit
