@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -18,17 +17,14 @@ val PaperWidthDp = 560.dp
 val PaperHeightDp = 900.dp
 
 /**
- * Hoja carta individual con altura fija.
+ * Hoja carta individual sin zoom.
  *
- * Ancho 560dp, altura 900dp (proporcion carta), fondo blanco con
- * sombra 4dp y borde gris de 0.5dp.
- *
- * El zoom se aplica via [zoomGraphics] a toda la hoja, escalando
- * texto, padding, bordes y bloques juntos.
+ * Ancho fijo 560dp, altura fija 900dp (proporcion carta), fondo blanco
+ * con sombra 4dp y borde gris de 0.5dp. El zoom se aplica externamente
+ * via un wrapper Box con graphicsLayer.
  */
 @Composable
 fun PaperSheet(
-    zoomState: MutableState<EditorZoomState>,
     modifier: Modifier = Modifier,
     content: @Composable (Modifier) -> Unit,
 ) {
@@ -39,8 +35,7 @@ fun PaperSheet(
         Surface(
             modifier = Modifier
                 .width(PaperWidthDp)
-                .height(PaperHeightDp)
-                .zoomGraphics(zoomState.value),
+                .height(PaperHeightDp),
             color = Color.White,
             shadowElevation = 4.dp,
             shape = RoundedCornerShape(4.dp),

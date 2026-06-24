@@ -354,10 +354,14 @@ fun StudyDocEditorScreen(
                     // el scroll del LazyColumn ni con la edicion de texto.
                     // Los botones +/- en el EditorTopBar son una alternativa al pinch.
                     Box(Modifier.fillMaxSize()) {
-                        PaginatedPaperSheet(
-                            blocks = uiState.doc.blocks,
-                            zoomState = zoomState,
-                        ) { index, block ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .zoomGraphics(zoomState.value),
+                        ) {
+                            PaginatedPaperSheet(
+                                blocks = uiState.doc.blocks,
+                            ) { index, block ->
                             BlockWithHandle(
                                         block = block,
                                         blockIndex = index,
@@ -383,6 +387,7 @@ fun StudyDocEditorScreen(
                                         onRegisterFocus = { fr -> focusRequesters[block.id] = fr },
                                     )
                             }
+                        }
                         }
                 }
             }
@@ -616,4 +621,5 @@ private fun BlockWithHandle(
         }
     }
 }
+
 

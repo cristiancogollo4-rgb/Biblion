@@ -2,6 +2,7 @@ package com.cristiancogollo.biblion.feature.studydocs.ui.editor
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,10 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -21,22 +19,18 @@ import androidx.compose.ui.unit.dp
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
 
 private val DeskGapColor = Color(0xFFE8EAED)
-private val BlocksPerPage = 30
+private const val BlocksPerPage = 30
 
 /**
- * Renderiza el documento como paginas carta apiladas verticalmente,
- * similar a Google Docs.
+ * Renderiza el documento como paginas carta apiladas verticalmente.
  *
- * Cada pagina es un [PaperSheet] que contiene hasta [BlocksPerPage]
- * bloques. Entre paginas hay un gap gris de 16dp que simula el
- * "escritorio" entre hojas.
- *
- * El zoom se aplica a cada PaperSheet individual via [zoomGraphics].
+ * Cada pagina contiene hasta [BlocksPerPage] bloques. Entre paginas
+ * hay un gap gris de 16dp. El zoom se aplica externamente via un
+ * wrapper Box con graphicsLayer.
  */
 @Composable
 fun PaginatedPaperSheet(
     blocks: List<StudyBlock>,
-    zoomState: MutableState<EditorZoomState>,
     modifier: Modifier = Modifier,
     renderBlock: @Composable (Int, StudyBlock) -> Unit,
 ) {
@@ -51,9 +45,8 @@ fun PaginatedPaperSheet(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.TopCenter,
             ) {
-                PaperSheet(zoomState = zoomState) { innerModifier ->
-                    // Contenido de la pagina: bloques en columna con padding interno
-                    androidx.compose.foundation.layout.Column(
+                PaperSheet { innerModifier ->
+                    Column(
                         modifier = innerModifier
                             .fillMaxSize()
                             .padding(vertical = 80.dp, horizontal = 64.dp),
@@ -66,7 +59,6 @@ fun PaginatedPaperSheet(
                 }
             }
 
-            // Gap entre paginas (solo si no es la ultima)
             if (pageIndex < pages.lastIndex) {
                 Spacer(
                     modifier = Modifier

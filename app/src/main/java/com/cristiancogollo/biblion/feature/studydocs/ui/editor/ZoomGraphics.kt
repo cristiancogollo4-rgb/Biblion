@@ -6,12 +6,11 @@ import androidx.compose.ui.graphics.graphicsLayer
 
 /**
  * Aplica el [EditorZoomState] como una transformacion graphics-layer
- * uniforme sobre el editor: scaleX = scaleY = state.scale.
- *
- * El origen de la transformacion es el centro de la pantalla (0.5, 0.5).
+ * uniforme. Usa top-center como origen para que el zoom expanda el
+ * contenido hacia abajo y a los lados desde el centro superior.
  */
 fun Modifier.zoomGraphics(state: EditorZoomState): Modifier = this.graphicsLayer {
     scaleX = state.scale
     scaleY = state.scale
-    transformOrigin = TransformOrigin(pivotFractionX = 0.5f, pivotFractionY = 0.5f)
+    transformOrigin = TransformOrigin(pivotFractionX = 0.5f, pivotFractionY = 0f)
 }
