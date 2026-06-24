@@ -298,18 +298,22 @@ fun StudyDocEditorScreen(
                         isZoomModified = zoomState.value.scale != EditorZoomState.Initial.scale,
                         onResetZoom = { zoomState.value = EditorZoomState.Initial },
                     )
-                    // Overlay invisible para capturar gestos de pinch.
-                    // PointerEventPass.Initial permite que el LazyColumn scrollee
-                    // mientras el pinch detecta 2+ dedos simultaneamente.
-                    Box(Modifier.fillMaxSize()) {
-                        Box(Modifier.fillMaxSize().verticalPinchZoom(zoomState))
+                    // El pinch-to-zoom se aplica al Box contenedor (padre)
+                    // para que todos los hijos reciban eventos de toque sin
+                    // conflicto de Z-order. PointerEventPass.Initial observa
+                    // sin consumir; el LazyColumn recibe scroll normalmente.
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalPinchZoom(zoomState),
+                    ) {
                         PaperSheet(
                             zoomState = zoomState,
                         ) { innerModifier ->
                             LazyColumn(
                                 state = listState,
                                 modifier = innerModifier.fillMaxSize(),
-                                contentPadding = PaddingValues(vertical = 60.dp, horizontal = 72.dp),
+                                contentPadding = PaddingValues(vertical = 80.dp, horizontal = 64.dp),
                                 verticalArrangement = Arrangement.spacedBy(4.dp),
                             ) {
                                 itemsIndexed(uiState.doc.blocks, key = { _, b -> b.id.value }) { index, block ->

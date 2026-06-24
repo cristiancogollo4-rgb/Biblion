@@ -1,7 +1,7 @@
 package com.cristiancogollo.biblion.feature.studydocs.ui.editor
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,12 +13,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
+private val PaperBorderGray = Color(0xFFDADCE0)
+private val PaperWidthMax = 560.dp
+
 /**
  * Hoja carta que envuelve el contenido del editor.
  *
- * Centrada horizontalmente, ancho maximo 600dp (tamano carta),
- * altura segun el espacio disponible (`fillMaxSize`), fondo blanco
- * con sombra de 4dp para simular una hoja de papel real.
+ * Centrada horizontalmente, ancho maximo 560dp (proporcion carta), altura
+ * segun el espacio disponible (`fillMaxSize`), fondo blanco con sombra
+ * de 4dp y borde gris sutil de 0.5dp para simular una hoja de papel real.
  *
  * El zoom se aplica via [zoomGraphics] a toda la hoja, escalando
  * texto, padding, bordes y bloques juntos, como Google Docs.
@@ -39,12 +42,13 @@ fun PaperSheet(
     ) {
         Surface(
             modifier = Modifier
-                .widthIn(max = 600.dp)
+                .widthIn(max = PaperWidthMax)
                 .fillMaxSize()
                 .zoomGraphics(zoomState.value),
             color = Color.White,
             shadowElevation = 4.dp,
-            shape = RoundedCornerShape(2.dp),
+            shape = RoundedCornerShape(4.dp),
+            border = BorderStroke(0.5.dp, PaperBorderGray),
         ) {
             content(Modifier)
         }
