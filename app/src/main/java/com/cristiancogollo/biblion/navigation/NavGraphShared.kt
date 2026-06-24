@@ -8,6 +8,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.cristiancogollo.biblion.feature.search.ExploreTopicsScreen
 import com.cristiancogollo.biblion.feature.search.ExploreCategoryScreen
+import com.cristiancogollo.biblion.feature.search.SearchScope
 import com.cristiancogollo.biblion.feature.studydocs.ui.StudyDocEditorRoute
 import com.cristiancogollo.biblion.feature.studydocs.ui.StudyDocReadRoute
 import com.cristiancogollo.biblion.feature.studydocs.ui.StudyDocsListRoute
@@ -83,8 +84,13 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
         }
     }
 
-    composable(Screen.Search.route) {
-        SearchScreen(navController)
+    composable(
+        route = Screen.Search.route,
+        arguments = listOf(navArgument("scope") { type = NavType.StringType; defaultValue = "bible" })
+    ) { backStackEntry ->
+        val scopeArg = backStackEntry.arguments?.getString("scope")
+        val scope = SearchScope.fromRouteArg(scopeArg)
+        SearchScreen(navController = navController, scope = scope)
     }
 
     composable(Screen.ExploreTopics.route) {
@@ -142,6 +148,18 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
         StudyDocReadRoute(
             navController = navController,
             remoteId = remoteId,
+        )
+    }
+
+    composable(
+        route = Screen.DictionaryEntry.route,
+        arguments = listOf(navArgument(Screen.DictionaryEntry.ARG_ENTRY_ID) { type = NavType.LongType })
+    ) { backStackEntry ->
+        val entryId = backStackEntry.arguments?.getLong(Screen.DictionaryEntry.ARG_ENTRY_ID)
+            ?: return@composable
+        com.cristiancogollo.biblion.feature.dictionary.ui.DictionaryEntryDetailScreen(
+            navController = navController,
+            entryId = entryId,
         )
     }
 }

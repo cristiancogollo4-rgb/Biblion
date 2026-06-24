@@ -93,6 +93,7 @@ private enum class AppDrawerOption(val labelRes: Int) {
     PROFILE(R.string.drawer_profile),
     PICK_VERSION(R.string.drawer_pick_version),
     MY_TEACHINGS(R.string.drawer_my_teachings),
+    DICTIONARY(R.string.drawer_dictionary),
     DOCTRINES(R.string.drawer_doctrines),
     BIBLION(R.string.drawer_biblion),
     STUDY_MODE(R.string.drawer_study_mode),
@@ -175,6 +176,7 @@ fun BiblionAppDrawer(
     onNavigateHome: () -> Unit,
     onNavigateToProfile: () -> Unit,
     onNavigateToTeachings: () -> Unit,
+    onNavigateToDictionary: () -> Unit,
     onNavigateToStudyMode: () -> Unit,
     onPickVersion: () -> Unit,
     onShowComingSoon: () -> Unit,
@@ -186,6 +188,7 @@ fun BiblionAppDrawer(
         AppDrawerOption.PROFILE,
         AppDrawerOption.PICK_VERSION,
         AppDrawerOption.MY_TEACHINGS,
+        AppDrawerOption.DICTIONARY,
         AppDrawerOption.DOCTRINES,
         AppDrawerOption.BIBLION,
         AppDrawerOption.STUDY_MODE,
@@ -224,6 +227,7 @@ fun BiblionAppDrawer(
                         AppDrawerOption.PROFILE -> onNavigateToProfile()
                         AppDrawerOption.PICK_VERSION -> onPickVersion()
                         AppDrawerOption.MY_TEACHINGS -> onNavigateToTeachings()
+                        AppDrawerOption.DICTIONARY -> onNavigateToDictionary()
                         AppDrawerOption.DOCTRINES,
                         AppDrawerOption.BIBLION -> onShowComingSoon()
                         AppDrawerOption.STUDY_MODE -> onNavigateToStudyMode()

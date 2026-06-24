@@ -81,8 +81,10 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.cristiancogollo.biblion.feature.search.AutoScrollingTopicCarousel
 import com.cristiancogollo.biblion.feature.search.CategoryLabels
+import com.cristiancogollo.biblion.feature.search.DictionarySearchContent
 import com.cristiancogollo.biblion.feature.search.PopularTopic
 import com.cristiancogollo.biblion.feature.search.PopularTopicsData
+import com.cristiancogollo.biblion.feature.search.SearchScope
 import com.cristiancogollo.biblion.feature.search.TopicHit
 import com.cristiancogollo.biblion.feature.search.TopicsSection
 import com.cristiancogollo.biblion.feature.search.data.SearchHistoryEntry
@@ -138,9 +140,12 @@ sealed interface SearchUiState {
 
 @OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
 @Composable
-fun SearchScreen(navController: NavController) {
+fun SearchScreen(
+    navController: NavController,
+    scope: SearchScope = SearchScope.BIBLE,
+) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
+    val coroutineScope = rememberCoroutineScope()
 
     var searchQuery by remember { mutableStateOf("") }
     var uiState by remember { mutableStateOf<SearchUiState>(SearchUiState.Idle) }
@@ -276,7 +281,7 @@ fun SearchScreen(navController: NavController) {
             .filter { it.trim().length >= 2 }
             .distinctUntilChanged()
             .collectLatest { query ->
-                scope.launch { executeSearch(query) }
+                coroutineScope.launch { executeSearch(query) }
             }
     }
 
@@ -291,7 +296,7 @@ fun SearchScreen(navController: NavController) {
     }
 
     fun clearAllHistory() {
-        scope.launch {
+        coroutineScope.launch {
             SearchHistoryRepository.clearAll(context)
             recentSearches = emptyList()
         }
@@ -354,6 +359,14 @@ fun SearchScreen(navController: NavController) {
             )
         }
     ) { innerPadding ->
+        if (scope == SearchScope.DICTIONARY) {
+            // Vista de diccionario: su propio input, chips de categoria y resultados.
+            DictionarySearchContent(
+                navController = navController,
+                paddingValues = innerPadding,
+            )
+            return@Scaffold
+        }
         Column(
             modifier = Modifier
                 .padding(innerPadding)

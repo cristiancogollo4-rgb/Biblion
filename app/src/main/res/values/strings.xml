@@ -9,8 +9,17 @@
     <string name="drawer_my_teachings">My teachings</string>
     <string name="drawer_doctrines">Doctrines</string>
     <string name="drawer_biblion">Biblion</string>
+    <string name="drawer_dictionary">Biblical dictionary</string>
     <string name="drawer_study_mode">Study mode</string>
     <string name="drawer_about_us">About us</string>
+
+    <string name="search_scope_bible">Bible</string>
+    <string name="search_scope_dictionary">Dictionary</string>
+    <string name="search_section_dictionary_title">Biblical terms</string>
+    <string name="search_section_dictionary_empty">No matching terms</string>
+    <string name="search_section_dictionary_hint">Search people, places and concepts</string>
+    <string name="search_dictionary_all_categories">All</string>
+    <string name="search_dictionary_count">%1$d terms</string>
 
     <string name="reader_label">Reader</string>
     <string name="sign_in">Sign in</string>

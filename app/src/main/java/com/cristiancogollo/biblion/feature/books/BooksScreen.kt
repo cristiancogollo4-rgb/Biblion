@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.cristiancogollo.biblion.feature.search.SearchScope
 import com.cristiancogollo.biblion.feature.studydocs.ui.Screen as StudyDocScreen
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import kotlinx.coroutines.launch
@@ -135,6 +136,9 @@ fun BooksScreen(
                     onNavigateToProfile = onNavigateToProfile,
                     onNavigateToTeachings = {
                         navController.navigateSingleTop(StudyDocScreen.StudyDocsList.route)
+                    },
+                    onNavigateToDictionary = {
+                        navController.navigateSingleTop(Screen.Search.createRoute(SearchScope.DICTIONARY))
                     },
                     onNavigateToStudyMode = {
                         navController.navigateSingleTop(StudyDocScreen.StudyDocsList.route)

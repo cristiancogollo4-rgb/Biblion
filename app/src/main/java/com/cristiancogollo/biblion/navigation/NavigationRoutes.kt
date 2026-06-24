@@ -1,6 +1,7 @@
 package com.cristiancogollo.biblion
 
 import androidx.navigation.NavController
+import com.cristiancogollo.biblion.feature.search.SearchScope
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -10,7 +11,9 @@ private val utf8: String = StandardCharsets.UTF_8.toString()
 sealed class Screen(val route: String) {
     data object Home : Screen("home")
     data object Ensenanzas : Screen("ensenanzas")
-    data object Search : Screen("search")
+    data object Search : Screen("search?scope={scope}") {
+        fun createRoute(scope: SearchScope = SearchScope.BIBLE): String = "search?scope=${scope.name.lowercase()}"
+    }
     data object Profile : Screen("profile")
     data object Login : Screen("login")
     data object Register : Screen("register")
@@ -58,6 +61,11 @@ sealed class Screen(val route: String) {
 
     data object ExploreCategory : Screen("explore_category/{category}") {
         fun createRoute(category: String): String = "explore_category/${encodeArg(category)}"
+    }
+
+    data object DictionaryEntry : Screen("dictionary/entry/{entryId}") {
+        fun createRoute(entryId: Long): String = "dictionary/entry/$entryId"
+        const val ARG_ENTRY_ID: String = "entryId"
     }
 }
 
