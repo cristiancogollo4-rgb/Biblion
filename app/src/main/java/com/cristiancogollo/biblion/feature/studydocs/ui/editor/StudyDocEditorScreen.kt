@@ -97,30 +97,33 @@ fun StudyDocEditorScreen(
     var showSaveDialog by remember { mutableStateOf(false) }
     val selectionState = remember { SelectionState() }
     val focusRequesters = remember { androidx.compose.runtime.mutableStateMapOf<BlockId, androidx.compose.ui.focus.FocusRequester>() }
+    val context = androidx.compose.ui.platform.LocalContext.current
     val zoomState = remember { mutableStateOf(EditorZoomState.Initial) }
 
     // ScaleGestureDetector nativo de Android para pinch-to-zoom.
-    // Opera a nivel de View (no Compose), asi no interfiere con el
-    // scroll del LazyColumn ni con la edicion de texto.
-    val view = androidx.compose.ui.platform.LocalView.current
+    // Se registra en el decorView de la Activity (raiz de la ventana),
+    // que recibe eventos ANTES que cualquier View de Compose. Esto
+    // permite que el pinch se detecte sin interferir con el pipeline
+    // de eventos del LazyColumn (scroll + edicion de texto).
+    val activity = (context as android.app.Activity)
     val scaleDetector = remember {
         android.view.ScaleGestureDetector(
-            view.context,
+            context,
             object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
                 override fun onScale(detector: android.view.ScaleGestureDetector): Boolean {
                     zoomState.value = zoomState.value.applyPinch(detector.scaleFactor)
                     return true
                 }
             },
-        )
+        ).apply { isQuickScaleEnabled = true }
     }
     DisposableEffect(Unit) {
-        view.setOnTouchListener { _, event ->
+        activity.window.decorView.setOnTouchListener { _, event ->
             scaleDetector.onTouchEvent(event)
             false // NUNCA consumir: pasar a Compose -> LazyColumn
         }
         onDispose {
-            view.setOnTouchListener(null)
+            activity.window.decorView.setOnTouchListener(null)
         }
     }
 
