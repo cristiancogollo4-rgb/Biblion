@@ -82,10 +82,17 @@
     <string name="guide_reader_bibi_body">If you find a passage difficult to understand or have a question during your reading, you can ask me at any time.\n\nLet us open the chat so you know where to find me.</string>
     <string name="guide_reader_bibi_chat_title">First conversation</string>
     <string name="guide_reader_bibi_chat_body">Perfect.\n\nThis is the space where we can talk. You can ask questions about verses, people, biblical events, or any topic related to your reading.\n\nYou do not need to write anything now.</string>
+    <string name="bibi_greeting">Hello %1$s! I am Bibi, your biblical assistant. How can I help you with your reading?</string>
+    <string name="bibi_greeting_no_name">Hello! I am Bibi, your biblical assistant. How can I help you with your reading?</string>
+    <string name="cd_bibi">Bibi assistant</string>
     <string name="guide_reader_deeper_title">Beyond reading</string>
-    <string name="guide_reader_deeper_body">For many people, daily reading is more than enough, and Biblion is ready to accompany them on that path.\n\nBut sometimes a reading awakens new questions, ideas, or themes that deserve deeper exploration.</string>
-    <string name="guide_reading_finish_title">¡Listo para comenzar!</string>
-    <string name="guide_reading_finish_body">¡Ya sabes lo esencial! 🎉\n\nPuedes encontrar libros, leer pasajes, resaltar versículos, cambiar de versión y preguntarme cuando tengas dudas.\n\nSi en el futuro quieres repetir este recorrido, ve a tu Perfil y toca "Reiniciar tutorial de lectura".\n\n¡Que disfrutes tu tiempo en la Palabra de Dios! 📖✨\n\n— Bibi</string>
+    <string name="guide_reader_deeper_body">For many people, daily reading is more than enough, and Biblion is ready to accompany them on that path.\n\nBut sometimes a reading awakens new questions, ideas, or themes that deserve deeper exploration. Bibi is always here to help you go further.</string>
+    <string name="guide_book_description_title">Know every book</string>
+    <string name="guide_book_description_body">Did you know you can learn about each book of the Bible?\n\nPress and hold any book to see a brief description, how many verses it has, and start reading directly from there.</string>
+    <string name="guide_dictionary_title">Biblical dictionary</string>
+    <string name="guide_dictionary_body">Biblion has a biblical dictionary with over 6,000 entries.\n\nFrom the Search tab, tap the dictionary button to explore people, places, concepts, and more — all organized by category.</string>
+    <string name="guide_reading_finish_title">Ready to start!</string>
+    <string name="guide_reading_finish_body">You now know the essentials! 🎉\n\nYou can find books, read passages, highlight verses, change versions, explore the biblical dictionary, and ask me anything.\n\nIf you ever want to take this tour again, go to your Profile and tap \"Restart reading tutorial\".\n\nEnjoy your time in the Word of God! 📖✨\n\n— Bibi</string>
     <string name="guide_study_entry_title">Move from reading to preparing</string>
     <string name="guide_study_entry_body">From here you can create a teaching and enter Biblion\'s real editor.</string>
     <string name="guide_explore_reading_title">Bible reading</string>
@@ -255,4 +262,26 @@
     <string name="dictionary_detail_bibi_started">Chat with Bibi opened in your history</string>
 
     <string name="cancel">CANCEL</string>
+
+    <!-- Dictionary category screen -->
+    <string name="dictionary_screen_title">Biblical dictionary</string>
+    <string name="dictionary_screen_subtitle">Explore people, places and concepts from the Bible</string>
+    <string name="dictionary_screen_search_hint">Search a biblical term</string>
+    <string name="dictionary_category_person">Biblical people</string>
+    <string name="dictionary_category_person_desc">Patriarchs, prophets, kings and characters from the Old and New Testament</string>
+    <string name="dictionary_category_place">Biblical places</string>
+    <string name="dictionary_category_place_desc">Cities, mountains, rivers and regions mentioned in the Scriptures</string>
+    <string name="dictionary_category_concept">Concepts</string>
+    <string name="dictionary_category_concept_desc">Theological ideas, virtues, vices and doctrinal terms</string>
+    <string name="dictionary_category_object">Objects</string>
+    <string name="dictionary_category_object_desc">Instruments, clothing, food and elements of worship</string>
+    <string name="dictionary_category_practice">Practices</string>
+    <string name="dictionary_category_practice_desc">Rituals, customs, ceremonies and habits of God\'s people</string>
+    <string name="dictionary_category_event">Events</string>
+    <string name="dictionary_category_event_desc">Battles, miracles, feasts and fundamental events</string>
+    <string name="dictionary_category_other">General</string>
+    <string name="dictionary_category_other_desc">Various terms, languages, measurements and diverse concepts</string>
+    <string name="dictionary_category_book">Biblical books</string>
+    <string name="dictionary_category_book_desc">Introductions, context and key details for each book of the Bible</string>
+    <string name="dictionary_category_entries">%1$d terms</string>
 </resources>
