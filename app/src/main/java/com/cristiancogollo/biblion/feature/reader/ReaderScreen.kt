@@ -131,7 +131,8 @@ fun ReaderScreen(
     onGuidedTutorialNext: () -> Unit = {},
     onGuidedTutorialSkip: () -> Unit = {},
     onGuidedTutorialRestart: () -> Unit = {},
-    onGuidedTutorialTargetAction: (String) -> Unit = {}
+    onGuidedTutorialTargetAction: (String) -> Unit = {},
+    onTutorialEvent: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -187,7 +188,8 @@ fun ReaderScreen(
             onGuidedTutorialNext = onGuidedTutorialNext,
             onGuidedTutorialSkip = onGuidedTutorialSkip,
             onGuidedTutorialRestart = onGuidedTutorialRestart,
-            onGuidedTutorialTargetAction = onGuidedTutorialTargetAction
+            onGuidedTutorialTargetAction = onGuidedTutorialTargetAction,
+            onTutorialEvent = onTutorialEvent
         )
     }
 }
@@ -407,7 +409,8 @@ fun ReaderContent(
     onGuidedTutorialNext: () -> Unit = {},
     onGuidedTutorialSkip: () -> Unit = {},
     onGuidedTutorialRestart: () -> Unit = {},
-    onGuidedTutorialTargetAction: (String) -> Unit = {}
+    onGuidedTutorialTargetAction: (String) -> Unit = {},
+    onTutorialEvent: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -865,7 +868,8 @@ fun ReaderContent(
                 chapter = selectedChapter,
                 currentUserName = currentUserName,
                 tutorialTargetBounds = tutorialTargetBounds,
-                onGuidedTutorialTargetAction = onGuidedTutorialTargetAction
+                onGuidedTutorialTargetAction = onGuidedTutorialTargetAction,
+                onTutorialEvent = onTutorialEvent
             )
         }
 

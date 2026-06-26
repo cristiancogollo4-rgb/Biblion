@@ -228,6 +228,15 @@ fun AppNavigation(
         }
     }
 
+    fun handleTutorialEvent(event: String) {
+        val currentStep = activeGuidedTutorial?.currentStep() ?: return
+        Log.d("GUIDE_DEBUG", "handleTutorialEvent event=$event currentStep=${currentStep.id} advanceOnEvent=${currentStep.advanceOnEvent}")
+        if (currentStep.advanceOnEvent == event) {
+            Log.d("GUIDE_DEBUG", "Advancing tutorial from step ${currentStep.id} via event $event")
+            advanceGuidedTutorial()
+        }
+    }
+
     var didResumeGuidedTutorial by remember { mutableStateOf(false) }
 
     LaunchedEffect(activeGuidedTutorial?.guideId, activeGuidedTutorial?.stepIndex) {
@@ -423,7 +432,8 @@ fun AppNavigation(
                 onGuidedTutorialNext = ::advanceGuidedTutorial,
                 onGuidedTutorialSkip = ::skipGuidedTutorial,
                 onGuidedTutorialRestart = ::restartGuidedTutorial,
-                onGuidedTutorialTargetAction = ::handleGuidedTutorialTargetAction
+                onGuidedTutorialTargetAction = ::handleGuidedTutorialTargetAction,
+                onTutorialEvent = ::handleTutorialEvent
             )
         }
 
@@ -466,7 +476,8 @@ fun AppNavigation(
                 onGuidedTutorialNext = ::advanceGuidedTutorial,
                 onGuidedTutorialSkip = ::skipGuidedTutorial,
                 onGuidedTutorialRestart = ::restartGuidedTutorial,
-                onGuidedTutorialTargetAction = ::handleGuidedTutorialTargetAction
+                onGuidedTutorialTargetAction = ::handleGuidedTutorialTargetAction,
+                onTutorialEvent = ::handleTutorialEvent
             )
         }
 

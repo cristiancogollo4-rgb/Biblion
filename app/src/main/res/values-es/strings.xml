@@ -79,7 +79,7 @@
     <string name="guide_reader_version_title">Cambiar de versión bíblica</string>
     <string name="guide_reader_version_body">En ocasiones puede ser útil comparar distintas traducciones para comprender mejor un pasaje.\n\nDesde aquí puedes cambiar la versión bíblica que estás utilizando en cualquier momento.</string>
     <string name="guide_reader_bibi_title">Consultar a Bibi</string>
-    <string name="guide_reader_bibi_body">Si encuentras un pasaje difícil de comprender o tienes una pregunta durante tu lectura, puedes consultarme en cualquier momento.\n\nVamos a abrir el chat para que conozcas dónde encontrarme.</string>
+    <string name="guide_reader_bibi_body">Si encuentras un pasaje difícil de comprender o tienes una pregunta durante tu lectura, puedes consultarme en cualquier momento.\n\nPregunta \"¿Quién fue Moisés?\" en el chat para continuar.</string>
     <string name="guide_reader_bibi_chat_title">Primera conversación</string>
     <string name="guide_reader_bibi_chat_body">¡Perfecto!\n\nEste es el espacio donde podremos conversar. Puedes hacer preguntas sobre versículos, personajes, acontecimientos bíblicos o cualquier tema relacionado con tu lectura.\n\nNo necesitas escribir nada ahora.</string>
     <string name="bibi_greeting">¡Hola %1$s! Soy Bibi, tu asistente bíblico. ¿En qué puedo ayudarte con tu lectura?</string>

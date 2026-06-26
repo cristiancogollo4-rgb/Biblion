@@ -94,7 +94,8 @@ data class GuidedTutorialStep(
     val screenTarget: GuidedTutorialScreenTarget,
     @StringRes val primaryLabelRes: Int = R.string.guide_next,
     @StringRes val secondaryLabelRes: Int = R.string.guide_skip,
-    private val secondaryAction: GuidedTutorialSecondaryAction = GuidedTutorialSecondaryAction.SKIP
+    private val secondaryAction: GuidedTutorialSecondaryAction = GuidedTutorialSecondaryAction.SKIP,
+    val advanceOnEvent: String? = null
 ) {
     val restartsGuide: Boolean
         get() = secondaryAction == GuidedTutorialSecondaryAction.RESTART
@@ -202,7 +203,7 @@ fun guidedTutorialSteps(guideId: GuidedTutorialId): List<GuidedTutorialStep> {
             targetKey = GuidedTutorialTargets.READER_BIBI_CHAT_PANEL,
             actionRequired = false,
             screenTarget = GuidedTutorialScreenTarget.READER,
-            primaryLabelRes = R.string.guide_continue
+            advanceOnEvent = "chat_exchange_completed"
         ),
         GuidedTutorialStep(
             id = "reader-dictionary",

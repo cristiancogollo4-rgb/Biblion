@@ -51,6 +51,7 @@ fun BibiReaderOverlay(
     currentUserName: String?,
     tutorialTargetBounds: MutableMap<String, androidx.compose.ui.geometry.Rect>,
     onGuidedTutorialTargetAction: (String) -> Unit = {},
+    onTutorialEvent: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -109,6 +110,7 @@ fun BibiReaderOverlay(
             )
             isLoading = false
             scrollToBottom()
+            onTutorialEvent("chat_exchange_completed")
 
             if (currentSessionId == null) {
                 currentSessionId = ChatSessionRepository.createSession(
