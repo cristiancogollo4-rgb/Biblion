@@ -294,7 +294,6 @@ fun BooksScreen(
                                 )
                             },
                             onLongClick = {
-                                onGuidedTutorialTargetAction(GuidedTutorialTargets.BOOKS_LONG_PRESS)
                                 val slug = bookName.toBookTopicSlug()
                                 selectedBookForDetail = bookName
                                 scope.launch {

@@ -105,7 +105,6 @@ object GuidedTutorialTargets {
     const val HOME_DAILY_VERSE = "home_daily_verse"
     const val HOME_STUDY_ENTRY = "home_study_entry"
     const val BOOKS_FIRST_BOOK = "books_first_book"
-    const val BOOKS_LONG_PRESS = "books_long_press"
     const val READER_CHAPTER_SELECTOR = "reader_chapter_selector"
     const val READER_TEXT = "reader_text"
     const val READER_FIRST_VERSE = "reader_first_verse"
@@ -135,15 +134,6 @@ fun guidedTutorialSteps(guideId: GuidedTutorialId): List<GuidedTutorialStep> {
             targetKey = GuidedTutorialTargets.HOME_TESTAMENT_SELECTOR,
             actionRequired = true,
             screenTarget = GuidedTutorialScreenTarget.HOME
-        ),
-        GuidedTutorialStep(
-            id = "book-description",
-            titleRes = R.string.guide_book_description_title,
-            descriptionRes = R.string.guide_book_description_body,
-            targetKey = GuidedTutorialTargets.BOOKS_LONG_PRESS,
-            actionRequired = false,
-            screenTarget = GuidedTutorialScreenTarget.BOOKS,
-            primaryLabelRes = R.string.guide_continue
         ),
         GuidedTutorialStep(
             id = "reading-book",
@@ -188,14 +178,6 @@ fun guidedTutorialSteps(guideId: GuidedTutorialId): List<GuidedTutorialStep> {
             primaryLabelRes = R.string.guide_understood
         ),
         GuidedTutorialStep(
-            id = "reader-bibi",
-            titleRes = R.string.guide_reader_bibi_title,
-            descriptionRes = R.string.guide_reader_bibi_body,
-            targetKey = GuidedTutorialTargets.READER_BIBI_BUTTON,
-            actionRequired = true,
-            screenTarget = GuidedTutorialScreenTarget.READER
-        ),
-        GuidedTutorialStep(
             id = "reader-bibi-chat",
             titleRes = R.string.guide_reader_bibi_chat_title,
             descriptionRes = R.string.guide_reader_bibi_chat_body,
@@ -205,12 +187,20 @@ fun guidedTutorialSteps(guideId: GuidedTutorialId): List<GuidedTutorialStep> {
             primaryLabelRes = R.string.guide_continue
         ),
         GuidedTutorialStep(
+            id = "reader-bibi",
+            titleRes = R.string.guide_reader_bibi_title,
+            descriptionRes = R.string.guide_reader_bibi_body,
+            targetKey = GuidedTutorialTargets.READER_BIBI_BUTTON,
+            actionRequired = true,
+            screenTarget = GuidedTutorialScreenTarget.READER
+        ),
+        GuidedTutorialStep(
             id = "reader-dictionary",
             titleRes = R.string.guide_dictionary_title,
             descriptionRes = R.string.guide_dictionary_body,
             targetKey = null,
             actionRequired = false,
-            screenTarget = GuidedTutorialScreenTarget.HOME,
+            screenTarget = GuidedTutorialScreenTarget.READER,
             primaryLabelRes = R.string.guide_continue
         ),
         GuidedTutorialStep(
