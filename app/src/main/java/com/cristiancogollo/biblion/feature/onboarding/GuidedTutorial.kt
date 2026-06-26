@@ -221,9 +221,8 @@ fun guidedTutorialSteps(guideId: GuidedTutorialId): List<GuidedTutorialStep> {
             titleRes = R.string.guide_dictionary_title,
             descriptionRes = R.string.guide_dictionary_body,
             targetKey = GuidedTutorialTargets.READER_SEARCH_ICON,
-            actionRequired = false,
-            screenTarget = GuidedTutorialScreenTarget.READER,
-            primaryLabelRes = R.string.guide_continue
+            actionRequired = true,
+            screenTarget = GuidedTutorialScreenTarget.READER
         ),
         GuidedTutorialStep(
             id = "reading-finish",

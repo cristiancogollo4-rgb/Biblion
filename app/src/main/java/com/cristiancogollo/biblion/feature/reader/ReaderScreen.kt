@@ -682,7 +682,10 @@ fun ReaderContent(
                             direction = if (it >= selectedChapter) 1 else -1
                         )
                     },
-                    onSearchIconClick = { navController.navigate(Screen.Search.route) },
+                    onSearchIconClick = {
+                        onGuidedTutorialTargetAction(GuidedTutorialTargets.READER_SEARCH_ICON)
+                        navController.navigate(Screen.Search.route)
+                    },
                     onBookTitleClick = { showDialog = true },
                     onIncreaseFontSize = {
                         if (fontSizeValue < 35f) {
