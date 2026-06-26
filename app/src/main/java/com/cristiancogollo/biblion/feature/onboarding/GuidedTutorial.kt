@@ -190,7 +190,7 @@ fun guidedTutorialSteps(guideId: GuidedTutorialId): List<GuidedTutorialStep> {
             id = "reader-bibi-chat",
             titleRes = R.string.guide_reader_bibi_chat_title,
             descriptionRes = R.string.guide_reader_bibi_chat_body,
-            targetKey = null,
+            targetKey = GuidedTutorialTargets.READER_BIBI_BUTTON,
             actionRequired = false,
             screenTarget = GuidedTutorialScreenTarget.READER,
             primaryLabelRes = R.string.guide_continue
