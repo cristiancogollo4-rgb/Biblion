@@ -529,7 +529,7 @@ private fun GuideBubble(
                             )
                         }
                     }
-                    if (!step.actionRequired) {
+                    if (!step.actionRequired && step.advanceOnEvent == null) {
                         Button(
                             onClick = onNext,
                             colors = ButtonDefaults.buttonColors(
