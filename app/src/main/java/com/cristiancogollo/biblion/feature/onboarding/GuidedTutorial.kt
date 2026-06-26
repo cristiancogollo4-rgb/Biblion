@@ -137,14 +137,6 @@ fun guidedTutorialSteps(guideId: GuidedTutorialId): List<GuidedTutorialStep> {
             screenTarget = GuidedTutorialScreenTarget.HOME
         ),
         GuidedTutorialStep(
-            id = "reading-book",
-            titleRes = R.string.guide_reading_book_title,
-            descriptionRes = R.string.guide_reading_book_body,
-            targetKey = GuidedTutorialTargets.BOOKS_FIRST_BOOK,
-            actionRequired = true,
-            screenTarget = GuidedTutorialScreenTarget.BOOKS
-        ),
-        GuidedTutorialStep(
             id = "book-description",
             titleRes = R.string.guide_book_description_title,
             descriptionRes = R.string.guide_book_description_body,
@@ -152,6 +144,14 @@ fun guidedTutorialSteps(guideId: GuidedTutorialId): List<GuidedTutorialStep> {
             actionRequired = false,
             screenTarget = GuidedTutorialScreenTarget.BOOKS,
             primaryLabelRes = R.string.guide_continue
+        ),
+        GuidedTutorialStep(
+            id = "reading-book",
+            titleRes = R.string.guide_reading_book_title,
+            descriptionRes = R.string.guide_reading_book_body,
+            targetKey = GuidedTutorialTargets.BOOKS_FIRST_BOOK,
+            actionRequired = true,
+            screenTarget = GuidedTutorialScreenTarget.BOOKS
         ),
         GuidedTutorialStep(
             id = "reading-chapter",
@@ -199,7 +199,7 @@ fun guidedTutorialSteps(guideId: GuidedTutorialId): List<GuidedTutorialStep> {
             id = "reader-bibi-chat",
             titleRes = R.string.guide_reader_bibi_chat_title,
             descriptionRes = R.string.guide_reader_bibi_chat_body,
-            targetKey = GuidedTutorialTargets.READER_BIBI_BUTTON,
+            targetKey = null,
             actionRequired = false,
             screenTarget = GuidedTutorialScreenTarget.READER,
             primaryLabelRes = R.string.guide_continue
