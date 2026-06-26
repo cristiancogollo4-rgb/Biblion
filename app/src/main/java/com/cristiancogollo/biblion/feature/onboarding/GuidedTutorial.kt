@@ -207,19 +207,19 @@ fun guidedTutorialSteps(guideId: GuidedTutorialId): List<GuidedTutorialStep> {
             advanceOnEvent = "chat_exchange_completed"
         ),
         GuidedTutorialStep(
-            id = "reader-dictionary",
-            titleRes = R.string.guide_dictionary_title,
-            descriptionRes = R.string.guide_dictionary_body,
+            id = "reader-deeper-path",
+            titleRes = R.string.guide_reader_deeper_title,
+            descriptionRes = R.string.guide_reader_deeper_body,
             targetKey = GuidedTutorialTargets.READER_BIBI_CHAT_PANEL,
             actionRequired = false,
             screenTarget = GuidedTutorialScreenTarget.READER,
             primaryLabelRes = R.string.guide_continue
         ),
         GuidedTutorialStep(
-            id = "reader-deeper-path",
-            titleRes = R.string.guide_reader_deeper_title,
-            descriptionRes = R.string.guide_reader_deeper_body,
-            targetKey = null,
+            id = "reader-dictionary",
+            titleRes = R.string.guide_dictionary_title,
+            descriptionRes = R.string.guide_dictionary_body,
+            targetKey = GuidedTutorialTargets.READER_BIBI_CHAT_PANEL,
             actionRequired = false,
             screenTarget = GuidedTutorialScreenTarget.READER,
             primaryLabelRes = R.string.guide_continue
