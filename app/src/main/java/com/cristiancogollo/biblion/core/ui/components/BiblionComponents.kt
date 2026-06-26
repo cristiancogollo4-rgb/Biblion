@@ -577,15 +577,14 @@ fun BiblionReaderTopAppBar(
                 }
             },
             actions = {
-                IconButton(
-                    onClick = onSearchIconClick,
-                    modifier = searchIconModifier
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = stringResource(R.string.cd_search),
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
+                Box(modifier = searchIconModifier) {
+                    IconButton(onClick = onSearchIconClick) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = stringResource(R.string.cd_search),
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
                 // Botón Disminuir Fuente
                 IconButton(onClick = onDecreaseFontSize) {
