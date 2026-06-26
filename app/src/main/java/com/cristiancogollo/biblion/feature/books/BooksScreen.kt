@@ -322,7 +322,8 @@ fun BooksScreen(
             targetBounds = tutorialTargetBounds,
             onNext = onGuidedTutorialNext,
             onSkip = onGuidedTutorialSkip,
-            onRestart = onGuidedTutorialRestart
+            onRestart = onGuidedTutorialRestart,
+            isRestart = guidedTutorial?.isRestart == true
         )
 
         if (showCategoryLegendSheet && selectedCategoryForLegend != null) {

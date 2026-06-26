@@ -82,7 +82,8 @@ enum class GuidedTutorialSecondaryAction {
 
 data class GuidedTutorialProgress(
     val guideId: GuidedTutorialId,
-    val stepIndex: Int
+    val stepIndex: Int,
+    val isRestart: Boolean = false
 )
 
 data class GuidedTutorialStep(
@@ -295,6 +296,7 @@ fun GuidedTutorialOverlay(
     onNext: () -> Unit,
     onSkip: () -> Unit,
     onRestart: () -> Unit,
+    isRestart: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     if (step == null) return
@@ -375,6 +377,7 @@ fun GuidedTutorialOverlay(
             screenHeightPx = screenHeightPx,
             onNext = onNext,
             onSecondary = if (step.restartsGuide) onRestart else onSkip,
+            isRestart = isRestart,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(18.dp)
@@ -428,6 +431,7 @@ private fun GuideBubble(
     screenHeightPx: Float,
     onNext: () -> Unit,
     onSecondary: () -> Unit,
+    isRestart: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
@@ -516,12 +520,14 @@ private fun GuideBubble(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onSecondary) {
-                        Text(
-                            text = stringResource(step.secondaryLabelRes),
-                            color = Color.White.copy(alpha = 0.85f),
-                            style = labelStyle
-                        )
+                    if (isRestart) {
+                        TextButton(onClick = onSecondary) {
+                            Text(
+                                text = stringResource(step.secondaryLabelRes),
+                                color = Color.White.copy(alpha = 0.85f),
+                                style = labelStyle
+                            )
+                        }
                     }
                     if (!step.actionRequired) {
                         Button(

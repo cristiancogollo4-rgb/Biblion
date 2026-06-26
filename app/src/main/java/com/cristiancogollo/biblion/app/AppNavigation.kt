@@ -184,7 +184,8 @@ fun AppNavigation(
 
     fun restartGuidedTutorial() {
         val guideId = activeGuidedTutorial?.guideId ?: GuidedTutorialId.READING
-        startGuidedTutorial(guideId)
+        AppPreferencesSyncStore.startGuidedTutorial(appContext, guideId)
+        activeGuidedTutorial = GuidedTutorialProgress(guideId = guideId, stepIndex = 0, isRestart = true)
         navController.navigate(Screen.Home.route) {
             launchSingleTop = true
         }
