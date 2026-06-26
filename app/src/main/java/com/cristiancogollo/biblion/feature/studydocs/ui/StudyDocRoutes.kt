@@ -11,6 +11,7 @@ import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocRepository
 import com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.StudyDocEditorScreen
+import com.cristiancogollo.biblion.feature.studydocs.ui.editor.StudyEditorLayout
 import com.cristiancogollo.biblion.feature.studydocs.ui.list.StudyDocsListScreen
 import com.cristiancogollo.biblion.feature.studydocs.ui.list.StudyDocsListViewModel
 import com.cristiancogollo.biblion.feature.studydocs.ui.read.StudyDocReadScreen
@@ -26,6 +27,7 @@ fun StudyDocsListRoute(navController: NavController) {
         onOpenDoc = { doc -> navController.navigate(Screen.StudyDocRead.createRoute(doc.id.value)) },
         onEditDoc = { doc -> navController.navigate(Screen.StudyDocEditor.createRoute(doc.id.value)) },
         onNewDoc = { navController.navigate(Screen.StudyDocEditor.newRoute()) },
+        onImportComplete = { doc -> navController.navigate(Screen.StudyDocEditor.createRoute(doc.id.value)) },
     )
 }
 
@@ -37,12 +39,32 @@ fun StudyDocEditorRoute(
     val context = LocalContext.current
     val repository = remember { StudyDocRepository(StudyDocDatabase.getInstance(context).studyDocDao()) }
     val viewModel: StudyDocViewModel = viewModel(factory = StudyDocViewModel.Factory(repository))
+    val listViewModel: StudyDocsListViewModel = viewModel(factory = StudyDocsListViewModel.Factory(repository))
     LaunchedEffect(remoteId) {
         if (remoteId == null) viewModel.newDraft() else viewModel.loadByRemoteId(remoteId)
     }
-    StudyDocEditorScreen(
-        viewModel = viewModel,
-        onBack = { navController.popBackStack() },
+    StudyEditorLayout(
+        editorContent = { isExpandable, isExpanded, onToggleExpand, isMultiColumnEnabled, onToggleMultiColumn ->
+            StudyDocEditorScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                isExpandable = isExpandable,
+                isExpanded = isExpanded,
+                onToggleExpand = onToggleExpand,
+                isMultiColumnEnabled = isMultiColumnEnabled,
+                onToggleMultiColumn = onToggleMultiColumn,
+            )
+        },
+        sideContent = {
+            StudyDocsListScreen(
+                viewModel = listViewModel,
+                onBack = { navController.popBackStack() },
+                onOpenDoc = { doc -> navController.navigate(Screen.StudyDocRead.createRoute(doc.id.value)) },
+                onEditDoc = { doc -> navController.navigate(Screen.StudyDocEditor.createRoute(doc.id.value)) },
+                onNewDoc = { navController.navigate(Screen.StudyDocEditor.newRoute()) },
+                onImportComplete = { doc -> navController.navigate(Screen.StudyDocEditor.createRoute(doc.id.value)) },
+            )
+        },
     )
 }
 
@@ -79,6 +101,3 @@ object Screen {
         const val ARG_REMOTE_ID: String = "remoteId"
     }
 }
-
-@Suppress("unused")
-private fun unusedDoc(@Suppress("UNUSED_PARAMETER") doc: StudyDoc) = Unit

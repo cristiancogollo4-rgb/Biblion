@@ -45,6 +45,7 @@ tools/invalid_topics.json
 tools/low_score_aliases.json
 tools/matching_report.json
 tools/quality_report.json
+tools/quality_report_v2.json
 tools/reclassified_topics.json
 tools/taxonomy_summary.txt
 tools/topics_candidates.json
@@ -52,6 +53,11 @@ tools/topics_unmatched_es.json
 tools/translate_log.txt
 tools/translate_log_err.txt
 tools/topic_embeddings.npy
+tools/topic_clusters.json
+tools/topic_clusters_classified.json
+
+# Worker build artifacts
+workers/bibi/src/index.built.js
 
 # Local scripts
 inspect.py

@@ -60,7 +60,7 @@ object KnowledgeEngine {
             BibiIntent.ORIGINAL_LANG -> handleOriginalLang(context, question)
             BibiIntent.EXPLAIN_VERSE -> handleExplainVerse(context, question, userContext, bibiCtx)
             BibiIntent.GREETING -> handleGreeting(userContext.userName)
-            BibiIntent.DIVE_DEEPER -> null
+            BibiIntent.DIVE_DEEPER -> handleDiveDeeper(context, question, bibiCtx)
             BibiIntent.FALLBACK -> null
         }
     }
@@ -150,6 +150,29 @@ object KnowledgeEngine {
         context: Context, question: String, bibiCtx: BibiUserContext
     ): BibiResponse? {
         val term = extractTermFromQuestion(question, bibiCtx.chatHistory) ?: return noTermFound()
+
+        val alreadyExplored = bibiCtx.chatHistory.any {
+            it.resolvedTerm?.equals(term, ignoreCase = true) == true
+                && it.response.contains("profundizar", ignoreCase = true)
+        }
+        if (!alreadyExplored) {
+            val topics = TopicEngine.searchTopics(context, term, maxTotal = 3)
+            val best = topics.firstOrNull()
+            if (best != null && !best.description.isNullOrBlank()) {
+                return BibiResponse(
+                    title = best.nameEs ?: best.nameEn ?: term,
+                    definition = best.description,
+                    followUp = "¿Quieres saber más a profundidad sobre ${best.nameEs ?: term}?",
+                    suggestions = listOf(
+                        BibiSuggestion("Profundizar", "cuéntame más sobre $term", isAi = true),
+                        BibiSuggestion("Definición", "¿qué significa $term?")
+                    ),
+                    confidence = Confidence.MEDIUM,
+                    source = Source.LOCAL
+                )
+            }
+        }
+
         val result = DictionaryEngine.defineTerm(context, term, bibiCtx, bibiCtx.chatHistory)
         if (result != null) return result
 
@@ -188,6 +211,28 @@ object KnowledgeEngine {
             "dime sobre", "informacion de", "información de"
         ), bibiCtx.chatHistory) ?: return noTermFound()
 
+        val alreadyExplored = bibiCtx.chatHistory.any {
+            it.resolvedTerm?.equals(name, ignoreCase = true) == true
+                && it.response.contains("profundizar", ignoreCase = true)
+        }
+        if (!alreadyExplored) {
+            val topics = TopicEngine.searchTopics(context, name, maxTotal = 3)
+            val best = topics.firstOrNull()
+            if (best != null && !best.description.isNullOrBlank()) {
+                return BibiResponse(
+                    title = best.nameEs ?: best.nameEn ?: name,
+                    definition = best.description,
+                    followUp = "¿Quieres saber más a profundidad sobre ${best.nameEs ?: name}?",
+                    suggestions = listOf(
+                        BibiSuggestion("Profundizar", "cuéntame más sobre $name", isAi = true),
+                        BibiSuggestion("Definición", "¿quién fue $name?")
+                    ),
+                    confidence = Confidence.MEDIUM,
+                    source = Source.LOCAL
+                )
+            }
+        }
+
         val result = DictionaryEngine.defineTerm(context, name, bibiCtx, bibiCtx.chatHistory)
         if (result != null) return result
 
@@ -224,6 +269,28 @@ object KnowledgeEngine {
             "donde nacio", "donde nació",
             "donde vivio", "donde vivió"
         ), bibiCtx.chatHistory) ?: return noTermFound()
+
+        val alreadyExplored = bibiCtx.chatHistory.any {
+            it.resolvedTerm?.equals(name, ignoreCase = true) == true
+                && it.response.contains("profundizar", ignoreCase = true)
+        }
+        if (!alreadyExplored) {
+            val topics = TopicEngine.searchTopics(context, name, maxTotal = 3)
+            val best = topics.firstOrNull()
+            if (best != null && !best.description.isNullOrBlank()) {
+                return BibiResponse(
+                    title = best.nameEs ?: best.nameEn ?: name,
+                    definition = best.description,
+                    followUp = "¿Quieres saber más a profundidad sobre ${best.nameEs ?: name}?",
+                    suggestions = listOf(
+                        BibiSuggestion("Profundizar", "cuéntame más sobre $name", isAi = true),
+                        BibiSuggestion("Definición", "¿dónde queda $name?")
+                    ),
+                    confidence = Confidence.MEDIUM,
+                    source = Source.LOCAL
+                )
+            }
+        }
 
         val result = DictionaryEngine.defineTerm(context, name, bibiCtx, bibiCtx.chatHistory)
         if (result != null) return result
@@ -418,6 +485,63 @@ object KnowledgeEngine {
                 BibiSuggestion("Explicar el versículo actual", "explícame este versículo")
             )
         )
+    }
+
+    private suspend fun handleDiveDeeper(
+        context: Context, question: String, bibiCtx: BibiUserContext
+    ): BibiResponse? {
+        val lower = removeAccents(question.lowercase().trim())
+
+        val term = run {
+            val deepPatterns = listOf(
+                "cuentame mas sobre", "cuéntame más sobre",
+                "hablame mas de", "háblame más de",
+                "profundiza sobre", "amplia sobre",
+                "explica mas sobre", "explica más sobre",
+                "dime mas sobre", "dime más sobre",
+                "que pasajes hablan de", "qué pasajes hablan de",
+                "que versiculos hablan de", "qué versículos hablan de",
+                "pasajes sobre", "versiculos sobre",
+                "hablan de", "habla de"
+            )
+            for (pattern in deepPatterns) {
+                if (lower.contains(pattern)) {
+                    val after = lower.substringAfter(pattern).trim()
+                        .removeSuffix("?").trim()
+                    if (after.length >= 2) return@run after
+                }
+            }
+
+            if (lower.length < 25 && !hasOwnSubject(lower)) {
+                val lastTerm = bibiCtx.chatHistory.lastOrNull { it.resolvedTerm != null }?.resolvedTerm
+                if (lastTerm != null) return@run lastTerm
+            }
+
+            null
+        }
+
+        if (term != null) {
+            val dictResult = DictionaryEngine.defineTerm(context, term, bibiCtx, bibiCtx.chatHistory)
+            if (dictResult != null) return dictResult
+
+            val topics = TopicEngine.searchTopics(context, term, maxTotal = 3)
+            val best = topics.firstOrNull()
+            if (best != null && !best.description.isNullOrBlank()) {
+                return BibiResponse(
+                    title = best.nameEs ?: best.nameEn ?: term,
+                    definition = best.description,
+                    followUp = "¿Hay algo más que quieras saber sobre ${best.nameEs ?: term}?",
+                    suggestions = listOf(
+                        BibiSuggestion("Versículos", "¿qué versículos hablan de $term?"),
+                        BibiSuggestion("Definición", "¿qué significa $term?")
+                    ),
+                    confidence = Confidence.MEDIUM,
+                    source = Source.LOCAL
+                )
+            }
+        }
+
+        return null
     }
 
     private fun noTermFound(): BibiResponse {

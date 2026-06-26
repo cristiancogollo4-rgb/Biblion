@@ -490,12 +490,6 @@ function buildBibiPrompt({
     },
     {
       role: "user",
-      content: contextLines
-    }
-  ];
-}},
-    {
-      role: "user",
       content: `${contextLines}\n\nPregunta del usuario: ${question}`
     }
   ];
@@ -835,7 +829,14 @@ function isBibleDomain({
     "nahum", "habacuc", "sofonias", "hageo", "zacarias", "malaquias", "mateo", "marcos",
     "lucas", "juan", "hechos", "romanos", "corintios", "galatas", "efesios", "filipenses",
     "colosenses", "tesalonicenses", "timoteo", "tito", "filemon", "hebreos", "santiago",
-    "pedro", "judas", "apocalipsis"
+    "pedro", "judas", "apocalipsis",
+    "moises", "abraham", "noe", "adán", "adan", "eva", "caín", "cain", "abel", "seth",
+    "ismael", "isaac", "jacob", "jose", "david", "salomon", "elias", "eliseo", "jeremias",
+    "daniel", "jonas", "pedro", "pablo", "juan", "santiago", "andres", "filipe", "felipe",
+    "tomas", "bartolome", "mateo", "marcos", "lucas", "judas", "miriam", "ruth", "ester",
+    "deborah", "raquel", "sara", "rebeca", "lia", "gideon", "samson", "samuel", "saul",
+    "caifás", "caifas", "pilatos", "herodes", "mariam", "maria", "jose de arimatea",
+    "nicodemo", "lazaro", "martha", "susana", "magdalena"
   ];
   if (bibleSignals.some((signal) => normalized.includes(signal))) return true;
 
