@@ -6,9 +6,11 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -93,7 +95,6 @@ private enum class AppDrawerOption(val labelRes: Int) {
     PROFILE(R.string.drawer_profile),
     PICK_VERSION(R.string.drawer_pick_version),
     MY_TEACHINGS(R.string.drawer_my_teachings),
-    DICTIONARY(R.string.drawer_dictionary),
     DOCTRINES(R.string.drawer_doctrines),
     BIBLION(R.string.drawer_biblion),
     STUDY_MODE(R.string.drawer_study_mode),
@@ -176,7 +177,6 @@ fun BiblionAppDrawer(
     onNavigateHome: () -> Unit,
     onNavigateToProfile: () -> Unit,
     onNavigateToTeachings: () -> Unit,
-    onNavigateToDictionary: () -> Unit,
     onNavigateToStudyMode: () -> Unit,
     onPickVersion: () -> Unit,
     onShowComingSoon: () -> Unit,
@@ -188,7 +188,6 @@ fun BiblionAppDrawer(
         AppDrawerOption.PROFILE,
         AppDrawerOption.PICK_VERSION,
         AppDrawerOption.MY_TEACHINGS,
-        AppDrawerOption.DICTIONARY,
         AppDrawerOption.DOCTRINES,
         AppDrawerOption.BIBLION,
         AppDrawerOption.STUDY_MODE,
@@ -227,7 +226,6 @@ fun BiblionAppDrawer(
                         AppDrawerOption.PROFILE -> onNavigateToProfile()
                         AppDrawerOption.PICK_VERSION -> onPickVersion()
                         AppDrawerOption.MY_TEACHINGS -> onNavigateToTeachings()
-                        AppDrawerOption.DICTIONARY -> onNavigateToDictionary()
                         AppDrawerOption.DOCTRINES,
                         AppDrawerOption.BIBLION -> onShowComingSoon()
                         AppDrawerOption.STUDY_MODE -> onNavigateToStudyMode()
@@ -405,22 +403,36 @@ fun DailyVerseCard(
 }
 
 // 4. BookCard: Representa un libro en la cuadrícula
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun BookCard(
     bookName: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    colorSchema: com.cristiancogollo.biblion.feature.books.CategoryColorSchema? = null
+    colorSchema: com.cristiancogollo.biblion.feature.books.CategoryColorSchema? = null,
+    onLongClick: (() -> Unit)? = null
 ) {
     val bg = colorSchema?.bg ?: MaterialTheme.colorScheme.surfaceVariant
     val textColor = colorSchema?.text ?: MaterialTheme.colorScheme.onSurface
     val borderStroke = colorSchema?.border?.let { BorderStroke(1.dp, it) }
 
-    Card(
-        modifier = modifier
+    val cardModifier = if (onLongClick != null) {
+        modifier
             .aspectRatio(1f)
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
+    } else {
+        modifier
+            .aspectRatio(1f)
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    }
+
+    Card(
+        modifier = cardModifier,
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = bg),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
@@ -524,7 +536,8 @@ fun BiblionReaderTopAppBar(
     onIncreaseFontSize: () -> Unit,
     onDecreaseFontSize: () -> Unit,
     modifier: Modifier = Modifier,
-    chapterSelectorModifier: Modifier = Modifier
+    chapterSelectorModifier: Modifier = Modifier,
+    searchIconModifier: Modifier = Modifier
 ) {
     val chapterListState = rememberLazyListState()
 
@@ -564,7 +577,10 @@ fun BiblionReaderTopAppBar(
                 }
             },
             actions = {
-                IconButton(onClick = onSearchIconClick) {
+                IconButton(
+                    onClick = onSearchIconClick,
+                    modifier = searchIconModifier
+                ) {
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = stringResource(R.string.cd_search),

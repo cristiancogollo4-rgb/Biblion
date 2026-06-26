@@ -699,6 +699,10 @@ fun ReaderContent(
                     chapterSelectorModifier = Modifier.guidedTutorialTarget(
                         GuidedTutorialTargets.READER_CHAPTER_SELECTOR,
                         tutorialTargetBounds
+                    ),
+                    searchIconModifier = Modifier.guidedTutorialTarget(
+                        GuidedTutorialTargets.READER_SEARCH_ICON,
+                        tutorialTargetBounds
                     )
                 )
             }

@@ -114,6 +114,7 @@ object GuidedTutorialTargets {
     const val READER_VERSION_SELECTOR = "reader_version_selector"
     const val READER_BIBI_BUTTON = "reader_bibi_button"
     const val READER_BIBI_CHAT_PANEL = "reader_bibi_chat_panel"
+    const val READER_SEARCH_ICON = "reader_search_icon"
 }
 
 fun GuidedTutorialProgress.currentStep(): GuidedTutorialStep? {
@@ -219,7 +220,7 @@ fun guidedTutorialSteps(guideId: GuidedTutorialId): List<GuidedTutorialStep> {
             id = "reader-dictionary",
             titleRes = R.string.guide_dictionary_title,
             descriptionRes = R.string.guide_dictionary_body,
-            targetKey = GuidedTutorialTargets.READER_BIBI_CHAT_PANEL,
+            targetKey = GuidedTutorialTargets.READER_SEARCH_ICON,
             actionRequired = false,
             screenTarget = GuidedTutorialScreenTarget.READER,
             primaryLabelRes = R.string.guide_continue
