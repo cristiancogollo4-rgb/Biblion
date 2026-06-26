@@ -577,7 +577,7 @@ fun BiblionReaderTopAppBar(
                 }
             },
             actions = {
-                Box(modifier = searchIconModifier) {
+                Box(modifier = searchIconModifier.wrapContentSize()) {
                     IconButton(onClick = onSearchIconClick) {
                         Icon(
                             imageVector = Icons.Default.Search,
