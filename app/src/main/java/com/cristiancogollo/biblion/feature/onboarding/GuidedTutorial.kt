@@ -208,7 +208,7 @@ fun guidedTutorialSteps(guideId: GuidedTutorialId): List<GuidedTutorialStep> {
             id = "reader-dictionary",
             titleRes = R.string.guide_dictionary_title,
             descriptionRes = R.string.guide_dictionary_body,
-            targetKey = null,
+            targetKey = GuidedTutorialTargets.READER_BIBI_CHAT_PANEL,
             actionRequired = false,
             screenTarget = GuidedTutorialScreenTarget.READER,
             primaryLabelRes = R.string.guide_continue
