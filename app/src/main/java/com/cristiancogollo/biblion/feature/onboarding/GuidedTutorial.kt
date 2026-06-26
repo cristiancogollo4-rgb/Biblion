@@ -105,6 +105,7 @@ object GuidedTutorialTargets {
     const val HOME_DAILY_VERSE = "home_daily_verse"
     const val HOME_STUDY_ENTRY = "home_study_entry"
     const val BOOKS_FIRST_BOOK = "books_first_book"
+    const val BOOKS_LONG_PRESS = "books_long_press"
     const val READER_CHAPTER_SELECTOR = "reader_chapter_selector"
     const val READER_TEXT = "reader_text"
     const val READER_FIRST_VERSE = "reader_first_verse"
@@ -139,10 +140,9 @@ fun guidedTutorialSteps(guideId: GuidedTutorialId): List<GuidedTutorialStep> {
             id = "book-description",
             titleRes = R.string.guide_book_description_title,
             descriptionRes = R.string.guide_book_description_body,
-            targetKey = null,
-            actionRequired = false,
-            screenTarget = GuidedTutorialScreenTarget.BOOKS,
-            primaryLabelRes = R.string.guide_continue
+            targetKey = GuidedTutorialTargets.BOOKS_LONG_PRESS,
+            actionRequired = true,
+            screenTarget = GuidedTutorialScreenTarget.BOOKS
         ),
         GuidedTutorialStep(
             id = "reading-book",

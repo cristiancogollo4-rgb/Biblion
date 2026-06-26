@@ -280,10 +280,15 @@ fun BooksScreen(
                             bookName = bookName,
                             colorSchema = colorSchema,
                             modifier = if (index == 0) {
-                                Modifier.guidedTutorialTarget(
-                                    GuidedTutorialTargets.BOOKS_FIRST_BOOK,
-                                    tutorialTargetBounds
-                                )
+                                Modifier
+                                    .guidedTutorialTarget(
+                                        GuidedTutorialTargets.BOOKS_FIRST_BOOK,
+                                        tutorialTargetBounds
+                                    )
+                                    .guidedTutorialTarget(
+                                        GuidedTutorialTargets.BOOKS_LONG_PRESS,
+                                        tutorialTargetBounds
+                                    )
                             } else {
                                 Modifier
                             },
@@ -294,6 +299,7 @@ fun BooksScreen(
                                 )
                             },
                             onLongClick = {
+                                onGuidedTutorialTargetAction(GuidedTutorialTargets.BOOKS_LONG_PRESS)
                                 val slug = bookName.toBookTopicSlug()
                                 selectedBookForDetail = bookName
                                 scope.launch {
