@@ -864,7 +864,8 @@ fun ReaderContent(
                 bookName = bookName,
                 chapter = selectedChapter,
                 currentUserName = currentUserName,
-                tutorialTargetBounds = tutorialTargetBounds
+                tutorialTargetBounds = tutorialTargetBounds,
+                onGuidedTutorialTargetAction = onGuidedTutorialTargetAction
             )
         }
 

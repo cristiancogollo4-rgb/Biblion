@@ -92,7 +92,7 @@
     <string name="guide_dictionary_title">Diccionario bíblico</string>
     <string name="guide_dictionary_body">Biblion tiene un diccionario bíblico con más de 6,000 entradas.\n\nDesde la pestaña de Buscar, toca el botón del diccionario para explorar personas, lugares, conceptos y más — todo organizado por categoría.</string>
     <string name="guide_reading_finish_title">¡Listo para comenzar!</string>
-    <string name="guide_reading_finish_body">¡Ya sabes lo esencial! 🎉\n\nPuedes encontrar libros, leer pasajes, resaltar versículos, cambiar de versión, explorar el diccionario bíblico y preguntarme cuando tengas dudas.\n\nSi en el futuro quieres repetir este recorrido, ve a tu Perfil y toca \"Reiniciar tutorial de lectura\".\n\n¡Que disfrutes tu tiempo en la Palabra de Dios! 📖✨\n\n— Bibi</string>
+    <string name="guide_reading_finish_body">¡Ya sabes lo esencial! 🎉\n\nPuedes encontrar libros, leer pasajes, resaltar versículos, cambiar de versión y explorar el diccionario bíblico.\n\nCuando tengas dudas, toca el icono de Bibi en la esquina inferior derecha para abrir el chat y preguntarme lo que quieras.\n\nSi en el futuro quieres repetir este recorrido, ve a tu Perfil y toca \"Reiniciar tutorial de lectura\".\n\n¡Que disfrutes tu tiempo en la Palabra de Dios! 📖✨\n\n— Bibi</string>
     <string name="guide_study_entry_title">Pasa de leer a preparar</string>
     <string name="guide_study_entry_body">Desde aquí puedes crear una enseñanza y entrar al editor real de Biblion.</string>
     <string name="guide_explore_reading_title">Lectura bíblica</string>

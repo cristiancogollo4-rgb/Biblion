@@ -50,6 +50,7 @@ fun BibiReaderOverlay(
     chapter: Int,
     currentUserName: String?,
     tutorialTargetBounds: MutableMap<String, androidx.compose.ui.geometry.Rect>,
+    onGuidedTutorialTargetAction: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -222,7 +223,10 @@ fun BibiReaderOverlay(
 
         if (!isOpen) {
             FloatingActionButton(
-                onClick = { isOpen = true },
+                onClick = {
+                    isOpen = true
+                    onGuidedTutorialTargetAction(GuidedTutorialTargets.READER_BIBI_BUTTON)
+                },
                 containerColor = BiblionBluePrimary,
                 contentColor = Color.White,
                 modifier = Modifier
