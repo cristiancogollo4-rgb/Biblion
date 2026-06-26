@@ -162,7 +162,11 @@ fun BibiReaderOverlay(
                 modifier = Modifier
                     .fillMaxHeight(0.75f)
                     .width(320.dp)
-                    .padding(8.dp),
+                    .padding(8.dp)
+                    .guidedTutorialTarget(
+                        GuidedTutorialTargets.READER_BIBI_CHAT_PANEL,
+                        tutorialTargetBounds
+                    ),
                 shape = RoundedCornerShape(16.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
                 colors = CardDefaults.cardColors(
