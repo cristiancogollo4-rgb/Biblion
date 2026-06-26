@@ -136,6 +136,15 @@ fun guidedTutorialSteps(guideId: GuidedTutorialId): List<GuidedTutorialStep> {
             screenTarget = GuidedTutorialScreenTarget.HOME
         ),
         GuidedTutorialStep(
+            id = "book-description",
+            titleRes = R.string.guide_book_description_title,
+            descriptionRes = R.string.guide_book_description_body,
+            targetKey = null,
+            actionRequired = false,
+            screenTarget = GuidedTutorialScreenTarget.BOOKS,
+            primaryLabelRes = R.string.guide_continue
+        ),
+        GuidedTutorialStep(
             id = "reading-book",
             titleRes = R.string.guide_reading_book_title,
             descriptionRes = R.string.guide_reading_book_body,
