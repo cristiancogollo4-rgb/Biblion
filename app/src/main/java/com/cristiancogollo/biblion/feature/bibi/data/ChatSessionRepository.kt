@@ -1,7 +1,7 @@
 package com.cristiancogollo.biblion.feature.bibi.data
 
 import android.content.Context
-import com.cristiancogollo.biblion.feature.bibi.ChatExchange
+import com.cristiancogollo.biblion.feature.bibi.model.ChatExchange
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 

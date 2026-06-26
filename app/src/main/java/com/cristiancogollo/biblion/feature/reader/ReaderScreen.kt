@@ -76,11 +76,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import kotlinx.coroutines.launch
-import com.cristiancogollo.biblion.reader.cache.HighlightsCache
+import com.cristiancogollo.biblion.feature.reader.HighlightsCache
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
+import com.cristiancogollo.biblion.feature.bibi.ui.BibiReaderOverlay
 
 private val highlightPalette = listOf(
     Color(0x00000000),
@@ -859,8 +860,12 @@ fun ReaderContent(
                 )
             }
 
-            // Overlay de Bibi removido con el modo estudio v1.
-            // La integracion de Bibi con el lector se reimplementara en una iteracion futura.
+            BibiReaderOverlay(
+                bookName = bookName,
+                chapter = selectedChapter,
+                currentUserName = currentUserName,
+                tutorialTargetBounds = tutorialTargetBounds
+            )
         }
 
         if (selectedVerseActions.isNotEmpty()) {

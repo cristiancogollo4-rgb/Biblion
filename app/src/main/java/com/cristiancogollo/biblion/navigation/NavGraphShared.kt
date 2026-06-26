@@ -6,9 +6,10 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.cristiancogollo.biblion.feature.search.ExploreTopicsScreen
-import com.cristiancogollo.biblion.feature.search.ExploreCategoryScreen
-import com.cristiancogollo.biblion.feature.search.SearchScope
+import com.cristiancogollo.biblion.feature.search.ui.ExploreTopicsScreen
+import com.cristiancogollo.biblion.feature.search.ui.ExploreCategoryScreen
+import com.cristiancogollo.biblion.feature.search.model.SearchScope
+import com.cristiancogollo.biblion.feature.search.ui.SearchScreen
 import com.cristiancogollo.biblion.feature.studydocs.ui.StudyDocEditorRoute
 import com.cristiancogollo.biblion.feature.studydocs.ui.StudyDocReadRoute
 import com.cristiancogollo.biblion.feature.studydocs.ui.StudyDocsListRoute
@@ -95,6 +96,21 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
 
     composable(Screen.ExploreTopics.route) {
         ExploreTopicsScreen(navController)
+    }
+
+    composable(Screen.Dictionary.route) {
+        com.cristiancogollo.biblion.feature.dictionary.ui.DictionaryScreen(navController)
+    }
+
+    composable(
+        route = Screen.ExploreDictionaryCategory.route,
+        arguments = listOf(navArgument("category") { type = NavType.StringType })
+    ) { backStackEntry ->
+        val category = backStackEntry.arguments?.getString("category").orEmpty()
+        com.cristiancogollo.biblion.feature.dictionary.ui.DictionaryCategoryScreen(
+            navController = navController,
+            category = category
+        )
     }
 
     composable(

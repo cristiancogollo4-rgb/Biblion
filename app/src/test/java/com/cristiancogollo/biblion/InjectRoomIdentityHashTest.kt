@@ -2,8 +2,8 @@ package com.cristiancogollo.biblion
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
-import com.cristiancogollo.biblion.feature.bibi.CrossReferenceVoteDatabase
-import com.cristiancogollo.biblion.feature.bibi.TopicDatabase
+import com.cristiancogollo.biblion.feature.bibi.data.CrossReferenceVoteDatabase
+import com.cristiancogollo.biblion.feature.bibi.data.TopicDatabase
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner

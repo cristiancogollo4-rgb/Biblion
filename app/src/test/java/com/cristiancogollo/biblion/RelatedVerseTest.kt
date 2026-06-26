@@ -1,7 +1,7 @@
 package com.cristiancogollo.biblion
 
-import com.cristiancogollo.biblion.feature.bibi.RelatedVerse
-import com.cristiancogollo.biblion.feature.bibi.TopicInfo
+import com.cristiancogollo.biblion.feature.bibi.model.RelatedVerse
+import com.cristiancogollo.biblion.feature.bibi.model.TopicInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull

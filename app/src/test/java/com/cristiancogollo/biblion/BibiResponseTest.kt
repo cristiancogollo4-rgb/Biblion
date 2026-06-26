@@ -1,10 +1,10 @@
 package com.cristiancogollo.biblion
 
-import com.cristiancogollo.biblion.feature.bibi.BibiResponse
-import com.cristiancogollo.biblion.feature.bibi.BibiVerse
-import com.cristiancogollo.biblion.feature.bibi.Confidence
-import com.cristiancogollo.biblion.feature.bibi.MetadataFact
-import com.cristiancogollo.biblion.feature.bibi.Source
+import com.cristiancogollo.biblion.feature.bibi.model.BibiResponse
+import com.cristiancogollo.biblion.feature.bibi.model.BibiVerse
+import com.cristiancogollo.biblion.feature.bibi.model.Confidence
+import com.cristiancogollo.biblion.feature.bibi.model.MetadataFact
+import com.cristiancogollo.biblion.feature.bibi.model.Source
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

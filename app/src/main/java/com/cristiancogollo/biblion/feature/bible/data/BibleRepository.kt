@@ -1,6 +1,7 @@
 package com.cristiancogollo.biblion
 
 import android.content.Context
+import com.cristiancogollo.biblion.feature.search.ui.SearchResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale

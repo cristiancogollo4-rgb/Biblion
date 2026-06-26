@@ -18,8 +18,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
-import com.cristiancogollo.biblion.feature.search.SearchScope
 import com.cristiancogollo.biblion.feature.studydocs.ui.Screen as StudyDocScreen
+import com.cristiancogollo.biblion.feature.bibi.engine.TopicEngine
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import kotlinx.coroutines.launch
 import com.cristiancogollo.biblion.feature.books.BookCategory
@@ -51,6 +51,13 @@ private val newTestamentBooks = listOf(
     "1 Juan", "2 Juan", "3 Juan", "Judas", "Apocalipsis"
 )
 
+private fun String.toBookTopicSlug(): String {
+    return this.lowercase()
+        .replace("á", "a").replace("é", "e").replace("í", "i")
+        .replace("ó", "o").replace("ú", "u").replace("ñ", "n")
+        .replace(" ", "-")
+}
+
 /**
  * Pantalla de listado de libros por testamento.
  *
@@ -79,6 +86,10 @@ fun BooksScreen(
 ) {
     var showCategoryLegendSheet by remember { mutableStateOf(false) }
     var selectedCategoryForLegend by remember { mutableStateOf<BookCategory?>(null) }
+    var showBookDetailSheet by remember { mutableStateOf(false) }
+    var selectedBookForDetail by remember { mutableStateOf<String?>(null) }
+    var selectedBookDescription by remember { mutableStateOf<String?>(null) }
+    var selectedBookVerseCount by remember { mutableIntStateOf(0) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -136,9 +147,6 @@ fun BooksScreen(
                     onNavigateToProfile = onNavigateToProfile,
                     onNavigateToTeachings = {
                         navController.navigateSingleTop(StudyDocScreen.StudyDocsList.route)
-                    },
-                    onNavigateToDictionary = {
-                        navController.navigateSingleTop(Screen.Search.createRoute(SearchScope.DICTIONARY))
                     },
                     onNavigateToStudyMode = {
                         navController.navigateSingleTop(Screen.Reader.createRoute(studyMode = true))
@@ -284,6 +292,17 @@ fun BooksScreen(
                                 navController.navigateSingleTop(
                                     Screen.Reader.createRoute(bookName = bookName, studyMode = openInStudyMode)
                                 )
+                            },
+                            onLongClick = {
+                                val slug = bookName.toBookTopicSlug()
+                                selectedBookForDetail = bookName
+                                scope.launch {
+                                    val topic = TopicEngine
+                                        .getBySlug(context, slug)
+                                    selectedBookDescription = topic?.description
+                                    selectedBookVerseCount = topic?.verseCount ?: 0
+                                    showBookDetailSheet = true
+                                }
                             }
                         )
                     }
@@ -396,6 +415,112 @@ fun BooksScreen(
                             }
                         }
                     }
+                }
+            }
+        }
+
+        if (showBookDetailSheet && selectedBookForDetail != null) {
+            val bookName = selectedBookForDetail!!
+            val category = bookName.toBookCategory()
+            val colors = BookCategoryColors.getColors(category, isDarkTheme)
+            val description = selectedBookDescription
+            val verseCount = selectedBookVerseCount
+
+            @OptIn(ExperimentalMaterial3Api::class)
+            ModalBottomSheet(
+                onDismissRequest = { showBookDetailSheet = false },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 24.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(colors.bg)
+                                .border(1.dp, colors.border, RoundedCornerShape(6.dp))
+                        )
+                        Text(
+                            text = bookName,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = colors.bg,
+                        border = BorderStroke(1.dp, colors.border)
+                    ) {
+                        Text(
+                            text = category.labelEs,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.text
+                        )
+                    }
+
+                    if (!description.isNullOrBlank()) {
+                        Text(
+                            text = description,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    if (verseCount > 0) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Text(
+                                text = "$verseCount versículos relacionados",
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                    Surface(
+                        onClick = {
+                            showBookDetailSheet = false
+                            navController.navigateSingleTop(
+                                Screen.Reader.createRoute(bookName = bookName, studyMode = openInStudyMode)
+                            )
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        color = colors.bg,
+                        border = BorderStroke(1.dp, colors.border),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Leer $bookName",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            textAlign = TextAlign.Center,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.text
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
         }

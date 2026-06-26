@@ -1,6 +1,6 @@
 package com.cristiancogollo.biblion
 
-import com.cristiancogollo.biblion.feature.bibi.VerseResolver
+import com.cristiancogollo.biblion.feature.bibi.engine.VerseResolver
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue

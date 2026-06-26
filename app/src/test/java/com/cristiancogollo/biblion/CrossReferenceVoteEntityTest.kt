@@ -1,9 +1,9 @@
 package com.cristiancogollo.biblion
 
-import com.cristiancogollo.biblion.feature.bibi.CrossReferenceVoteEntity
-import com.cristiancogollo.biblion.feature.bibi.TopicAliasEntity
-import com.cristiancogollo.biblion.feature.bibi.TopicEntity
-import com.cristiancogollo.biblion.feature.bibi.TopicReferenceEntity
+import com.cristiancogollo.biblion.feature.bibi.data.CrossReferenceVoteEntity
+import com.cristiancogollo.biblion.feature.bibi.data.TopicAliasEntity
+import com.cristiancogollo.biblion.feature.bibi.data.TopicEntity
+import com.cristiancogollo.biblion.feature.bibi.data.TopicReferenceEntity
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

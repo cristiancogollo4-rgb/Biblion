@@ -1,6 +1,6 @@
 package com.cristiancogollo.biblion
 
-import com.cristiancogollo.biblion.feature.bibi.KnowledgeEngine
+import com.cristiancogollo.biblion.feature.bibi.engine.KnowledgeEngine
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
