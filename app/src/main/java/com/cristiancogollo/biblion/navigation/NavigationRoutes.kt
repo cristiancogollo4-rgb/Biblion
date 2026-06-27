@@ -1,7 +1,7 @@
 package com.cristiancogollo.biblion
 
 import androidx.navigation.NavController
-import com.cristiancogollo.biblion.feature.search.SearchScope
+import com.cristiancogollo.biblion.feature.search.model.SearchScope
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -61,6 +61,12 @@ sealed class Screen(val route: String) {
 
     data object ExploreCategory : Screen("explore_category/{category}") {
         fun createRoute(category: String): String = "explore_category/${encodeArg(category)}"
+    }
+
+    data object Dictionary : Screen("dictionary")
+
+    data object ExploreDictionaryCategory : Screen("dictionary_category/{category}") {
+        fun createRoute(category: String): String = "dictionary_category/${encodeArg(category)}"
     }
 
     data object DictionaryEntry : Screen("dictionary/entry/{entryId}") {

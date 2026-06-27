@@ -47,6 +47,9 @@ object StudyDocEngine {
                 is StudyBlock.Verse -> listOf(block.primaryText.plain()) + listOfNotNull(block.compareText?.plain())
                 is StudyBlock.Table -> block.rows.flatMap { it.cells }.map { it.plain() }
                 is StudyBlock.Divider, is StudyBlock.PageBreak -> emptyList()
+                is StudyBlock.TodoList -> block.items.map { it.text.plain() }
+                is StudyBlock.ColumnLayout -> block.columnBlocks.flatMap { col -> col.map { it.plainText() } }
+                is StudyBlock.Comment -> listOf(block.text)
             }
             texts.forEachIndexed { textIndex, text ->
                 var from = 0

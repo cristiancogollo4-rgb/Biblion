@@ -3,14 +3,11 @@ package com.cristiancogollo.biblion.feature.studydocs.ui.editor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,14 +16,12 @@ import androidx.compose.ui.unit.dp
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
 
 private val DeskGapColor = Color(0xFFE8EAED)
-private const val BlocksPerPage = 30
 
 /**
  * Renderiza el documento como paginas carta apiladas verticalmente.
  *
- * Cada pagina contiene hasta [BlocksPerPage] bloques. Entre paginas
- * hay un gap gris de 16dp. El zoom se aplica externamente via un
- * wrapper Box con graphicsLayer.
+ * La paginacion se calcula por altura estimada real del contenido,
+ * no por conteo bruto de bloques.
  */
 @Composable
 fun PaginatedPaperSheet(
@@ -34,13 +29,11 @@ fun PaginatedPaperSheet(
     modifier: Modifier = Modifier,
     renderBlock: @Composable (Int, StudyBlock) -> Unit,
 ) {
-    val pages = blocks.chunked(BlocksPerPage)
+    val pagination = rememberDocumentPagination(blocks)
 
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(vertical = 32.dp),
-    ) {
-        itemsIndexed(pages) { pageIndex, pageBlocks ->
+    Column(modifier = modifier) {
+        var runningIndex = 0
+        pagination.pages.forEachIndexed { pageIndex, pageBlocks ->
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.TopCenter,
@@ -49,21 +42,26 @@ fun PaginatedPaperSheet(
                     Column(
                         modifier = innerModifier
                             .fillMaxSize()
-                            .padding(vertical = 80.dp, horizontal = 64.dp),
+                            .padding(
+                                vertical = DocConfig.PageContentVerticalPadding,
+                                horizontal = DocConfig.PagePadding,
+                            ),
                     ) {
                         pageBlocks.forEachIndexed { blockIndex, block ->
-                            val globalIndex = pageIndex * BlocksPerPage + blockIndex
+                            val globalIndex = runningIndex + blockIndex
                             renderBlock(globalIndex, block)
                         }
                     }
                 }
             }
 
-            if (pageIndex < pages.lastIndex) {
+            runningIndex += pageBlocks.size
+
+            if (pageIndex < pagination.pages.lastIndex) {
                 Spacer(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(16.dp)
+                        .height(DocConfig.PageGap)
                         .background(DeskGapColor),
                 )
             }

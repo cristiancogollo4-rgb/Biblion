@@ -1,31 +1,24 @@
 package com.cristiancogollo.biblion.feature.studydocs.ui.editor
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,7 +28,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -53,7 +45,9 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.cristiancogollo.biblion.feature.studydocs.domain.InsertBlockCommand
 import com.cristiancogollo.biblion.feature.studydocs.domain.MergeBlocksCommand
 import com.cristiancogollo.biblion.feature.studydocs.domain.ReplaceBlockCommand
@@ -62,15 +56,22 @@ import com.cristiancogollo.biblion.feature.studydocs.engine.CursorNavigator
 import com.cristiancogollo.biblion.feature.studydocs.engine.SpanType
 import com.cristiancogollo.biblion.feature.studydocs.engine.StudyOp
 import com.cristiancogollo.biblion.feature.studydocs.engine.hasSpan
+import com.cristiancogollo.biblion.feature.studydocs.engine.isDegradableSpecialBlock
+import com.cristiancogollo.biblion.feature.studydocs.engine.isEffectivelyEmpty
+import com.cristiancogollo.biblion.feature.studydocs.engine.isImmutableBoundaryBlock
+import com.cristiancogollo.biblion.feature.studydocs.engine.splitTextAt
 import com.cristiancogollo.biblion.feature.studydocs.engine.toNavigatorKey
+import com.cristiancogollo.biblion.feature.studydocs.engine.toParagraphBlock
 import com.cristiancogollo.biblion.feature.studydocs.model.BlockId
 import com.cristiancogollo.biblion.feature.studydocs.model.StyledText
+import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
+import com.cristiancogollo.biblion.feature.studydocs.ui.editor.blocks.TodoListBlockEditor
+import com.cristiancogollo.biblion.feature.studydocs.ui.editor.blocks.ColumnLayoutBlockEditor
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
 import com.cristiancogollo.biblion.feature.studydocs.model.TextStylePatch
 import com.cristiancogollo.biblion.feature.studydocs.model.displayTypeName
 import com.cristiancogollo.biblion.feature.studydocs.model.isList
 import com.cristiancogollo.biblion.feature.studydocs.model.isTextEditable
-import kotlinx.coroutines.launch
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.blocks.BulletListBlockEditor
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.blocks.CalloutBlockEditor
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.blocks.DividerBlockView
@@ -81,19 +82,26 @@ import com.cristiancogollo.biblion.feature.studydocs.ui.editor.blocks.PageBreakB
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.blocks.ParagraphBlockEditor
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.blocks.QuoteBlockEditor
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.blocks.ReflectionBlockEditor
+import com.cristiancogollo.biblion.feature.studydocs.ui.editor.CommentOverlay
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.blocks.TableBlockEditor
+import com.cristiancogollo.biblion.feature.studydocs.ui.editor.blocks.TodoListBlockEditor
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.blocks.VerseBlockEditor
 import com.cristiancogollo.biblion.feature.studydocs.ui.outline.OutlinePanel
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Suppress("DEPRECATION")
 @Composable
 fun StudyDocEditorScreen(
     viewModel: StudyDocViewModel,
     onBack: () -> Unit,
     onFocusModeChanged: (() -> Unit)? = null,
+    isExpandable: Boolean = false,
+    isExpanded: Boolean = false,
+    onToggleExpand: () -> Unit = {},
+    isMultiColumnEnabled: Boolean = false,
+    onToggleMultiColumn: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     var showOutline by remember { mutableStateOf(false) }
     var showSlashMenu by remember { mutableStateOf(false) }
@@ -101,44 +109,10 @@ fun StudyDocEditorScreen(
     var showSaveDialog by remember { mutableStateOf(false) }
     val selectionState = remember { SelectionState() }
     val focusRequesters = remember { androidx.compose.runtime.mutableStateMapOf<BlockId, androidx.compose.ui.focus.FocusRequester>() }
-    val zoomState = remember { mutableStateOf(CameraState.Initial) }
+    var selectedBlockIds by remember { mutableStateOf(setOf<BlockId>()) }
+    val context = LocalContext.current
 
-    // --- ZOOM + SCROLL: Camera/Viewport/Document architecture ---
-    // Camera: zoom + offset. Viewport: pantalla (clipped). Document: PaginatedPaperSheet.
-    // screen = world * zoom + offset
-    // world  = (screen - offset) / zoom
-    val activity = (androidx.compose.ui.platform.LocalContext.current as android.app.Activity)
-    val scaleDetector = remember {
-        android.view.ScaleGestureDetector(
-            activity,
-            object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
-                override fun onScale(detector: android.view.ScaleGestureDetector): Boolean {
-                    zoomState.value = zoomState.value.focalZoom(
-                        newZoom = zoomState.value.zoom * detector.scaleFactor,
-                        focusX = detector.focusX,
-                        focusY = detector.focusY,
-                    )
-                    return true
-                }
-                override fun onScaleEnd(detector: android.view.ScaleGestureDetector) {
-                    zoomState.value = zoomState.value.snapZoom()
-                }
-            },
-        ).apply { isQuickScaleEnabled = true }
-    }
-    val windowCallback = remember { activity.window.callback }
-    DisposableEffect(Unit) {
-        activity.window.callback = object : android.view.Window.Callback by windowCallback {
-            override fun dispatchTouchEvent(event: android.view.MotionEvent?): Boolean {
-                event?.let { scaleDetector.onTouchEvent(it) }
-                return windowCallback.dispatchTouchEvent(event)
-            }
-        }
-        onDispose { activity.window.callback = windowCallback }
-    }
-
-    // Tamaño del documento medido para clamp() de la camara
-    var docSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+    val scrollState = androidx.compose.foundation.rememberScrollState()
 
     // Auto-foco en el primer bloque cuando se acaba de crear el doc.
     LaunchedEffect(uiState.wasJustCreated) {
@@ -158,28 +132,44 @@ fun StudyDocEditorScreen(
     val onColorClick: () -> Unit = { showColorPicker = true }
     val onAlignClick: () -> Unit = { viewModel.cycleAlignment() }
     val onTypeSelected: (Int) -> Unit = { index ->
-        val sid = uiState.selectedBlockId
-        if (sid != null) {
-            val targetId = BlockId(sid)
-            val target = uiState.doc.blocks.firstOrNull { it.id == targetId }
-            if (target != null) {
-                val newBlock: StudyBlock? = when (index) {
-                    0 -> StudyBlock.Paragraph(id = targetId, text = StyledText.Empty)
-                    1 -> StudyBlock.Heading(id = targetId, level = 1, text = StyledText.Empty)
-                    2 -> StudyBlock.Heading(id = targetId, level = 2, text = StyledText.Empty)
-                    3 -> StudyBlock.Heading(id = targetId, level = 3, text = StyledText.Empty)
-                    4 -> StudyBlock.Quote(id = targetId, text = StyledText.Empty)
-                    5 -> StudyBlock.BulletList(id = targetId, items = emptyList())
-                    else -> null
-                }
-                if (newBlock != null) {
-                    viewModel.executeCommand(ReplaceBlockCommand(targetId, newBlock))
-                }
+        val targetIds = if (selectedBlockIds.size > 1) selectedBlockIds
+        else setOfNotNull(uiState.selectedBlockId?.let { BlockId(it) })
+
+        targetIds.forEach { targetId ->
+            val target = uiState.doc.blocks.firstOrNull { it.id == targetId } ?: return@forEach
+            val text = when (target) {
+                is StudyBlock.Paragraph -> target.text
+                is StudyBlock.Heading -> target.text
+                is StudyBlock.Quote -> target.text
+                is StudyBlock.Note -> target.text
+                is StudyBlock.Reflection -> target.text
+                is StudyBlock.Callout -> target.text
+                is StudyBlock.Verse -> target.primaryText
+                is StudyBlock.BulletList -> target.items.firstOrNull() ?: StyledText.Empty
+                is StudyBlock.NumberedList -> target.items.firstOrNull() ?: StyledText.Empty
+                is StudyBlock.TodoList -> target.items.firstOrNull()?.text ?: StyledText.Empty
+                else -> StyledText.Empty
+            }
+            val newBlock: StudyBlock? = when (index) {
+                0 -> StudyBlock.Paragraph(id = targetId, text = text)
+                1 -> StudyBlock.Heading(id = targetId, level = 1, text = text)
+                2 -> StudyBlock.Heading(id = targetId, level = 2, text = text)
+                3 -> StudyBlock.Heading(id = targetId, level = 3, text = text)
+                4 -> StudyBlock.Quote(id = targetId, text = text)
+                5 -> StudyBlock.BulletList(id = targetId, items = listOf(text))
+                6 -> StudyBlock.NumberedList(id = targetId, items = listOf(text))
+                7 -> StudyBlock.Note(id = targetId, text = text)
+                else -> null
+            }
+            if (newBlock != null) {
+                viewModel.executeCommand(ReplaceBlockCommand(targetId, newBlock))
             }
         }
+        selectedBlockIds = emptySet()
     }
 
-    val currentTfv = viewModel.blockTextStates[viewModel.lastFocusedBlockId.value]
+    val lastFocusedBlockId by viewModel.lastFocusedBlockId.collectAsState()
+    val currentTfv = lastFocusedBlockId?.let { viewModel.blockTextStates[it] }
     val isBold = currentTfv?.hasSpan(SpanType.Bold) ?: false
     val isItalic = currentTfv?.hasSpan(SpanType.Italic) ?: false
     val isUnderline = currentTfv?.hasSpan(SpanType.Underline) ?: false
@@ -226,6 +216,17 @@ fun StudyDocEditorScreen(
                     IconButton(onClick = { showSaveDialog = true }) {
                         Icon(Icons.Filled.Save, contentDescription = "Guardar")
                     }
+                    IconButton(onClick = {
+                        val pdfFile = PdfExporter.export(context, uiState.doc)
+                        ShareHelper.sharePdf(context, pdfFile)
+                    }) {
+                        Text("PDF", style = MaterialTheme.typography.labelSmall)
+                    }
+                    IconButton(onClick = {
+                        ShareHelper.shareBiblion(context, uiState.doc)
+                    }) {
+                        Text(".bib", style = MaterialTheme.typography.labelSmall)
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
@@ -263,20 +264,87 @@ fun StudyDocEditorScreen(
                         hasNextBlock = blockIndex < blocks.lastIndex,
                         hasPrevBlock = blockIndex > 0,
                         isShiftPressed = event.isShiftPressed,
+                        isEmpty = block.isEffectivelyEmpty(),
+                        isDegradableSpecial = block.isDegradableSpecialBlock(),
+                        isPrevImmutable = blockIndex > 0 && blocks.getOrNull(blockIndex - 1)?.isImmutableBoundaryBlock() == true,
                     )
                     when (action) {
                         is CursorNavigator.Action.MoveFocusTo -> {
                             val targetId = blocks.getOrNull(action.blockIndex)?.id
                             if (targetId == null) return@onPreviewKeyEvent false
-                            focusRequesters[targetId]?.requestFocus()
+                            viewModel.selectBlock(targetId.value)
+                            true
+                        }
+                        is CursorNavigator.Action.MergeWithPrevious -> {
+                            val currentIndex = action.blockIndex
+                            val previousIndex = currentIndex - 1
+                            val previousBlock = blocks.getOrNull(previousIndex)
+                            val currentBlock = blocks.getOrNull(currentIndex)
+                            if (previousBlock !is StudyBlock.Paragraph || currentBlock !is StudyBlock.Paragraph) {
+                                return@onPreviewKeyEvent false
+                            }
+                            val mergedPlain = previousBlock.text.plain() + currentBlock.text.plain()
+                            viewModel.executeCommand(
+                                MergeBlocksCommand(
+                                    targetIndex = previousIndex,
+                                    targetOriginalText = previousBlock.text,
+                                    sourceIndex = currentIndex,
+                                    sourceOriginalText = currentBlock.text,
+                                ),
+                            )
+                            viewModel.selectBlock(previousBlock.id.value)
+                            viewModel.blockTextStates[previousBlock.id] = androidx.compose.ui.text.input.TextFieldValue(
+                                annotatedString = androidx.compose.ui.text.AnnotatedString(mergedPlain),
+                                selection = androidx.compose.ui.text.TextRange(mergedPlain.length),
+                            )
+                            viewModel.setActiveRange(previousBlock.id, null)
                             true
                         }
                         is CursorNavigator.Action.InsertNewBlockAfter -> {
+                            val newBlock = StudyBlock.Paragraph()
                             viewModel.executeCommand(
                                 InsertBlockCommand(
                                     atIndex = blockIndex + 1,
-                                    block = StudyBlock.Paragraph(),
+                                    block = newBlock,
                                 ),
+                            )
+                            viewModel.selectBlock(newBlock.id.value)
+                            true
+                        }
+                        is CursorNavigator.Action.DegradeToParagraph -> {
+                            val curr = blocks.getOrNull(action.blockIndex) ?: return@onPreviewKeyEvent false
+                            val para = curr.toParagraphBlock() ?: return@onPreviewKeyEvent false
+                            viewModel.executeCommand(ReplaceBlockCommand(curr.id, para))
+                            viewModel.blockTextStates[curr.id] = androidx.compose.ui.text.input.TextFieldValue(
+                                annotatedString = androidx.compose.ui.text.AnnotatedString(para.text.plain()),
+                                selection = androidx.compose.ui.text.TextRange(currentValue.selection.start.coerceAtMost(para.text.length)),
+                            )
+                            true
+                        }
+                        is CursorNavigator.Action.SelectPreviousBlock -> {
+                            val targetId = blocks.getOrNull(action.blockIndex)?.id ?: return@onPreviewKeyEvent false
+                            viewModel.selectBlock(targetId.value)
+                            true
+                        }
+                        is CursorNavigator.Action.SplitBlockAt -> {
+                            val curr = blocks.getOrNull(action.blockIndex) ?: return@onPreviewKeyEvent false
+                            val (left, right) = curr.splitTextAt(action.cursorOffset) ?: return@onPreviewKeyEvent false
+                            viewModel.executeCommand(ReplaceBlockCommand(curr.id, left))
+                            viewModel.executeCommand(InsertBlockCommand(action.blockIndex + 1, right))
+                            viewModel.selectBlock(right.id.value)
+                            viewModel.blockTextStates[right.id] = androidx.compose.ui.text.input.TextFieldValue(
+                                annotatedString = androidx.compose.ui.text.AnnotatedString(right.text.plain()),
+                                selection = androidx.compose.ui.text.TextRange(0),
+                            )
+                            true
+                        }
+                        is CursorNavigator.Action.EscapeToParagraph -> {
+                            val curr = blocks.getOrNull(action.blockIndex) ?: return@onPreviewKeyEvent false
+                            val para = curr.toParagraphBlock() ?: return@onPreviewKeyEvent false
+                            viewModel.executeCommand(ReplaceBlockCommand(curr.id, para))
+                            viewModel.blockTextStates[curr.id] = androidx.compose.ui.text.input.TextFieldValue(
+                                annotatedString = androidx.compose.ui.text.AnnotatedString(""),
+                                selection = androidx.compose.ui.text.TextRange(0),
                             )
                             true
                         }
@@ -293,19 +361,16 @@ fun StudyDocEditorScreen(
                 Row(modifier = Modifier.fillMaxSize()) {
                     OutlinePanel(
                         doc = uiState.doc,
-                        onHeadingClick = { _, idx ->
+                        onHeadingClick = { _, _ ->
                             showOutline = false
-                            coroutineScope.launch {
-                                listState.animateScrollToItem(idx)
-                            }
                         },
                         onClose = { showOutline = false },
                     )
                 }
             } else {
-                Column(modifier = Modifier.fillMaxSize().padding(horizontal = 40.dp)) {
+                Column(modifier = Modifier.fillMaxSize()) {
                     EditorTopBar(
-                        isFormatEnabled = uiState.selectedBlockId != null,
+                        isFormatEnabled = uiState.selectedBlockId != null || selectedBlockIds.isNotEmpty(),
                         onBold = onBold,
                         onItalic = onItalic,
                         onUnderline = onUnderline,
@@ -320,11 +385,16 @@ fun StudyDocEditorScreen(
                         onUndo = { viewModel.undo() },
                         onRedo = { viewModel.redo() },
                         activeBlockTypeName = run {
-                            val sid = uiState.selectedBlockId
-                            if (sid == null) null
-                            else uiState.doc.blocks.firstOrNull { it.id.value == sid }?.displayTypeName?.takeIf { it.isNotEmpty() }
+                            if (selectedBlockIds.size > 1) {
+                                "${selectedBlockIds.size} bloques"
+                            } else {
+                                val sid = uiState.selectedBlockId
+                                if (sid == null) null
+                                else uiState.doc.blocks.firstOrNull { it.id.value == sid }?.displayTypeName?.takeIf { it.isNotEmpty() }
+                            }
                         },
-                        isTypeDropdownEnabled = uiState.selectedBlockId?.let { sid ->
+                        isTypeDropdownEnabled = if (selectedBlockIds.size > 1) true
+                        else uiState.selectedBlockId?.let { sid ->
                             uiState.doc.blocks.firstOrNull { it.id.value == sid }?.displayTypeName?.isNotEmpty() == true
                         } ?: false,
                         onTypeSelected = onTypeSelected,
@@ -336,59 +406,207 @@ fun StudyDocEditorScreen(
                         isNumberedActive = isNumberedActive,
                         onColorClick = onColorClick,
                         onAlignClick = onAlignClick,
-                        zoomPercent = zoomState.value.displayPercent(),
-                        isZoomModified = zoomState.value.zoom != CameraState.Initial.zoom,
-                        onResetZoom = { zoomState.value = CameraState.Initial },
-                        onZoomIn = { zoomState.value = zoomState.value.stepIn() },
-                        onZoomOut = { zoomState.value = zoomState.value.stepOut() },
+                        fontSizeLabel = "${(viewModel.currentFontSize / DocConfig.FontSize.value * 100).toInt()}%",
+                        isFontSizeAtMax = viewModel.fontSizeIndex.collectAsState().value >= DocConfig.FontSizeLevels.lastIndex,
+                        isFontSizeAtMin = viewModel.fontSizeIndex.collectAsState().value <= 0,
+                        onFontSizeIncrease = { viewModel.increaseFontSize() },
+                        onFontSizeDecrease = { viewModel.decreaseFontSize() },
+                        isExpandable = isExpandable,
+                        isExpanded = isExpanded,
+                        onToggleExpand = onToggleExpand,
+                        isMultiColumnEnabled = isMultiColumnEnabled,
+                        onToggleMultiColumn = onToggleMultiColumn,
                     )
-                    // Viewport (clipea el contenido que excede la pantalla)
-                    // Camera (graphicsLayer con zoom + offset)
-                    // Document (PaginatedPaperSheet a tamano nativo)
-                    Box(Modifier.fillMaxSize()
-                        .clipToBounds()
-                        .onGloballyPositioned { coords -> docSize = coords.size }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .verticalScroll(scrollState),
+                        contentAlignment = Alignment.TopCenter,
                     ) {
-                        Box(
-                            modifier = Modifier.graphicsLayer {
-                                val cam = zoomState.value
-                                scaleX = cam.zoom
-                                scaleY = cam.zoom
-                                translationX = cam.offsetX
-                                translationY = cam.offsetY
-                                transformOrigin = TransformOrigin(0f, 0f)
-                            },
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = DocConfig.EditorHorizontalPadding)
+                                .padding(vertical = DocConfig.EditorContentVerticalPadding),
+                            horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            PaginatedPaperSheet(
-                                blocks = uiState.doc.blocks,
-                            ) { index, block ->
-                            BlockWithHandle(
-                                        block = block,
-                                        blockIndex = index,
-                                        isSelected = uiState.selectedBlockId == block.id.value,
-                                        blockAlignments = viewModel.blockAlignments,
-                                        selectionState = selectionState,
-                                        onClick = { viewModel.selectBlock(block.id.value) },
-                                        onSelectionChange = { range ->
-                                            selectionState.set(block.id.value, range)
-                                            viewModel.setActiveRange(block.id, range)
-                                            viewModel.selectBlock(block.id.value)
+                            Box(
+                                modifier = Modifier.widthIn(max = DocConfig.EditorMaxWidth).fillMaxWidth(),
+                            ) {
+                                if (isMultiColumnEnabled && uiState.doc.blocks.size >= 4) {
+                                    val blocks = uiState.doc.blocks
+                                    val mid = blocks.size / 2
+                                    val leftBlocks = blocks.subList(0, mid)
+                                    val rightBlocks = blocks.subList(mid, blocks.size)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            leftBlocks.forEachIndexed { index, block ->
+                                                BlockWithHandle(
+                                                    block = block,
+                                                    blockIndex = index,
+                                                    isSelected = uiState.selectedBlockId == block.id.value || block.id in selectedBlockIds,
+                                                    blockAlignments = viewModel.blockAlignments,
+                                                    selectionState = selectionState,
+                                                    onClick = { selectedBlockIds = emptySet(); viewModel.selectBlock(block.id.value) },
+                                                    onMultiSelectClick = { isShift, isCtrl ->
+                                                        if (isShift && selectedBlockIds.isNotEmpty()) {
+                                                            val firstSelectedIndex = uiState.doc.blocks.indexOfFirst { it.id in selectedBlockIds }
+                                                            val currentIndex = index
+                                                            val start = minOf(firstSelectedIndex, currentIndex)
+                                                            val end = maxOf(firstSelectedIndex, currentIndex)
+                                                            selectedBlockIds = (start..end).map { uiState.doc.blocks[it].id }.toSet()
+                                                            viewModel.selectBlock(block.id.value)
+                                                        } else if (isCtrl) {
+                                                            selectedBlockIds = if (block.id in selectedBlockIds)
+                                                                selectedBlockIds - block.id else selectedBlockIds + block.id
+                                                            viewModel.selectBlock(block.id.value)
+                                                        }
+                                                    },
+                                                    onSelectionChange = { range ->
+                                                        selectionState.set(block.id.value, range)
+                                                        viewModel.setActiveRange(block.id, range)
+                                                        viewModel.selectBlock(block.id.value)
+                                                    },
+                                                    onReplace = { newBlock ->
+                                                        viewModel.applyOp(StudyOp.ReplaceBlock(block.id, newBlock))
+                                                    },
+                                                    onInsert = { atIndex, newBlock ->
+                                                        viewModel.applyOp(StudyOp.InsertBlock(atIndex, newBlock))
+                                                    },
+                                                    onDelete = { viewModel.applyOp(StudyOp.DeleteBlock(block.id)) },
+                                                    onFieldValueChange = { tfv ->
+                                                        viewModel.blockTextStates[block.id] = tfv
+                                                    },
+                                                    onRegisterFocus = { fr -> focusRequesters[block.id] = fr },
+                                                    onBlockFieldFocus = { fieldKey -> viewModel.onFieldFocused(fieldKey) },
+                                                    onListItemFieldValueChange = { idx, tfv ->
+                                                        viewModel.blockTextStates[BlockId("${block.id.value}:item:$idx")] = tfv
+                                                    },
+                                                    onListItemFocusChanged = { idx ->
+                                                        viewModel.onFieldFocused("${block.id.value}:item:$idx")
+                                                    },
+                                                    fontSize = viewModel.currentFontSize.sp,
+                                                )
+                                            }
+                                        }
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            rightBlocks.forEachIndexed { index, block ->
+                                                BlockWithHandle(
+                                                    block = block,
+                                                    blockIndex = mid + index,
+                                                    isSelected = uiState.selectedBlockId == block.id.value || block.id in selectedBlockIds,
+                                                    blockAlignments = viewModel.blockAlignments,
+                                                    selectionState = selectionState,
+                                                    onClick = { selectedBlockIds = emptySet(); viewModel.selectBlock(block.id.value) },
+                                                    onMultiSelectClick = { isShift, isCtrl ->
+                                                        if (isShift && selectedBlockIds.isNotEmpty()) {
+                                                            val firstSelectedIndex = uiState.doc.blocks.indexOfFirst { it.id in selectedBlockIds }
+                                                            val currentIndex = mid + index
+                                                            val start = minOf(firstSelectedIndex, currentIndex)
+                                                            val end = maxOf(firstSelectedIndex, currentIndex)
+                                                            selectedBlockIds = (start..end).map { uiState.doc.blocks[it].id }.toSet()
+                                                            viewModel.selectBlock(block.id.value)
+                                                        } else if (isCtrl) {
+                                                            selectedBlockIds = if (block.id in selectedBlockIds)
+                                                                selectedBlockIds - block.id else selectedBlockIds + block.id
+                                                            viewModel.selectBlock(block.id.value)
+                                                        }
+                                                    },
+                                                    onSelectionChange = { range ->
+                                                        selectionState.set(block.id.value, range)
+                                                        viewModel.setActiveRange(block.id, range)
+                                                        viewModel.selectBlock(block.id.value)
+                                                    },
+                                                    onReplace = { newBlock ->
+                                                        viewModel.applyOp(StudyOp.ReplaceBlock(block.id, newBlock))
+                                                    },
+                                                    onInsert = { atIndex, newBlock ->
+                                                        viewModel.applyOp(StudyOp.InsertBlock(mid + atIndex, newBlock))
+                                                    },
+                                                    onDelete = { viewModel.applyOp(StudyOp.DeleteBlock(block.id)) },
+                                                    onFieldValueChange = { tfv ->
+                                                        viewModel.blockTextStates[block.id] = tfv
+                                                    },
+                                                    onRegisterFocus = { fr -> focusRequesters[block.id] = fr },
+                                                    onBlockFieldFocus = { fieldKey -> viewModel.onFieldFocused(fieldKey) },
+                                                    onListItemFieldValueChange = { idx, tfv ->
+                                                        viewModel.blockTextStates[BlockId("${block.id.value}:item:$idx")] = tfv
+                                                    },
+                                                    onListItemFocusChanged = { idx ->
+                                                        viewModel.onFieldFocused("${block.id.value}:item:$idx")
+                                                    },
+                                                    fontSize = viewModel.currentFontSize.sp,
+                                                )
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    uiState.doc.blocks.forEachIndexed { index, block ->
+                                        BlockWithHandle(
+                                            block = block,
+                                            blockIndex = index,
+                                            isSelected = uiState.selectedBlockId == block.id.value || block.id in selectedBlockIds,
+                                            blockAlignments = viewModel.blockAlignments,
+                                            selectionState = selectionState,
+                                            onClick = { selectedBlockIds = emptySet(); viewModel.selectBlock(block.id.value) },
+                                            onMultiSelectClick = { isShift, isCtrl ->
+                                                if (isShift && selectedBlockIds.isNotEmpty()) {
+                                                    val firstSelectedIndex = uiState.doc.blocks.indexOfFirst { it.id in selectedBlockIds }
+                                                    val currentIndex = index
+                                                    val start = minOf(firstSelectedIndex, currentIndex)
+                                                    val end = maxOf(firstSelectedIndex, currentIndex)
+                                                    selectedBlockIds = (start..end).map { uiState.doc.blocks[it].id }.toSet()
+                                                    viewModel.selectBlock(block.id.value)
+                                                } else if (isCtrl) {
+                                                    selectedBlockIds = if (block.id in selectedBlockIds)
+                                                        selectedBlockIds - block.id else selectedBlockIds + block.id
+                                                    viewModel.selectBlock(block.id.value)
+                                                }
+                                            },
+                                            onSelectionChange = { range ->
+                                                selectionState.set(block.id.value, range)
+                                                viewModel.setActiveRange(block.id, range)
+                                                viewModel.selectBlock(block.id.value)
+                                            },
+                                            onReplace = { newBlock ->
+                                                viewModel.applyOp(StudyOp.ReplaceBlock(block.id, newBlock))
+                                            },
+                                            onInsert = { atIndex, newBlock ->
+                                                viewModel.applyOp(StudyOp.InsertBlock(atIndex, newBlock))
+                                            },
+                                            onDelete = { viewModel.applyOp(StudyOp.DeleteBlock(block.id)) },
+                                            onFieldValueChange = { tfv ->
+                                                viewModel.blockTextStates[block.id] = tfv
+                                            },
+                                            onRegisterFocus = { fr -> focusRequesters[block.id] = fr },
+                                            onBlockFieldFocus = { fieldKey -> viewModel.onFieldFocused(fieldKey) },
+                                            onListItemFieldValueChange = { idx, tfv ->
+                                                viewModel.blockTextStates[BlockId("${block.id.value}:item:$idx")] = tfv
+                                            },
+                                            onListItemFocusChanged = { idx ->
+                                                viewModel.onFieldFocused("${block.id.value}:item:$idx")
+                                            },
+                                            fontSize = viewModel.currentFontSize.sp,
+                                        )
+                                    }
+                                }
+                                val docComments = uiState.doc.blocks.filterIsInstance<StudyBlock.Comment>()
+                                if (docComments.isNotEmpty()) {
+                                    CommentOverlay(
+                                        comments = docComments,
+                                        onCommentClick = { commentId ->
+                                            viewModel.selectBlock(commentId.value)
                                         },
-                                        onReplace = { newBlock ->
-                                            viewModel.applyOp(StudyOp.ReplaceBlock(block.id, newBlock))
-                                        },
-                                        onInsert = { atIndex, newBlock ->
-                                            viewModel.applyOp(StudyOp.InsertBlock(atIndex, newBlock))
-                                        },
-                                        onDelete = { viewModel.applyOp(StudyOp.DeleteBlock(block.id)) },
-                                        onFieldValueChange = { tfv ->
-                                            viewModel.blockTextStates[block.id] = tfv
-                                        },
-                                        onRegisterFocus = { fr -> focusRequesters[block.id] = fr },
+                                        modifier = Modifier.align(Alignment.TopEnd),
                                     )
+                                }
                             }
                         }
-                        }
+                    }
                 }
             }
         }
@@ -509,12 +727,17 @@ private fun BlockWithHandle(
     selectionState: SelectionState,
     blockAlignments: androidx.compose.runtime.snapshots.SnapshotStateMap<com.cristiancogollo.biblion.feature.studydocs.model.BlockId, androidx.compose.ui.text.style.TextAlign>,
     onClick: () -> Unit,
+    onMultiSelectClick: (isShift: Boolean, isCtrl: Boolean) -> Unit = { _, _ -> },
     onSelectionChange: (IntRange?) -> Unit,
     onReplace: (StudyBlock) -> Unit,
     onInsert: (Int, StudyBlock) -> Unit,
     onDelete: () -> Unit,
     onFieldValueChange: (androidx.compose.ui.text.input.TextFieldValue) -> Unit,
     onRegisterFocus: (androidx.compose.ui.focus.FocusRequester) -> Unit,
+    onBlockFieldFocus: (String) -> Unit,
+    onListItemFieldValueChange: (Int, androidx.compose.ui.text.input.TextFieldValue) -> Unit,
+    onListItemFocusChanged: (Int) -> Unit,
+    fontSize: androidx.compose.ui.unit.TextUnit = com.cristiancogollo.biblion.feature.studydocs.ui.editor.DocConfig.FontSize,
 ) {
     val highlight = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent
     val localFocusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
@@ -532,8 +755,10 @@ private fun BlockWithHandle(
             modifier = Modifier.size(28.dp).padding(top = 8.dp),
             contentAlignment = Alignment.TopCenter,
         ) {
+            @Suppress("DEPRECATION")
+            val dragIcon = Icons.Filled.MenuBook
             Icon(
-                imageVector = Icons.Filled.MenuBook,
+                imageVector = dragIcon,
                 contentDescription = "Arrastrar",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                 modifier = Modifier.size(14.dp),
@@ -548,16 +773,21 @@ private fun BlockWithHandle(
                     onShortcutDetected = { newBlock -> onReplace(newBlock) },
                     onFieldValueChange = onFieldValueChange,
                     textAlign = blockAlign,
+                    fontSize = fontSize,
                 )
                 is StudyBlock.Heading -> HeadingBlockEditor(
                     block = block, isSelected = isSelected, onClick = onClick,
                     onSelectionChange = onSelectionChange, onTextChange = { newText -> onReplace(block.copy(text = newText)) },
+                    onFocusChanged = { if (it) onBlockFieldFocus(block.id.value) },
                     textAlign = blockAlign,
+                    fontSize = fontSize,
                 )
                 is StudyBlock.Quote -> QuoteBlockEditor(
                     block = block, isSelected = isSelected, onClick = onClick,
                     onSelectionChange = onSelectionChange, onTextChange = { newText -> onReplace(block.copy(text = newText)) },
+                    onFocusChanged = { if (it) onBlockFieldFocus(block.id.value) },
                     textAlign = blockAlign,
+                    fontSize = fontSize,
                 )
                 is StudyBlock.BulletList -> BulletListBlockEditor(
                     block = block, isSelected = isSelected, onClick = onClick,
@@ -572,6 +802,9 @@ private fun BlockWithHandle(
                     onItemChange = { idx, newItem ->
                         onReplace(block.copy(items = block.items.toMutableList().apply { this[idx] = newItem }))
                     },
+                    onItemFieldValueChange = { idx, tfv -> onListItemFieldValueChange(idx, tfv) },
+                    onItemFocusChanged = { idx -> onListItemFocusChanged(idx) },
+                    fontSize = fontSize,
                 )
                 is StudyBlock.NumberedList -> NumberedListBlockEditor(
                     block = block, isSelected = isSelected, onClick = onClick,
@@ -585,22 +818,29 @@ private fun BlockWithHandle(
                     onItemChange = { idx, newItem ->
                         onReplace(block.copy(items = block.items.toMutableList().apply { this[idx] = newItem }))
                     },
+                    onItemFieldValueChange = { idx, tfv -> onListItemFieldValueChange(idx, tfv) },
+                    onItemFocusChanged = { idx -> onListItemFocusChanged(idx) },
+                    fontSize = fontSize,
                 )
                 is StudyBlock.Note -> NoteBlockEditor(
                     block = block, isSelected = isSelected, onSelectionChange = onSelectionChange,
                     onTextChange = { newText -> onReplace(block.copy(text = newText)) },
+                    fontSize = fontSize,
                 )
                 is StudyBlock.Reflection -> ReflectionBlockEditor(
                     block = block, isSelected = isSelected, onSelectionChange = onSelectionChange,
                     onTextChange = { newText -> onReplace(block.copy(text = newText)) },
+                    fontSize = fontSize,
                 )
                 is StudyBlock.Callout -> CalloutBlockEditor(
                     block = block, isSelected = isSelected, onSelectionChange = onSelectionChange,
                     onTextChange = { newText -> onReplace(block.copy(text = newText)) },
+                    fontSize = fontSize,
                 )
                 is StudyBlock.Verse -> VerseBlockEditor(
-                    block = block, isSelected = isSelected, onSelectionChange = onSelectionChange,
-                    onTextChange = { newText -> onReplace(block.copy(primaryText = newText)) },
+                    block = block,
+                    isSelected = isSelected,
+                    onReplace = onReplace,
                 )
                 is StudyBlock.Divider -> DividerBlockView()
                 is StudyBlock.PageBreak -> PageBreakBlockView()
@@ -617,6 +857,57 @@ private fun BlockWithHandle(
                         onReplace(block.copy(rows = newRows))
                     },
                 )
+                is StudyBlock.TodoList -> TodoListBlockEditor(
+                    block = block,
+                    isSelected = isSelected,
+                    onItemCheck = { idx, checked ->
+                        val updated = block.items.toMutableList().apply {
+                            this[idx] = this[idx].copy(checked = checked)
+                        }
+                        onReplace(block.copy(items = updated))
+                    },
+                    onItemTextChange = { idx, text ->
+                        val updated = block.items.toMutableList().apply {
+                            this[idx] = this[idx].copy(text = text)
+                        }
+                        onReplace(block.copy(items = updated))
+                    },
+                    onAppendItem = {
+                        onReplace(block.copy(items = block.items + StudyBlock.TodoList.TodoItem()))
+                    },
+                    onRemoveItem = { idx ->
+                        if (block.items.size > 1) {
+                            onReplace(block.copy(items = block.items.toMutableList().apply { removeAt(idx) }))
+                        }
+                    },
+                    onItemFieldValueChange = { idx, tfv ->
+                        onListItemFieldValueChange(idx, tfv)
+                    },
+                    onItemFocusChanged = { idx ->
+                        onListItemFocusChanged(idx)
+                    },
+                    fontSize = fontSize,
+                )
+                is StudyBlock.ColumnLayout -> ColumnLayoutBlockEditor(
+                    block = block,
+                    isSelected = isSelected,
+                    onReplace = onReplace,
+                )
+                is StudyBlock.Comment -> {
+                    androidx.compose.material3.Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        colors = androidx.compose.material3.CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        ),
+                    ) {
+                        androidx.compose.foundation.layout.Column(modifier = Modifier.padding(8.dp)) {
+                            Text(
+                                text = block.text.ifBlank { "Comentario" },
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                }
             }
         }
     }

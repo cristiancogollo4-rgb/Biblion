@@ -19,11 +19,14 @@ import androidx.compose.material.icons.filled.FormatBold
 import androidx.compose.material.icons.filled.FormatColorText
 import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatListBulleted
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.FormatStrikethrough
 import androidx.compose.material.icons.filled.FormatUnderlined
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Redo
+import androidx.compose.material.icons.filled.TextDecrease
+import androidx.compose.material.icons.filled.TextIncrease
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -74,11 +77,16 @@ fun EditorTopBar(
     onColorClick: () -> Unit = {},
     onAlignClick: () -> Unit = {},
     alignIcon: ImageVector = Icons.Filled.FormatAlignLeft,
-    zoomPercent: String = "100%",
-    isZoomModified: Boolean = false,
-    onResetZoom: () -> Unit = {},
-    onZoomIn: () -> Unit = {},
-    onZoomOut: () -> Unit = {},
+    isExpandable: Boolean = false,
+    isExpanded: Boolean = false,
+    onToggleExpand: () -> Unit = {},
+    isMultiColumnEnabled: Boolean = false,
+    onToggleMultiColumn: () -> Unit = {},
+    fontSizeLabel: String = "100%",
+    isFontSizeAtMax: Boolean = false,
+    isFontSizeAtMin: Boolean = false,
+    onFontSizeIncrease: () -> Unit = {},
+    onFontSizeDecrease: () -> Unit = {},
 ) {
     Surface(
         modifier = modifier.fillMaxWidth().zIndex(10f),
@@ -117,31 +125,23 @@ fun EditorTopBar(
             VerticalDivider(Modifier.padding(horizontal = 6.dp).height(24.dp),
                 color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
 
-            // Indicador de zoom con botones +/- y reset
-            ToolbarTextButton(
-                text = "\u2212",
-                contentDescription = "Reducir zoom",
-                enabled = true,
-                onClick = onZoomOut,
+            ToolbarIconButton(
+                Icons.Filled.TextDecrease,
+                "Reducir tamano de letra",
+                enabled = !isFontSizeAtMin,
+                onClick = onFontSizeDecrease,
             )
             Text(
-                text = zoomPercent,
+                text = fontSizeLabel,
                 style = MaterialTheme.typography.labelSmall,
-                color = if (isZoomModified) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 modifier = Modifier.padding(horizontal = 4.dp),
             )
-            ToolbarTextButton(
-                text = "+",
-                contentDescription = "Aumentar zoom",
-                enabled = true,
-                onClick = onZoomIn,
-            )
             ToolbarIconButton(
-                Icons.Filled.Refresh,
-                "Restablecer zoom",
-                enabled = isZoomModified,
-                onClick = onResetZoom,
+                Icons.Filled.TextIncrease,
+                "Aumentar tamano de letra",
+                enabled = !isFontSizeAtMax,
+                onClick = onFontSizeIncrease,
             )
 
             ToolbarIconButton(Icons.Filled.FormatListBulleted, "Lista con vi\u00f1etas", isFormatEnabled && !isBulletActive, onBullet,
@@ -155,6 +155,22 @@ fun EditorTopBar(
             TypeDropdown(activeBlockTypeName, isTypeDropdownEnabled, onTypeSelected)
 
             Box(modifier = Modifier.weight(1f))
+            if (isExpandable) {
+                if (isExpanded) {
+                    ToolbarTextButton(
+                        text = if (isMultiColumnEnabled) "1c" else "2c",
+                        contentDescription = if (isMultiColumnEnabled) "Una columna" else "Dos columnas",
+                        enabled = true,
+                        onClick = onToggleMultiColumn,
+                    )
+                }
+                ToolbarIconButton(
+                    if (isExpanded) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen,
+                    if (isExpanded) "Contraer editor" else "Expandir editor",
+                    enabled = true,
+                    onClick = onToggleExpand,
+                )
+            }
             ToolbarIconButton(Icons.Filled.Add, "Anadir bloque estructural", true, onAddBlock)
         }
     }

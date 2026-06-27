@@ -42,6 +42,7 @@ enum class DictionaryCategory(val displayName: String) {
     OBJECT("Objeto"),
     PRACTICE("Practica"),
     EVENT("Evento"),
+    BOOK("Libro"),
     OTHER("General")
 }
 
@@ -203,8 +204,13 @@ object DictionaryRepository {
         context: Context,
         category: DictionaryCategory
     ): List<DictionaryEntry> = withContext(Dispatchers.IO) {
-        dao(context).getEntriesByCategory(category.name.lowercase(), CATEGORY_LIMIT)
-            .map { it.toDomain() }
+        try {
+            dao(context).getEntriesByCategory(category.name.lowercase(), 9999)
+                .map { it.toDomain() }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting entries by category: ${e.message}", e)
+            emptyList()
+        }
     }
 
     /**
@@ -236,6 +242,21 @@ object DictionaryRepository {
             0
         }
     }
+
+    suspend fun getCategoryCounts(context: Context): List<Pair<DictionaryCategory, Int>> =
+        withContext(Dispatchers.IO) {
+            try {
+                dao(context).getCategoryCounts().mapNotNull { cc ->
+                    val cat = DictionaryCategory.entries.find {
+                        it.name.equals(cc.category, ignoreCase = true)
+                    } ?: return@mapNotNull null
+                    cat to cc.count
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error getting category counts: ${e.message}", e)
+                emptyList()
+            }
+        }
 
     //region Helpers
 

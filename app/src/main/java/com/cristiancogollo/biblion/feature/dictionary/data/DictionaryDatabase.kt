@@ -89,6 +89,11 @@ data class DictionaryEntryEntity(
     val featureType: String? = null
 )
 
+data class CategoryCount(
+    val category: String,
+    val count: Int
+)
+
 /**
  * Resultado de busqueda FTS5 con score de relevancia.
  */
@@ -222,6 +227,9 @@ interface DictionaryDao {
     @Query("SELECT COUNT(*) FROM dictionary_entries")
     suspend fun getEntryCount(): Int
 
+    @Query("SELECT category, COUNT(*) as count FROM dictionary_entries GROUP BY category")
+    suspend fun getCategoryCounts(): List<CategoryCount>
+
     /**
      * Obtiene entradas aleatorias para el versiculo del dia o descubrimiento.
      */
@@ -270,7 +278,7 @@ class DictionaryTypeConverters {
  */
 @Database(
     entities = [DictionaryEntryEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(DictionaryTypeConverters::class)
@@ -296,7 +304,7 @@ abstract class DictionaryDatabase : RoomDatabase() {
                         DictionaryDatabase::class.java,
                         "dictionary.db"
                     )
-                        .createFromAsset("databases/dictionary.db")
+                        .createFromAsset("databases/dictionary_v2.db")
                         .fallbackToDestructiveMigration()
                         .build()
                         .also {

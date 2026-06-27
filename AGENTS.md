@@ -48,7 +48,8 @@ Biblion ya incluye:
   - **Sistema de etiquetas**: `DocMetadata` con `DocTagGroups` (proposito, audiencia, tema, estado) validado por `StudyDocValidator`.
   - **Navegacion**: rutas `study_docs_list`, `study_doc_editor/{remoteId}`, `study_doc_read/{remoteId}`.
   - **Compatibilidad temporal**: `StudyViewModelStub.kt` mantiene `ReaderScreen` compilando (citation insert y Bibi overlay son stubs).
-- **Diccionario biblico local unificado** (`dictionary.db`) con 6,346 entradas Easton's + Theographic: definiciones, metadata (género, fechas, coordenadas GPS, aliases, featureType). Accesible vía `DictionaryEngine` con templates por categoría.
+- **Diccionario biblico local unificado** (`dictionary_v2.db`) con 6,346 entradas Easton's + Theographic: definiciones, metadata (genero, fechas, coordenadas GPS, aliases, featureType). Accesible via `DictionaryEngine` con templates por categoria. **Pantalla dedicada** `DictionaryScreen` con 8 categorias (Personas, Lugares, Conceptos, Objetos, Prácticas, Eventos, Libros, General). `DictionaryCategoryScreen` muestra todas las entradas de una categoria con busqueda en vivo. La categoria **BOOK** incluye los 66 libros en orden canonico biblical (Génesis → Apocalipsis) con descripciones de `topics.db`.
+- **Descripcion de libros desde Topics**: long press en un libro en `BooksScreen` abre un `ModalBottomSheet` con descripcion (via `TopicEngine.getBySlug()`), conteo de versiculos y boton "Leer". El slug se genera con `toBookTopicSlug()` que quita tildes y reemplaza espacios por guiones (los slugs en `topics.db` NO tienen acentos ni guiones intermedios).
 - **Bibi mejorada** con respuestas estructuradas (`BibiResponse`), templates por categoría (persona/lugar/concepto/objeto/práctica/evento), sugerencias personalizadas con `chatHistory` ("Comparar con X"), anáforas, memoria conversacional e historial de chats persistido en Room.
 - **Placeholders rotativos (carousel)** en campos de búsqueda cada 3.5s con 5 ejemplos.
 - Integracion online de Bibi mediante Cloudflare Worker y Qwen3-8B por endpoint compatible con OpenAI.
@@ -412,6 +413,20 @@ Nacimiento: 1997 a.C.
 
 Las respuestas del diccionario local **NO incluyen versiculos completos**. Esto evita que Bibi invente referencias. Para profundizar en versiculos sobre el tema, se sugiere via chips: **"Pedir a IA: pasajes sobre X"** que va al Worker.
 
+### Pantalla de diccionario y descripcion de libros
+
+`DictionaryScreen` (`feature/dictionary/ui/DictionaryScreen.kt`) muestra 8 tarjetas de categorias con color, descripcion y conteo de entradas. Al tocar una category, navega a `DictionaryCategoryScreen`.
+
+**Categorias**: Personas, Lugares, Conceptos, Objetos, Prácticas, Eventos, Libros, General.
+
+**`DictionaryCategoryScreen`** (`feature/dictionary/ui/DictionaryCategoryScreen.kt`): lista de entradas con busqueda en vivo. La categoria **BOOK** ordena los 66 libros en orden canonico biblical (Génesis → Apocalipsis) usando `canonicalBookOrder` + `normalizeForBookOrder()` para insensibilidad a acentos.
+
+**`BookCard` en BooksScreen**: long press en un libro abre un `ModalBottomSheet` con descripcion del libro desde `topics.db` via `TopicEngine.getBySlug()`. El slug se genera con `toBookTopicSlug()` que quita tildes y reemplaza espacios por guiones. Click regular navega al lector.
+
+**Rutas**: `Screen.Dictionary` (route `dictionary`), `Screen.ExploreDictionaryCategory` (route `dictionary_category/{category}`).
+
+**Base de datos**: `DictionaryDatabase` (Room v3, asset `dictionary_v2.db`) con `getEntriesByCategory()` y `getCategoryCounts()`.
+
 ### Referencias cruzadas y temas (openbile.info) - version actual
 
 Reemplaza al antiguo sistema TSK. Bibilion usa dos DBs separadas:
@@ -768,7 +783,7 @@ Reglas principales:
 - La base se genera desde los JSON fuente con `tools/build_bible_sqlite.py`; si se regeneran versiones, conservar la deduplicacion de libros por nombre normalizado para evitar duplicados como los de NVI.
 - Las citas vinculadas deben conservar `book`, `chapter`, `verseStart`, `verseEnd` y `version`.
 - **Documentos de estudio**: Room database `study_docs.db` con `StudyDocEntity` (id, remoteId, title, notebookRemoteId, ownerUid, tagsCsv, blockCount, version, docJson). Migracion destructiva aceptable en v1 ya que los datos viejos del sistema anterior (`feature/study/`) no son compatibles.
-- **Diccionario biblico local unificado**: `app/src/main/assets/databases/dictionary.db` contiene 6,346 entradas (Easton's + Theographic). Generado por `tools/build_knowledge_sqlite.py`. Esquema version 2 (con metadata Theographic).
+- **Diccionario biblico local unificado**: `app/src/main/assets/databases/dictionary_v2.db` contiene 6,346 entradas (Easton's + Theographic). Generado por `tools/build_knowledge_sqlite.py`. Esquema version 2 (con metadata Theographic).
 - **Historial de busquedas**: Room database `search_history.db` con `SearchHistoryEntity` (query, normalized_query, use_count, last_used_at). Se usa para mostrar busquedas recientes en `SearchScreen`. Migracion destructiva aceptable (datos regenerables).
 - **Chats de Bibi**: Room database `bibi_chat.db` con `ChatSessionEntity` y `ChatMessageEntity`. Permite multiples sesiones independientes de conversacion.
 - **Referencias cruzadas con voto crowdsourced** (`app/src/main/assets/databases/cross_references_votes.db`): 340,645 pares del dataset openbile.info (CC-BY 2026-06-15). Reemplazo completo del antiguo TSK. Tabla `cross_reference_votes` con `source_book`, `source_normalized_book`, `source_chapter`, `source_verse`, `target_references` (formato Biblion), `votes` (1-1279, INTERNO). Esquema version 1. La columna `votes` se usa internamente para ranking y filtrado (default `votes >= 10`). **NUNCA** debe exponerse al usuario en la UI de Bibi.
@@ -783,6 +798,9 @@ Reglas principales:
   - `Screen.StudyDocsList` (route `study_docs_list`) → `StudyDocsListScreen`.
   - `Screen.StudyDocEditor` (route `study_doc_editor/{remoteId}`) → `StudyDocEditorScreen`.
   - `Screen.StudyDocRead` (route `study_doc_read/{remoteId}`) → `StudyDocReadScreen`.
+- **Rutas de diccionario**:
+  - `Screen.Dictionary` (route `dictionary`) → `DictionaryScreen`.
+  - `Screen.ExploreDictionaryCategory` (route `dictionary_category/{category}`) → `DictionaryCategoryScreen`.
 - **Rutas legacy (mantenidas para compatibilidad)**: `Screen.Ensenanzas` y `Screen.StudyRead` redirigen a `StudyDocsListRoute`.
 
 ## 11) Pruebas y validacion

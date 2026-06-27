@@ -109,6 +109,39 @@ sealed interface StudyBlock {
     data class PageBreak(
         override val id: BlockId = BlockId.generate(),
     ) : StudyBlock
+
+    @Serializable
+    @SerialName("todo_list")
+    data class TodoList(
+        override val id: BlockId = BlockId.generate(),
+        val items: List<TodoItem> = emptyList(),
+    ) : StudyBlock {
+        @Serializable
+        data class TodoItem(
+            val checked: Boolean = false,
+            val text: StyledText = StyledText.Empty,
+        )
+    }
+
+    @Serializable
+    @SerialName("column_layout")
+    data class ColumnLayout(
+        override val id: BlockId = BlockId.generate(),
+        val columnBlocks: List<List<StudyBlock>> = listOf(
+            listOf(Paragraph()),
+            listOf(Paragraph()),
+        ),
+    ) : StudyBlock
+
+    @Serializable
+    @SerialName("comment")
+    data class Comment(
+        override val id: BlockId = BlockId.generate(),
+        val text: String = "",
+        val anchorBlockId: BlockId,
+        val anchorStart: Int = 0,
+        val anchorEnd: Int = 0,
+    ) : StudyBlock
 }
 
 val StudyBlock.outlineTitle: String?
@@ -129,7 +162,7 @@ val StudyBlock.isTextEditable: Boolean
     }
 
 val StudyBlock.isList: Boolean
-    get() = this is StudyBlock.BulletList || this is StudyBlock.NumberedList
+    get() = this is StudyBlock.BulletList || this is StudyBlock.NumberedList || this is StudyBlock.TodoList
 
 val StudyBlock.displayTypeName: String
     get() = when (this) {
@@ -143,5 +176,7 @@ val StudyBlock.displayTypeName: String
         is StudyBlock.Quote -> "Cita"
         is StudyBlock.BulletList -> "Lista"
         is StudyBlock.NumberedList -> "Lista numerada"
+        is StudyBlock.TodoList -> "Lista de tareas"
+        is StudyBlock.ColumnLayout -> "Columnas"
         else -> ""
     }

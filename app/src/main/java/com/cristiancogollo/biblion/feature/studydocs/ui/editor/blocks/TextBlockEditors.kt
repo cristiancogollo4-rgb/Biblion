@@ -9,6 +9,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -16,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import com.cristiancogollo.biblion.feature.studydocs.model.StyledText
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
+import com.cristiancogollo.biblion.feature.studydocs.ui.editor.DocConfig
 
 @Composable
 fun ParagraphBlockEditor(
@@ -26,22 +28,25 @@ fun ParagraphBlockEditor(
     onTextChange: (StyledText) -> Unit,
     onShortcutDetected: ((StudyBlock) -> Unit)? = null,
     onFieldValueChange: (androidx.compose.ui.text.input.TextFieldValue) -> Unit = {},
+    onFocusChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
     textAlign: androidx.compose.ui.text.style.TextAlign? = null,
+    fontSize: androidx.compose.ui.unit.TextUnit = DocConfig.FontSize,
 ) {
-    Column(
-        modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
-    ) {
+    Column(modifier = modifier.fillMaxWidth()) {
         StyledTextEditor(
             text = block.text,
             onTextChange = onTextChange,
             onSelectionChange = onSelectionChange,
             onShortcutDetected = onShortcutDetected,
             onFieldValueChange = onFieldValueChange,
+            onFocusChanged = onFocusChanged,
             baseStyle = if (textAlign != null) MaterialTheme.typography.bodyLarge.copy(textAlign = textAlign) else MaterialTheme.typography.bodyLarge,
             placeholder = "Escribe algo...",
             isSelected = isSelected,
+            requestFocus = isSelected,
             blockId = block.id.value,
+            fontSize = fontSize,
         )
     }
 }
@@ -53,20 +58,23 @@ fun HeadingBlockEditor(
     onClick: () -> Unit,
     onSelectionChange: (IntRange?) -> Unit = {},
     onTextChange: (StyledText) -> Unit,
+    onFocusChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
     textAlign: androidx.compose.ui.text.style.TextAlign? = null,
+    fontSize: androidx.compose.ui.unit.TextUnit = DocConfig.FontSize,
 ) {
     val size = when (block.level) {
-        1 -> 28.sp
-        2 -> 24.sp
-        3 -> 20.sp
-        else -> 18.sp
+        1 -> DocConfig.Heading1Size
+        2 -> DocConfig.Heading2Size
+        3 -> DocConfig.Heading3Size
+        else -> fontSize
     }
-    Column(modifier = modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+    Column(modifier = modifier.fillMaxWidth()) {
         StyledTextEditor(
             text = block.text,
             onTextChange = onTextChange,
             onSelectionChange = onSelectionChange,
+            onFocusChanged = onFocusChanged,
             baseStyle = if (textAlign != null) MaterialTheme.typography.headlineSmall.copy(
                 fontSize = size,
                 fontWeight = FontWeight.Bold,
@@ -77,7 +85,9 @@ fun HeadingBlockEditor(
             ),
             placeholder = "Encabezado",
             isSelected = isSelected,
+            requestFocus = isSelected,
             blockId = block.id.value,
+            fontSize = fontSize,
         )
     }
 }
@@ -89,19 +99,24 @@ fun QuoteBlockEditor(
     onClick: () -> Unit,
     onSelectionChange: (IntRange?) -> Unit = {},
     onTextChange: (StyledText) -> Unit,
+    onFocusChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
     textAlign: androidx.compose.ui.text.style.TextAlign? = null,
+    fontSize: androidx.compose.ui.unit.TextUnit = DocConfig.FontSize,
 ) {
-    Column(modifier = modifier.fillMaxWidth().padding(vertical = 6.dp, horizontal = 8.dp)) {
+    Column(modifier = modifier.fillMaxWidth()) {
         Text(text = "\u201C", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
         StyledTextEditor(
             text = block.text,
             onTextChange = onTextChange,
             onSelectionChange = onSelectionChange,
+            onFocusChanged = onFocusChanged,
             baseStyle = if (textAlign != null) MaterialTheme.typography.bodyLarge.copy(textAlign = textAlign) else MaterialTheme.typography.bodyLarge,
             placeholder = "Cita...",
             isSelected = isSelected,
+            requestFocus = isSelected,
             blockId = block.id.value,
+            fontSize = fontSize,
         )
         if (!block.attribution.isNullOrBlank()) {
             Text(
@@ -124,9 +139,12 @@ fun BulletListBlockEditor(
     onAppendItem: () -> Unit,
     onRemoveItem: (Int) -> Unit,
     onItemChange: (Int, StyledText) -> Unit,
+    onItemFieldValueChange: (Int, TextFieldValue) -> Unit = { _, _ -> },
+    onItemFocusChanged: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
+    fontSize: androidx.compose.ui.unit.TextUnit = DocConfig.FontSize,
 ) {
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(0.dp)) {
         block.items.forEachIndexed { index, item ->
             Row(modifier = Modifier.fillMaxWidth()) {
                 Text("\u2022  ", style = MaterialTheme.typography.bodyLarge)
@@ -135,10 +153,13 @@ fun BulletListBlockEditor(
                         text = item,
                         onTextChange = { onItemChange(index, it) },
                         onSelectionChange = onSelectionChange,
+                        onFieldValueChange = { onItemFieldValueChange(index, it) },
+                        onFocusChanged = { if (it) onItemFocusChanged(index) },
                         baseStyle = MaterialTheme.typography.bodyLarge,
                         placeholder = "Item...",
                         isSelected = isSelected,
-                        blockId = block.id.value,
+                        blockId = "${block.id.value}:item:$index",
+                        fontSize = fontSize,
                     )
                 }
                 androidx.compose.material3.IconButton(onClick = { onRemoveItem(index) }) {
@@ -164,9 +185,12 @@ fun NumberedListBlockEditor(
     onAppendItem: () -> Unit,
     onRemoveItem: (Int) -> Unit,
     onItemChange: (Int, StyledText) -> Unit,
+    onItemFieldValueChange: (Int, TextFieldValue) -> Unit = { _, _ -> },
+    onItemFocusChanged: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
+    fontSize: androidx.compose.ui.unit.TextUnit = DocConfig.FontSize,
 ) {
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(0.dp)) {
         block.items.forEachIndexed { index, item ->
             Row(modifier = Modifier.fillMaxWidth()) {
                 Text("${index + 1}. ", style = MaterialTheme.typography.bodyLarge)
@@ -175,10 +199,13 @@ fun NumberedListBlockEditor(
                         text = item,
                         onTextChange = { onItemChange(index, it) },
                         onSelectionChange = onSelectionChange,
+                        onFieldValueChange = { onItemFieldValueChange(index, it) },
+                        onFocusChanged = { if (it) onItemFocusChanged(index) },
                         baseStyle = MaterialTheme.typography.bodyLarge,
                         placeholder = "Item...",
                         isSelected = isSelected,
-                        blockId = block.id.value,
+                        blockId = "${block.id.value}:item:$index",
+                        fontSize = fontSize,
                     )
                 }
                 androidx.compose.material3.IconButton(onClick = { onRemoveItem(index) }) {

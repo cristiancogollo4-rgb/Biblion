@@ -8,5 +8,6 @@ fun KeyEvent.toNavigatorKey(): CursorNavigator.Key? = when (this.key) {
     Key.DirectionUp -> CursorNavigator.Key.ArrowUp
     Key.DirectionDown -> CursorNavigator.Key.ArrowDown
     Key.Enter -> CursorNavigator.Key.Enter
+    Key.Backspace -> CursorNavigator.Key.Backspace
     else -> null
 }

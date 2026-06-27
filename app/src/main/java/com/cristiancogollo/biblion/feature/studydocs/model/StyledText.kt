@@ -59,7 +59,26 @@ data class StyledText(
             a.strikethrough == b.strikethrough && a.color == b.color && a.background == b.background &&
             a.fontSizeSp == b.fontSizeSp && a.link == b.link
 
-    fun clearStyle(range: IntRange, kind: String): StyledText = this
+    fun styleAt(offset: Int): StyleRange? {
+        return ranges.find { offset in it.start until it.endExclusive }
+    }
+
+    fun clearStyle(range: IntRange, kind: String): StyledText {
+        val newRanges = ranges.mapNotNull { r ->
+            if (r.start >= range.first && r.endExclusive <= range.last) {
+                when (kind) {
+                    "BOLD" -> if (r.bold) r.copy(bold = false) else null
+                    "ITALIC" -> if (r.italic) r.copy(italic = false) else null
+                    "UNDERLINE" -> if (r.underline) r.copy(underline = false) else null
+                    "STRIKETHROUGH" -> if (r.strikethrough) r.copy(strikethrough = false) else null
+                    "COLOR" -> if (r.color != null) r.copy(color = null) else null
+                    "BACKGROUND" -> if (r.background != null) r.copy(background = null) else null
+                    else -> null
+                }
+            } else r
+        }
+        return copy(raw = raw, ranges = newRanges)
+    }
 
     companion object {
         val Empty: StyledText = StyledText()

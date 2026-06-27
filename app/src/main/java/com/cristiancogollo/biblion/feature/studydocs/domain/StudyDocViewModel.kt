@@ -23,13 +23,14 @@ import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
 import com.cristiancogollo.biblion.feature.studydocs.model.StyledText
 import com.cristiancogollo.biblion.feature.studydocs.model.TextStylePatch
 import com.cristiancogollo.biblion.feature.studydocs.model.isTextEditable
-import com.cristiancogollo.biblion.feature.studydocs.model.isList
-import com.cristiancogollo.biblion.feature.studydocs.model.isTextEditable
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import com.cristiancogollo.biblion.feature.studydocs.model.isList
 
 data class StudyEditorUiState(
     val doc: StudyDoc = StudyDoc.empty(),
@@ -45,6 +46,7 @@ data class StudyEditorUiState(
     val historyEntries: Int = 0,
     val currentPage: Int = 0,
     val wasJustCreated: Boolean = false,
+    val isMultiColumnEnabled: Boolean = false,
 )
 
 class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel() {
@@ -54,6 +56,13 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
 
     private val commandStack = EditCommandStack()
     val blockTextStates: SnapshotStateMap<BlockId, TextFieldValue> = mutableStateMapOf()
+
+    private var _autoSaveJob: Job? = null
+    private var _isDocLoaded = false
+
+    companion object {
+        private const val AUTO_SAVE_DELAY_MS = 3000L
+    }
 
     /**
      * Alineacion por bloque (efimero, no persistido). Una sola
@@ -66,31 +75,53 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
     private val _lastFocusedBlockId = MutableStateFlow<BlockId?>(null)
     val lastFocusedBlockId: StateFlow<BlockId?> = _lastFocusedBlockId.asStateFlow()
 
+    private val _lastFocusedFieldKey = MutableStateFlow<String?>(null)
+    val lastFocusedFieldKey: StateFlow<String?> = _lastFocusedFieldKey.asStateFlow()
+
     private val _editorMode = MutableStateFlow<EditorMode>(EditorMode.Single)
     val editorMode: StateFlow<EditorMode> = _editorMode.asStateFlow()
 
     val activeRangeByBlock: SnapshotStateMap<BlockId, IntRange?> = mutableStateMapOf()
+
+    private val _fontSizeIndex = MutableStateFlow(com.cristiancogollo.biblion.feature.studydocs.ui.editor.DocConfig.DefaultFontSizeIndex)
+    val fontSizeIndex: StateFlow<Int> = _fontSizeIndex.asStateFlow()
+
+    val currentFontSize: Float
+        get() = com.cristiancogollo.biblion.feature.studydocs.ui.editor.DocConfig.FontSizeLevels[_fontSizeIndex.value]
+
+    fun increaseFontSize() {
+        val current = _fontSizeIndex.value
+        val levels = com.cristiancogollo.biblion.feature.studydocs.ui.editor.DocConfig.FontSizeLevels
+        if (current < levels.lastIndex) {
+            _fontSizeIndex.value = current + 1
+        }
+    }
+
+    fun decreaseFontSize() {
+        val current = _fontSizeIndex.value
+        if (current > 0) {
+            _fontSizeIndex.value = current - 1
+        }
+    }
+
+    fun toggleMultiColumn() {
+        _uiState.update { it.copy(isMultiColumnEnabled = !it.isMultiColumnEnabled) }
+    }
 
     fun setEditorMode(mode: EditorMode) { _editorMode.value = mode }
     fun setActiveRange(blockId: BlockId, range: IntRange?) {
         if (range == null) activeRangeByBlock.remove(blockId) else activeRangeByBlock[blockId] = range
     }
     fun onBlockFocused(blockId: BlockId) { _lastFocusedBlockId.value = blockId }
+    fun onFieldFocused(fieldKey: String) { _lastFocusedFieldKey.value = fieldKey }
 
     fun newDraft() {
-        // Documento de prueba con 60 parrafos (~2-3 lineas c/u).
-        // A ~30 bloques por pagina carta, produce 2 paginas completas
-        // con gap gris entre ellas (ver PaginatedPaperSheet).
-        val blocks = (1..60).map { i ->
-            StudyBlock.Paragraph(
-                text = StyledText.plain(
-                    "Parrafo $i. Este es un bloque de texto de prueba para verificar " +
-                    "el funcionamiento del scroll y la paginacion del editor. " +
-                    "Cada pagina carta contiene aproximadamente 30 bloques."
-                ),
-            )
-        }
+        val blocks = listOf(
+            StudyBlock.Paragraph(),
+        )
         val doc = StudyDoc(blocks = blocks)
+        blockTextStates.clear()
+        _lastFocusedFieldKey.value = blocks.firstOrNull()?.id?.value
         blocks.forEach { block ->
             blockTextStates[block.id] = TextFieldValue(
                 annotatedString = AnnotatedString(""),
@@ -98,11 +129,15 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
             )
         }
         val firstBlockId = blocks.firstOrNull()?.id
+        commandStack.clear()
+        blockAlignments.clear()
+        activeRangeByBlock.clear()
         _uiState.value = StudyEditorUiState(
             doc = doc,
             selectedBlockId = firstBlockId?.value,
             wasJustCreated = true,
         )
+        _isDocLoaded = true
     }
 
     fun clearJustCreatedFlag() { _uiState.update { it.copy(wasJustCreated = false) } }
@@ -114,6 +149,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
         val (newDoc, result) = StudyDocEngine.apply(_uiState.value.doc, op)
         if (result.isSuccess) {
             _uiState.update { state -> state.copy(doc = newDoc, lastError = null) }
+            scheduleAutoSave()
         } else {
             _uiState.update { it.copy(lastError = (result as OpResult.Failed).reason) }
         }
@@ -125,6 +161,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
         _uiState.update { it.copy(doc = newDoc, lastError = null) }
         refreshUndoRedoState()
         pruneOrphanTextStates(newDoc)
+        scheduleAutoSave()
     }
 
     fun undo() {
@@ -151,9 +188,26 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
     }
 
     private fun pruneOrphanTextStates(doc: StudyDoc) {
-        val present = doc.blocks.map { it.id }.toSet()
-        val orphans = blockTextStates.keys.filter { it !in present }
+        val presentBlockIds = doc.blocks.map { it.id }.toSet()
+        val validKeys = buildSet {
+            addAll(presentBlockIds)
+            doc.blocks.forEach { block ->
+                when (block) {
+                    is StudyBlock.BulletList -> block.items.indices.forEach { index ->
+                        add(BlockId("${block.id.value}:item:$index"))
+                    }
+                    is StudyBlock.NumberedList -> block.items.indices.forEach { index ->
+                        add(BlockId("${block.id.value}:item:$index"))
+                    }
+                    else -> Unit
+                }
+            }
+        }
+        val orphans = blockTextStates.keys.filter { it !in validKeys }
         orphans.forEach { blockTextStates.remove(it) }
+        if (_lastFocusedFieldKey.value != null && BlockId(_lastFocusedFieldKey.value!!) !in validKeys) {
+            _lastFocusedFieldKey.value = null
+        }
     }
 
     fun appendListItem(blockIndex: Int) {
@@ -164,6 +218,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
         val updated = when (block) {
             is StudyBlock.BulletList -> block.copy(items = block.items + StyledText.Empty)
             is StudyBlock.NumberedList -> block.copy(items = block.items + StyledText.Empty)
+            is StudyBlock.TodoList -> block.copy(items = block.items + StudyBlock.TodoList.TodoItem())
             else -> return
         }
         executeCommand(ReplaceBlockCommand(block.id, updated))
@@ -212,7 +267,22 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
     }
 
     fun loadByRemoteId(remoteId: String) {
+        _autoSaveJob?.cancel()
+        _isDocLoaded = true
         _uiState.update { it.copy(isLoading = false, wasJustCreated = false) }
+    }
+
+    private fun scheduleAutoSave() {
+        if (!_isDocLoaded) return
+        _autoSaveJob?.cancel()
+        _autoSaveJob = viewModelScope.launch {
+            delay(AUTO_SAVE_DELAY_MS)
+            val currentDoc = _uiState.value.doc
+            if (currentDoc.title.isNotBlank()) {
+                repository.save(currentDoc)
+                _uiState.update { it.copy(lastSavedAt = System.currentTimeMillis()) }
+            }
+        }
     }
 
     /**

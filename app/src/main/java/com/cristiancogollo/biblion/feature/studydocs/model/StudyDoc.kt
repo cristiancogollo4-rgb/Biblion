@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion.feature.studydocs.model
 
+import com.cristiancogollo.biblion.feature.studydocs.engine.plainText
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -45,6 +46,13 @@ data class StudyDoc(
                 is StudyBlock.Callout -> appendLine("[!] ${block.text.plain()}")
                 is StudyBlock.Divider -> appendLine("---")
                 is StudyBlock.PageBreak -> appendLine()
+                is StudyBlock.TodoList -> block.items.forEach { item ->
+                    appendLine("- [${if (item.checked) "x" else " "}] ${item.text.plain()}")
+                }
+                is StudyBlock.ColumnLayout -> block.columnBlocks.forEach { col ->
+                    appendLine(col.joinToString(" | ") { it.plainText() })
+                }
+                is StudyBlock.Comment -> appendLine("[Comentario] ${block.text}")
             }
         }
     }
@@ -66,6 +74,9 @@ data class StudyDoc(
                 is StudyBlock.Reflection -> ws.split(block.text.plain()).count { it.isNotBlank() }
                 is StudyBlock.Callout -> ws.split(block.text.plain()).count { it.isNotBlank() }
                 is StudyBlock.Divider, is StudyBlock.PageBreak -> 0
+                is StudyBlock.TodoList -> block.items.sumOf { ws.split(it.text.plain()).count { it.isNotBlank() } }
+                is StudyBlock.ColumnLayout -> block.columnBlocks.sumOf { col -> col.sumOf { ws.split(it.plainText()).count { it.isNotBlank() } } }
+                is StudyBlock.Comment -> ws.split(block.text).count { it.isNotBlank() }
             }
         }
         return count
@@ -86,6 +97,9 @@ data class StudyDoc(
                 is StudyBlock.Reflection -> block.text.length + (block.prompt?.length ?: 0)
                 is StudyBlock.Callout -> block.text.length
                 is StudyBlock.Divider, is StudyBlock.PageBreak -> 0
+                is StudyBlock.TodoList -> block.items.sumOf { item: com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock.TodoList.TodoItem -> item.text.length }
+                is StudyBlock.ColumnLayout -> block.columnBlocks.sumOf { col: List<StudyBlock> -> col.sumOf { b: StudyBlock -> b.plainText().length } }
+                is StudyBlock.Comment -> block.text.length
             }
         }
         return count

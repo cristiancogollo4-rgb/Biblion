@@ -4,8 +4,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CallSplit
+import androidx.compose.material.icons.filled.CheckBox
+import androidx.compose.material.icons.filled.Comment
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.TableChart
+import androidx.compose.material.icons.filled.ViewColumn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +50,15 @@ fun SlashCommandMenu(
             SlashCommandItem(
                 "Nota destacada", "Callout con color", Icons.Filled.CallSplit,
             ) { StudyBlock.Callout() },
+            SlashCommandItem(
+                "Lista de tareas", "Checkboxes para planes", Icons.Filled.CheckBox,
+            ) { StudyBlock.TodoList() },
+            SlashCommandItem(
+                "Columnas", "Layout de 2 columnas", Icons.Filled.ViewColumn,
+            ) { StudyBlock.ColumnLayout() },
+            SlashCommandItem(
+                "Comentario", "Nota al margen", Icons.Filled.Comment,
+            ) { StudyBlock.Comment(anchorBlockId = com.cristiancogollo.biblion.feature.studydocs.model.BlockId.generate()) },
         )
     }
 

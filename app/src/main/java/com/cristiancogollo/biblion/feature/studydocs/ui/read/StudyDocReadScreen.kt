@@ -2,6 +2,7 @@ package com.cristiancogollo.biblion.feature.studydocs.ui.read
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -12,6 +13,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -28,6 +31,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -38,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel
 import com.cristiancogollo.biblion.feature.studydocs.engine.Paginator
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
+import com.cristiancogollo.biblion.feature.studydocs.ui.editor.DocConfig
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.StyledTextRenderer
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -126,7 +131,7 @@ private fun ReadBlockRender(block: StudyBlock) {
         )
         is StudyBlock.Heading -> {
             val size = when (block.level) {
-                1 -> 28.sp; 2 -> 24.sp; 3 -> 20.sp; else -> 18.sp
+                1 -> DocConfig.Heading1Size; 2 -> DocConfig.Heading2Size; 3 -> DocConfig.Heading3Size; else -> DocConfig.FontSize
             }
             Text(
                 text = StyledTextRenderer.toAnnotatedString(block.text, Color.Unspecified),
@@ -233,5 +238,36 @@ private fun ReadBlockRender(block: StudyBlock) {
             }
         }
         is StudyBlock.PageBreak -> HorizontalDivider(modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp))
+        is StudyBlock.TodoList -> Column {
+            block.items.forEach { item ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = item.checked, onCheckedChange = null)
+                    Text(
+                        text = StyledTextRenderer.toAnnotatedString(item.text, Color.Unspecified),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+            }
+        }
+        is StudyBlock.ColumnLayout -> Column {
+            block.columnBlocks.forEach { col ->
+                col.forEach { child ->
+                    ReadBlockRender(child)
+                }
+            }
+        }
+        is StudyBlock.Comment -> {
+            Card(
+                colors = androidx.compose.material3.CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                ),
+            ) {
+                Text(
+                    text = block.text.ifBlank { "Comentario" },
+                    modifier = Modifier.padding(8.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
     }
 }

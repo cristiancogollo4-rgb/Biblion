@@ -13,8 +13,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 private val PaperBorderGray = Color(0xFFDADCE0)
-val PaperWidthDp = 560.dp
-val PaperHeightDp = 900.dp
+val PaperWidthDp = DocConfig.PageWidth
+val PaperHeightDp = DocConfig.PageHeight
 
 /**
  * Hoja carta individual sin zoom.

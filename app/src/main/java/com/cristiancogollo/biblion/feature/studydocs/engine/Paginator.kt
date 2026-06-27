@@ -98,6 +98,14 @@ object Paginator {
             val cols = (block.rows.firstOrNull()?.cells?.size ?: 1).coerceAtLeast(1)
             (rows * 1.2f) + (cols * 0.05f)
         }
+        is StudyBlock.TodoList -> (block.items.size.coerceAtLeast(1) * 1.2f)
+        is StudyBlock.ColumnLayout -> {
+            val maxColHeight = block.columnBlocks.maxOfOrNull { col ->
+                col.sumOf { estimateHeight(it, layout).toDouble() }.toFloat()
+            } ?: 0f
+            maxColHeight.coerceAtLeast(1f)
+        }
+        is StudyBlock.Comment -> 0.8f
     }
 
     fun totalPages(blocks: List<StudyBlock>, layout: Layout = Layout()): Int = paginate(blocks, layout).size

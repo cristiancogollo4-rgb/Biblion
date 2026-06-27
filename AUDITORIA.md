@@ -1,6 +1,94 @@
 ﻿# Auditoria de Cambios
 
-## Entrega: Sistema de temas canonicos v3 con carrusel rotativo y Explorar temas
+## Entrega: Diccionario biblico con pantalla dedicada, libros en orden canonico y descripcion de libros en BooksScreen
+
+Fecha: 2026-06-26
+Commit: pendiente — `feat: diccionario con pantalla dedicada, libros en orden canonico, descripcion de libros en BooksScreen`
+
+## Alcance
+
+Creacion de pantallas dedicadas para el diccionario biblico (DictionaryScreen y DictionaryCategoryScreen), incorporacion de la categoria BOOK con 66 libros en orden canonico biblical, bottom sheet de descripcion de libros en BooksScreen con long press, y limpieza del drawer (diccionario movido desde el drawer a SearchScreen como boton azul).
+
+## Cambios principales
+
+### DictionaryScreen - pantalla dedicada del diccionario
+
+- Nueva pantalla `DictionaryScreen` con buscador de diccionario, 8 tarjetas de categorias (Personas, Lugares, Conceptos, Objetos, Practicas, Eventos, Libros, General), cada una con color, descripcion y conteo de entradas.
+- Navegacion desde boton "Diccionario biblico" en SearchScreen (azul, debajo de "Explorar temas").
+- Eliminado del drawer (opcion "Diccionario" removida de `BiblionComponents`, enum `DrawerOption`, when-handler y `onNavigateToDictionary`).
+- Ruta: `Screen.Dictionary` (route `dictionary`).
+
+### DictionaryCategoryScreen - lista de entradas por categoria
+
+- Nueva pantalla que muestra todas las entradas de una categoria con buscador en vivo (debounce 400ms, minimo 2 caracteres).
+- Cada entrada es un card con termino, definicion completa y icono de categoria.
+- La categoria **BOOK** ordena los 66 libros en orden canonico biblical (Génesis → Apocalipsis) usando `canonicalBookOrder` + `normalizeForBookOrder()` para insensibilidad a acentos.
+- Ruta: `Screen.ExploreDictionaryCategory` (route `dictionary_category/{category}`).
+
+### BOOK category en el diccionario
+
+- 69 entradas de libros en `dictionary_v2.db` con definiciones de Longo's Commentary.
+- Template `formatGeneric()` para definiciones (sin metadata adicional).
+- Los 66 libros canonicos se muestran en orden圣经 (Génesis → Apocalipsis), no alfabético.
+- Libros no estándar ("Trabajo, Libro de", "Laodicea, Epístola de") quedan al final.
+
+### Descripcion de libros desde topics.db en BooksScreen
+
+- **Long press** en un libro abre `ModalBottomSheet` con nombre, chip de categoria, descripcion (desde `topics.db` via `TopicEngine.getBySlug()`), conteo de versiculos y boton "Leer [Libro]".
+- Click regular navega al lector (sin cambios).
+- **Slug mapping**: funcion `toBookTopicSlug()` que quita tildes y reemplaza espacios por guiones. Los slugs en `topics.db` NO tienen acentos ni guiones intermedios (ej. "genesis", "1-samuel", "3-juan").
+- Descripcion cargada de `TopicEngine.getBySlug()` que busca por slug en `topics.db`.
+
+### Limpieza del drawer
+
+- `DrawerOption.DICTIONARY` eliminado de `BiblionComponents.kt`.
+- When-handler para DICTIONARY eliminado de `NavGraphShared.kt`.
+- `onNavigateToDictionary` callback eliminado de `HomeScreen`, `BooksScreen` y `AppNavigation`.
+
+### Fix: diccionario 0 items en categorias
+
+- **Causa**: `DictionaryDatabase` usaba version 2 pero el asset `dictionary_v2.db` tiene `PRAGMA user_version = 3`. Room lanzaba `IllegalStateException` silenciado por try-catch, resultando en 0 items.
+- **Fix**: cambiar Room entity version de 2 a 3 para coincidir con el asset.
+- **Nota**: el usuario debe borrar datos de la app o reinstalar para que Room recrea la DB con el asset correcto.
+
+### Fix: asset filename
+
+- **Causa**: `DictionaryDatabase` buscaba `dictionary.db` pero el asset real es `dictionary_v2.db`.
+- **Fix**: corregir el nombre del asset en el constructor de `DictionaryDatabase`.
+
+## Archivos nuevos
+
+- `app/src/main/java/com/cristiancogollo/biblion/feature/dictionary/ui/DictionaryScreen.kt`
+- `app/src/main/java/com/cristiancogollo/biblion/feature/dictionary/ui/DictionaryCategoryScreen.kt`
+
+## Archivos modificados
+
+- `app/src/main/java/com/cristiancogollo/biblion/feature/dictionary/data/DictionaryDatabase.kt` — version 3, asset `dictionary_v2.db`, `getCategoryCounts()`, `CategoryCount` data class
+- `app/src/main/java/com/cristiancogollo/biblion/feature/dictionary/data/DictionaryRepository.kt` — `getEntriesByCategory()` con try-catch y limit 9999, `getCategoryCounts()`, `BOOK` en `DictionaryCategory`
+- `app/src/main/java/com/cristiancogollo/biblion/feature/bibi/DictionaryEngine.kt` — `BOOK` case en `formatByCategory()`
+- `app/src/main/java/com/cristiancogollo/biblion/feature/books/BooksScreen.kt` — bottom sheet de descripcion, `toBookTopicSlug()`, `selectedBookForDetail`, `selectedBookDescription`, `selectedBookVerseCount`, `showBookDetailSheet`
+- `app/src/main/java/com/cristiancogollo/biblion/feature/search/SearchScreen.kt` — boton "Diccionario biblico" azul que navega a `Screen.Dictionary`
+- `app/src/main/java/com/cristiancogollo/biblion/core/ui/components/BiblionComponents.kt` — eliminado `DrawerOption.DICTIONARY`, `BookCard` con `onLongClick` via `combinedClickable`
+- `app/src/main/java/com/cristiancogollo/biblion/navigation/NavigationRoutes.kt` — rutas `Screen.Dictionary` y `Screen.ExploreDictionaryCategory`
+- `app/src/main/java/com/cristiancogollo/biblion/navigation/NavGraphShared.kt` — composables para diccionario, eliminado when-handler DICTIONARY
+- `app/src/main/res/values/strings.xml` — strings `dictionary_category_*` (8 categorias)
+- `app/src/main/res/values-es/strings.xml` — traducciones ES de categorias
+
+## Riesgos controlados
+
+- **Room version mismatch**: corregido de 2 a 3 para coincidir con el asset. Destructive migration aceptable en v1 (datos regenerables).
+- **`combinedExperimentalFoundationApi`**: necesario para `combinedClickable` en `BookCard`.
+- **Slugs sin acentos**: la funcion `toBookTopicSlug()` strip acentos antes de generar el slug, cubriendo correctamente los 66 libros.
+
+## Evidencia de validacion
+
+```
+.\gradlew.bat :app:compileDebugKotlin   # BUILD SUCCESSFUL
+```
+
+---
+
+## Entrega anterior: Sistema de temas canonicos v3 con carrusel rotativo y Explorar temas
 
 Fecha: 2026-06-22
 Commit: pendiente — `feat: temas canonicos v3, carrusel rotativo, explorar temas, bug fix pipeline`

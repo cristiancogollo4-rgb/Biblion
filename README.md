@@ -33,7 +33,8 @@ Biblion ya cuenta con:
 - Gestion de "Mis ensenanzas" con filtros por titulo o etiquetas.
 - Lectura enriquecida de ensenanzas con soporte de comparacion de versiones biblicas.
 - Sistema de etiquetas sugeridas y validacion de metadata.
-- **Diccionario biblico local unificado** (6,346 entradas Easton's + Theographic) con metadata (género, fechas, coordenadas GPS, aliases).
+- **Diccionario biblico local unificado** (6,346 entradas Easton's + Theographic) con metadata (género, fechas, coordenadas GPS, aliases). Pantalla dedicada `DictionaryScreen` con 8 categorias. `DictionaryCategoryScreen` con busqueda en vivo. Libros en orden canonico biblical.
+- **Descripcion de libros en BooksScreen**: long press en un libro muestra bottom sheet con descripcion (desde `topics.db`), conteo de versiculos y boton "Leer".
 - **Bibi mejorada** con respuestas estructuradas, templates por categoría, anáforas, memoria conversacional e historial de chats persistido.
 - **Bibi local primero**: la búsqueda en Biblia es local, Bibi usa IA solo cuando profundiza.
 - **Tutorial guiado interactivo** con Bibi (auto-inicio en primera instalacion, logo de Bibi, scroll en textos largos).
@@ -248,12 +249,25 @@ Solo se incluyen sugerencias que Bibi SÍ puede contestar (no se sugieren accion
 
 ### Diccionario biblico local
 
-El diccionario biblico local unificado (`dictionary.db`) consolida 6,346 entradas de dos fuentes:
+El diccionario biblico local unificado (`dictionary_v2.db`) consolida 6,346 entradas de dos fuentes:
 
 - **Easton's Bible Dictionary**: 3,932 entradas con definiciones en espanol
 - **Theographic Data**: 3,067 personas + 1,274 lugares con metadata enriquecida
 
+El diccionario se accede desde `DictionaryScreen` con 8 categorias (Personas, Lugares, Conceptos, Objetos, Prácticas, Eventos, Libros, General). La categoria **BOOK** incluye los 66 libros en orden canonico biblical con descripciones desde `topics.db`.
+
 El diccionario se usa como base para las respuestas de Bibi. Las respuestas locales **NO incluyen versiculos completos** (solo metadatos) para evitar que Bibi invente referencias. Para profundizar en versículos, se sugiere via el chip "Pedir a IA: pasajes sobre X".
+
+### Descripcion de libros desde Topics
+
+En `BooksScreen`, un **long press** en cualquier libro abre un `ModalBottomSheet` con:
+
+- Nombre del libro con chip de categoria
+- Descripcion del libro (desde `topics.db` via `TopicEngine.getBySlug()`)
+- Conteo de versiculos disponibles
+- Boton "Leer [Libro]" que navega al lector
+
+Los slugs de `topics.db` NO tienen acentos ni guiones intermedios. La funcion `toBookTopicSlug()` convierte el nombre del libro (ej. "1 Corintios") a slug (ej. "1-corintios") quitando tildes y reemplazando espacios por guiones.
 
 ### Contexto que recibe el Worker
 
@@ -536,9 +550,11 @@ La organizacion actual sigue un enfoque por capas con patron **MVVM**.
 Pantallas y componentes Compose:
 
 - `HomeScreen`
-- `BooksScreen`
+- `BooksScreen` (con bottom sheet de descripcion de libros via long press)
 - `ReaderScreen`
-- `SearchScreen`
+- `SearchScreen` (con boton "Diccionario biblico" que navega a DictionaryScreen)
+- `DictionaryScreen` (8 categorias con busqueda y cards de color)
+- `DictionaryCategoryScreen` (entradas de una categoria con busqueda en vivo)
 - `StudyEditorScreen`
 - `StudyReadScreen`
 - `EnsenanzaScreen`
@@ -560,7 +576,7 @@ Pantallas y componentes Compose:
 ### Data layer
 
 - `BibleRepository`: acceso a textos biblicos desde `assets` y cache. Soporta busqueda con filtros (`BibleSearchFilter` con testament y bookName).
-- `DictionaryRepository`: acceso al diccionario biblico unificado (Easton's + Theographic, 6,346 entradas). Usado por `DictionaryEngine` para generar respuestas locales de Bibi.
+- `DictionaryRepository`: acceso al diccionario biblico unificado (Easton's + Theographic, 6,346 entradas en `dictionary_v2.db`). Usado por `DictionaryEngine` para generar respuestas locales de Bibi. Incluye `getEntriesByCategory()`, `getCategoryCounts()` y `searchEntries()`.
 - `StudyDatabase`: Room para cuadernos, estudios y citas vinculadas.
 - `SearchHistoryDatabase`: Room para historial de busquedas (`search_history.db`) con normalizacion y conteo de uso.
 - `ChatDatabase`: Room para historial de chats de Bibi (`bibi_chat.db`) con sesiones y mensajes persistidos.
@@ -600,9 +616,11 @@ Biblion combina persistencia local con sincronizacion en Firebase.
 - `chat_sessions`: sesiones de conversacion con Bibi (id, title, first_query, mode, created_at, updated_at).
 - `chat_messages`: mensajes dentro de una sesion (id, session_id FK con CASCADE, role "user"/"assistant", content, resolved_term, intent, created_at). Permite multiples conversaciones independientes.
 
-`DictionaryDatabase` (basada en asset preempaquetado `dictionary.db`) contiene el diccionario biblico unificado:
+`DictionaryDatabase` (Room v3, basada en asset `dictionary_v2.db`) contiene el diccionario biblico unificado:
 
 - `dictionary_entries`: 6,346 entradas con definiciones y metadata (gender, birth_year, death_year, latitude, longitude, aliases, feature_type).
+- `getEntriesByCategory()`: todas las entradas de una categoria (limit 9999).
+- `getCategoryCounts()`: conteo por categoria para las cards de `DictionaryScreen`.
 
 Campos relevantes de sincronizacion:
 
