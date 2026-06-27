@@ -240,7 +240,7 @@ fun guidedTutorialSteps(guideId: GuidedTutorialId): List<GuidedTutorialStep> {
             descriptionRes = R.string.guide_reading_finish_body,
             targetKey = null,
             actionRequired = false,
-            screenTarget = GuidedTutorialScreenTarget.READER,
+            screenTarget = GuidedTutorialScreenTarget.SEARCH,
             primaryLabelRes = R.string.guide_start_reading,
             secondaryLabelRes = R.string.guide_restart_tour,
             secondaryAction = GuidedTutorialSecondaryAction.RESTART
