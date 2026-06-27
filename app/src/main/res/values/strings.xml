@@ -91,6 +91,8 @@
     <string name="guide_book_description_body">Did you know you can learn about each book of the Bible?\n\nPress and hold any book to see a brief description, how many verses it has, and start reading directly from there.</string>
     <string name="guide_dictionary_title">Biblical dictionary</string>
     <string name="guide_dictionary_body">Whenever you see this icon you can access our biblical dictionary with over 6,000 entries of people, places, concepts, events, and more — all organized by category.\n\nTap the search icon to continue.</string>
+    <string name="guide_search_components_title">Search screen</string>
+    <string name="guide_search_components_body">On this screen you can search for verses by text, filter by testament and book, explore popular biblical topics, and access the dictionary.\n\nUse the search bar to find any verse or topic you want to explore.</string>
     <string name="guide_reading_finish_title">Ready to start!</string>
     <string name="guide_reading_finish_body">You now know the essentials! 🎉\n\nYou can find books, read passages, highlight verses, change versions, and explore the biblical dictionary.\n\nWhen you have questions, tap the Bibi icon in the bottom right corner to open the chat and ask me anything.\n\nIf you ever want to take this tour again, go to your Profile and tap \"Restart reading tutorial\".\n\nEnjoy your time in the Word of God! 📖✨\n\n— Bibi</string>
     <string name="guide_study_entry_title">Move from reading to preparing</string>

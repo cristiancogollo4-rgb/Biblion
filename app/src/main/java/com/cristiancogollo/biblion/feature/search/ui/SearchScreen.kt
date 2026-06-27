@@ -62,9 +62,14 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import com.cristiancogollo.biblion.GuidedTutorialProgress
+import com.cristiancogollo.biblion.GuidedTutorialScreenTarget
+import com.cristiancogollo.biblion.GuidedTutorialOverlay
+import com.cristiancogollo.biblion.currentStep
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -153,6 +158,11 @@ sealed interface SearchUiState {
 fun SearchScreen(
     navController: NavController,
     scope: SearchScope = SearchScope.BIBLE,
+    guidedTutorial: GuidedTutorialProgress? = null,
+    onGuidedTutorialNext: () -> Unit = {},
+    onGuidedTutorialSkip: () -> Unit = {},
+    onGuidedTutorialRestart: () -> Unit = {},
+    onGuidedTutorialTargetAction: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -439,6 +449,22 @@ fun SearchScreen(
                 }
             )
         }
+    }
+
+    val guidedStep = guidedTutorial
+        ?.currentStep()
+        ?.takeIf { it.screenTarget == GuidedTutorialScreenTarget.SEARCH }
+    val tutorialTargetBounds = remember { mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
+
+    if (guidedStep != null) {
+        GuidedTutorialOverlay(
+            step = guidedStep,
+            targetBounds = tutorialTargetBounds,
+            onNext = onGuidedTutorialNext,
+            onSkip = onGuidedTutorialSkip,
+            onRestart = onGuidedTutorialRestart,
+            isRestart = guidedTutorial?.isRestart == true
+        )
     }
 }
 

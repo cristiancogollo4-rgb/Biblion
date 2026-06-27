@@ -1,6 +1,7 @@
 package com.cristiancogollo.biblion.feature.search
 
 import com.cristiancogollo.biblion.Screen
+import com.cristiancogollo.biblion.feature.search.model.SearchScope
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

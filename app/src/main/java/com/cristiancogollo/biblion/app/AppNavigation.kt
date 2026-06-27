@@ -290,10 +290,28 @@ fun AppNavigation(
             )
         }
 
+        composable(
+            route = Screen.Search.route,
+            arguments = listOf(navArgument("scope") { type = NavType.StringType; defaultValue = "bible" })
+        ) { backStackEntry ->
+            val scopeArg = backStackEntry.arguments?.getString("scope")
+            val scope = com.cristiancogollo.biblion.feature.search.model.SearchScope.fromRouteArg(scopeArg)
+            com.cristiancogollo.biblion.feature.search.ui.SearchScreen(
+                navController = navController,
+                scope = scope,
+                guidedTutorial = activeGuidedTutorial,
+                onGuidedTutorialNext = ::advanceGuidedTutorial,
+                onGuidedTutorialSkip = ::skipGuidedTutorial,
+                onGuidedTutorialRestart = ::restartGuidedTutorial,
+                onGuidedTutorialTargetAction = ::handleGuidedTutorialTargetAction
+            )
+        }
+
         addSharedPrimaryDestinations(
             navController = navController,
             includeHome = false,
             includeBooks = false,
+            includeSearch = false,
             isDarkTheme = isDarkTheme,
             onToggleDarkTheme = onToggleDarkTheme,
             currentUserName = currentUserName,
@@ -545,6 +563,7 @@ private fun GuidedTutorialProgress.resumeRoute(): String? {
         GuidedTutorialScreenTarget.HOME -> Screen.Home.route
         GuidedTutorialScreenTarget.BOOKS -> Screen.Books.createRoute(Testament.OLD)
         GuidedTutorialScreenTarget.READER -> Screen.Reader.createRoute(bookName = "Genesis")
+        GuidedTutorialScreenTarget.SEARCH -> Screen.Search.route
         null -> null
     }
 }

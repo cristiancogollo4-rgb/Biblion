@@ -23,6 +23,7 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
     openBooksInStudyMode: Boolean = false,
     includeHome: Boolean = true,
     includeBooks: Boolean = true,
+    includeSearch: Boolean = true,
     isDarkTheme: Boolean = false,
     onToggleDarkTheme: (Boolean) -> Unit = {},
     currentUserName: String? = null,
@@ -85,13 +86,15 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
         }
     }
 
-    composable(
-        route = Screen.Search.route,
-        arguments = listOf(navArgument("scope") { type = NavType.StringType; defaultValue = "bible" })
-    ) { backStackEntry ->
-        val scopeArg = backStackEntry.arguments?.getString("scope")
-        val scope = SearchScope.fromRouteArg(scopeArg)
-        SearchScreen(navController = navController, scope = scope)
+    if (includeSearch) {
+        composable(
+            route = Screen.Search.route,
+            arguments = listOf(navArgument("scope") { type = NavType.StringType; defaultValue = "bible" })
+        ) { backStackEntry ->
+            val scopeArg = backStackEntry.arguments?.getString("scope")
+            val scope = SearchScope.fromRouteArg(scopeArg)
+            SearchScreen(navController = navController, scope = scope)
+        }
     }
 
     composable(Screen.ExploreTopics.route) {

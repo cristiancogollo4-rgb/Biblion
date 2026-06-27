@@ -72,7 +72,8 @@ enum class GuidedTutorialId(val routeArg: String) {
 enum class GuidedTutorialScreenTarget {
     HOME,
     BOOKS,
-    READER
+    READER,
+    SEARCH
 }
 
 enum class GuidedTutorialSecondaryAction {
@@ -223,6 +224,15 @@ fun guidedTutorialSteps(guideId: GuidedTutorialId): List<GuidedTutorialStep> {
             targetKey = GuidedTutorialTargets.READER_SEARCH_ICON,
             actionRequired = true,
             screenTarget = GuidedTutorialScreenTarget.READER
+        ),
+        GuidedTutorialStep(
+            id = "search-components",
+            titleRes = R.string.guide_search_components_title,
+            descriptionRes = R.string.guide_search_components_body,
+            targetKey = null,
+            actionRequired = false,
+            screenTarget = GuidedTutorialScreenTarget.SEARCH,
+            primaryLabelRes = R.string.guide_continue
         ),
         GuidedTutorialStep(
             id = "reading-finish",

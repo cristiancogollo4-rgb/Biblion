@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion.reader.cache
 
+import com.cristiancogollo.biblion.feature.reader.HighlightsCache
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
