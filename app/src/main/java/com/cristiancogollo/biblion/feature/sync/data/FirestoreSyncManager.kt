@@ -211,9 +211,9 @@ object FirestoreSyncManager {
     }
 
     fun requestStudiesSync() {
-        // Sync de ensenanzas deshabilitado tras migracion a StudyDoc (v2).
-        // El DAO legacy `StudyDatabase` ya no existe; la nueva DB es `study_docs.db`.
-        // Se reimplementara en una iteracion futura del proyecto.
+        // Sync de ensenanzas ahora se maneja via StudyDocSyncManager.
+        // Este metodo se mantiene para compatibilidad pero no hace nada.
+        // La sincronizacion se inicia desde AppNavigation cuando el usuario se autentica.
     }
 
     fun requestHighlightsSync(book: String, chapter: Int, verses: Map<String, Int>) {

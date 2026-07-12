@@ -15,6 +15,7 @@ import com.cristiancogollo.biblion.feature.studydocs.ui.editor.StudyEditorLayout
 import com.cristiancogollo.biblion.feature.studydocs.ui.list.StudyDocsListScreen
 import com.cristiancogollo.biblion.feature.studydocs.ui.list.StudyDocsListViewModel
 import com.cristiancogollo.biblion.feature.studydocs.ui.read.StudyDocReadScreen
+import com.cristiancogollo.biblion.feature.studydocs.ui.templates.StudyTemplatePickerScreen
 
 @Composable
 fun StudyDocsListRoute(navController: NavController) {
@@ -26,7 +27,7 @@ fun StudyDocsListRoute(navController: NavController) {
         onBack = { navController.popBackStack() },
         onOpenDoc = { doc -> navController.navigate(Screen.StudyDocRead.createRoute(doc.id.value)) },
         onEditDoc = { doc -> navController.navigate(Screen.StudyDocEditor.createRoute(doc.id.value)) },
-        onNewDoc = { navController.navigate(Screen.StudyDocEditor.newRoute()) },
+        onNewDoc = { navController.navigate(Screen.StudyTemplatePicker.createRoute()) },
         onImportComplete = { doc -> navController.navigate(Screen.StudyDocEditor.createRoute(doc.id.value)) },
     )
 }
@@ -61,7 +62,7 @@ fun StudyDocEditorRoute(
                 onBack = { navController.popBackStack() },
                 onOpenDoc = { doc -> navController.navigate(Screen.StudyDocRead.createRoute(doc.id.value)) },
                 onEditDoc = { doc -> navController.navigate(Screen.StudyDocEditor.createRoute(doc.id.value)) },
-                onNewDoc = { navController.navigate(Screen.StudyDocEditor.newRoute()) },
+                onNewDoc = { navController.navigate(Screen.StudyTemplatePicker.createRoute()) },
                 onImportComplete = { doc -> navController.navigate(Screen.StudyDocEditor.createRoute(doc.id.value)) },
             )
         },
@@ -84,6 +85,25 @@ fun StudyDocReadRoute(
     )
 }
 
+@Composable
+fun StudyTemplatePickerRoute(
+    navController: NavController,
+) {
+    val context = LocalContext.current
+    val repository = remember { StudyDocRepository(StudyDocDatabase.getInstance(context).studyDocDao()) }
+    val viewModel: StudyDocViewModel = viewModel(factory = StudyDocViewModel.Factory(repository))
+    
+    StudyTemplatePickerScreen(
+        onTemplateSelected = { template ->
+            viewModel.newFromTemplate(template)
+            navController.navigate(Screen.StudyDocEditor.newRoute()) {
+                popUpTo(Screen.StudyTemplatePicker.route) { inclusive = true }
+            }
+        },
+        onBack = { navController.popBackStack() },
+    )
+}
+
 object Screen {
     object StudyDocsList {
         const val route: String = "study_docs_list"
@@ -99,5 +119,9 @@ object Screen {
         const val route: String = "study_doc_read/{remoteId}"
         fun createRoute(remoteId: String): String = "study_doc_read/$remoteId"
         const val ARG_REMOTE_ID: String = "remoteId"
+    }
+    object StudyTemplatePicker {
+        const val route: String = "study_template_picker"
+        fun createRoute(): String = route
     }
 }

@@ -140,6 +140,45 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
         _isDocLoaded = true
     }
 
+    fun newFromTemplate(template: StudyTemplate) {
+        val blocks = template.generateInitialBlocks()
+        val metadata = template.generateMetadata()
+        val doc = StudyDoc(
+            title = template.name,
+            blocks = blocks,
+            metadata = metadata,
+        )
+        blockTextStates.clear()
+        _lastFocusedFieldKey.value = blocks.firstOrNull()?.id?.value
+        blocks.forEach { block ->
+            when (block) {
+                is StudyBlock.Paragraph -> {
+                    blockTextStates[block.id] = TextFieldValue(
+                        annotatedString = AnnotatedString(block.text.raw),
+                        selection = TextRange(block.text.raw.length),
+                    )
+                }
+                is StudyBlock.Heading -> {
+                    blockTextStates[block.id] = TextFieldValue(
+                        annotatedString = AnnotatedString(block.text.raw),
+                        selection = TextRange(block.text.raw.length),
+                    )
+                }
+                else -> Unit
+            }
+        }
+        val firstBlockId = blocks.firstOrNull()?.id
+        commandStack.clear()
+        blockAlignments.clear()
+        activeRangeByBlock.clear()
+        _uiState.value = StudyEditorUiState(
+            doc = doc,
+            selectedBlockId = firstBlockId?.value,
+            wasJustCreated = true,
+        )
+        _isDocLoaded = true
+    }
+
     fun clearJustCreatedFlag() { _uiState.update { it.copy(wasJustCreated = false) } }
 
     fun selectBlock(blockId: String?) { _uiState.update { it.copy(selectedBlockId = blockId) } }
@@ -313,6 +352,106 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
     }
 
     fun updateTitle(newTitle: String) { applyOp(StudyOp.UpdateTitle(newTitle)) }
+
+    private val _findQuery = MutableStateFlow("")
+    val findQuery: StateFlow<String> = _findQuery.asStateFlow()
+
+    private val _findMatches = MutableStateFlow<List<StudyDocEngine.TextHit>>(emptyList())
+    val findMatches: StateFlow<List<StudyDocEngine.TextHit>> = _findMatches.asStateFlow()
+
+    private val _currentMatchIndex = MutableStateFlow(0)
+    val currentMatchIndex: StateFlow<Int> = _currentMatchIndex.asStateFlow()
+
+    fun updateFindQuery(query: String) {
+        _findQuery.value = query
+        if (query.isEmpty()) {
+            _findMatches.value = emptyList()
+            _currentMatchIndex.value = 0
+        } else {
+            val hits = StudyDocEngine.findText(_uiState.value.doc, query)
+            _findMatches.value = hits
+            _currentMatchIndex.value = 0
+        }
+    }
+
+    fun findNext() {
+        val matches = _findMatches.value
+        if (matches.isNotEmpty()) {
+            _currentMatchIndex.value = (_currentMatchIndex.value + 1) % matches.size
+            scrollToMatch(matches[_currentMatchIndex.value])
+        }
+    }
+
+    fun findPrevious() {
+        val matches = _findMatches.value
+        if (matches.isNotEmpty()) {
+            _currentMatchIndex.value = if (_currentMatchIndex.value == 0) matches.size - 1 else _currentMatchIndex.value - 1
+            scrollToMatch(matches[_currentMatchIndex.value])
+        }
+    }
+
+    private fun scrollToMatch(hit: StudyDocEngine.TextHit) {
+        selectBlock(hit.blockId.value)
+    }
+
+    fun replaceCurrent(replacement: String) {
+        val matches = _findMatches.value
+        val index = _currentMatchIndex.value
+        if (matches.isEmpty() || index >= matches.size) return
+
+        val hit = matches[index]
+        val block = _uiState.value.doc.blocks.getOrNull(hit.blockIndex) ?: return
+
+        val blockId = block.id
+        val currentText = when (block) {
+            is StudyBlock.Paragraph -> block.text
+            is StudyBlock.Heading -> block.text
+            is StudyBlock.Quote -> block.text
+            is StudyBlock.Note -> block.text
+            is StudyBlock.Reflection -> block.text
+            is StudyBlock.Callout -> block.text
+            is StudyBlock.Verse -> block.primaryText
+            else -> return
+        }
+
+        val newText = currentText.raw.replaceRange(hit.start, hit.endExclusive, replacement)
+        val newStyledText = com.cristiancogollo.biblion.feature.studydocs.model.StyledText(newText, emptyList())
+
+        applyOp(StudyOp.EditText(blockId, newStyledText))
+
+        updateFindQuery(_findQuery.value)
+    }
+
+    fun replaceAll(replacement: String) {
+        val query = _findQuery.value
+        if (query.isEmpty()) return
+
+        var count = 0
+        val blocks = _uiState.value.doc.blocks
+
+        for (block in blocks) {
+            val blockId = block.id
+            val currentText = when (block) {
+                is StudyBlock.Paragraph -> block.text
+                is StudyBlock.Heading -> block.text
+                is StudyBlock.Quote -> block.text
+                is StudyBlock.Note -> block.text
+                is StudyBlock.Reflection -> block.text
+                is StudyBlock.Callout -> block.text
+                is StudyBlock.Verse -> block.primaryText
+                else -> continue
+            }
+
+            if (currentText.raw.contains(query)) {
+                val newText = currentText.raw.replace(query, replacement)
+                val newStyledText = com.cristiancogollo.biblion.feature.studydocs.model.StyledText(newText, emptyList())
+                applyOp(StudyOp.EditText(blockId, newStyledText))
+                count++
+            }
+        }
+
+        updateFindQuery(_findQuery.value)
+    }
 
     class Factory(private val repository: StudyDocRepository) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")

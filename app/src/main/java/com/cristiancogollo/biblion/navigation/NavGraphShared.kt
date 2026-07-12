@@ -13,6 +13,7 @@ import com.cristiancogollo.biblion.feature.search.ui.SearchScreen
 import com.cristiancogollo.biblion.feature.studydocs.ui.StudyDocEditorRoute
 import com.cristiancogollo.biblion.feature.studydocs.ui.StudyDocReadRoute
 import com.cristiancogollo.biblion.feature.studydocs.ui.StudyDocsListRoute
+import com.cristiancogollo.biblion.feature.studydocs.ui.StudyTemplatePickerRoute
 import com.cristiancogollo.biblion.feature.studydocs.ui.Screen as StudyDocScreen
 
 /**
@@ -168,6 +169,10 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
             navController = navController,
             remoteId = remoteId,
         )
+    }
+
+    composable(StudyDocScreen.StudyTemplatePicker.route) {
+        StudyTemplatePickerRoute(navController = navController)
     }
 
     composable(

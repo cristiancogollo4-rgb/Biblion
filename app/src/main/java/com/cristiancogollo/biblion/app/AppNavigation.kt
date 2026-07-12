@@ -23,6 +23,9 @@ import androidx.navigation.navArgument
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cristiancogollo.biblion.feature.auth.data.GoogleCredentialsAuth
 import com.cristiancogollo.biblion.feature.auth.data.GoogleCredentialsResult
+import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDatabase
+import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocRepository
+import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocSyncManager
 import com.cristiancogollo.biblion.feature.studydocs.ui.Screen as StudyDocScreen
 import kotlinx.coroutines.launch
 
@@ -46,6 +49,11 @@ fun AppNavigation(
     var authDialogMode by remember { mutableStateOf(AuthDialogMode.LOGIN) }
     var activeGuidedTutorial by remember { mutableStateOf<GuidedTutorialProgress?>(null) }
     val currentUserName = preferredUserName(profileState, authState.currentUser)
+    
+    val studyDocSyncManager = remember(context) {
+        val repository = StudyDocRepository(StudyDocDatabase.getInstance(context).studyDocDao())
+        StudyDocSyncManager(context, repository)
+    }
 
     LaunchedEffect(Unit) {
         val saved = AppPreferencesSyncStore.getActiveGuidedTutorial(appContext)
@@ -133,9 +141,11 @@ fun AppNavigation(
         if (user != null) {
             Log.d("FirestoreSync", "AppNavigation detected authenticated user uid=${user.uid}")
             FirestoreSyncManager.start(user)
+            studyDocSyncManager.startSync(user.uid)
         } else {
             Log.d("FirestoreSync", "AppNavigation detected signed-out state")
             FirestoreSyncManager.stop()
+            studyDocSyncManager.stopSync()
         }
     }
 

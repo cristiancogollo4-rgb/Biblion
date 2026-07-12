@@ -8,6 +8,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -17,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.FindReplace
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Icon
@@ -45,11 +47,13 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cristiancogollo.biblion.feature.studydocs.domain.InsertBlockCommand
 import com.cristiancogollo.biblion.feature.studydocs.domain.MergeBlocksCommand
+import com.cristiancogollo.biblion.feature.studydocs.domain.MoveBlockCommand
 import com.cristiancogollo.biblion.feature.studydocs.domain.ReplaceBlockCommand
 import com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel
 import com.cristiancogollo.biblion.feature.studydocs.engine.CursorNavigator
@@ -107,7 +111,14 @@ fun StudyDocEditorScreen(
     var showSlashMenu by remember { mutableStateOf(false) }
     var showColorPicker by remember { mutableStateOf(false) }
     var showSaveDialog by remember { mutableStateOf(false) }
+    var showFindReplace by remember { mutableStateOf(false) }
+    var showBibiOverlay by remember { mutableStateOf(false) }
+    var replacementText by remember { mutableStateOf("") }
+    val findQuery by viewModel.findQuery.collectAsState()
+    val findMatches by viewModel.findMatches.collectAsState()
+    val currentMatchIndex by viewModel.currentMatchIndex.collectAsState()
     val selectionState = remember { SelectionState() }
+    val dragDropState = remember { DragDropState() }
     val focusRequesters = remember { androidx.compose.runtime.mutableStateMapOf<BlockId, androidx.compose.ui.focus.FocusRequester>() }
     var selectedBlockIds by remember { mutableStateOf(setOf<BlockId>()) }
     val context = LocalContext.current
@@ -121,6 +132,19 @@ fun StudyDocEditorScreen(
         kotlinx.coroutines.delay(80)
         focusRequesters[firstId]?.requestFocus()
         viewModel.clearJustCreatedFlag()
+    }
+
+    // Observar el estado de drag & drop para ejecutar el movimiento
+    LaunchedEffect(dragDropState.draggedBlockId, dragDropState.targetIndex) {
+        if (!dragDropState.isDragging && dragDropState.draggedBlockId == null) {
+            val result = dragDropState.endDrag()
+            if (result != null) {
+                val fromIndex = uiState.doc.blocks.indexOfFirst { it.id == result.blockId }
+                if (fromIndex >= 0 && fromIndex != result.targetIndex) {
+                    viewModel.executeCommand(MoveBlockCommand(fromIndex, result.targetIndex))
+                }
+            }
+        }
     }
 
     val onBold: () -> Unit = { applyStyleToFocused(viewModel, TextStylePatch(bold = true)) }
@@ -212,6 +236,15 @@ fun StudyDocEditorScreen(
                     }
                     IconButton(onClick = { showOutline = !showOutline }) {
                         Icon(androidx.compose.material.icons.Icons.Filled.MenuBook, contentDescription = "Outline")
+                    }
+                    IconButton(onClick = { showFindReplace = !showFindReplace }) {
+                        Icon(Icons.Filled.FindReplace, contentDescription = "Buscar y reemplazar")
+                    }
+                    IconButton(onClick = { showBibiOverlay = !showBibiOverlay }) {
+                        Text(
+                            text = "📖",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
                     }
                     IconButton(onClick = { showSaveDialog = true }) {
                         Icon(Icons.Filled.Save, contentDescription = "Guardar")
@@ -417,6 +450,27 @@ fun StudyDocEditorScreen(
                         isMultiColumnEnabled = isMultiColumnEnabled,
                         onToggleMultiColumn = onToggleMultiColumn,
                     )
+                    
+                    if (showFindReplace) {
+                        FindReplaceBar(
+                            query = findQuery,
+                            onQueryChange = { viewModel.updateFindQuery(it) },
+                            replacement = replacementText,
+                            onReplacementChange = { replacementText = it },
+                            matchCount = findMatches.size,
+                            currentMatchIndex = currentMatchIndex,
+                            onFindNext = { viewModel.findNext() },
+                            onFindPrevious = { viewModel.findPrevious() },
+                            onReplace = { viewModel.replaceCurrent(replacementText) },
+                            onReplaceAll = { viewModel.replaceAll(replacementText) },
+                            onDismiss = {
+                                showFindReplace = false
+                                viewModel.updateFindQuery("")
+                                replacementText = ""
+                            },
+                        )
+                    }
+                    
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -531,20 +585,22 @@ fun StudyDocEditorScreen(
                                                     onFieldValueChange = { tfv ->
                                                         viewModel.blockTextStates[block.id] = tfv
                                                     },
-                                                    onRegisterFocus = { fr -> focusRequesters[block.id] = fr },
-                                                    onBlockFieldFocus = { fieldKey -> viewModel.onFieldFocused(fieldKey) },
-                                                    onListItemFieldValueChange = { idx, tfv ->
-                                                        viewModel.blockTextStates[BlockId("${block.id.value}:item:$idx")] = tfv
-                                                    },
-                                                    onListItemFocusChanged = { idx ->
-                                                        viewModel.onFieldFocused("${block.id.value}:item:$idx")
-                                                    },
-                                                    fontSize = viewModel.currentFontSize.sp,
-                                                )
-                                            }
-                                        }
-                                    }
-                                } else {
+                                                     onRegisterFocus = { fr -> focusRequesters[block.id] = fr },
+                                                     onBlockFieldFocus = { fieldKey -> viewModel.onFieldFocused(fieldKey) },
+                                                     onListItemFieldValueChange = { idx, tfv ->
+                                                         viewModel.blockTextStates[BlockId("${block.id.value}:item:$idx")] = tfv
+                                                     },
+                                                     onListItemFocusChanged = { idx ->
+                                                         viewModel.onFieldFocused("${block.id.value}:item:$idx")
+                                                     },
+                                                     fontSize = viewModel.currentFontSize.sp,
+                                                     dragDropState = dragDropState,
+                                                     isDropTarget = dragDropState.targetIndex == mid + index,
+                                                 )
+                                             }
+                                         }
+                                     }
+                                 } else {
                                     uiState.doc.blocks.forEachIndexed { index, block ->
                                         BlockWithHandle(
                                             block = block,
@@ -587,11 +643,13 @@ fun StudyDocEditorScreen(
                                             onListItemFieldValueChange = { idx, tfv ->
                                                 viewModel.blockTextStates[BlockId("${block.id.value}:item:$idx")] = tfv
                                             },
-                                            onListItemFocusChanged = { idx ->
-                                                viewModel.onFieldFocused("${block.id.value}:item:$idx")
-                                            },
-                                            fontSize = viewModel.currentFontSize.sp,
-                                        )
+                                                    onListItemFocusChanged = { idx ->
+                                                        viewModel.onFieldFocused("${block.id.value}:item:$idx")
+                                                    },
+                                                    fontSize = viewModel.currentFontSize.sp,
+                                                    dragDropState = dragDropState,
+                                                    isDropTarget = dragDropState.targetIndex == index,
+                                                )
                                     }
                                 }
                                 val docComments = uiState.doc.blocks.filterIsInstance<StudyBlock.Comment>()
@@ -606,6 +664,36 @@ fun StudyDocEditorScreen(
                                 }
                             }
                         }
+                    }
+                    
+                    EditorStatusBar(
+                        wordCount = uiState.doc.wordCount(),
+                        charCount = uiState.doc.charCount(),
+                        blockCount = uiState.doc.blocks.size,
+                        currentPage = uiState.currentPage,
+                        totalPages = com.cristiancogollo.biblion.feature.studydocs.engine.Paginator.totalPages(uiState.doc.blocks),
+                    )
+                }
+                
+                if (showBibiOverlay) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.CenterEnd,
+                    ) {
+                        com.cristiancogollo.biblion.feature.studydocs.ui.bibi.BibiOverlayPanel(
+                            isVisible = showBibiOverlay,
+                            onDismiss = { showBibiOverlay = false },
+                            onInsertAsBlock = { block ->
+                                viewModel.applyOp(StudyOp.InsertBlock(uiState.doc.blocks.size, block))
+                                showBibiOverlay = false
+                            },
+                            docContext = uiState.doc,
+                            modifier = Modifier
+                                .fillMaxWidth(0.4f)
+                                .fillMaxHeight(),
+                        )
                     }
                 }
             }
@@ -738,8 +826,11 @@ private fun BlockWithHandle(
     onListItemFieldValueChange: (Int, androidx.compose.ui.text.input.TextFieldValue) -> Unit,
     onListItemFocusChanged: (Int) -> Unit,
     fontSize: androidx.compose.ui.unit.TextUnit = com.cristiancogollo.biblion.feature.studydocs.ui.editor.DocConfig.FontSize,
+    dragDropState: DragDropState? = null,
+    isDropTarget: Boolean = false,
 ) {
     val highlight = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent
+    val dropTargetHighlight = if (isDropTarget) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent
     val localFocusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
     LaunchedEffect(block.id) { onRegisterFocus(localFocusRequester) }
     Row(
@@ -752,7 +843,26 @@ private fun BlockWithHandle(
             },
     ) {
         Box(
-            modifier = Modifier.size(28.dp).padding(top = 8.dp),
+            modifier = Modifier
+                .size(28.dp)
+                .padding(top = 8.dp)
+                .pointerInput(block.id) {
+                    detectDragGestures(
+                        onDragStart = {
+                            dragDropState?.startDrag(block.id)
+                        },
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            dragDropState?.updateTarget(blockIndex)
+                        },
+                        onDragEnd = {
+                            dragDropState?.endDrag()
+                        },
+                        onDragCancel = {
+                            dragDropState?.cancelDrag()
+                        },
+                    )
+                },
             contentAlignment = Alignment.TopCenter,
         ) {
             @Suppress("DEPRECATION")
@@ -760,7 +870,11 @@ private fun BlockWithHandle(
             Icon(
                 imageVector = dragIcon,
                 contentDescription = "Arrastrar",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                tint = if (dragDropState?.draggedBlockId == block.id) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                },
                 modifier = Modifier.size(14.dp),
             )
         }
