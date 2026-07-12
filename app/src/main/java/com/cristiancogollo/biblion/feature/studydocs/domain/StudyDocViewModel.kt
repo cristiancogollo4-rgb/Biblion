@@ -8,6 +8,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.cristiancogollo.biblion.feature.studydocs.data.DocVersionRepository
+import com.cristiancogollo.biblion.feature.studydocs.data.DocVersionRepository.DocVersion
 import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocRepository
 import com.cristiancogollo.biblion.feature.studydocs.engine.EditorMode
 import com.cristiancogollo.biblion.feature.studydocs.engine.ListType
@@ -49,7 +51,10 @@ data class StudyEditorUiState(
     val isMultiColumnEnabled: Boolean = false,
 )
 
-class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel() {
+class StudyDocViewModel(
+    private val repository: StudyDocRepository,
+    private val versionRepository: DocVersionRepository? = null,
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(StudyEditorUiState())
     val uiState: StateFlow<StudyEditorUiState> = _uiState.asStateFlow()
@@ -59,9 +64,11 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
 
     private var _autoSaveJob: Job? = null
     private var _isDocLoaded = false
+    private var _lastVersionSaveAt: Long = 0L
 
     companion object {
         private const val AUTO_SAVE_DELAY_MS = 3000L
+        private const val VERSION_SAVE_INTERVAL_MS = 60_000L
     }
 
     /**
@@ -320,7 +327,23 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
             if (currentDoc.title.isNotBlank()) {
                 repository.save(currentDoc)
                 _uiState.update { it.copy(lastSavedAt = System.currentTimeMillis()) }
+                maybeSaveVersion(currentDoc)
             }
+        }
+    }
+
+    private suspend fun maybeSaveVersion(doc: StudyDoc) {
+        if (versionRepository == null) return
+        val now = System.currentTimeMillis()
+        if (now - _lastVersionSaveAt < VERSION_SAVE_INTERVAL_MS) return
+        versionRepository.saveSnapshot(doc, "Auto-guardado")
+        _lastVersionSaveAt = now
+    }
+
+    fun saveVersionNow(description: String? = null) {
+        if (versionRepository == null) return
+        viewModelScope.launch {
+            versionRepository.saveSnapshot(_uiState.value.doc, description)
         }
     }
 
@@ -453,8 +476,41 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
         updateFindQuery(_findQuery.value)
     }
 
-    class Factory(private val repository: StudyDocRepository) : ViewModelProvider.Factory {
+    private val _versionHistory = MutableStateFlow<List<DocVersion>>(emptyList())
+    val versionHistory: StateFlow<List<DocVersion>> = _versionHistory.asStateFlow()
+
+    fun loadVersionHistory(docRemoteId: String) {
+        if (versionRepository == null) return
+        viewModelScope.launch {
+            _versionHistory.value = versionRepository.getVersions(docRemoteId)
+        }
+    }
+
+    fun restoreVersion(versionId: Long) {
+        if (versionRepository == null) return
+        viewModelScope.launch {
+            val doc = versionRepository.getDocAtVersion(versionId) ?: return@launch
+            _uiState.update { it.copy(doc = doc) }
+            repository.save(doc)
+            saveVersionNow("Restaurado desde version")
+        }
+    }
+
+    fun deleteVersion(versionId: Long) {
+        if (versionRepository == null) return
+        viewModelScope.launch {
+            versionRepository.deleteVersion(versionId)
+            val docRemoteId = _uiState.value.doc.id.value
+            loadVersionHistory(docRemoteId)
+        }
+    }
+
+    class Factory(
+        private val repository: StudyDocRepository,
+        private val versionRepository: DocVersionRepository? = null,
+    ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T = StudyDocViewModel(repository) as T
+        override fun <T : ViewModel> create(modelClass: Class<T>): T =
+            StudyDocViewModel(repository, versionRepository) as T
     }
 }

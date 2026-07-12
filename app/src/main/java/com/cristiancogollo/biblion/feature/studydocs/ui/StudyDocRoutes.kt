@@ -2,14 +2,18 @@ package com.cristiancogollo.biblion.feature.studydocs.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.cristiancogollo.biblion.feature.studydocs.data.DocVersionRepository
 import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDatabase
 import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocRepository
 import com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
+import com.cristiancogollo.biblion.feature.studydocs.ui.history.VersionHistoryScreen
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.StudyDocEditorScreen
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.StudyEditorLayout
 import com.cristiancogollo.biblion.feature.studydocs.ui.list.StudyDocsListScreen
@@ -38,8 +42,10 @@ fun StudyDocEditorRoute(
     remoteId: String?,
 ) {
     val context = LocalContext.current
-    val repository = remember { StudyDocRepository(StudyDocDatabase.getInstance(context).studyDocDao()) }
-    val viewModel: StudyDocViewModel = viewModel(factory = StudyDocViewModel.Factory(repository))
+    val database = remember { StudyDocDatabase.getInstance(context) }
+    val repository = remember { StudyDocRepository(database.studyDocDao()) }
+    val versionRepository = remember { DocVersionRepository(database.docVersionDao()) }
+    val viewModel: StudyDocViewModel = viewModel(factory = StudyDocViewModel.Factory(repository, versionRepository))
     val listViewModel: StudyDocsListViewModel = viewModel(factory = StudyDocsListViewModel.Factory(repository))
     LaunchedEffect(remoteId) {
         if (remoteId == null) viewModel.newDraft() else viewModel.loadByRemoteId(remoteId)
@@ -49,6 +55,9 @@ fun StudyDocEditorRoute(
             StudyDocEditorScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
+                onNavigateToVersionHistory = {
+                    navController.navigate(Screen.VersionHistory.createRoute(viewModel.uiState.value.doc.id.value))
+                },
                 isExpandable = isExpandable,
                 isExpanded = isExpanded,
                 onToggleExpand = onToggleExpand,
@@ -75,8 +84,10 @@ fun StudyDocReadRoute(
     remoteId: String,
 ) {
     val context = LocalContext.current
-    val repository = remember { StudyDocRepository(StudyDocDatabase.getInstance(context).studyDocDao()) }
-    val viewModel: StudyDocViewModel = viewModel(factory = StudyDocViewModel.Factory(repository))
+    val database = remember { StudyDocDatabase.getInstance(context) }
+    val repository = remember { StudyDocRepository(database.studyDocDao()) }
+    val versionRepository = remember { DocVersionRepository(database.docVersionDao()) }
+    val viewModel: StudyDocViewModel = viewModel(factory = StudyDocViewModel.Factory(repository, versionRepository))
     LaunchedEffect(remoteId) { viewModel.loadByRemoteId(remoteId) }
     StudyDocReadScreen(
         viewModel = viewModel,
@@ -104,6 +115,39 @@ fun StudyTemplatePickerRoute(
     )
 }
 
+@Composable
+fun VersionHistoryRoute(
+    navController: NavController,
+    docRemoteId: String,
+) {
+    val context = LocalContext.current
+    val database = remember { StudyDocDatabase.getInstance(context) }
+    val repository = remember { StudyDocRepository(database.studyDocDao()) }
+    val versionRepository = remember { DocVersionRepository(database.docVersionDao()) }
+    val viewModel: StudyDocViewModel = viewModel(factory = StudyDocViewModel.Factory(repository, versionRepository))
+    
+    val versions by viewModel.versionHistory.collectAsState()
+    
+    LaunchedEffect(docRemoteId) {
+        viewModel.loadVersionHistory(docRemoteId)
+    }
+    
+    VersionHistoryScreen(
+        versions = versions,
+        onVersionClick = { version ->
+            navController.navigate(Screen.VersionDiff.createRoute(docRemoteId, version.id))
+        },
+        onRestoreVersion = { version ->
+            viewModel.restoreVersion(version.id)
+            navController.popBackStack()
+        },
+        onDeleteVersion = { version ->
+            viewModel.deleteVersion(version.id)
+        },
+        onBack = { navController.popBackStack() },
+    )
+}
+
 object Screen {
     object StudyDocsList {
         const val route: String = "study_docs_list"
@@ -123,5 +167,16 @@ object Screen {
     object StudyTemplatePicker {
         const val route: String = "study_template_picker"
         fun createRoute(): String = route
+    }
+    object VersionHistory {
+        const val route: String = "version_history/{docRemoteId}"
+        fun createRoute(docRemoteId: String): String = "version_history/$docRemoteId"
+        const val ARG_DOC_REMOTE_ID: String = "docRemoteId"
+    }
+    object VersionDiff {
+        const val route: String = "version_diff/{docRemoteId}/{versionId}"
+        fun createRoute(docRemoteId: String, versionId: Long): String = "version_diff/$docRemoteId/$versionId"
+        const val ARG_DOC_REMOTE_ID: String = "docRemoteId"
+        const val ARG_VERSION_ID: String = "versionId"
     }
 }

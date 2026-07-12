@@ -14,6 +14,7 @@ import com.cristiancogollo.biblion.feature.studydocs.ui.StudyDocEditorRoute
 import com.cristiancogollo.biblion.feature.studydocs.ui.StudyDocReadRoute
 import com.cristiancogollo.biblion.feature.studydocs.ui.StudyDocsListRoute
 import com.cristiancogollo.biblion.feature.studydocs.ui.StudyTemplatePickerRoute
+import com.cristiancogollo.biblion.feature.studydocs.ui.VersionHistoryRoute
 import com.cristiancogollo.biblion.feature.studydocs.ui.Screen as StudyDocScreen
 
 /**
@@ -173,6 +174,18 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
 
     composable(StudyDocScreen.StudyTemplatePicker.route) {
         StudyTemplatePickerRoute(navController = navController)
+    }
+
+    composable(
+        route = StudyDocScreen.VersionHistory.route,
+        arguments = listOf(navArgument(StudyDocScreen.VersionHistory.ARG_DOC_REMOTE_ID) { type = NavType.StringType })
+    ) { backStackEntry ->
+        val docRemoteId = backStackEntry.arguments?.getString(StudyDocScreen.VersionHistory.ARG_DOC_REMOTE_ID)
+            ?: return@composable
+        VersionHistoryRoute(
+            navController = navController,
+            docRemoteId = docRemoteId,
+        )
     }
 
     composable(

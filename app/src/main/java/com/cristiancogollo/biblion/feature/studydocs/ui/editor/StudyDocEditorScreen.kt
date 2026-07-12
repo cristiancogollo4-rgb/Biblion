@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.FindReplace
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Icon
@@ -99,6 +100,7 @@ fun StudyDocEditorScreen(
     viewModel: StudyDocViewModel,
     onBack: () -> Unit,
     onFocusModeChanged: (() -> Unit)? = null,
+    onNavigateToVersionHistory: (() -> Unit)? = null,
     isExpandable: Boolean = false,
     isExpanded: Boolean = false,
     onToggleExpand: () -> Unit = {},
@@ -248,6 +250,11 @@ fun StudyDocEditorScreen(
                     }
                     IconButton(onClick = { showSaveDialog = true }) {
                         Icon(Icons.Filled.Save, contentDescription = "Guardar")
+                    }
+                    if (onNavigateToVersionHistory != null) {
+                        IconButton(onClick = onNavigateToVersionHistory) {
+                            Icon(Icons.Filled.History, contentDescription = "Historial de versiones")
+                        }
                     }
                     IconButton(onClick = {
                         val pdfFile = PdfExporter.export(context, uiState.doc)
