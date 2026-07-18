@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion.feature.studydocs.model
 
+import androidx.compose.ui.graphics.Color
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -15,8 +16,20 @@ data class StyleRange(
     val fontSizeSp: Float? = null,
     val link: String? = null,
 ) {
-    fun asRange(): IntRange = start until endExclusive
-    val isEmpty: Boolean
-        get() = !bold && !italic && !underline && !strikethrough &&
-            color == null && background == null && fontSizeSp == null && link == null
+    fun composeWith(other: StyleRange): StyleRange = StyleRange(
+        start = minOf(start, other.start),
+        endExclusive = maxOf(endExclusive, other.endExclusive),
+        bold = bold || other.bold,
+        italic = italic || other.italic,
+        underline = underline || other.underline,
+        strikethrough = strikethrough || other.strikethrough,
+        color = color ?: other.color,
+        background = background ?: other.background,
+        fontSizeSp = fontSizeSp ?: other.fontSizeSp,
+        link = link ?: other.link,
+    )
+
+    companion object {
+        val Empty = StyleRange(start = 0, endExclusive = 0)
+    }
 }

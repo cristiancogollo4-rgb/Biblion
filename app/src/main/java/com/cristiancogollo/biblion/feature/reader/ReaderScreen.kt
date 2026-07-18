@@ -25,12 +25,14 @@ import androidx.compose.foundation.focusable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -144,39 +146,70 @@ fun ReaderScreen(
     @Suppress("UNUSED_PARAMETER")
     val deprecatedInitialStudyId = initialStudyId
 
-    // EFECTO DE ENTRADA: Forzar horizontal solo si el modo estudio está activo
-    LaunchedEffect(isStudyModeEnabled, isLandscape) {
-        if (isStudyModeEnabled && !isLandscape) {
+    val isTablet = configuration.screenWidthDp >= 600
+
+    // EFECTO DE ENTRADA: Forzar horizontal solo en telefonos
+    LaunchedEffect(isStudyModeEnabled, isLandscape, isTablet) {
+        if (isStudyModeEnabled && !isLandscape && !isTablet) {
             context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         }
     }
 
-    // EFECTO DE SALIDA: Restaura vertical SIEMPRE que se destruya esta pantalla
+    // EFECTO DE SALIDA: Restaura vertical solo si se forzo
     DisposableEffect(Unit) {
         onDispose {
-            context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
+            if (!isTablet) {
+                context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
+            }
         }
     }
 
     if (isStudyModeEnabled && isLandscape) {
-        Row(modifier = Modifier.fillMaxSize()) {
-            if (!isFocusMode) {
-                Box(modifier = Modifier.weight(1f)) {
-                    StudyModeNavigation(
-                        initialBook = bookName,
-                        isDarkTheme = isDarkTheme,
-                        onToggleDarkTheme = onToggleDarkTheme,
-                        currentUserName = currentUserName,
-                    )
-                }
-            }
-            Box(modifier = Modifier.weight(if (isFocusMode) 1f else 1f)) {
-                StudyDocEditorSplitContent(
-                    navController = navController,
-                    onFocusModeChanged = { isFocusMode = !isFocusMode },
-                )
+        // Nuevo: Usar SplitLayoutController con ViewModel compartido
+        val context = LocalContext.current
+        val repository = remember {
+            com.cristiancogollo.biblion.feature.studydocs.data.StudyDocRepository(
+                com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDatabase.getInstance(context).studyDocDao()
+            )
+        }
+        val splitViewModel: com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocSplitViewModel = viewModel(
+            factory = com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocSplitViewModel.Factory(repository)
+        )
+
+        LaunchedEffect(Unit) { splitViewModel.newDraft() }
+
+        DisposableEffect(Unit) {
+            onDispose {
+                com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDatabase.resetInstance()
             }
         }
+
+        val splitState by splitViewModel.splitState.collectAsState()
+
+        com.cristiancogollo.biblion.feature.studydocs.ui.editor.SplitLayoutController(
+            leftPane = {
+                if (!isFocusMode) {
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        com.cristiancogollo.biblion.feature.studydocs.ui.editor.LocalSplitViewModel provides splitViewModel
+                    ) {
+                        StudyModeNavigation(
+                            initialBook = bookName,
+                            isDarkTheme = isDarkTheme,
+                            onToggleDarkTheme = onToggleDarkTheme,
+                            currentUserName = currentUserName,
+                        )
+                    }
+                }
+            },
+            rightPane = {
+                com.cristiancogollo.biblion.feature.studydocs.ui.editor.StudyDocEditorScreen(
+                    splitViewModel = splitViewModel,
+                    onBack = { navController.popBackStackOrNavigateHome() },
+                    isSplitMode = true,
+                    onFocusModeChanged = { isFocusMode = !isFocusMode }
+                )
+            }
+        )
     } else {
         ReaderContent(
             navController = navController,
@@ -299,10 +332,16 @@ private fun StudyDocEditorSplitContent(
     )
     LaunchedEffect(Unit) { viewModel.newDraft() }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDatabase.resetInstance()
+        }
+    }
+
     com.cristiancogollo.biblion.feature.studydocs.ui.editor.StudyDocEditorScreen(
         viewModel = viewModel,
         onBack = { navController.popBackStackOrNavigateHome() },
-        onFocusModeChanged = onFocusModeChanged,
+        isSplitMode = true,
     )
 }
 
@@ -792,6 +831,8 @@ fun ReaderContent(
                             Modifier.fillMaxWidth()
                         }
                     ) {
+                        val splitViewModel = com.cristiancogollo.biblion.feature.studydocs.ui.editor.LocalSplitViewModel.current
+
                         VerseItem(
                             verseNumber = verseNumber,
                             verseText = verseText,
@@ -829,6 +870,18 @@ fun ReaderContent(
                                     } else {
                                         selectedVerseActions + (verseNumber to VerseAction(verseNumber, verseText))
                                     }
+                                }
+                            },
+                            onInsertAsQuote = splitViewModel?.let { vm ->
+                                {
+                                    vm.insertVerseAsQuote(
+                                        book = bookName ?: "Desconocido",
+                                        chapter = selectedChapter,
+                                        verseStart = verseNumber.toIntOrNull() ?: 1,
+                                        verseEnd = verseNumber.toIntOrNull() ?: 1,
+                                        text = verseText,
+                                        version = selectedVersionKey
+                                    )
                                 }
                             }
                         )
@@ -994,6 +1047,7 @@ fun VerseItem(
     modifier: Modifier = Modifier,
     onShowActions: () -> Unit,
     onToggleSelection: () -> Unit,
+    onInsertAsQuote: (() -> Unit)? = null,
     anchorSpan: IntRange? = null
 ) {
     val isRangeSelected = isSelected && selectionRangePosition != VerseSelectionRangePosition.None
@@ -1025,82 +1079,105 @@ fun VerseItem(
     }
     val sideBarColor = BiblionGoldPrimary
 
-    Text(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(bottom = bottomPadding)
-            .background(
-                color = containerColor,
-                shape = selectedShape
-            )
-            .drawBehind {
-                if (isRangeSelected) {
-                    val width = 4.dp.toPx()
-                    drawRoundRect(
-                        color = sideBarColor,
-                        topLeft = Offset.Zero,
-                        size = Size(width = width, height = size.height),
-                        cornerRadius = CornerRadius(width / 2f, width / 2f)
-                    )
-                }
-            }
-            .combinedClickable(onClick = onToggleSelection, onLongClick = onShowActions)
-            .onPreviewKeyEvent { keyEvent ->
-                if (
-                    keyEvent.type == KeyEventType.KeyUp &&
-                    (keyEvent.key == Key.Enter || keyEvent.key == Key.Spacebar)
-                ) {
-                    if (isSelectionMode) {
-                        onToggleSelection()
-                    } else {
-                        onShowActions()
-                    }
-                    true
-                } else {
-                    false
-                }
-            }
-            .focusable()
-            .padding(
-                start = if (isRangeSelected) 14.dp else 8.dp,
-                top = 8.dp,
-                end = 8.dp,
-                bottom = 8.dp
-            ),
-        text = buildAnnotatedString {
-            withStyle(
-                style = SpanStyle(
-                    fontSize = (fontSize.value * 0.6).sp,
-                    fontWeight = FontWeight.Bold,
-                    baselineShift = BaselineShift.Superscript,
-                    color = BiblionGoldPrimary
+    Box(modifier = modifier.fillMaxWidth()) {
+        Text(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = bottomPadding)
+                .background(
+                    color = containerColor,
+                    shape = selectedShape
                 )
-            ) {
-                append(verseNumber)
-            }
-            val textToRender = "  $verseText"
-            if (anchorSpan != null && anchorSpan.first >= 0 && anchorSpan.last < textToRender.length) {
-                append(textToRender.substring(0, anchorSpan.first))
+                .drawBehind {
+                    if (isRangeSelected) {
+                        val width = 4.dp.toPx()
+                        drawRoundRect(
+                            color = sideBarColor,
+                            topLeft = Offset.Zero,
+                            size = Size(width = width, height = size.height),
+                            cornerRadius = CornerRadius(width / 2f, width / 2f)
+                        )
+                    }
+                }
+                .combinedClickable(onClick = onToggleSelection, onLongClick = onShowActions)
+                .onPreviewKeyEvent { keyEvent ->
+                    if (
+                        keyEvent.type == KeyEventType.KeyUp &&
+                        (keyEvent.key == Key.Enter || keyEvent.key == Key.Spacebar)
+                    ) {
+                        if (isSelectionMode) {
+                            onToggleSelection()
+                        } else {
+                            onShowActions()
+                        }
+                        true
+                    } else {
+                        false
+                    }
+                }
+                .focusable()
+                .padding(
+                    start = if (isRangeSelected) 14.dp else 8.dp,
+                    top = 8.dp,
+                    end = 8.dp,
+                    bottom = 8.dp
+                ),
+            text = buildAnnotatedString {
                 withStyle(
                     style = SpanStyle(
-                        background = BiblionGoldPrimary.copy(alpha = 0.25f),
-                        textDecoration = TextDecoration.Underline,
-                        color = BiblionBluePrimary
+                        fontSize = (fontSize.value * 0.6).sp,
+                        fontWeight = FontWeight.Bold,
+                        baselineShift = BaselineShift.Superscript,
+                        color = BiblionGoldPrimary
                     )
                 ) {
-                    append(textToRender.substring(anchorSpan.first, anchorSpan.last + 1))
+                    append(verseNumber)
                 }
-                append(textToRender.substring(anchorSpan.last + 1))
-            } else {
-                append(textToRender)
-            }
-        },
-        style = MaterialTheme.typography.bodyLarge.merge(
-            TextStyle(
-                fontFamily = FontFamily.Serif,
-                lineHeight = (fontSize.value * 1.5).sp,
-                fontSize = fontSize
+                val textToRender = "  $verseText"
+                if (anchorSpan != null && anchorSpan.first >= 0 && anchorSpan.last < textToRender.length) {
+                    append(textToRender.substring(0, anchorSpan.first))
+                    withStyle(
+                        style = SpanStyle(
+                            background = BiblionGoldPrimary.copy(alpha = 0.25f),
+                            textDecoration = TextDecoration.Underline,
+                            color = BiblionBluePrimary
+                        )
+                    ) {
+                        append(textToRender.substring(anchorSpan.first, anchorSpan.last + 1))
+                    }
+                    append(textToRender.substring(anchorSpan.last + 1))
+                } else {
+                    append(textToRender)
+                }
+            },
+            style = MaterialTheme.typography.bodyLarge.merge(
+                TextStyle(
+                    fontFamily = FontFamily.Serif,
+                    lineHeight = (fontSize.value * 1.5).sp,
+                    fontSize = fontSize
+                )
             )
         )
-    )
+
+        // Botón de insertar como cita (solo visible en modo split)
+        if (onInsertAsQuote != null) {
+            IconButton(
+                onClick = onInsertAsQuote,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(32.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(8.dp)
+                    )
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = "Insertar como cita",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
 }

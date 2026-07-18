@@ -6,14 +6,13 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [StudyDocEntity::class, DocEditHistoryEntity::class],
-    version = 1,
+    entities = [StudyDocEntity::class],
+    version = 2,
     exportSchema = false,
 )
 abstract class StudyDocDatabase : RoomDatabase() {
 
     abstract fun studyDocDao(): StudyDocDao
-    abstract fun docEditHistoryDao(): DocEditHistoryDao
 
     companion object {
         private const val DB_NAME = "study_docs.db"

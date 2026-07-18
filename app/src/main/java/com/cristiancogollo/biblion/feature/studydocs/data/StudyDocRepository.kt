@@ -1,6 +1,5 @@
 package com.cristiancogollo.biblion.feature.studydocs.data
 
-import com.cristiancogollo.biblion.feature.studydocs.model.BlockId
 import com.cristiancogollo.biblion.feature.studydocs.model.DocId
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
 import kotlinx.coroutines.flow.Flow
@@ -23,20 +22,20 @@ class StudyDocRepository(
     suspend fun getDirtyForSync(): List<StudyDocEntity> = dao.getDirtyForSync()
 
     suspend fun save(doc: StudyDoc, ownerUid: String? = null) {
-        val remoteId = doc.id.value
+        val remoteId = doc.remoteId ?: doc.id.value
         val now = clock()
+        val existing = dao.getByRemoteId(remoteId)
         val entity = StudyDocEntity(
             remoteId = remoteId,
             title = doc.title,
-            blockCount = doc.blocks.size,
+            blockCount = 1,
             version = doc.version,
             docJson = StudyDocJson.encode(doc),
-            createdAt = now,
+            createdAt = existing?.createdAt ?: now,
             updatedAt = now,
-            ownerUid = ownerUid,
+            ownerUid = ownerUid ?: existing?.ownerUid,
             isDirty = true,
         )
-        val existing = dao.getByRemoteId(remoteId)
         if (existing == null) dao.insert(entity) else dao.update(entity.copy(id = existing.id))
     }
 

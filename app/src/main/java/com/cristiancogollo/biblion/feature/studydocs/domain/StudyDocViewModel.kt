@@ -1,28 +1,32 @@
 package com.cristiancogollo.biblion.feature.studydocs.domain
 
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.snapshots.SnapshotStateMap
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.isUnspecified
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocRepository
-import com.cristiancogollo.biblion.feature.studydocs.engine.EditorMode
-import com.cristiancogollo.biblion.feature.studydocs.engine.ListType
 import com.cristiancogollo.biblion.feature.studydocs.engine.OpResult
-import com.cristiancogollo.biblion.feature.studydocs.engine.StudyDocEngine
 import com.cristiancogollo.biblion.feature.studydocs.engine.StudyOp
-import com.cristiancogollo.biblion.feature.studydocs.engine.TextStyleKind
-import com.cristiancogollo.biblion.feature.studydocs.engine.toggleList
+import com.cristiancogollo.biblion.feature.studydocs.engine.StudyDocEngine
 import com.cristiancogollo.biblion.feature.studydocs.model.BlockId
-import com.cristiancogollo.biblion.feature.studydocs.model.DocId
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
+import com.cristiancogollo.biblion.feature.studydocs.model.DocMetadata
+import com.cristiancogollo.biblion.feature.studydocs.model.DocConfig
+import com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment
 import com.cristiancogollo.biblion.feature.studydocs.model.StyledText
-import com.cristiancogollo.biblion.feature.studydocs.model.TextStylePatch
-import com.cristiancogollo.biblion.feature.studydocs.model.isTextEditable
+import com.cristiancogollo.biblion.feature.studydocs.ui.editor.syncFromStyledText
+import com.cristiancogollo.biblion.feature.studydocs.ui.editor.fromAnnotatedString
+import com.mohamedrejeb.richeditor.model.RichTextState
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,246 +34,386 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import com.cristiancogollo.biblion.feature.studydocs.model.isList
+
+data class ActiveFormatSnapshot(
+    val bold: Boolean = false,
+    val italic: Boolean = false,
+    val underline: Boolean = false,
+    val strikethrough: Boolean = false,
+    val color: Int? = null,
+    val background: Int? = null,
+    val fontSize: Int? = null,
+)
 
 data class StudyEditorUiState(
     val doc: StudyDoc = StudyDoc.empty(),
-    val selectedBlockId: String? = null,
+    val activeBlockId: BlockId? = null,
+    val activeFormat: ActiveFormatSnapshot = ActiveFormatSnapshot(),
     val isLoading: Boolean = false,
     val lastError: String? = null,
     val lastSavedAt: Long? = null,
     val isSaving: Boolean = false,
-    val canUndo: Boolean = false,
-    val canRedo: Boolean = false,
-    val undoDescription: String? = null,
-    val redoDescription: String? = null,
-    val historyEntries: Int = 0,
-    val currentPage: Int = 0,
-    val wasJustCreated: Boolean = false,
-    val isMultiColumnEnabled: Boolean = false,
+    val hasUnsavedChanges: Boolean = false,
 )
+
+enum class TextStyleKind { Bold, Italic, Underline, Strikethrough }
 
 class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel() {
 
     private val _uiState = MutableStateFlow(StudyEditorUiState())
     val uiState: StateFlow<StudyEditorUiState> = _uiState.asStateFlow()
 
-    private val commandStack = EditCommandStack()
-    val blockTextStates: SnapshotStateMap<BlockId, TextFieldValue> = mutableStateMapOf()
+    val blockRichStates: SnapshotStateMap<BlockId, RichTextState> =
+        androidx.compose.runtime.mutableStateMapOf()
 
     private var _autoSaveJob: Job? = null
+    private var _remoteId: String? = null
     private var _isDocLoaded = false
 
     companion object {
         private const val AUTO_SAVE_DELAY_MS = 3000L
     }
 
-    /**
-     * Alineacion por bloque (efimero, no persistido). Una sola
-     * alineacion por bloque segun opcion c del plan. Se aplica
-     * desde el UI via [cycleAlignment] leyendo de [blockAlignments].
-     */
-    val blockAlignments: SnapshotStateMap<BlockId, androidx.compose.ui.text.style.TextAlign> =
-        mutableStateMapOf()
-
-    private val _lastFocusedBlockId = MutableStateFlow<BlockId?>(null)
-    val lastFocusedBlockId: StateFlow<BlockId?> = _lastFocusedBlockId.asStateFlow()
-
-    private val _lastFocusedFieldKey = MutableStateFlow<String?>(null)
-    val lastFocusedFieldKey: StateFlow<String?> = _lastFocusedFieldKey.asStateFlow()
-
-    private val _editorMode = MutableStateFlow<EditorMode>(EditorMode.Single)
-    val editorMode: StateFlow<EditorMode> = _editorMode.asStateFlow()
-
-    val activeRangeByBlock: SnapshotStateMap<BlockId, IntRange?> = mutableStateMapOf()
-
-    private val _fontSizeIndex = MutableStateFlow(com.cristiancogollo.biblion.feature.studydocs.ui.editor.DocConfig.DefaultFontSizeIndex)
-    val fontSizeIndex: StateFlow<Int> = _fontSizeIndex.asStateFlow()
-
-    val currentFontSize: Float
-        get() = com.cristiancogollo.biblion.feature.studydocs.ui.editor.DocConfig.FontSizeLevels[_fontSizeIndex.value]
-
-    fun increaseFontSize() {
-        val current = _fontSizeIndex.value
-        val levels = com.cristiancogollo.biblion.feature.studydocs.ui.editor.DocConfig.FontSizeLevels
-        if (current < levels.lastIndex) {
-            _fontSizeIndex.value = current + 1
-        }
-    }
-
-    fun decreaseFontSize() {
-        val current = _fontSizeIndex.value
-        if (current > 0) {
-            _fontSizeIndex.value = current - 1
-        }
-    }
-
-    fun toggleMultiColumn() {
-        _uiState.update { it.copy(isMultiColumnEnabled = !it.isMultiColumnEnabled) }
-    }
-
-    fun setEditorMode(mode: EditorMode) { _editorMode.value = mode }
-    fun setActiveRange(blockId: BlockId, range: IntRange?) {
-        if (range == null) activeRangeByBlock.remove(blockId) else activeRangeByBlock[blockId] = range
-    }
-    fun onBlockFocused(blockId: BlockId) { _lastFocusedBlockId.value = blockId }
-    fun onFieldFocused(fieldKey: String) { _lastFocusedFieldKey.value = fieldKey }
-
     fun newDraft() {
-        val blocks = listOf(
-            StudyBlock.Paragraph(),
-        )
-        val doc = StudyDoc(blocks = blocks)
-        blockTextStates.clear()
-        _lastFocusedFieldKey.value = blocks.firstOrNull()?.id?.value
-        blocks.forEach { block ->
-            blockTextStates[block.id] = TextFieldValue(
-                annotatedString = AnnotatedString(""),
-                selection = TextRange(0),
-            )
-        }
-        val firstBlockId = blocks.firstOrNull()?.id
-        commandStack.clear()
-        blockAlignments.clear()
-        activeRangeByBlock.clear()
+        _remoteId = null
+        blockRichStates.clear()
+        val block = StudyBlock.Paragraph()
+        val rs = RichTextState().apply { setHtml("<p></p>") }
+        blockRichStates[block.id] = rs
         _uiState.value = StudyEditorUiState(
-            doc = doc,
-            selectedBlockId = firstBlockId?.value,
-            wasJustCreated = true,
+            doc = StudyDoc(blocks = listOf(block)),
+            activeBlockId = block.id,
+            hasUnsavedChanges = true,
         )
         _isDocLoaded = true
     }
 
-    fun clearJustCreatedFlag() { _uiState.update { it.copy(wasJustCreated = false) } }
+    fun loadByRemoteId(remoteId: String) {
+        _autoSaveJob?.cancel()
+        _uiState.update { it.copy(isLoading = true) }
+        viewModelScope.launch {
+            val doc = repository.getByRemoteId(remoteId)
+            if (doc != null) {
+                _remoteId = doc.remoteId
+                blockRichStates.clear()
+                doc.blocks.forEach { block ->
+                    val rs = RichTextState()
+                    val texts = block.toStyledTextList()
+                    if (texts.isNotEmpty()) {
+                        rs.syncFromStyledText(texts.first())
+                    } else {
+                        rs.setHtml("<p></p>")
+                    }
+                    blockRichStates[block.id] = rs
+                }
+                val firstId = doc.blocks.firstOrNull()?.id
+                _uiState.value = StudyEditorUiState(
+                    doc = doc,
+                    activeBlockId = firstId,
+                    isLoading = false,
+                )
+                _isDocLoaded = true
+            } else {
+                _uiState.update { it.copy(isLoading = false, lastError = "Documento no encontrado") }
+            }
+        }
+    }
 
-    fun selectBlock(blockId: String?) { _uiState.update { it.copy(selectedBlockId = blockId) } }
-    fun setCurrentPage(page: Int) { _uiState.update { it.copy(currentPage = page) } }
+    fun setActiveBlock(blockId: BlockId) {
+        _uiState.update { it.copy(activeBlockId = blockId) }
+        blockRichStates[blockId]?.let { syncActiveFormat(it) }
+    }
 
-    fun applyOp(op: StudyOp) {
+    fun syncActiveFormat(richState: RichTextState) {
+        val style = richState.currentSpanStyle
+        _uiState.update {
+            it.copy(
+                activeFormat = ActiveFormatSnapshot(
+                    bold = style.fontWeight == FontWeight.Bold,
+                    italic = style.fontStyle == FontStyle.Italic,
+                    underline = style.textDecoration?.contains(TextDecoration.Underline) == true,
+                    strikethrough = style.textDecoration?.contains(TextDecoration.LineThrough) == true,
+                    color = style.color.takeIf { it != Color.Unspecified }?.toArgb(),
+                    background = style.background.takeIf { it != Color.Unspecified }?.toArgb(),
+                    fontSize = style.fontSize.takeIf { it.type == androidx.compose.ui.unit.TextUnitType.Sp }?.value?.toInt(),
+                )
+            )
+        }
+    }
+
+    fun applyStyleToActive(kind: TextStyleKind) {
+        val activeId = _uiState.value.activeBlockId ?: return
+        val rs = blockRichStates[activeId] ?: return
+        when (kind) {
+            TextStyleKind.Bold -> rs.toggleSpanStyle(SpanStyle(fontWeight = FontWeight.Bold))
+            TextStyleKind.Italic -> rs.toggleSpanStyle(SpanStyle(fontStyle = FontStyle.Italic))
+            TextStyleKind.Underline -> rs.toggleSpanStyle(SpanStyle(textDecoration = TextDecoration.Underline))
+            TextStyleKind.Strikethrough -> rs.toggleSpanStyle(SpanStyle(textDecoration = TextDecoration.LineThrough))
+        }
+        syncActiveFormat(rs)
+        markDirty()
+        scheduleAutoSave()
+    }
+
+    fun setActiveTextColor(argb: Int) {
+        val activeId = _uiState.value.activeBlockId ?: return
+        val rs = blockRichStates[activeId] ?: return
+        if (rs.selection.collapsed) {
+            rs.toggleSpanStyle(SpanStyle(color = Color(argb)))
+        } else {
+            rs.addSpanStyle(SpanStyle(color = Color(argb)))
+        }
+        syncActiveFormat(rs)
+        markDirty()
+        scheduleAutoSave()
+    }
+
+    fun setActiveBackgroundColor(argb: Int) {
+        val activeId = _uiState.value.activeBlockId ?: return
+        val rs = blockRichStates[activeId] ?: return
+        if (rs.selection.collapsed) {
+            rs.toggleSpanStyle(SpanStyle(background = Color(argb)))
+        } else {
+            rs.addSpanStyle(SpanStyle(background = Color(argb)))
+        }
+        syncActiveFormat(rs)
+        markDirty()
+        scheduleAutoSave()
+    }
+
+    fun clearActiveColor() {
+        val activeId = _uiState.value.activeBlockId ?: return
+        val rs = blockRichStates[activeId] ?: return
+        rs.removeSpanStyle(SpanStyle(color = Color.Unspecified))
+        rs.removeSpanStyle(SpanStyle(background = Color.Unspecified))
+        syncActiveFormat(rs)
+        markDirty()
+        scheduleAutoSave()
+    }
+
+    fun insertBlock(afterBlockId: BlockId?, type: String) {
+        val newBlock = when (type) {
+            "heading1" -> StudyBlock.Heading(level = 1, fontSize = DocConfig.HEADING1_SIZE)
+            "heading2" -> StudyBlock.Heading(level = 2, fontSize = DocConfig.HEADING2_SIZE)
+            "heading3" -> StudyBlock.Heading(level = 3, fontSize = DocConfig.HEADING3_SIZE)
+            "bullet" -> StudyBlock.BulletList()
+            "ordered" -> StudyBlock.OrderedList()
+            "quote" -> StudyBlock.Quote()
+            else -> StudyBlock.Paragraph()
+        }
+        val rs = RichTextState().apply { setHtml("<p></p>") }
+        blockRichStates[newBlock.id] = rs
+        applyOp(StudyOp.InsertBlock(newBlock, afterBlockId))
+        _uiState.update { it.copy(activeBlockId = newBlock.id) }
+    }
+
+    fun deleteBlock(blockId: BlockId) {
+        if (_uiState.value.doc.blocks.size <= 1) return
+        blockRichStates.remove(blockId)
+        applyOp(StudyOp.DeleteBlock(blockId))
+    }
+
+    fun cycleBlockAlignment(blockId: BlockId) {
+        val idx = _uiState.value.doc.blocks.indexOfFirst { it.id == blockId }
+        if (idx < 0) return
+        val block = _uiState.value.doc.blocks[idx]
+        val next = when (block.alignment) {
+            BlockAlignment.Start -> BlockAlignment.Center
+            BlockAlignment.Center -> BlockAlignment.End
+            BlockAlignment.End -> BlockAlignment.Justify
+            BlockAlignment.Justify -> BlockAlignment.Start
+        }
+        val updated = when (block) {
+            is StudyBlock.Paragraph -> block.copy(alignment = next)
+            is StudyBlock.Heading -> block.copy(alignment = next)
+            is StudyBlock.BulletList -> block.copy(alignment = next)
+            is StudyBlock.OrderedList -> block.copy(alignment = next)
+            is StudyBlock.Quote -> block.copy(alignment = next)
+        }
+        val newBlocks = _uiState.value.doc.blocks.toMutableList()
+        newBlocks[idx] = updated
+        val newDoc = _uiState.value.doc.copy(
+            blocks = newBlocks,
+            updatedAt = System.currentTimeMillis(),
+        )
+        _uiState.update { it.copy(doc = newDoc, hasUnsavedChanges = true) }
+        scheduleAutoSave()
+    }
+
+    fun stepFontSizeActive(delta: Int) {
+        val activeId = _uiState.value.activeBlockId ?: return
+        val idx = _uiState.value.doc.blocks.indexOfFirst { it.id == activeId }
+        if (idx < 0) return
+        val block = _uiState.value.doc.blocks[idx]
+        val newSize = (block.fontSize + delta).coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
+        val updated = when (block) {
+            is StudyBlock.Paragraph -> block.copy(fontSize = newSize)
+            is StudyBlock.Heading -> block.copy(fontSize = newSize)
+            is StudyBlock.BulletList -> block.copy(fontSize = newSize)
+            is StudyBlock.OrderedList -> block.copy(fontSize = newSize)
+            is StudyBlock.Quote -> block.copy(fontSize = newSize)
+        }
+        val newBlocks = _uiState.value.doc.blocks.toMutableList()
+        newBlocks[idx] = updated
+        val newDoc = _uiState.value.doc.copy(
+            blocks = newBlocks,
+            updatedAt = System.currentTimeMillis(),
+        )
+        _uiState.update { it.copy(doc = newDoc, hasUnsavedChanges = true) }
+        scheduleAutoSave()
+    }
+
+    fun handleEnter(blockId: BlockId) {
+        val richState = blockRichStates[blockId] ?: return
+        val sel = richState.selection
+        val text = richState.annotatedString.text
+
+        if (sel.start >= text.length) {
+            insertBlock(blockId, "paragraph")
+            return
+        }
+
+        val fullHtml = richState.toHtml()
+        val cursorPos = sel.start
+
+        richState.removeTextRange(androidx.compose.ui.text.TextRange(cursorPos, text.length))
+
+        val temp = RichTextState()
+        temp.setHtml(fullHtml)
+        temp.removeTextRange(androidx.compose.ui.text.TextRange(0, cursorPos))
+
+        val newBlock = StudyBlock.Paragraph()
+        val newRS = RichTextState()
+        newRS.setHtml(temp.toHtml())
+        blockRichStates[newBlock.id] = newRS
+
+        applyOp(StudyOp.SplitBlock(
+            splitBlockId = blockId,
+            newBlock = newBlock,
+        ))
+        _uiState.update { it.copy(activeBlockId = newBlock.id) }
+    }
+
+    fun handleBackspace(blockId: BlockId) {
+        val idx = _uiState.value.doc.blocks.indexOfFirst { it.id == blockId }
+        if (idx <= 0) return
+        val prevBlock = _uiState.value.doc.blocks[idx - 1]
+        val currentRS = blockRichStates[blockId] ?: return
+        val prevRS = blockRichStates[prevBlock.id] ?: return
+
+        val sel = currentRS.selection
+        if (!sel.collapsed || sel.start > 0) return
+
+        val joinOffset = prevRS.annotatedString.text.length
+        val currentHtml = currentRS.toHtml()
+
+        prevRS.setHtml(prevRS.toHtml() + currentHtml)
+
+        blockRichStates.remove(blockId)
+        applyOp(StudyOp.MergeBlock(removeBlockId = blockId))
+
+        prevRS.selection = androidx.compose.ui.text.TextRange(joinOffset)
+        _uiState.update { it.copy(activeBlockId = prevBlock.id) }
+    }
+
+    fun moveCursorToPrevBlock(blockId: BlockId) {
+        val blocks = _uiState.value.doc.blocks
+        val idx = blocks.indexOfFirst { it.id == blockId }
+        if (idx <= 0) return
+        val prevId = blocks[idx - 1].id
+        val prevRS = blockRichStates[prevId] ?: return
+        prevRS.selection = androidx.compose.ui.text.TextRange(prevRS.annotatedString.text.length)
+        _uiState.update { it.copy(activeBlockId = prevId) }
+    }
+
+    fun moveCursorToNextBlock(blockId: BlockId) {
+        val blocks = _uiState.value.doc.blocks
+        val idx = blocks.indexOfFirst { it.id == blockId }
+        if (idx < 0 || idx >= blocks.size - 1) return
+        val nextId = blocks[idx + 1].id
+        val nextRS = blockRichStates[nextId] ?: return
+        nextRS.selection = androidx.compose.ui.text.TextRange(0)
+        _uiState.update { it.copy(activeBlockId = nextId) }
+    }
+
+    fun setActiveFontFamily(family: String) {
+        val activeId = _uiState.value.activeBlockId ?: return
+        val blocks = _uiState.value.doc.blocks
+        val idx = blocks.indexOfFirst { it.id == activeId }
+        if (idx < 0) return
+        val block = blocks[idx]
+        val updated = when (block) {
+            is StudyBlock.Paragraph -> block.copy(fontFamily = family)
+            is StudyBlock.Heading -> block.copy(fontFamily = family)
+            is StudyBlock.BulletList -> block.copy(fontFamily = family)
+            is StudyBlock.OrderedList -> block.copy(fontFamily = family)
+            is StudyBlock.Quote -> block.copy(fontFamily = family)
+        }
+        val newBlocks = blocks.toMutableList()
+        newBlocks[idx] = updated
+        _uiState.update { it.copy(
+            doc = it.doc.copy(blocks = newBlocks, updatedAt = System.currentTimeMillis()),
+            hasUnsavedChanges = true,
+        )}
+        scheduleAutoSave()
+    }
+
+    fun updateTitle(newTitle: String) {
+        _uiState.update { it.copy(doc = it.doc.copy(title = newTitle), hasUnsavedChanges = true) }
+        scheduleAutoSave()
+    }
+
+    fun saveNow(title: String, tags: List<String>) {
+        _uiState.update {
+            it.copy(
+                doc = it.doc.copy(title = title.trim(), metadata = DocMetadata(tags = tags)),
+                hasUnsavedChanges = false,
+            )
+        }
+        saveNow()
+    }
+
+    fun saveNow() {
+        viewModelScope.launch {
+            val current = _uiState.value.doc
+            val blocksWithHtml = current.blocks.map { block ->
+                val rs = blockRichStates[block.id]
+                val styled = if (rs != null) {
+                    StyledText.fromAnnotatedString(rs.annotatedString)
+                } else {
+                    StyledText.Empty
+                }
+
+                when (block) {
+                    is StudyBlock.Paragraph -> block.copy(text = styled)
+                    is StudyBlock.Heading -> block.copy(text = styled)
+                    is StudyBlock.BulletList -> block
+                    is StudyBlock.OrderedList -> block
+                    is StudyBlock.Quote -> block.copy(text = styled)
+                }
+            }
+            val doc = current.copy(
+                blocks = blocksWithHtml,
+                remoteId = _remoteId ?: current.id.value,
+                updatedAt = System.currentTimeMillis(),
+            )
+            repository.save(doc)
+            _uiState.update { it.copy(lastSavedAt = System.currentTimeMillis(), hasUnsavedChanges = false) }
+        }
+    }
+
+    private fun applyOp(op: StudyOp) {
         val (newDoc, result) = StudyDocEngine.apply(_uiState.value.doc, op)
         if (result.isSuccess) {
-            _uiState.update { state -> state.copy(doc = newDoc, lastError = null) }
+            _uiState.update { it.copy(doc = newDoc, lastError = null, hasUnsavedChanges = true) }
             scheduleAutoSave()
         } else {
             _uiState.update { it.copy(lastError = (result as OpResult.Failed).reason) }
         }
     }
 
-    fun executeCommand(command: EditCommand) {
-        val current = _uiState.value
-        val newDoc = commandStack.execute(command, current.doc)
-        _uiState.update { it.copy(doc = newDoc, lastError = null) }
-        refreshUndoRedoState()
-        pruneOrphanTextStates(newDoc)
-        scheduleAutoSave()
-    }
-
-    fun undo() {
-        val newDoc = commandStack.undo(_uiState.value.doc)
-        _uiState.update { it.copy(doc = newDoc) }
-        refreshUndoRedoState()
-    }
-
-    fun redo() {
-        val newDoc = commandStack.redo(_uiState.value.doc)
-        _uiState.update { it.copy(doc = newDoc) }
-        refreshUndoRedoState()
-    }
-
-    private fun refreshUndoRedoState() {
-        _uiState.update {
-            it.copy(
-                canUndo = commandStack.canUndo,
-                canRedo = commandStack.canRedo,
-                undoDescription = commandStack.undoDescription,
-                redoDescription = commandStack.redoDescription,
-            )
-        }
-    }
-
-    private fun pruneOrphanTextStates(doc: StudyDoc) {
-        val presentBlockIds = doc.blocks.map { it.id }.toSet()
-        val validKeys = buildSet {
-            addAll(presentBlockIds)
-            doc.blocks.forEach { block ->
-                when (block) {
-                    is StudyBlock.BulletList -> block.items.indices.forEach { index ->
-                        add(BlockId("${block.id.value}:item:$index"))
-                    }
-                    is StudyBlock.NumberedList -> block.items.indices.forEach { index ->
-                        add(BlockId("${block.id.value}:item:$index"))
-                    }
-                    else -> Unit
-                }
-            }
-        }
-        val orphans = blockTextStates.keys.filter { it !in validKeys }
-        orphans.forEach { blockTextStates.remove(it) }
-        if (_lastFocusedFieldKey.value != null && BlockId(_lastFocusedFieldKey.value!!) !in validKeys) {
-            _lastFocusedFieldKey.value = null
-        }
-    }
-
-    fun appendListItem(blockIndex: Int) {
-        val current = _uiState.value.doc
-        if (blockIndex !in current.blocks.indices) return
-        val block = current.blocks[blockIndex]
-        if (!block.isList) return
-        val updated = when (block) {
-            is StudyBlock.BulletList -> block.copy(items = block.items + StyledText.Empty)
-            is StudyBlock.NumberedList -> block.copy(items = block.items + StyledText.Empty)
-            is StudyBlock.TodoList -> block.copy(items = block.items + StudyBlock.TodoList.TodoItem())
-            else -> return
-        }
-        executeCommand(ReplaceBlockCommand(block.id, updated))
-    }
-
-    /**
-     * Cicla la alineacion de un bloque: LEFT -> CENTER -> RIGHT -> JUSTIFY -> LEFT.
-     * Solo aplica a bloques de texto editable (Paragraph, Heading, Quote, etc).
-     * El cambio es efimero (no se persiste en el modelo); solo vive en [blockAlignments].
-     */
-    fun cycleAlignment(blockId: BlockId? = null) {
-        val targetId = blockId
-            ?: _uiState.value.selectedBlockId?.let { BlockId(it) }
-            ?: _lastFocusedBlockId.value
-            ?: return
-        val block = _uiState.value.doc.blocks.firstOrNull { it.id == targetId } ?: return
-        if (!block.isTextEditable) return
-        val current = blockAlignments[targetId]
-        blockAlignments[targetId] = com.cristiancogollo.biblion.feature.studydocs.engine.AlignmentCycle.next(current)
-    }
-
-    fun applyStyleAtSelection(
-        patch: TextStylePatch,
-        blockId: BlockId? = null,
-    ) {
-        val targetId = blockId
-            ?: _uiState.value.selectedBlockId?.let { BlockId(it) }
-            ?: _lastFocusedBlockId.value
-            ?: return
-        val range = activeRangeByBlock[targetId] ?: return
-        applyOp(StudyOp.ApplyStyle(targetId, range, patch))
-    }
-
-    fun applyClearStyle(blockId: BlockId, range: IntRange, kind: TextStyleKind) {
-        applyOp(StudyOp.ClearStyle(blockId, range, kind))
-    }
-
-    fun toggleListOnTarget(targetType: ListType, blockId: BlockId? = null) {
-        val targetId = blockId
-            ?: _uiState.value.selectedBlockId?.let { BlockId(it) }
-            ?: _lastFocusedBlockId.value
-            ?: return
-        val block = _uiState.value.doc.blocks.firstOrNull { it.id == targetId } ?: return
-        val cmd = toggleList(block, targetType) ?: return
-        executeCommand(cmd)
-    }
-
-    fun loadByRemoteId(remoteId: String) {
-        _autoSaveJob?.cancel()
-        _isDocLoaded = true
-        _uiState.update { it.copy(isLoading = false, wasJustCreated = false) }
+    private fun markDirty() {
+        _uiState.update { it.copy(hasUnsavedChanges = true) }
     }
 
     private fun scheduleAutoSave() {
@@ -277,42 +421,9 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
         _autoSaveJob?.cancel()
         _autoSaveJob = viewModelScope.launch {
             delay(AUTO_SAVE_DELAY_MS)
-            val currentDoc = _uiState.value.doc
-            if (currentDoc.title.isNotBlank()) {
-                repository.save(currentDoc)
-                _uiState.update { it.copy(lastSavedAt = System.currentTimeMillis()) }
-            }
+            saveNow()
         }
     }
-
-    /**
-     * Persiste el documento actual con el titulo y tags proporcionados.
-     * Usado por SaveTeachingDialog para validar antes de guardar.
-     */
-    fun saveNow(title: String, tags: List<String>) {
-        val current = _uiState.value.doc
-        val cleanTitle = title.trim()
-        val nextMetadata = current.metadata.copy(tags = tags)
-        viewModelScope.launch {
-            applyOp(StudyOp.UpdateTitle(cleanTitle))
-            applyOp(StudyOp.UpdateMetadata(nextMetadata))
-            repository.save(_uiState.value.doc)
-            _uiState.update { it.copy(lastSavedAt = System.currentTimeMillis()) }
-        }
-    }
-
-    /**
-     * Persistencia rapida sin pasar por el dialog. Usado internamente;
-     * la UI debe preferir [saveNow] con titulo y tags.
-     */
-    fun saveNow() {
-        viewModelScope.launch {
-            repository.save(_uiState.value.doc)
-            _uiState.update { it.copy(lastSavedAt = System.currentTimeMillis()) }
-        }
-    }
-
-    fun updateTitle(newTitle: String) { applyOp(StudyOp.UpdateTitle(newTitle)) }
 
     class Factory(private val repository: StudyDocRepository) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")

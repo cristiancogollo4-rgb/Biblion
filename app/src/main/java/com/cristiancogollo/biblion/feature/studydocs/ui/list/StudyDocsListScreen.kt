@@ -16,11 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Search
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import android.widget.Toast
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -47,7 +43,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
-import com.cristiancogollo.biblion.feature.studydocs.ui.editor.BiblionImporter
 import kotlinx.coroutines.launch
 
 /**
@@ -70,29 +65,11 @@ fun StudyDocsListScreen(
     onShareText: (StudyDoc) -> Unit = {},
     onShareBiblion: (StudyDoc) -> Unit = {},
     onEditMetadata: (StudyDoc) -> Unit = {},
-    onImportComplete: (StudyDoc) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     var pendingDelete by remember { mutableStateOf<StudyDoc?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val importLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        uri?.let {
-            scope.launch {
-                BiblionImporter.importFromUri(context, it).fold(
-                    onSuccess = { doc ->
-                        Toast.makeText(context, "Importado: ${doc.title.ifBlank { "Sin titulo" }}", Toast.LENGTH_SHORT).show()
-                        onImportComplete(doc)
-                    },
-                    onFailure = { e ->
-                        Toast.makeText(context, "Error: ${e.message ?: "Archivo invalido"}", Toast.LENGTH_SHORT).show()
-                    },
-                )
-            }
-        }
-    }
 
     Scaffold(
         topBar = {
@@ -101,11 +78,6 @@ fun StudyDocsListScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { importLauncher.launch(arrayOf("application/octet-stream", "text/plain")) }) {
-                        Icon(Icons.Filled.FileOpen, contentDescription = "Importar .biblion")
                     }
                 },
             )
@@ -121,6 +93,11 @@ fun StudyDocsListScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            if (state.isLoading) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                )
+            }
             OutlinedTextField(
                 value = state.titleFilter,
                 onValueChange = viewModel::setTitleFilter,

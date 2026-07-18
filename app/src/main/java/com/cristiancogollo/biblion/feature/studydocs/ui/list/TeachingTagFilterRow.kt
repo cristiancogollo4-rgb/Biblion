@@ -12,21 +12,23 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.cristiancogollo.biblion.feature.studydocs.model.DocTagGroups
-import com.cristiancogollo.biblion.feature.studydocs.ui.editor.suggestedStudyTagGroups
 
-/**
- * Fila de chips de filtro por tag.
- *
- * - Proposito, Audiencia y Tema son multi-select.
- * - Estado es single-select (puede estar vacio = "todos").
- *
- * @param selectedTags conjunto de tags actualmente activos
- * @param onTagToggled callback al tocar un chip
- * @param onClearTags callback al limpiar todos los filtros
- */
+data class TagGroup(val title: String)
+
+val suggestedStudyTagGroups = listOf(
+    TagGroup("Proposito"),
+    TagGroup("Audiencia"),
+    TagGroup("Tema"),
+    TagGroup("Estado"),
+)
+
 @Composable
 fun TeachingTagFilterRow(
     selectedTags: Set<String>,
@@ -34,6 +36,8 @@ fun TeachingTagFilterRow(
     onClearTags: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var expandedGroup by remember { mutableStateOf<String?>(null) }
+
     LazyRow(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -71,7 +75,9 @@ fun TeachingTagFilterRow(
                 )
             } else {
                 AssistChip(
-                    onClick = { /* expandir grupo visualmente, no implementado */ },
+                    onClick = {
+                        expandedGroup = if (expandedGroup == group.title) null else group.title
+                    },
                     label = { Text(group.title) },
                     colors = AssistChipDefaults.assistChipColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -80,15 +86,23 @@ fun TeachingTagFilterRow(
                 )
             }
         }
-        // Tags individuales activos como chips removibles
-        items(selectedTags.toList()) { tag ->
-            val group = when (tag) {
-                in DocTagGroups.PURPOSE_TAGS -> "Proposito"
-                in DocTagGroups.AUDIENCE_TAGS -> "Audiencia"
-                in DocTagGroups.TOPIC_TAGS -> "Tema"
-                in DocTagGroups.STATE_TAGS -> "Estado"
-                else -> "Custom"
+        if (expandedGroup != null) {
+            val groupTags = when (expandedGroup) {
+                "Proposito" -> DocTagGroups.PURPOSE_TAGS
+                "Audiencia" -> DocTagGroups.AUDIENCE_TAGS
+                "Tema" -> DocTagGroups.TOPIC_TAGS
+                "Estado" -> DocTagGroups.STATE_TAGS
+                else -> emptyList()
             }
+            items(groupTags) { tag ->
+                FilterChip(
+                    selected = tag in selectedTags,
+                    onClick = { onTagToggled(tag) },
+                    label = { Text("#$tag") },
+                )
+            }
+        }
+        items(selectedTags.toList()) { tag ->
             FilterChip(
                 selected = true,
                 onClick = { onTagToggled(tag) },

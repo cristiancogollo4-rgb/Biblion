@@ -41,12 +41,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.cristiancogollo.biblion.feature.studydocs.model.DocTagGroups
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -303,25 +301,3 @@ fun TeachingCard(
     }
 }
 
-/**
- * Color de la badge segun el primer tag de proposito del doc.
- * Default: tertiaryContainer.
- */
-@Suppress("unused")
-private fun determineBadgeColor(tags: List<String>): Color {
-    return when {
-        tags.contains("predicacion") -> Color.Transparent
-        else -> Color.Transparent
-    }
-}
-
-@Suppress("unused")
-private fun tagsByGroup(tags: List<String>, group: String): List<String> {
-    return when (group) {
-        DocTagGroups.PURPOSE -> tags.filter { it in DocTagGroups.PURPOSE_TAGS }
-        DocTagGroups.AUDIENCE -> tags.filter { it in DocTagGroups.AUDIENCE_TAGS }
-        DocTagGroups.TOPIC -> tags.filter { it in DocTagGroups.TOPIC_TAGS }
-        DocTagGroups.STATE -> tags.filter { it in DocTagGroups.STATE_TAGS }
-        else -> emptyList()
-    }
-}
