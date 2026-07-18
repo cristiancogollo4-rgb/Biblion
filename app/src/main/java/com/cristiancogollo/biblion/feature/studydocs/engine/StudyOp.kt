@@ -28,6 +28,12 @@ sealed interface StudyOp {
     ) : StudyOp
 
     @Serializable
+    data class ChangeBlockType(
+        val blockId: BlockId,
+        val newType: String,
+    ) : StudyOp
+
+    @Serializable
     data class SplitBlock(
         val splitBlockId: BlockId,
         val newBlock: StudyBlock,

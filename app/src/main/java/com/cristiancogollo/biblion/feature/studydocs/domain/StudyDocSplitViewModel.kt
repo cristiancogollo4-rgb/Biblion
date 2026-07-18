@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion.feature.studydocs.domain
 
+import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -17,6 +18,9 @@ import com.cristiancogollo.biblion.feature.studydocs.engine.OpResult
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.syncFromStyledText
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.fromAnnotatedString
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.TextUnitType
+import androidx.compose.ui.unit.sp
 import com.mohamedrejeb.richeditor.model.RichTextState
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -137,6 +141,25 @@ class StudyDocSplitViewModel(
     }
 
     fun syncActiveFormat(richState: RichTextState) {
+        val sel = richState.selection
+        val fontSize: Int? = if (sel.collapsed) {
+            // Cursor sin selección: leer fontSize del carácter actual
+            val ts = richState.currentSpanStyle.fontSize
+            if (ts.type == TextUnitType.Sp) ts.value.toInt() else null
+        } else {
+            // Selección: detectar si todos los caracteres tienen el mismo fontSize
+            val sizes = mutableSetOf<Int>()
+            for (offset in sel.start until sel.end.coerceAtMost(richState.annotatedString.text.length)) {
+                val s = richState.getSpanStyle(androidx.compose.ui.text.TextRange(offset, offset + 1))
+                val sz = s.fontSize?.let { if (it.type == TextUnitType.Sp) it.value.toInt() else null }
+                if (sz != null) sizes.add(sz)
+            }
+            when {
+                sizes.isEmpty() -> null
+                sizes.size == 1 -> sizes.first()
+                else -> -1  // mezcla → mostrar "-"
+            }
+        }
         val style = richState.currentSpanStyle
         _editorState.value = _editorState.value.copy(
             activeFormat = ActiveFormatSnapshot(
@@ -146,7 +169,7 @@ class StudyDocSplitViewModel(
                 strikethrough = style.textDecoration?.contains(androidx.compose.ui.text.style.TextDecoration.LineThrough) == true,
                 color = style.color.takeIf { it != androidx.compose.ui.graphics.Color.Unspecified }?.toArgb(),
                 background = style.background.takeIf { it != androidx.compose.ui.graphics.Color.Unspecified }?.toArgb(),
-                fontSize = style.fontSize.takeIf { it.type == androidx.compose.ui.unit.TextUnitType.Sp }?.value?.toInt()
+                fontSize = fontSize,
             )
         )
     }
@@ -186,6 +209,18 @@ class StudyDocSplitViewModel(
         blockRichStates[newBlock.id] = rs
         applyOp(StudyOp.InsertBlock(newBlock, afterBlockId))
         _editorState.value = _editorState.value.copy(activeBlockId = newBlock.id)
+    }
+
+    fun changeBlockType(blockId: BlockId, newType: String) {
+        val oldType = _editorState.value.doc.blocks.firstOrNull { it.id == blockId }?.let { it::class.simpleName } ?: "?"
+        Log.d("LIST_DEBUG", "changeBlockType id=${blockId.value} old=$oldType -> new=$newType")
+        applyOp(StudyOp.ChangeBlockType(blockId, newType))
+        // Forzar re-focus: sacar foco ahora, restaurar en el próximo frame
+        _editorState.value = _editorState.value.copy(activeBlockId = null)
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(80L)
+            _editorState.value = _editorState.value.copy(activeBlockId = blockId)
+        }
     }
 
     // ============ Cross-Pane Bridge ============
@@ -322,56 +357,118 @@ class StudyDocSplitViewModel(
     // ============ Métodos adicionales requeridos por el editor ============
 
     fun handleEnter(blockId: BlockId) {
-        val richState = blockRichStates[blockId] ?: return
-        val sel = richState.selection
-        val text = richState.annotatedString.text
+        val block = _editorState.value.doc.blocks.firstOrNull { it.id == blockId } ?: return
+        val rs = blockRichStates[blockId] ?: return
+        val sel = rs.selection
+        val text = rs.annotatedString.text
+        Log.d("LIST_DEBUG", "handleEnter blockType=${block::class.simpleName} id=${blockId.value} text=[$text] len=${text.length} cursor=${sel.start} collapsed=${sel.collapsed}")
 
-        if (sel.start >= text.length) {
-            insertBlock(blockId, "paragraph")
-            return
+        when (block) {
+            is StudyBlock.BulletList, is StudyBlock.OrderedList -> {
+                if (text.isBlank()) {
+                    // Lista vacía: Enter crea otro ítem vacío del mismo tipo (no convierte a paragraph)
+                    Log.d("LIST_DEBUG", "handleEnter -> LIST EMPTY: creating new empty ${block::class.simpleName}")
+                    val newBlock = if (block is StudyBlock.BulletList) {
+                        StudyBlock.BulletList(fontFamily = block.fontFamily, fontSize = block.fontSize)
+                    } else {
+                        StudyBlock.OrderedList(fontFamily = block.fontFamily, fontSize = block.fontSize)
+                    }
+                    val newRS = RichTextState().apply { setHtml("<p></p>") }
+                    blockRichStates[newBlock.id] = newRS
+                    applyOp(StudyOp.SplitBlock(blockId, newBlock))
+                    _editorState.value = _editorState.value.copy(activeBlockId = newBlock.id)
+                    return
+                }
+                // Lista con texto: dividir texto en el cursor como párrafo normal
+                val fullHtml = rs.toHtml()
+                val cursorPos = sel.start
+
+                if (cursorPos >= text.length) {
+                    Log.d("LIST_DEBUG", "handleEnter -> LIST AT END: cursor=$cursorPos textLen=${text.length} creating new empty ${block::class.simpleName}")
+                    // Cursor al final: crear nuevo bloque del mismo tipo vacío
+                    val newBlock = if (block is StudyBlock.BulletList) {
+                        StudyBlock.BulletList(fontFamily = block.fontFamily, fontSize = block.fontSize)
+                    } else {
+                        StudyBlock.OrderedList(fontFamily = block.fontFamily, fontSize = block.fontSize)
+                    }
+                    val newRS = RichTextState().apply { setHtml("<p></p>") }
+                    blockRichStates[newBlock.id] = newRS
+                    applyOp(StudyOp.SplitBlock(blockId, newBlock))
+                    _editorState.value = _editorState.value.copy(activeBlockId = newBlock.id)
+                } else {
+                    Log.d("LIST_DEBUG", "handleEnter -> LIST MIDDLE: cursor=$cursorPos textLen=${text.length} splitting text")
+                    // Cursor en medio: dividir texto, nuevo bloque hereda tipo
+                    rs.removeTextRange(androidx.compose.ui.text.TextRange(cursorPos, text.length))
+                    val temp = RichTextState()
+                    temp.setHtml(fullHtml)
+                    temp.removeTextRange(androidx.compose.ui.text.TextRange(0, cursorPos))
+                    val newBlock = if (block is StudyBlock.BulletList) {
+                        StudyBlock.BulletList(fontFamily = block.fontFamily, fontSize = block.fontSize)
+                    } else {
+                        StudyBlock.OrderedList(fontFamily = block.fontFamily, fontSize = block.fontSize)
+                    }
+                    val newRS = RichTextState()
+                    newRS.setHtml(temp.toHtml())
+                    blockRichStates[newBlock.id] = newRS
+                    applyOp(StudyOp.SplitBlock(blockId, newBlock))
+                    _editorState.value = _editorState.value.copy(activeBlockId = newBlock.id)
+                }
+            }
+            else -> {
+                // Comportamiento estándar existente
+                if (sel.start >= text.length) {
+                    insertBlock(blockId, "paragraph")
+                    return
+                }
+                val fullHtml = rs.toHtml()
+                val cursorPos = sel.start
+                rs.removeTextRange(androidx.compose.ui.text.TextRange(cursorPos, text.length))
+                val temp = RichTextState()
+                temp.setHtml(fullHtml)
+                temp.removeTextRange(androidx.compose.ui.text.TextRange(0, cursorPos))
+                val newBlock = StudyBlock.Paragraph()
+                val newRS = RichTextState()
+                newRS.setHtml(temp.toHtml())
+                blockRichStates[newBlock.id] = newRS
+                applyOp(StudyOp.SplitBlock(blockId, newBlock))
+                _editorState.value = _editorState.value.copy(activeBlockId = newBlock.id)
+            }
         }
-
-        val fullHtml = richState.toHtml()
-        val cursorPos = sel.start
-
-        richState.removeTextRange(androidx.compose.ui.text.TextRange(cursorPos, text.length))
-
-        val temp = RichTextState()
-        temp.setHtml(fullHtml)
-        temp.removeTextRange(androidx.compose.ui.text.TextRange(0, cursorPos))
-
-        val newBlock = StudyBlock.Paragraph()
-        val newRS = RichTextState()
-        newRS.setHtml(temp.toHtml())
-        blockRichStates[newBlock.id] = newRS
-
-        applyOp(StudyOp.SplitBlock(
-            splitBlockId = blockId,
-            newBlock = newBlock,
-        ))
-        _editorState.value = _editorState.value.copy(activeBlockId = newBlock.id)
     }
 
     fun handleBackspace(blockId: BlockId) {
         val idx = _editorState.value.doc.blocks.indexOfFirst { it.id == blockId }
-        if (idx <= 0) return
-        val prevBlock = _editorState.value.doc.blocks[idx - 1]
+        if (idx < 0) return
+        val block = _editorState.value.doc.blocks[idx]
         val currentRS = blockRichStates[blockId] ?: return
-        val prevRS = blockRichStates[prevBlock.id] ?: return
 
         val sel = currentRS.selection
-        if (!sel.collapsed || sel.start > 0) return
+        Log.d("LIST_DEBUG", "handleBackspace blockType=${block::class.simpleName} id=${blockId.value} cursor=${sel.start} collapsed=${sel.collapsed}")
+        if (!sel.collapsed || sel.start > 0) {
+            Log.d("LIST_DEBUG", "handleBackspace -> SKIP: not at start or has selection")
+            return
+        }
 
-        val joinOffset = prevRS.annotatedString.text.length
-        val currentHtml = currentRS.toHtml()
-
-        prevRS.setHtml(prevRS.toHtml() + currentHtml)
-
-        blockRichStates.remove(blockId)
-        applyOp(StudyOp.MergeBlock(removeBlockId = blockId))
-
-        prevRS.selection = androidx.compose.ui.text.TextRange(joinOffset)
-        _editorState.value = _editorState.value.copy(activeBlockId = prevBlock.id)
+        when (block) {
+            is StudyBlock.BulletList, is StudyBlock.OrderedList -> {
+                Log.d("LIST_DEBUG", "handleBackspace -> LIST: mutating to paragraph")
+                // Primer Backspace: mutar a paragraph (desvincular)
+                changeBlockType(blockId, "paragraph")
+                return
+            }
+            else -> {
+                if (idx <= 0) return
+                val prevBlock = _editorState.value.doc.blocks[idx - 1]
+                val prevRS = blockRichStates[prevBlock.id] ?: return
+                val joinOffset = prevRS.annotatedString.text.length
+                val currentHtml = currentRS.toHtml()
+                prevRS.setHtml(prevRS.toHtml() + currentHtml)
+                blockRichStates.remove(blockId)
+                applyOp(StudyOp.MergeBlock(removeBlockId = blockId))
+                prevRS.selection = androidx.compose.ui.text.TextRange(joinOffset)
+                _editorState.value = _editorState.value.copy(activeBlockId = prevBlock.id)
+            }
+        }
     }
 
     fun moveCursorToPrevBlock(blockId: BlockId) {
@@ -421,31 +518,81 @@ class StudyDocSplitViewModel(
     fun clearActiveColor() {
         val activeId = _editorState.value.activeBlockId ?: return
         val rs = blockRichStates[activeId] ?: return
-        rs.removeSpanStyle(androidx.compose.ui.text.SpanStyle(color = androidx.compose.ui.graphics.Color.Unspecified))
-        rs.removeSpanStyle(androidx.compose.ui.text.SpanStyle(background = androidx.compose.ui.graphics.Color.Unspecified))
+        val sel = rs.selection
+
+        if (sel.collapsed) {
+            // Sin selección: limpiar color pendiente
+            rs.clearSpanStyles()
+        } else {
+            // Con selección: preservar bold/italic/underline/strikethrough, quitar color/background
+            val keepStyle = androidx.compose.ui.text.SpanStyle(
+                fontWeight = rs.currentSpanStyle.fontWeight,
+                fontStyle = rs.currentSpanStyle.fontStyle,
+                textDecoration = rs.currentSpanStyle.textDecoration,
+                fontSize = rs.currentSpanStyle.fontSize,
+            )
+            rs.clearSpanStyles(sel)
+            if (keepStyle != androidx.compose.ui.text.SpanStyle()) {
+                rs.addSpanStyle(keepStyle, sel)
+            }
+        }
         syncActiveFormat(rs)
         markDirty()
     }
 
     fun stepFontSizeActive(delta: Int) {
         val activeId = _editorState.value.activeBlockId ?: return
-        val idx = _editorState.value.doc.blocks.indexOfFirst { it.id == activeId }
-        if (idx < 0) return
-        val block = _editorState.value.doc.blocks[idx]
-        val newSize = (block.fontSize + delta).coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
-        val updated = when (block) {
-            is StudyBlock.Paragraph -> block.copy(fontSize = newSize)
-            is StudyBlock.Heading -> block.copy(fontSize = newSize)
-            is StudyBlock.BulletList -> block.copy(fontSize = newSize)
-            is StudyBlock.OrderedList -> block.copy(fontSize = newSize)
-            is StudyBlock.Quote -> block.copy(fontSize = newSize)
+        val rs = blockRichStates[activeId] ?: return
+        val sel = rs.selection
+
+        if (sel.collapsed) {
+            // Sin selección: cambiar fontSize del bloque (comportamiento B)
+            val idx = _editorState.value.doc.blocks.indexOfFirst { it.id == activeId }
+            if (idx < 0) return
+            val block = _editorState.value.doc.blocks[idx]
+            val currentSize = block.fontSize
+            val newSize = (currentSize + delta).coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
+            val updated = when (block) {
+                is StudyBlock.Paragraph -> block.copy(fontSize = newSize)
+                is StudyBlock.Heading -> block.copy(fontSize = newSize)
+                is StudyBlock.BulletList -> block.copy(fontSize = newSize)
+                is StudyBlock.OrderedList -> block.copy(fontSize = newSize)
+                is StudyBlock.Quote -> block.copy(fontSize = newSize)
+            }
+            val newBlocks = _editorState.value.doc.blocks.toMutableList()
+            newBlocks[idx] = updated
+            _editorState.value = _editorState.value.copy(
+                doc = _editorState.value.doc.copy(blocks = newBlocks, updatedAt = System.currentTimeMillis()),
+                hasUnsavedChanges = true,
+            )
+        } else {
+            // Con selección: detectar tamaño base y normalizar TODA la selección
+            val baseSize = detectBaseFontSize(rs, sel)
+            val newSize = (baseSize + delta).coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
+            rs.addSpanStyle(
+                androidx.compose.ui.text.SpanStyle(fontSize = newSize.sp),
+                sel,
+            )
         }
-        val newBlocks = _editorState.value.doc.blocks.toMutableList()
-        newBlocks[idx] = updated
-        _editorState.value = _editorState.value.copy(
-            doc = _editorState.value.doc.copy(blocks = newBlocks, updatedAt = System.currentTimeMillis()),
-            hasUnsavedChanges = true
-        )
+        syncActiveFormat(rs)
+        markDirty()
+    }
+
+    /**
+     * Detecta el tamaño de fuente base de una selección.
+     * Si todos los caracteres tienen el mismo tamaño, retorna ese tamaño.
+     * Si tienen tamaños distintos, retorna el del primer carácter.
+     */
+    private fun detectBaseFontSize(rs: RichTextState, sel: androidx.compose.ui.text.TextRange): Int {
+        val sizes = mutableListOf<Int>()
+        for (offset in sel.start until sel.end.coerceAtMost(rs.annotatedString.text.length)) {
+            val style = rs.getSpanStyle(androidx.compose.ui.text.TextRange(offset, offset + 1))
+            val size = style.fontSize?.let {
+                if (it.type == TextUnitType.Sp) it.value.toInt() else null
+            }
+            if (size != null) sizes.add(size)
+        }
+        return sizes.firstOrNull() ?: 16
     }
 
     fun setActiveFontFamily(family: String) {

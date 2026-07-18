@@ -7,8 +7,8 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.unit.isUnspecified
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -48,6 +48,7 @@ data class ActiveFormatSnapshot(
 data class StudyEditorUiState(
     val doc: StudyDoc = StudyDoc.empty(),
     val activeBlockId: BlockId? = null,
+    val pendingFocusBlockId: String? = null,
     val activeFormat: ActiveFormatSnapshot = ActiveFormatSnapshot(),
     val isLoading: Boolean = false,
     val lastError: String? = null,
@@ -125,6 +126,25 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
     }
 
     fun syncActiveFormat(richState: RichTextState) {
+        val sel = richState.selection
+        val fontSize: Int? = if (sel.collapsed) {
+            // Cursor sin selección: leer fontSize del carácter actual
+            val ts = richState.currentSpanStyle.fontSize
+            if (ts.type == TextUnitType.Sp) ts.value.toInt() else null
+        } else {
+            // Selección: detectar si todos los caracteres tienen el mismo fontSize
+            val sizes = mutableSetOf<Int>()
+            for (offset in sel.start until sel.end.coerceAtMost(richState.annotatedString.text.length)) {
+                val s = richState.getSpanStyle(androidx.compose.ui.text.TextRange(offset, offset + 1))
+                val sz = s.fontSize?.let { if (it.type == TextUnitType.Sp) it.value.toInt() else null }
+                if (sz != null) sizes.add(sz)
+            }
+            when {
+                sizes.isEmpty() -> null
+                sizes.size == 1 -> sizes.first()
+                else -> -1  // mezcla → mostrar "-"
+            }
+        }
         val style = richState.currentSpanStyle
         _uiState.update {
             it.copy(
@@ -135,7 +155,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
                     strikethrough = style.textDecoration?.contains(TextDecoration.LineThrough) == true,
                     color = style.color.takeIf { it != Color.Unspecified }?.toArgb(),
                     background = style.background.takeIf { it != Color.Unspecified }?.toArgb(),
-                    fontSize = style.fontSize.takeIf { it.type == androidx.compose.ui.unit.TextUnitType.Sp }?.value?.toInt(),
+                    fontSize = fontSize,
                 )
             )
         }
@@ -184,10 +204,23 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
     fun clearActiveColor() {
         val activeId = _uiState.value.activeBlockId ?: return
         val rs = blockRichStates[activeId] ?: return
-        rs.removeSpanStyle(SpanStyle(color = Color.Unspecified))
-        rs.removeSpanStyle(SpanStyle(background = Color.Unspecified))
+        val sel = rs.selection
+
+        if (sel.collapsed) {
+            rs.clearSpanStyles()
+        } else {
+            val keepStyle = SpanStyle(
+                fontWeight = rs.currentSpanStyle.fontWeight,
+                fontStyle = rs.currentSpanStyle.fontStyle,
+                textDecoration = rs.currentSpanStyle.textDecoration,
+                fontSize = rs.currentSpanStyle.fontSize,
+            )
+            rs.clearSpanStyles(sel)
+            if (keepStyle != SpanStyle()) {
+                rs.addSpanStyle(keepStyle, sel)
+            }
+        }
         syncActiveFormat(rs)
-        markDirty()
         scheduleAutoSave()
     }
 
@@ -205,6 +238,15 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
         blockRichStates[newBlock.id] = rs
         applyOp(StudyOp.InsertBlock(newBlock, afterBlockId))
         _uiState.update { it.copy(activeBlockId = newBlock.id) }
+    }
+
+    fun changeBlockType(blockId: BlockId, newType: String) {
+        applyOp(StudyOp.ChangeBlockType(blockId, newType))
+        _uiState.update { it.copy(activeBlockId = null) }
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(80L)
+            _uiState.update { it.copy(activeBlockId = blockId) }
+        }
     }
 
     fun deleteBlock(blockId: BlockId) {
@@ -242,78 +284,145 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
 
     fun stepFontSizeActive(delta: Int) {
         val activeId = _uiState.value.activeBlockId ?: return
-        val idx = _uiState.value.doc.blocks.indexOfFirst { it.id == activeId }
-        if (idx < 0) return
-        val block = _uiState.value.doc.blocks[idx]
-        val newSize = (block.fontSize + delta).coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
-        val updated = when (block) {
-            is StudyBlock.Paragraph -> block.copy(fontSize = newSize)
-            is StudyBlock.Heading -> block.copy(fontSize = newSize)
-            is StudyBlock.BulletList -> block.copy(fontSize = newSize)
-            is StudyBlock.OrderedList -> block.copy(fontSize = newSize)
-            is StudyBlock.Quote -> block.copy(fontSize = newSize)
+        val rs = blockRichStates[activeId] ?: return
+        val sel = rs.selection
+
+        if (sel.collapsed) {
+            val idx = _uiState.value.doc.blocks.indexOfFirst { it.id == activeId }
+            if (idx < 0) return
+            val block = _uiState.value.doc.blocks[idx]
+            val newSize = (block.fontSize + delta).coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
+            val updated = when (block) {
+                is StudyBlock.Paragraph -> block.copy(fontSize = newSize)
+                is StudyBlock.Heading -> block.copy(fontSize = newSize)
+                is StudyBlock.BulletList -> block.copy(fontSize = newSize)
+                is StudyBlock.OrderedList -> block.copy(fontSize = newSize)
+                is StudyBlock.Quote -> block.copy(fontSize = newSize)
+            }
+            val newBlocks = _uiState.value.doc.blocks.toMutableList()
+            newBlocks[idx] = updated
+            _uiState.update {
+                it.copy(
+                    doc = it.doc.copy(blocks = newBlocks, updatedAt = System.currentTimeMillis()),
+                    hasUnsavedChanges = true,
+                )
+            }
+        } else {
+            // Con selección: detectar tamaño base y normalizar TODA la selección
+            val baseSize = detectBaseFontSize(rs, sel)
+            val newSize = (baseSize + delta).coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
+            rs.addSpanStyle(SpanStyle(fontSize = newSize.sp), sel)
         }
-        val newBlocks = _uiState.value.doc.blocks.toMutableList()
-        newBlocks[idx] = updated
-        val newDoc = _uiState.value.doc.copy(
-            blocks = newBlocks,
-            updatedAt = System.currentTimeMillis(),
-        )
-        _uiState.update { it.copy(doc = newDoc, hasUnsavedChanges = true) }
+        syncActiveFormat(rs)
         scheduleAutoSave()
     }
 
-    fun handleEnter(blockId: BlockId) {
-        val richState = blockRichStates[blockId] ?: return
-        val sel = richState.selection
-        val text = richState.annotatedString.text
-
-        if (sel.start >= text.length) {
-            insertBlock(blockId, "paragraph")
-            return
+    /**
+     * Detecta el tamaño de fuente base de una selección.
+     * Si todos los caracteres tienen el mismo tamaño, retorna ese tamaño.
+     * Si tienen tamaños distintos, retorna el del primer carácter.
+     */
+    private fun detectBaseFontSize(rs: com.mohamedrejeb.richeditor.model.RichTextState, sel: androidx.compose.ui.text.TextRange): Int {
+        val sizes = mutableListOf<Int>()
+        for (offset in sel.start until sel.end.coerceAtMost(rs.annotatedString.text.length)) {
+            val style = rs.getSpanStyle(androidx.compose.ui.text.TextRange(offset, offset + 1))
+            val size = style.fontSize?.let {
+                if (it.type == TextUnitType.Sp) it.value.toInt() else null
+            }
+            if (size != null) sizes.add(size)
         }
+        return sizes.firstOrNull() ?: 16
+    }
 
-        val fullHtml = richState.toHtml()
-        val cursorPos = sel.start
+    fun handleEnter(blockId: BlockId) {
+        val block = _uiState.value.doc.blocks.firstOrNull { it.id == blockId } ?: return
+        val rs = blockRichStates[blockId] ?: return
+        val sel = rs.selection
+        val text = rs.annotatedString.text
 
-        richState.removeTextRange(androidx.compose.ui.text.TextRange(cursorPos, text.length))
-
-        val temp = RichTextState()
-        temp.setHtml(fullHtml)
-        temp.removeTextRange(androidx.compose.ui.text.TextRange(0, cursorPos))
-
-        val newBlock = StudyBlock.Paragraph()
-        val newRS = RichTextState()
-        newRS.setHtml(temp.toHtml())
-        blockRichStates[newBlock.id] = newRS
-
-        applyOp(StudyOp.SplitBlock(
-            splitBlockId = blockId,
-            newBlock = newBlock,
-        ))
-        _uiState.update { it.copy(activeBlockId = newBlock.id) }
+        when (block) {
+            is StudyBlock.BulletList, is StudyBlock.OrderedList -> {
+                if (text.isBlank()) {
+                    changeBlockType(blockId, "paragraph")
+                    return
+                }
+                val fullHtml = rs.toHtml()
+                val cursorPos = sel.start
+                if (cursorPos >= text.length) {
+                    val newBlock = if (block is StudyBlock.BulletList) {
+                        StudyBlock.BulletList(fontFamily = block.fontFamily, fontSize = block.fontSize)
+                    } else {
+                        StudyBlock.OrderedList(fontFamily = block.fontFamily, fontSize = block.fontSize)
+                    }
+                    val newRS = RichTextState().apply { setHtml("<p></p>") }
+                    blockRichStates[newBlock.id] = newRS
+                    applyOp(StudyOp.SplitBlock(blockId, newBlock))
+                    _uiState.update { it.copy(activeBlockId = newBlock.id) }
+                } else {
+                    rs.removeTextRange(androidx.compose.ui.text.TextRange(cursorPos, text.length))
+                    val temp = RichTextState()
+                    temp.setHtml(fullHtml)
+                    temp.removeTextRange(androidx.compose.ui.text.TextRange(0, cursorPos))
+                    val newBlock = if (block is StudyBlock.BulletList) {
+                        StudyBlock.BulletList(fontFamily = block.fontFamily, fontSize = block.fontSize)
+                    } else {
+                        StudyBlock.OrderedList(fontFamily = block.fontFamily, fontSize = block.fontSize)
+                    }
+                    val newRS = RichTextState()
+                    newRS.setHtml(temp.toHtml())
+                    blockRichStates[newBlock.id] = newRS
+                    applyOp(StudyOp.SplitBlock(blockId, newBlock))
+                    _uiState.update { it.copy(activeBlockId = newBlock.id) }
+                }
+            }
+            else -> {
+                if (sel.start >= text.length) {
+                    insertBlock(blockId, "paragraph")
+                    return
+                }
+                val fullHtml = rs.toHtml()
+                val cursorPos = sel.start
+                rs.removeTextRange(androidx.compose.ui.text.TextRange(cursorPos, text.length))
+                val temp = RichTextState()
+                temp.setHtml(fullHtml)
+                temp.removeTextRange(androidx.compose.ui.text.TextRange(0, cursorPos))
+                val newBlock = StudyBlock.Paragraph()
+                val newRS = RichTextState()
+                newRS.setHtml(temp.toHtml())
+                blockRichStates[newBlock.id] = newRS
+                applyOp(StudyOp.SplitBlock(blockId, newBlock))
+                _uiState.update { it.copy(activeBlockId = newBlock.id) }
+            }
+        }
     }
 
     fun handleBackspace(blockId: BlockId) {
         val idx = _uiState.value.doc.blocks.indexOfFirst { it.id == blockId }
-        if (idx <= 0) return
-        val prevBlock = _uiState.value.doc.blocks[idx - 1]
+        if (idx < 0) return
+        val block = _uiState.value.doc.blocks[idx]
         val currentRS = blockRichStates[blockId] ?: return
-        val prevRS = blockRichStates[prevBlock.id] ?: return
 
         val sel = currentRS.selection
         if (!sel.collapsed || sel.start > 0) return
 
-        val joinOffset = prevRS.annotatedString.text.length
-        val currentHtml = currentRS.toHtml()
-
-        prevRS.setHtml(prevRS.toHtml() + currentHtml)
-
-        blockRichStates.remove(blockId)
-        applyOp(StudyOp.MergeBlock(removeBlockId = blockId))
-
-        prevRS.selection = androidx.compose.ui.text.TextRange(joinOffset)
-        _uiState.update { it.copy(activeBlockId = prevBlock.id) }
+        when (block) {
+            is StudyBlock.BulletList, is StudyBlock.OrderedList -> {
+                changeBlockType(blockId, "paragraph")
+                return
+            }
+            else -> {
+                if (idx <= 0) return
+                val prevBlock = _uiState.value.doc.blocks[idx - 1]
+                val prevRS = blockRichStates[prevBlock.id] ?: return
+                val joinOffset = prevRS.annotatedString.text.length
+                val currentHtml = currentRS.toHtml()
+                prevRS.setHtml(prevRS.toHtml() + currentHtml)
+                blockRichStates.remove(blockId)
+                applyOp(StudyOp.MergeBlock(removeBlockId = blockId))
+                prevRS.selection = androidx.compose.ui.text.TextRange(joinOffset)
+                _uiState.update { it.copy(activeBlockId = prevBlock.id) }
+            }
+        }
     }
 
     fun moveCursorToPrevBlock(blockId: BlockId) {
@@ -424,6 +533,11 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
             saveNow()
         }
     }
+
+    private fun escapeHtml(text: String): String = text
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
 
     class Factory(private val repository: StudyDocRepository) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")

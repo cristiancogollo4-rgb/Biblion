@@ -14,6 +14,7 @@ object StudyDocEngine {
     fun apply(doc: StudyDoc, op: StudyOp): Pair<StudyDoc, OpResult> = when (op) {
         is StudyOp.InsertBlock -> insertBlock(doc, op)
         is StudyOp.DeleteBlock -> deleteBlock(doc, op)
+        is StudyOp.ChangeBlockType -> changeBlockType(doc, op)
         is StudyOp.SplitBlock -> splitBlock(doc, op)
         is StudyOp.MergeBlock -> mergeBlock(doc, op)
         is StudyOp.UpdateTitle -> updateTitle(doc, op)
@@ -46,6 +47,46 @@ object StudyDocEngine {
         }
         val newBlocks = doc.blocks.toMutableList()
         newBlocks.removeAt(idx)
+        return doc.copy(blocks = newBlocks, updatedAt = System.currentTimeMillis()) to OpResult.Success
+    }
+
+    private fun changeBlockType(doc: StudyDoc, op: StudyOp.ChangeBlockType): Pair<StudyDoc, OpResult> {
+        val idx = doc.blocks.indexOfFirst { it.id == op.blockId }
+        if (idx < 0) return doc to OpResult.Failed("Block not found")
+        val block = doc.blocks[idx]
+        val text = block.toStyledTextList().firstOrNull() ?: com.cristiancogollo.biblion.feature.studydocs.model.StyledText.Empty
+        val updated: StudyBlock = when (op.newType) {
+            "bullet" -> StudyBlock.BulletList(
+                id = block.id, items = listOf(text),
+                alignment = block.alignment, fontFamily = block.fontFamily, fontSize = block.fontSize,
+            )
+            "numbered" -> StudyBlock.OrderedList(
+                id = block.id, items = listOf(text),
+                alignment = block.alignment, fontFamily = block.fontFamily, fontSize = block.fontSize,
+            )
+            "heading1" -> StudyBlock.Heading(
+                id = block.id, level = 1, text = text,
+                alignment = block.alignment, fontFamily = block.fontFamily, fontSize = 32,
+            )
+            "heading2" -> StudyBlock.Heading(
+                id = block.id, level = 2, text = text,
+                alignment = block.alignment, fontFamily = block.fontFamily, fontSize = 24,
+            )
+            "heading3" -> StudyBlock.Heading(
+                id = block.id, level = 3, text = text,
+                alignment = block.alignment, fontFamily = block.fontFamily, fontSize = 20,
+            )
+            "quote" -> StudyBlock.Quote(
+                id = block.id, text = text,
+                alignment = block.alignment, fontFamily = block.fontFamily, fontSize = block.fontSize,
+            )
+            else -> StudyBlock.Paragraph(
+                id = block.id, text = text,
+                alignment = block.alignment, fontFamily = block.fontFamily, fontSize = block.fontSize,
+            )
+        }
+        val newBlocks = doc.blocks.toMutableList()
+        newBlocks[idx] = updated
         return doc.copy(blocks = newBlocks, updatedAt = System.currentTimeMillis()) to OpResult.Success
     }
 

@@ -28,7 +28,7 @@ class StudyDocRepository(
         val entity = StudyDocEntity(
             remoteId = remoteId,
             title = doc.title,
-            blockCount = 1,
+            blockCount = doc.blocks.size,
             version = doc.version,
             docJson = StudyDocJson.encode(doc),
             createdAt = existing?.createdAt ?: now,

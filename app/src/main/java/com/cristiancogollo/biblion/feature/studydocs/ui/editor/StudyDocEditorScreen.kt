@@ -413,7 +413,7 @@ private fun SaveTeachingDialog(
                 TagsSection("Proposito", DocTagGroups.PURPOSE_TAGS, selectedTags, showError)
                 TagsSection("Audiencia", DocTagGroups.AUDIENCE_TAGS, selectedTags, showError)
                 TagsSection("Tema", DocTagGroups.TOPIC_TAGS, selectedTags, showError)
-                TagsSection("Estado", DocTagGroups.STATE_TAGS, selectedTags, showError)
+                TagsSection("Estado", DocTagGroups.STATE_TAGS, selectedTags, showError, singleSelect = true)
 
                 if (showError) {
                     Text(
@@ -449,6 +449,7 @@ private fun TagsSection(
     tags: List<String>,
     selectedTags: MutableList<String>,
     showError: Boolean = false,
+    singleSelect: Boolean = false,
 ) {
     Column {
         Text(
@@ -466,8 +467,14 @@ private fun TagsSection(
                 FilterChip(
                     selected = isSelected,
                     onClick = {
-                        if (isSelected) selectedTags.remove(tag)
-                        else selectedTags.add(tag)
+                        if (singleSelect) {
+                            // Single-select: quitar todos los de este grupo, agregar solo el nuevo
+                            tags.forEach { selectedTags.remove(it) }
+                            if (!isSelected) selectedTags.add(tag)
+                        } else {
+                            if (isSelected) selectedTags.remove(tag)
+                            else selectedTags.add(tag)
+                        }
                     },
                     label = { Text("#$tag", style = MaterialTheme.typography.labelSmall) },
                 )

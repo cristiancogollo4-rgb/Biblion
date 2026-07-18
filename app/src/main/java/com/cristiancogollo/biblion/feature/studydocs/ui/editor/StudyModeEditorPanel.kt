@@ -2,11 +2,13 @@ package com.cristiancogollo.biblion.feature.studydocs.ui.editor
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -38,6 +40,26 @@ private val ColorTextoPrimario = Color(0xFF0F172A)
 private val ColorAccionAzul = Color(0xFF1E3A8A)
 private val ColorPlaceholder = Color(0xFF94A3B8)
 private val ColorDivisor = Color(0xFFE2E8F0)
+
+private val textColorPalette = listOf(
+    Color(0xFF0F172A), // Slate 900
+    Color(0xFF424242), // Gray 700
+    Color(0xFFE53935), // Red
+    Color(0xFFFB8C00), // Orange
+    Color(0xFFFDD835), // Yellow
+    Color(0xFF43A047), // Green
+    Color(0xFF1E88E5), // Blue
+    Color(0xFF8E24AA), // Purple
+)
+
+private val highlightPalette = listOf(
+    Color(0xFFFEF3C7), // Yellow pastel
+    Color(0xFFD1FAE5), // Green pastel
+    Color(0xFFFFD0D0), // Red pastel
+    Color(0xFFD8E8FF), // Blue pastel
+    Color(0xFFF3E8FF), // Purple pastel
+    Color(0xFFFFF2CC), // Orange pastel
+)
 
 @Composable
 fun StudyModeEditorPanel(
@@ -99,45 +121,52 @@ fun StudyModeEditorPanel(
                 splitViewModel?.insertBlock(editorState.activeBlockId, type)
                     ?: viewModel?.insertBlock(editorState.activeBlockId, type)
             },
+            onChangeBlockType = { type ->
+                editorState.activeBlockId?.let { blockId ->
+                    splitViewModel?.changeBlockType(blockId, type)
+                        ?: viewModel?.changeBlockType(blockId, type)
+                }
+            },
+            onClearColor = {
+                splitViewModel?.clearActiveColor() ?: viewModel?.clearActiveColor()
+            },
         )
 
         HorizontalDivider(color = ColorDivisor, thickness = 1.dp)
 
-        // 3. Lienzo de papel virtual
-        Box(
+        // 3. Lienzo de papel virtual — Card con weight(1f) en Column
+        Card(
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = ColorHoja),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 24.dp, vertical = 16.dp)
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp),
         ) {
-            Card(
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = ColorHoja),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                modifier = Modifier.fillMaxSize(),
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    itemsIndexed(
-                        items = editorState.doc.blocks,
-                        key = { _, block -> block.id.value },
-                    ) { index, block ->
-                        val richState = splitViewModel?.blockRichStates?.get(block.id)
-                            ?: viewModel?.blockRichStates?.get(block.id)
-                        if (richState != null) {
-                            StudyModeBlockRenderer(
-                                block = block,
-                                blockIndex = index,
-                                richState = richState,
-                                isActive = editorState.activeBlockId == block.id,
-                                focusRequesters = focusRequesters,
-                                splitViewModel = splitViewModel,
-                                viewModel = viewModel,
-                            )
-                        }
+                itemsIndexed(
+                    items = editorState.doc.blocks,
+                    key = { _, block -> block.id.value },
+                ) { index, block ->
+                    val richState = splitViewModel?.blockRichStates?.get(block.id)
+                        ?: viewModel?.blockRichStates?.get(block.id)
+                    if (richState != null) {
+                        StudyModeBlockRenderer(
+                            block = block,
+                            blockIndex = index,
+                            richState = richState,
+                            isActive = editorState.activeBlockId == block.id,
+                            focusRequesters = focusRequesters,
+                            splitViewModel = splitViewModel,
+                            viewModel = viewModel,
+                            allBlocks = editorState.doc.blocks,
+                        )
                     }
                 }
             }
@@ -222,6 +251,8 @@ private fun StudyModeToolbar(
     onStepFontSize: (Int) -> Unit,
     onCycleAlignment: () -> Unit,
     onInsertBlock: (String) -> Unit,
+    onChangeBlockType: (String) -> Unit,
+    onClearColor: () -> Unit,
 ) {
     val scrollState = rememberScrollState()
 
@@ -234,6 +265,22 @@ private fun StudyModeToolbar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        // Negrita (B)
+        ToolbarIcon(
+            icon = Icons.Default.FormatBold,
+            contentDescription = "Negrita",
+            isActive = activeFormat.bold,
+            onClick = { onToggleStyle(TextStyleKind.Bold) },
+        )
+
+        // Cursiva (I)
+        ToolbarIcon(
+            icon = Icons.Default.FormatItalic,
+            contentDescription = "Cursiva",
+            isActive = activeFormat.italic,
+            onClick = { onToggleStyle(TextStyleKind.Italic) },
+        )
+
         // Subrayado (U)
         ToolbarIcon(
             icon = Icons.Default.FormatUnderlined,
@@ -242,21 +289,99 @@ private fun StudyModeToolbar(
             onClick = { onToggleStyle(TextStyleKind.Underline) },
         )
 
-        // Color de texto (A)
-        ToolbarIcon(
-            icon = Icons.Default.FormatColorText,
-            contentDescription = "Color de Texto",
-            isActive = false,
-            onClick = { onTextColor(0xFF0F172A.toInt()) },
-        )
+        // Color de texto (A) — menú flotante
+        var showTextColorMenu by remember { mutableStateOf(false) }
+        Box {
+            ToolbarIcon(
+                icon = Icons.Default.FormatColorText,
+                contentDescription = "Color de Texto",
+                isActive = activeFormat.color != null,
+                onClick = { showTextColorMenu = true },
+            )
+            DropdownMenu(
+                expanded = showTextColorMenu,
+                onDismissRequest = { showTextColorMenu = false },
+            ) {
+                Text(
+                    "Color de texto",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    textColorPalette.forEach { color ->
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(color, CircleShape)
+                                .clickable {
+                                    onTextColor(color.hashCode())
+                                    showTextColorMenu = false
+                                }
+                        )
+                    }
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                DropdownMenuItem(
+                    text = { Text("Quitar color") },
+                    leadingIcon = { Icon(Icons.Default.FormatColorReset, null, modifier = Modifier.size(18.dp)) },
+                    onClick = {
+                        onClearColor()
+                        showTextColorMenu = false
+                    },
+                )
+            }
+        }
 
-        // Resaltador
-        ToolbarIcon(
-            icon = Icons.Default.FormatColorFill,
-            contentDescription = "Color de Resaltado",
-            isActive = false,
-            onClick = { onBackgroundColor(0xFFFEF3C7.toInt()) },
-        )
+        // Resaltador — menú flotante
+        var showHighlightMenu by remember { mutableStateOf(false) }
+        Box {
+            ToolbarIcon(
+                icon = Icons.Default.FormatColorFill,
+                contentDescription = "Color de Resaltado",
+                isActive = activeFormat.background != null,
+                onClick = { showHighlightMenu = true },
+            )
+            DropdownMenu(
+                expanded = showHighlightMenu,
+                onDismissRequest = { showHighlightMenu = false },
+            ) {
+                Text(
+                    "Color de resaltado",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    highlightPalette.forEach { color ->
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(color, CircleShape)
+                                .clickable {
+                                    onBackgroundColor(color.hashCode())
+                                    showHighlightMenu = false
+                                }
+                        )
+                    }
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                DropdownMenuItem(
+                    text = { Text("Quitar resaltado") },
+                    leadingIcon = { Icon(Icons.Default.FormatColorReset, null, modifier = Modifier.size(18.dp)) },
+                    onClick = {
+                        onClearColor()
+                        showHighlightMenu = false
+                    },
+                )
+            }
+        }
 
         ToolbarDivider()
 
@@ -265,7 +390,7 @@ private fun StudyModeToolbar(
             icon = Icons.Default.FormatListBulleted,
             contentDescription = "Lista vinetas",
             isActive = false,
-            onClick = { onInsertBlock("bullet") },
+            onClick = { onChangeBlockType("bullet") },
         )
 
         // Numerada
@@ -273,7 +398,7 @@ private fun StudyModeToolbar(
             icon = Icons.Default.FormatListNumbered,
             contentDescription = "Lista numerada",
             isActive = false,
-            onClick = { onInsertBlock("ordered") },
+            onClick = { onChangeBlockType("numbered") },
         )
 
         ToolbarDivider()
@@ -309,7 +434,7 @@ private fun StudyModeToolbar(
             Icon(Icons.Default.TextDecrease, "Reducir", modifier = Modifier.size(18.dp))
         }
         Text(
-            text = "${currentFontSize}px",
+            text = if (currentFontSize == -1) "-" else "${currentFontSize}px",
             style = MaterialTheme.typography.labelSmall,
             color = ColorTextoPrimario,
         )

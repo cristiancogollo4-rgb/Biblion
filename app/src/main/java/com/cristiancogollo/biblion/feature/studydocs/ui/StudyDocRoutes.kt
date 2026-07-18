@@ -24,6 +24,13 @@ fun StudyDocsListRoute(navController: NavController) {
         onOpenDoc = { doc -> navController.navigate(Screen.StudyDocRead.createRoute(doc.remoteId ?: doc.id.value)) },
         onEditDoc = { doc -> navController.navigate(Screen.StudyDocEditor.createRoute(doc.remoteId ?: doc.id.value)) },
         onNewDoc = { navController.navigate(Screen.StudyDocEditor.newRoute()) },
+        onShareText = { doc ->
+            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                putExtra(android.content.Intent.EXTRA_TEXT, doc.plainText())
+                type = "text/plain"
+            }
+            context.startActivity(android.content.Intent.createChooser(intent, "Compartir"))
+        },
     )
 }
 
