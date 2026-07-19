@@ -872,18 +872,6 @@ fun ReaderContent(
                                     }
                                 }
                             },
-                            onInsertAsQuote = splitViewModel?.let { vm ->
-                                {
-                                    vm.insertVerseAsQuote(
-                                        book = bookName ?: "Desconocido",
-                                        chapter = selectedChapter,
-                                        verseStart = verseNumber.toIntOrNull() ?: 1,
-                                        verseEnd = verseNumber.toIntOrNull() ?: 1,
-                                        text = verseText,
-                                        version = selectedVersionKey
-                                    )
-                                }
-                            }
                         )
                     }
                 }
@@ -966,7 +954,33 @@ fun ReaderContent(
                         onGuidedTutorialTargetAction(GuidedTutorialTargets.READER_FIRST_VERSE)
                     }
                     selectedVerseActions = emptyMap()
-                }
+                },
+                onInsertAsQuote = com.cristiancogollo.biblion.feature.studydocs.ui.editor.LocalSplitViewModel.current?.let { splitViewModel ->
+                    {
+                        Log.d("BIBLION_CRASH", "onInsertAsQuote START: count=${selectedVerseActions.size} bookName=${bookName} chapter=$selectedChapter version=$selectedVersionKey")
+                        val sorted = selectedVerseActions.entries
+                            .sortedBy { it.key.toIntOrNull() ?: Int.MAX_VALUE }
+                        if (sorted.isEmpty()) return@let
+
+                        val firstVerse = sorted.first().key.toIntOrNull() ?: return@let
+                        val lastVerse = sorted.last().key.toIntOrNull() ?: firstVerse
+                        val combinedText = sorted.joinToString(" ") { (verseNumber, action) ->
+                            "$verseNumber ${action.text}"
+                        }
+
+                        Log.d("BIBLION_CRASH", "inserting combined verses=$firstVerse-$lastVerse total=${sorted.size}")
+                        splitViewModel.insertVerseAsQuote(
+                            book = bookName ?: "Desconocido",
+                            chapter = selectedChapter,
+                            verseStart = firstVerse,
+                            verseEnd = lastVerse,
+                            text = combinedText,
+                            version = selectedVersionKey
+                        )
+                        Log.d("BIBLION_CRASH", "onInsertAsQuote DONE, clearing selection")
+                        selectedVerseActions = emptyMap()
+                    }
+                },
             )
         }
 
@@ -1047,7 +1061,6 @@ fun VerseItem(
     modifier: Modifier = Modifier,
     onShowActions: () -> Unit,
     onToggleSelection: () -> Unit,
-    onInsertAsQuote: (() -> Unit)? = null,
     anchorSpan: IntRange? = null
 ) {
     val isRangeSelected = isSelected && selectionRangePosition != VerseSelectionRangePosition.None
@@ -1159,25 +1172,5 @@ fun VerseItem(
             )
         )
 
-        // Botón de insertar como cita (solo visible en modo split)
-        if (onInsertAsQuote != null) {
-            IconButton(
-                onClick = onInsertAsQuote,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .size(32.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(8.dp)
-                    )
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = "Insertar como cita",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-        }
     }
 }

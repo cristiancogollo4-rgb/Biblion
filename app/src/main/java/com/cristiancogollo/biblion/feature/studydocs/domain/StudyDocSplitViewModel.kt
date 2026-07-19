@@ -50,7 +50,10 @@ class StudyDocSplitViewModel(
     val editorState: StateFlow<StudyEditorUiState> = _editorState.asStateFlow()
 
     // Eventos del lector → editor (SharedFlow para one-shot events)
-    private val _events = MutableSharedFlow<EditorEvent>(extraBufferCapacity = 16)
+    private val _events = MutableSharedFlow<EditorEvent>(
+        extraBufferCapacity = 16,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST,
+    )
     val events: SharedFlow<EditorEvent> = _events.asSharedFlow()
 
     // RichTextStates por bloque (mutableStateMapOf para que Compose observe cambios)
@@ -238,16 +241,13 @@ class StudyDocSplitViewModel(
         text: String,
         version: String
     ) {
+        Log.d("BIBLION_CRASH", "insertVerseAsQuote CALLED book=$book chapter=$chapter verse=$verseStart-$verseEnd version=$version text.length=${text.length}")
         viewModelScope.launch {
-            _events.emit(
-                EditorEvent.InsertVerseAsQuote(
-                    book = book,
-                    chapter = chapter,
-                    verseStart = verseStart,
-                    verseEnd = verseEnd,
-                    text = text,
-                    version = version
-                )
+            Log.d("BIBLION_CRASH", "insertVerseAsQuote launching direct")
+            insertVerseAsQuoteInternal(
+                book = book, chapter = chapter,
+                verseStart = verseStart, verseEnd = verseEnd,
+                text = text, version = version,
             )
         }
     }
@@ -261,23 +261,29 @@ class StudyDocSplitViewModel(
         version: String
     ) {
         val reference = "$book $chapter:$verseStart" + if (verseEnd != verseStart) "-$verseEnd" else ""
+        val contents = mapOf(version to text)
 
-        val quoteBlock = StudyBlock.Quote(
-            text = StyledText.Empty,
-            attribution = "$reference ($version)"
+        val verseBlock = StudyBlock.Verse(
+            bookId = book,
+            chapter = chapter,
+            verseStart = verseStart,
+            verseEnd = verseEnd,
+            sourceVersion = version,
+            contents = contents,
+            showCompare = false,
         )
 
-        val rs = RichTextState().apply {
-            setHtml("<blockquote><p>${escapeHtml(text)}</p><cite>$reference ($version)</cite></blockquote>")
-        }
-        blockRichStates[quoteBlock.id] = rs
-
-        // Insertar después del bloque activo o al final
         val afterId = _editorState.value.activeBlockId
             ?: _editorState.value.doc.blocks.lastOrNull()?.id
 
-        applyOp(StudyOp.InsertBlock(quoteBlock, afterId))
-        _editorState.value = _editorState.value.copy(activeBlockId = quoteBlock.id)
+        applyOp(StudyOp.InsertBlock(verseBlock, afterId))
+
+        // Insertar un párrafo vacío debajo de la cita para continuar escribiendo
+        val nextBlock = StudyBlock.Paragraph()
+        val nextRS = RichTextState().apply { setHtml("<p></p>") }
+        blockRichStates[nextBlock.id] = nextRS
+        applyOp(StudyOp.InsertBlock(nextBlock, afterBlockId = verseBlock.id))
+        _editorState.value = _editorState.value.copy(activeBlockId = nextBlock.id)
     }
 
     private fun applyOp(op: StudyOp) {
@@ -315,6 +321,7 @@ class StudyDocSplitViewModel(
                     is StudyBlock.BulletList -> block
                     is StudyBlock.OrderedList -> block
                     is StudyBlock.Quote -> block.copy(text = styled)
+            is StudyBlock.Verse -> block
                 }
             }
             val doc = current.copy(
@@ -558,6 +565,7 @@ class StudyDocSplitViewModel(
                 is StudyBlock.BulletList -> block.copy(fontSize = newSize)
                 is StudyBlock.OrderedList -> block.copy(fontSize = newSize)
                 is StudyBlock.Quote -> block.copy(fontSize = newSize)
+            is StudyBlock.Verse -> block
             }
             val newBlocks = _editorState.value.doc.blocks.toMutableList()
             newBlocks[idx] = updated
@@ -607,6 +615,7 @@ class StudyDocSplitViewModel(
             is StudyBlock.BulletList -> block.copy(fontFamily = family)
             is StudyBlock.OrderedList -> block.copy(fontFamily = family)
             is StudyBlock.Quote -> block.copy(fontFamily = family)
+            is StudyBlock.Verse -> block
         }
         val newBlocks = blocks.toMutableList()
         newBlocks[idx] = updated
@@ -636,12 +645,33 @@ class StudyDocSplitViewModel(
             is StudyBlock.BulletList -> block.copy(alignment = next)
             is StudyBlock.OrderedList -> block.copy(alignment = next)
             is StudyBlock.Quote -> block.copy(alignment = next)
+            is StudyBlock.Verse -> block
         }
         val newBlocks = _editorState.value.doc.blocks.toMutableList()
         newBlocks[idx] = updated
         _editorState.value = _editorState.value.copy(
             doc = _editorState.value.doc.copy(blocks = newBlocks, updatedAt = System.currentTimeMillis()),
             hasUnsavedChanges = true
+        )
+    }
+
+    fun setBlockAlignment(blockId: BlockId, alignment: com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment) {
+        val idx = _editorState.value.doc.blocks.indexOfFirst { it.id == blockId }
+        if (idx < 0) return
+        val block = _editorState.value.doc.blocks[idx]
+        val updated = when (block) {
+            is StudyBlock.Paragraph -> block.copy(alignment = alignment)
+            is StudyBlock.Heading -> block.copy(alignment = alignment)
+            is StudyBlock.BulletList -> block.copy(alignment = alignment)
+            is StudyBlock.OrderedList -> block.copy(alignment = alignment)
+            is StudyBlock.Quote -> block.copy(alignment = alignment)
+            is StudyBlock.Verse -> block.copy(alignment = alignment)
+        }
+        val newBlocks = _editorState.value.doc.blocks.toMutableList()
+        newBlocks[idx] = updated
+        _editorState.value = _editorState.value.copy(
+            doc = _editorState.value.doc.copy(blocks = newBlocks, updatedAt = System.currentTimeMillis()),
+            hasUnsavedChanges = true,
         )
     }
 

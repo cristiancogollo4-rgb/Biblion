@@ -62,6 +62,21 @@ sealed interface StudyBlock {
 
     @Serializable
     @SerialName("quote")
+    data class Verse(
+        override val id: BlockId = BlockId.generate(),
+        val bookId: String = "",
+        val chapter: Int = 1,
+        val verseStart: Int = 1,
+        val verseEnd: Int = 1,
+        val sourceVersion: String = "",
+        val contents: Map<String, String> = emptyMap(),
+        val showCompare: Boolean = false,
+        val comparedVersions: List<String> = emptyList(),
+        override val alignment: BlockAlignment = BlockAlignment.Start,
+        override val fontFamily: String? = "serif",
+        override val fontSize: Int = DocConfig.DEFAULT_FONT_SIZE,
+    ) : StudyBlock
+
     data class Quote(
         override val id: BlockId = BlockId.generate(),
         val text: StyledText = StyledText.Empty,
@@ -76,6 +91,7 @@ sealed interface StudyBlock {
         is Heading -> text.plain()
         is BulletList -> items.joinToString("\n") { it.plain() }
         is OrderedList -> items.joinToString("\n") { it.plain() }
+        is Verse -> contents[sourceVersion] ?: ""
         is Quote -> text.plain()
     }
 
@@ -84,6 +100,7 @@ sealed interface StudyBlock {
         is Heading -> listOf(text)
         is BulletList -> items
         is OrderedList -> items
+        is Verse -> listOf(StyledText(contents[sourceVersion] ?: ""))
         is Quote -> listOf(text)
     }
 }

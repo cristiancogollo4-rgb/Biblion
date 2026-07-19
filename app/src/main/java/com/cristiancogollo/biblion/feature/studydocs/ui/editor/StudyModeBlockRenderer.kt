@@ -35,7 +35,7 @@ import com.mohamedrejeb.richeditor.ui.BasicRichTextEditor
 fun StudyModeBlockRenderer(
     block: StudyBlock,
     blockIndex: Int,
-    richState: RichTextState,
+    richState: RichTextState?,
     isActive: Boolean,
     focusRequesters: SnapshotStateMap<BlockId, FocusRequester>,
     splitViewModel: StudyDocSplitViewModel?,
@@ -50,7 +50,8 @@ fun StudyModeBlockRenderer(
         if (isActive) focusRequester.requestFocus()
     }
 
-    val textStyle = remember(block, block.fontSize) {
+    val textColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurface
+    val textStyle = remember(block, block.fontSize, textColor) {
         TextStyle(
             fontSize = when (block) {
                 is StudyBlock.Heading -> when (block.level) {
@@ -61,43 +62,53 @@ fun StudyModeBlockRenderer(
             fontWeight = if (block is StudyBlock.Heading) FontWeight.Bold else FontWeight.Normal,
             fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
             textAlign = block.alignment.toTextAlign(),
-            color = Color(0xFF0F172A),
+            color = textColor,
             lineHeight = (block.fontSize * 1.5).sp,
         )
     }
 
-    LaunchedEffect(richState) {
-        snapshotFlow { richState.selection }
-            .collect {
-                if (isActive) {
-                    splitViewModel?.syncActiveFormat(richState)
-                        ?: viewModel?.syncActiveFormat(richState)
+    LaunchedEffect(richState != null) {
+        if (richState != null) {
+            snapshotFlow { richState.selection }
+                .collect {
+                    if (isActive) {
+                        splitViewModel?.syncActiveFormat(richState)
+                            ?: viewModel?.syncActiveFormat(richState)
+                    }
                 }
-            }
-    }
-
-    val keyModifier = Modifier.onPreviewKeyEvent { event ->
-        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-        if (event.isShiftPressed) return@onPreviewKeyEvent false
-        val sel = richState.selection
-        when (event.key) {
-            Key.Enter -> {
-                splitViewModel?.handleEnter(block.id)
-                    ?: viewModel?.handleEnter(block.id)
-                true
-            }
-            Key.Backspace -> {
-                if (sel.collapsed && sel.start == 0) {
-                    splitViewModel?.handleBackspace(block.id)
-                        ?: viewModel?.handleBackspace(block.id)
-                    true
-                } else false
-            }
-            else -> false
         }
     }
 
+    val keyModifier = if (richState != null) {
+        Modifier.onPreviewKeyEvent { event ->
+            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+            if (event.isShiftPressed) return@onPreviewKeyEvent false
+            val sel = richState.selection
+            when (event.key) {
+                Key.Enter -> {
+                    splitViewModel?.handleEnter(block.id)
+                        ?: viewModel?.handleEnter(block.id)
+                    true
+                }
+                Key.Backspace -> {
+                    if (sel.collapsed && sel.start == 0) {
+                        splitViewModel?.handleBackspace(block.id)
+                            ?: viewModel?.handleBackspace(block.id)
+                        true
+                    } else false
+                }
+                else -> false
+            }
+        }
+    } else Modifier
+
     when (block) {
+        is StudyBlock.Verse -> {
+            BibleVerseBlock(
+                block = block,
+                modifier = modifier.fillMaxWidth(),
+            )
+        }
         is StudyBlock.BulletList -> {
             Log.d("LIST_DEBUG", "Renderer: BulletList id=${block.id.value} fontSize=${block.fontSize}")
             Row(
@@ -119,7 +130,7 @@ fun StudyModeBlockRenderer(
                     modifier = Modifier.padding(top = 2.dp, end = 8.dp),
                 )
                 BasicRichTextEditor(
-                    state = richState,
+                    state = richState!!,
                     modifier = Modifier.weight(1f),
                     textStyle = textStyle,
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -148,7 +159,7 @@ fun StudyModeBlockRenderer(
                     modifier = Modifier.padding(top = 2.dp, end = 8.dp),
                 )
                 BasicRichTextEditor(
-                    state = richState,
+                    state = richState!!,
                     modifier = Modifier.weight(1f),
                     textStyle = textStyle,
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -157,7 +168,7 @@ fun StudyModeBlockRenderer(
         }
         else -> {
             BasicRichTextEditor(
-                state = richState,
+                state = richState!!,
                 modifier = modifier
                     .fillMaxWidth()
                     .then(keyModifier)

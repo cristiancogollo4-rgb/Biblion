@@ -1,6 +1,8 @@
 package com.cristiancogollo.biblion.feature.studydocs.ui.editor
 
 import android.widget.Toast
+import android.util.Log
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -32,34 +34,24 @@ import com.cristiancogollo.biblion.feature.studydocs.model.BlockId
 import com.cristiancogollo.biblion.feature.studydocs.model.DocConfig
 import com.cristiancogollo.biblion.feature.studydocs.model.DocTagGroups
 
-// Paleta de colores del diseño
-private val ColorFondoPanel = Color(0xFFF3F4F6)
-private val ColorHoja = Color(0xFFFFFFFF)
-private val ColorBarraToolbar = Color(0xFFEDF2FA)
-private val ColorTextoPrimario = Color(0xFF0F172A)
-private val ColorAccionAzul = Color(0xFF1E3A8A)
-private val ColorPlaceholder = Color(0xFF94A3B8)
-private val ColorDivisor = Color(0xFFE2E8F0)
-
 private val textColorPalette = listOf(
-    Color(0xFF0F172A), // Slate 900
-    Color(0xFF424242), // Gray 700
-    Color(0xFFE53935), // Red
-    Color(0xFFFB8C00), // Orange
-    Color(0xFFFDD835), // Yellow
-    Color(0xFF43A047), // Green
-    Color(0xFF1E88E5), // Blue
-    Color(0xFF8E24AA), // Purple
+    Color(0xFF0F172A), Color(0xFF9E9E9E), Color(0xFFE53935), Color(0xFFFB8C00),
+    Color(0xFFFDD835), Color(0xFF43A047), Color(0xFF1E88E5), Color(0xFF8E24AA),
+    Color(0xFFEF9A9A), Color(0xFF80CBC4),
 )
 
-private val highlightPalette = listOf(
-    Color(0xFFFEF3C7), // Yellow pastel
-    Color(0xFFD1FAE5), // Green pastel
-    Color(0xFFFFD0D0), // Red pastel
-    Color(0xFFD8E8FF), // Blue pastel
-    Color(0xFFF3E8FF), // Purple pastel
-    Color(0xFFFFF2CC), // Orange pastel
+private val highlightPaletteLight = listOf(
+    Color(0xFFFEF3C7), Color(0xFFD1FAE5), Color(0xFFFFD0D0),
+    Color(0xFFD8E8FF), Color(0xFFF3E8FF), Color(0xFFFFF2CC),
 )
+
+private val highlightPaletteDark = listOf(
+    Color(0xFF5D4037), Color(0xFF2E7D32), Color(0xFFC62828),
+    Color(0xFF1565C0), Color(0xFF6A1B9A), Color(0xFFE65100),
+)
+
+@Composable
+private fun currentHighlightPalette() = if (isSystemInDarkTheme()) highlightPaletteDark else highlightPaletteLight
 
 @Composable
 fun StudyModeEditorPanel(
@@ -81,7 +73,7 @@ fun StudyModeEditorPanel(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(ColorFondoPanel)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
     ) {
         // 1. Header: X + título + Guardar
         StudyModeHeader(
@@ -97,9 +89,17 @@ fun StudyModeEditorPanel(
         // 2. Toolbar integrada plana
         StudyModeToolbar(
             activeFormat = editorState.activeFormat,
-            currentFontSize = editorState.doc.blocks
-                .firstOrNull { it.id == editorState.activeBlockId }?.fontSize
-                ?: DocConfig.DEFAULT_FONT_SIZE,
+            currentFontSize = run {
+                val af = editorState.activeFormat.fontSize
+                val bf = editorState.doc.blocks.firstOrNull { it.id == editorState.activeBlockId }?.fontSize
+                val result = when {
+                    af != null && af >= 0 -> af
+                    af == -1 -> -1
+                    else -> bf ?: DocConfig.DEFAULT_FONT_SIZE
+                }
+                result
+            },
+            currentAlignment = editorState.activeFormat.alignment,
             onToggleStyle = { kind ->
                 splitViewModel?.applyStyleToActive(kind) ?: viewModel?.applyStyleToActive(kind)
             },
@@ -112,9 +112,9 @@ fun StudyModeEditorPanel(
             onStepFontSize = { delta ->
                 splitViewModel?.stepFontSizeActive(delta) ?: viewModel?.stepFontSizeActive(delta)
             },
-            onCycleAlignment = {
+            onSetAlignment = { alignment ->
                 editorState.activeBlockId?.let {
-                    splitViewModel?.cycleBlockAlignment(it) ?: viewModel?.cycleBlockAlignment(it)
+                    splitViewModel?.setBlockAlignment(it, alignment) ?: viewModel?.setBlockAlignment(it, alignment)
                 }
             },
             onInsertBlock = { type ->
@@ -132,13 +132,14 @@ fun StudyModeEditorPanel(
             },
         )
 
-        HorizontalDivider(color = ColorDivisor, thickness = 1.dp)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), thickness = 1.dp)
 
         // 3. Lienzo de papel virtual — Card con weight(1f) en Column
         Card(
             shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = ColorHoja),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
@@ -156,7 +157,7 @@ fun StudyModeEditorPanel(
                 ) { index, block ->
                     val richState = splitViewModel?.blockRichStates?.get(block.id)
                         ?: viewModel?.blockRichStates?.get(block.id)
-                    if (richState != null) {
+                    if (richState != null || block is com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock.Verse) {
                         StudyModeBlockRenderer(
                             block = block,
                             blockIndex = index,
@@ -184,7 +185,7 @@ private fun StudyModeHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(MaterialTheme.colorScheme.surface)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -194,7 +195,7 @@ private fun StudyModeHeader(
             Icon(
                 Icons.Default.Close,
                 contentDescription = "Salir del Modo Estudio",
-                tint = ColorTextoPrimario,
+                tint = MaterialTheme.colorScheme.onSurface,
             )
         }
 
@@ -203,7 +204,7 @@ private fun StudyModeHeader(
             value = documentTitle,
             onValueChange = onTitleChange,
             textStyle = TextStyle(
-                color = ColorTextoPrimario,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center,
@@ -212,13 +213,13 @@ private fun StudyModeHeader(
                 .weight(1f)
                 .padding(horizontal = 16.dp),
             singleLine = true,
-            cursorBrush = SolidColor(ColorAccionAzul),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
             decorationBox = { innerTextField ->
                 Box(contentAlignment = Alignment.Center) {
                     if (documentTitle.isEmpty()) {
                         Text(
                             text = "Documento sin titulo",
-                            color = ColorPlaceholder,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 16.sp,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth(),
@@ -234,7 +235,7 @@ private fun StudyModeHeader(
             Icon(
                 Icons.Default.Save,
                 contentDescription = "Guardar",
-                tint = ColorAccionAzul,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(24.dp),
             )
         }
@@ -245,23 +246,24 @@ private fun StudyModeHeader(
 private fun StudyModeToolbar(
     activeFormat: com.cristiancogollo.biblion.feature.studydocs.domain.ActiveFormatSnapshot,
     currentFontSize: Int,
+    currentAlignment: com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment,
     onToggleStyle: (TextStyleKind) -> Unit,
     onTextColor: (Int) -> Unit,
     onBackgroundColor: (Int) -> Unit,
     onStepFontSize: (Int) -> Unit,
-    onCycleAlignment: () -> Unit,
+    onSetAlignment: (com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment) -> Unit,
     onInsertBlock: (String) -> Unit,
     onChangeBlockType: (String) -> Unit,
     onClearColor: () -> Unit,
 ) {
     val scrollState = rememberScrollState()
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(ColorBarraToolbar)
-            .horizontalScroll(scrollState)
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .horizontalScroll(scrollState)
+                .padding(horizontal = 16.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -359,7 +361,7 @@ private fun StudyModeToolbar(
                     modifier = Modifier.padding(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    highlightPalette.forEach { color ->
+                    currentHighlightPalette().forEach { color ->
                         Box(
                             modifier = Modifier
                                 .size(32.dp)
@@ -407,24 +409,24 @@ private fun StudyModeToolbar(
         ToolbarIcon(
             icon = Icons.Default.FormatAlignLeft,
             contentDescription = "Alinear izquierda",
-            isActive = true,
-            onClick = { onCycleAlignment() },
+            isActive = currentAlignment == com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment.Start,
+            onClick = { onSetAlignment(com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment.Start) },
         )
 
         // Alineación centro
         ToolbarIcon(
             icon = Icons.Default.FormatAlignCenter,
             contentDescription = "Alinear centro",
-            isActive = false,
-            onClick = { onCycleAlignment() },
+            isActive = currentAlignment == com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment.Center,
+            onClick = { onSetAlignment(com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment.Center) },
         )
 
         // Justificado
         ToolbarIcon(
             icon = Icons.Default.FormatAlignJustify,
             contentDescription = "Alinear justificado",
-            isActive = false,
-            onClick = { onCycleAlignment() },
+            isActive = currentAlignment == com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment.Justify,
+            onClick = { onSetAlignment(com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment.Justify) },
         )
 
         ToolbarDivider()
@@ -436,7 +438,7 @@ private fun StudyModeToolbar(
         Text(
             text = if (currentFontSize == -1) "-" else "${currentFontSize}px",
             style = MaterialTheme.typography.labelSmall,
-            color = ColorTextoPrimario,
+            color = MaterialTheme.colorScheme.onSurface,
         )
         IconButton(onClick = { onStepFontSize(1) }, modifier = Modifier.size(36.dp)) {
             Icon(Icons.Default.TextIncrease, "Aumentar", modifier = Modifier.size(18.dp))
@@ -451,11 +453,19 @@ private fun ToolbarIcon(
     isActive: Boolean,
     onClick: () -> Unit,
 ) {
-    IconButton(onClick = onClick, modifier = Modifier.size(36.dp)) {
+    val bg = if (isActive) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+    val shape = RoundedCornerShape(6.dp)
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier
+            .size(36.dp)
+            .clip(shape)
+            .background(bg),
+    ) {
         Icon(
             icon,
             contentDescription = contentDescription,
-            tint = if (isActive) ColorAccionAzul else ColorTextoPrimario,
+            tint = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.size(18.dp),
         )
     }

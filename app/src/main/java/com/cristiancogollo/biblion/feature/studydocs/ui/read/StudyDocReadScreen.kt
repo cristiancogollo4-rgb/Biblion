@@ -146,7 +146,8 @@ private fun ReadBlockRender(block: StudyBlock) {
                 }
             }
         }
-        is StudyBlock.Quote -> Column(modifier = Modifier.fillMaxWidth()) {
+        is StudyBlock.Verse -> Column {}
+is StudyBlock.Quote -> Column(modifier = Modifier.fillMaxWidth()) {
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
             Text(
                 text = block.text.toAnnotatedString(),

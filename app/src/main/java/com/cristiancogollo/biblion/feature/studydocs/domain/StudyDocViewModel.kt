@@ -43,6 +43,7 @@ data class ActiveFormatSnapshot(
     val color: Int? = null,
     val background: Int? = null,
     val fontSize: Int? = null,
+    val alignment: BlockAlignment = BlockAlignment.Start,
 )
 
 data class StudyEditorUiState(
@@ -271,6 +272,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
             is StudyBlock.BulletList -> block.copy(alignment = next)
             is StudyBlock.OrderedList -> block.copy(alignment = next)
             is StudyBlock.Quote -> block.copy(alignment = next)
+            is StudyBlock.Verse -> block
         }
         val newBlocks = _uiState.value.doc.blocks.toMutableList()
         newBlocks[idx] = updated
@@ -298,6 +300,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
                 is StudyBlock.BulletList -> block.copy(fontSize = newSize)
                 is StudyBlock.OrderedList -> block.copy(fontSize = newSize)
                 is StudyBlock.Quote -> block.copy(fontSize = newSize)
+            is StudyBlock.Verse -> block
             }
             val newBlocks = _uiState.value.doc.blocks.toMutableList()
             newBlocks[idx] = updated
@@ -457,6 +460,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
             is StudyBlock.BulletList -> block.copy(fontFamily = family)
             is StudyBlock.OrderedList -> block.copy(fontFamily = family)
             is StudyBlock.Quote -> block.copy(fontFamily = family)
+            is StudyBlock.Verse -> block
         }
         val newBlocks = blocks.toMutableList()
         newBlocks[idx] = updated
@@ -499,6 +503,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
                     is StudyBlock.BulletList -> block
                     is StudyBlock.OrderedList -> block
                     is StudyBlock.Quote -> block.copy(text = styled)
+            is StudyBlock.Verse -> block
                 }
             }
             val doc = current.copy(
@@ -538,6 +543,23 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
         .replace("&", "&amp;")
         .replace("<", "&lt;")
         .replace(">", "&gt;")
+
+    fun setBlockAlignment(blockId: BlockId, alignment: com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment) {
+        val idx = _uiState.value.doc.blocks.indexOfFirst { it.id == blockId }
+        if (idx < 0) return
+        val block = _uiState.value.doc.blocks[idx]
+        val updated = when (block) {
+            is StudyBlock.Paragraph -> block.copy(alignment = alignment)
+            is StudyBlock.Heading -> block.copy(alignment = alignment)
+            is StudyBlock.BulletList -> block.copy(alignment = alignment)
+            is StudyBlock.OrderedList -> block.copy(alignment = alignment)
+            is StudyBlock.Quote -> block.copy(alignment = alignment)
+            is StudyBlock.Verse -> block.copy(alignment = alignment)
+        }
+        val newBlocks = _uiState.value.doc.blocks.toMutableList()
+        newBlocks[idx] = updated
+        _uiState.update { it.copy(doc = it.doc.copy(blocks = newBlocks, updatedAt = System.currentTimeMillis()), hasUnsavedChanges = true) }
+    }
 
     class Factory(private val repository: StudyDocRepository) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")

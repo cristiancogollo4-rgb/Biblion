@@ -348,7 +348,7 @@ private fun EditorLazyColumn(
         ) { index, block ->
             val richState = splitViewModel?.blockRichStates?.get(block.id)
                 ?: viewModel?.blockRichStates?.get(block.id)
-            if (richState != null) {
+            if (richState != null || block is com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock.Verse) {
                 BlockRenderer(
                     block = block,
                     blockIndex = index,

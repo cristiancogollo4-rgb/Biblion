@@ -654,7 +654,8 @@ fun VerseActionsFloatingMenu(
     onClearSelection: () -> Unit,
     onCopy: () -> Unit,
     onAddCitation: (() -> Unit)?,
-    onHighlight: (Int) -> Unit
+    onHighlight: (Int) -> Unit,
+    onInsertAsQuote: (() -> Unit)? = null,
 ) {
     val popupOffset = if (anchorOffset == IntOffset.Zero) IntOffset(0, -32) else anchorOffset
 
@@ -706,6 +707,10 @@ fun VerseActionsFloatingMenu(
 
                         if (onAddCitation != null) {
                             ActionPill(icon = Icons.Default.FormatQuote, label = "Citar", onClick = onAddCitation)
+                        }
+
+                        if (onInsertAsQuote != null) {
+                            ActionPill(icon = Icons.Default.Add, label = "Insertar cita", onClick = onInsertAsQuote)
                         }
 
                         IconButton(onClick = onClearSelection, modifier = Modifier.size(36.dp)) {
