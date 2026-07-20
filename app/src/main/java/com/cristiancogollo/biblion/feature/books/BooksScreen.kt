@@ -149,7 +149,7 @@ fun BooksScreen(
                         navController.navigateSingleTop(StudyDocScreen.StudyDocsList.route)
                     },
                     onNavigateToStudyMode = {
-                        navController.navigateSingleTop(Screen.Reader.createRoute(studyMode = true))
+                        navController.navigateSingleTop(StudyDocScreen.StudyDocEditor.newRoute())
                     },
                     onPickVersion = { showVersionDialog = true },
                     onShowAbout = { showAboutDialog = true },

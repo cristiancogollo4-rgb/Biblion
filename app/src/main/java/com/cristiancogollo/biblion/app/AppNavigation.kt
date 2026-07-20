@@ -500,26 +500,6 @@ fun AppNavigation(
             )
         }
 
-        composable(
-            route = Screen.Study.route,
-            arguments = listOf(
-                navArgument("bookName") {
-                    type = NavType.StringType
-                    defaultValue = ""
-                }
-            )
-        ) { entry ->
-            val encodedName = entry.arguments?.getString("bookName") ?: ""
-            val bookName = decodeArg(encodedName).ifBlank { null }
-            ReaderScreen(
-                navController = navController,
-                bookName = bookName,
-                initialStudyMode = true,
-                isDarkTheme = isDarkTheme,
-                onToggleDarkTheme = onToggleDarkTheme,
-                currentUserName = currentUserName,
-            )
-        }
     }
 
     if (authState.showSignedOutDialog) {

@@ -61,7 +61,7 @@ sealed interface StudyBlock {
     ) : StudyBlock
 
     @Serializable
-    @SerialName("quote")
+    @SerialName("bible_verse")
     data class Verse(
         override val id: BlockId = BlockId.generate(),
         val bookId: String = "",
@@ -77,6 +77,8 @@ sealed interface StudyBlock {
         override val fontSize: Int = DocConfig.DEFAULT_FONT_SIZE,
     ) : StudyBlock
 
+    @Serializable
+    @SerialName("quote")
     data class Quote(
         override val id: BlockId = BlockId.generate(),
         val text: StyledText = StyledText.Empty,

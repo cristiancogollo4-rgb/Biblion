@@ -255,4 +255,8 @@
     <string name="dictionary_category_book">Libros bíblicos</string>
     <string name="dictionary_category_book_desc">Introducciones, contexto y datos clave de cada libro de la Biblia</string>
     <string name="dictionary_category_entries">%1$d términos</string>
+
+    <!-- Controles de zoom del modo estudio -->
+    <string name="zoom_in">Aumentar zoom</string>
+    <string name="zoom_out">Reducir zoom</string>
 </resources>

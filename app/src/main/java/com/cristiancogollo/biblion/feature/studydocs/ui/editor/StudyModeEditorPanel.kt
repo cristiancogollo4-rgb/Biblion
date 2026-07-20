@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -29,10 +30,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.compose.rememberNavController
 import com.cristiancogollo.biblion.feature.studydocs.domain.TextStyleKind
 import com.cristiancogollo.biblion.feature.studydocs.model.BlockId
 import com.cristiancogollo.biblion.feature.studydocs.model.DocConfig
 import com.cristiancogollo.biblion.feature.studydocs.model.DocTagGroups
+import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PaginatedSheet
 
 private val textColorPalette = listOf(
     Color(0xFF0F172A), Color(0xFF9E9E9E), Color(0xFFE53935), Color(0xFFFB8C00),
@@ -63,6 +66,8 @@ fun StudyModeEditorPanel(
     onBack: () -> Unit,
 ) {
     var documentTitle by remember { mutableStateOf(editorState.doc.title) }
+    val editorZoomState = rememberDocumentZoomState()
+    var isFullScreen by remember { mutableStateOf(false) }
 
     LaunchedEffect(editorState.doc.title) {
         if (editorState.doc.title != documentTitle) {
@@ -75,9 +80,11 @@ fun StudyModeEditorPanel(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
     ) {
-        // 1. Header: X + título + Guardar
+        // 1. Header: X + título + Alternar pantalla + Guardar
         StudyModeHeader(
             documentTitle = documentTitle,
+            isFullScreen = isFullScreen,
+            onToggleFullScreen = { isFullScreen = !isFullScreen },
             onTitleChange = { newTitle ->
                 documentTitle = newTitle
                 splitViewModel?.updateTitle(newTitle) ?: viewModel?.updateTitle(newTitle)
@@ -99,7 +106,11 @@ fun StudyModeEditorPanel(
                 }
                 result
             },
-            currentAlignment = editorState.activeFormat.alignment,
+            currentAlignment = run {
+                val activeId = editorState.activeBlockId ?: return@run com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment.Start
+                editorState.doc.blocks.firstOrNull { it.id == activeId }?.alignment
+                    ?: com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment.Start
+            },
             onToggleStyle = { kind ->
                 splitViewModel?.applyStyleToActive(kind) ?: viewModel?.applyStyleToActive(kind)
             },
@@ -130,43 +141,79 @@ fun StudyModeEditorPanel(
             onClearColor = {
                 splitViewModel?.clearActiveColor() ?: viewModel?.clearActiveColor()
             },
+            zoomState = editorZoomState,
         )
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), thickness = 1.dp)
 
-        // 3. Lienzo de papel virtual — Card con weight(1f) en Column
-        Card(
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-        ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                itemsIndexed(
-                    items = editorState.doc.blocks,
-                    key = { _, block -> block.id.value },
-                ) { index, block ->
-                    val richState = splitViewModel?.blockRichStates?.get(block.id)
-                        ?: viewModel?.blockRichStates?.get(block.id)
-                    if (richState != null || block is com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock.Verse) {
-                        StudyModeBlockRenderer(
-                            block = block,
-                            blockIndex = index,
+        if (isFullScreen) {
+            PaginatedSheet(
+                blocks = editorState.doc.blocks,
+                isEditing = true,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                zoomState = editorZoomState,
+            ) { fragment, _ ->
+                val activeId = splitViewModel?.editorState?.value?.activeBlockId
+                    ?: viewModel?.uiState?.value?.activeBlockId
+                val richState = splitViewModel?.blockRichStates?.get(fragment.originBlockId)
+                    ?: viewModel?.blockRichStates?.get(fragment.originBlockId)
+                val isOwner = activeId == fragment.originBlockId
+                Log.d("BIBLION_STUDY", "SplitEditor fragment blockId=${fragment.originBlockId} richState=${richState != null} isOwner=$isOwner activeBlockId=$activeId")
+                if (richState != null || fragment is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.VerseSlice) {
+                    UnifiedBlockRenderer(
+                        fragment = fragment,
+                        allBlocks = editorState.doc.blocks,
+                        isEditing = true,
+                        isOwnerFragment = isOwner,
+                        richState = richState,
+                        isActive = isOwner,
+                        focusRequesters = focusRequesters,
+                        splitViewModel = splitViewModel,
+                        viewModel = viewModel,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        } else {
+            Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                // Panel izquierdo: lector bíblico
+                BibleReaderPane(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .background(MaterialTheme.colorScheme.surface),
+                )
+                VerticalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    thickness = 1.dp,
+                )
+                // Panel derecho: editor
+                PaginatedSheet(
+                    blocks = editorState.doc.blocks,
+                    isEditing = true,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    zoomState = editorZoomState,
+                ) { fragment, _ ->
+                    val activeId = splitViewModel?.editorState?.value?.activeBlockId
+                        ?: viewModel?.uiState?.value?.activeBlockId
+                    val richState = splitViewModel?.blockRichStates?.get(fragment.originBlockId)
+                        ?: viewModel?.blockRichStates?.get(fragment.originBlockId)
+                    val isOwner = activeId == fragment.originBlockId
+                    Log.d("BIBLION_STUDY", "SplitEditor fragment blockId=${fragment.originBlockId} richState=${richState != null} isOwner=$isOwner activeBlockId=$activeId")
+                    if (richState != null || fragment is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.VerseSlice) {
+                        UnifiedBlockRenderer(
+                            fragment = fragment,
+                            allBlocks = editorState.doc.blocks,
+                            isEditing = true,
+                            isOwnerFragment = isOwner,
                             richState = richState,
-                            isActive = editorState.activeBlockId == block.id,
+                            isActive = isOwner,
                             focusRequesters = focusRequesters,
                             splitViewModel = splitViewModel,
                             viewModel = viewModel,
-                            allBlocks = editorState.doc.blocks,
+                            modifier = Modifier.fillMaxWidth(),
                         )
                     }
                 }
@@ -178,6 +225,8 @@ fun StudyModeEditorPanel(
 @Composable
 private fun StudyModeHeader(
     documentTitle: String,
+    isFullScreen: Boolean,
+    onToggleFullScreen: () -> Unit,
     onTitleChange: (String) -> Unit,
     onBackClick: () -> Unit,
     onSaveClick: () -> Unit,
@@ -230,6 +279,16 @@ private fun StudyModeHeader(
             },
         )
 
+        // Botón alternar pantalla completa / dividida
+        IconButton(onClick = onToggleFullScreen) {
+            Icon(
+                imageVector = if (isFullScreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                contentDescription = if (isFullScreen) "Pantalla dividida" else "Pantalla completa",
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(24.dp),
+            )
+        }
+
         // Botón Guardar
         IconButton(onClick = onSaveClick) {
             Icon(
@@ -239,6 +298,18 @@ private fun StudyModeHeader(
                 modifier = Modifier.size(24.dp),
             )
         }
+    }
+}
+
+@Composable
+private fun BibleReaderPane(modifier: Modifier = Modifier) {
+    val readerNavController = rememberNavController()
+    Box(modifier = modifier) {
+        com.cristiancogollo.biblion.ReaderScreen(
+            navController = readerNavController,
+            bookName = "Genesis",
+            initialChapter = 1,
+        )
     }
 }
 
@@ -255,6 +326,7 @@ private fun StudyModeToolbar(
     onInsertBlock: (String) -> Unit,
     onChangeBlockType: (String) -> Unit,
     onClearColor: () -> Unit,
+    zoomState: DocumentZoomState,
 ) {
     val scrollState = rememberScrollState()
 
@@ -443,6 +515,10 @@ private fun StudyModeToolbar(
         IconButton(onClick = { onStepFontSize(1) }, modifier = Modifier.size(36.dp)) {
             Icon(Icons.Default.TextIncrease, "Aumentar", modifier = Modifier.size(18.dp))
         }
+
+        ToolbarDivider()
+
+        ZoomMenu(zoomState = zoomState, showStepButtons = false)
     }
 }
 

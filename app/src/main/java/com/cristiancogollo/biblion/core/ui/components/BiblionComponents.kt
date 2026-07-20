@@ -1,4 +1,4 @@
-package com.cristiancogollo.biblion
+﻿package com.cristiancogollo.biblion
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -319,7 +319,7 @@ private fun DarkModeMenuItem(
     }
 }
 
-// 2. TestamentSelector: Selector tipo pestañas (Antiguo / Nuevo)
+// 2. TestamentSelector: Selector tipo pestaÃ±as (Antiguo / Nuevo)
 @Composable
 fun TestamentSelector(
     selectedTab: Testament?,
@@ -361,7 +361,7 @@ fun TestamentSelector(
     }
 }
 
-// 3. DailyVerseCard: Muestra el versículo del día
+// 3. DailyVerseCard: Muestra el versÃ­culo del dÃ­a
 @Composable
 fun DailyVerseCard(
     verse: String,
@@ -402,7 +402,7 @@ fun DailyVerseCard(
     }
 }
 
-// 4. BookCard: Representa un libro en la cuadrícula
+// 4. BookCard: Representa un libro en la cuadrÃ­cula
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun BookCard(
@@ -469,7 +469,7 @@ fun BookCard(
     }
 }
 
-// 5. BiblionSelectionDialog: Diálogo para elegir capítulos
+// 5. BiblionSelectionDialog: DiÃ¡logo para elegir capÃ­tulos
 @Composable
 fun BiblionSelectionDialog(
     title: String,
@@ -586,7 +586,7 @@ fun BiblionReaderTopAppBar(
                         )
                     }
                 }
-                // Botón Disminuir Fuente
+                // BotÃ³n Disminuir Fuente
                 IconButton(onClick = onDecreaseFontSize) {
                     Icon(
                         imageVector = Icons.Default.HorizontalRule,
@@ -594,7 +594,7 @@ fun BiblionReaderTopAppBar(
                         tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                // Botón Aumentar Fuente
+                // BotÃ³n Aumentar Fuente
                 IconButton(onClick = onIncreaseFontSize) {
                     Icon(
                         imageVector = Icons.Default.Add,
@@ -608,7 +608,7 @@ fun BiblionReaderTopAppBar(
             )
         )
 
-        // Fila horizontal de capítulos
+        // Fila horizontal de capÃ­tulos
         LazyRow(
             modifier = chapterSelectorModifier
                 .fillMaxWidth()
@@ -635,14 +635,14 @@ fun BiblionReaderTopAppBar(
             }
         }
 
-        // Línea divisoria sutil
+        // LÃ­nea divisoria sutil
         HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 
 /**
- * Burbuja contextual flotante optimizada para acciones sobre versículos.
- * Ubicada en la parte inferior-media para mejor ergonomía.
+ * Burbuja contextual flotante optimizada para acciones sobre versÃ­culos.
+ * Ubicada en la parte inferior-media para mejor ergonomÃ­a.
  */
 @Composable
 fun VerseActionsFloatingMenu(
@@ -765,7 +765,7 @@ private fun LegacyVerseActionsFloatingMenu(
 ) {
     Popup(
         alignment = Alignment.BottomCenter,
-        offset = IntOffset(0, -180), // Posición interactiva en la zona inferior-media
+        offset = IntOffset(0, -180), // PosiciÃ³n interactiva en la zona inferior-media
         onDismissRequest = onDismiss,
         properties = PopupProperties(
             focusable = false,
@@ -838,345 +838,6 @@ private fun LegacyVerseActionsFloatingMenu(
                         }
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-fun StudyEditorBottomBar(
-    hasSelection: Boolean,
-    isParallelTextMode: Boolean = false,
-    isBulletMode: Boolean = false,
-    isNumberedMode: Boolean = false,
-    pendingCitations: Int,
-    onHeadlineUp: () -> Unit,
-    onHeadlineDown: () -> Unit,
-    onBold: () -> Unit,
-    onItalic: () -> Unit,
-    onUnderline: () -> Unit,
-    onTextColor: (Color) -> Unit = {},
-    onBackgroundColor: (Color) -> Unit = {},
-    onClearTextColor: () -> Unit = {},
-    onClearBackground: () -> Unit = {},
-    onClearFormatting: () -> Unit = {},
-    onIncreaseSize: () -> Unit,
-    onDecreaseSize: () -> Unit,
-    onBulletList: () -> Unit,
-    onOrderedList: () -> Unit,
-    onInsertPendingCitations: () -> Unit,
-    onInsertNote: () -> Unit,
-    onInsertReflection: () -> Unit,
-    onInsertTwoColumn: () -> Unit
-) {
-    val density = LocalDensity.current
-    var expandedTool by remember { mutableStateOf<String?>(null) }
-    var customRed by remember { mutableStateOf(31f) }
-    var customGreen by remember { mutableStateOf(41f) }
-    var customBlue by remember { mutableStateOf(55f) }
-    val customColor = Color(
-        red = customRed.toInt().coerceIn(0, 255),
-        green = customGreen.toInt().coerceIn(0, 255),
-        blue = customBlue.toInt().coerceIn(0, 255)
-    )
-    val textPalette = remember {
-        mutableStateListOf(
-            Color(0xFF1F2937), Color(0xFFFFFFFF), Color(0xFF111827),
-            Color(0xFF6B7280), Color(0xFF0F766E), Color(0xFF16A34A),
-            Color(0xFF2563EB), Color(0xFF0891B2), Color(0xFF7C3AED),
-            Color(0xFFDB2777), Color(0xFFB42318), Color(0xFFD97706)
-        )
-    }
-    val backgroundPalette = remember {
-        mutableStateListOf(
-            Color(0xFFFFFFFF), Color(0xFFFFF3B0), Color(0xFFFFE082),
-            Color(0xFFD7F9E9), Color(0xFFA7F3D0), Color(0xFFDDEBFF),
-            Color(0xFFBFDBFE), Color(0xFFF2E3FF), Color(0xFFE9D5FF),
-            Color(0xFFFFD9D6), Color(0xFFFECACA), Color(0xFFE5E7EB)
-        )
-    }
-
-    Box {
-        Surface(
-            tonalElevation = 3.dp,
-            shadowElevation = 8.dp,
-            color = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextEditorGlyphButton("H1", "Titulo", hasSelection, fontWeight = FontWeight.Bold, onClick = onHeadlineUp)
-                    TextEditorGlyphButton("P", "Texto normal", hasSelection, onClick = onHeadlineDown)
-                    TextEditorGlyphButton("B", "Negrita", hasSelection, fontWeight = FontWeight.Black, onClick = onBold)
-                    TextEditorGlyphButton("I", "Cursiva", hasSelection, fontStyle = FontStyle.Italic, onClick = onItalic)
-                    TextEditorGlyphButton("U", "Subrayado", hasSelection, textDecoration = TextDecoration.Underline, onClick = onUnderline)
-                    TextEditorGlyphButton("A+", "Aumentar texto", hasSelection, fontWeight = FontWeight.Bold, onClick = onIncreaseSize)
-                    TextEditorGlyphButton("A-", "Reducir texto", hasSelection, fontWeight = FontWeight.Bold, onClick = onDecreaseSize)
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    EditorToolChip(
-                        Icons.AutoMirrored.Filled.FormatListBulleted,
-                        if (isBulletMode) "Quitar vinetas" else "Vinetas",
-                        isBulletMode, hasSelection, onBulletList
-                    )
-                    EditorToolChip(
-                        Icons.Default.FormatListNumbered,
-                        if (isNumberedMode) "Quitar numeracion" else "Numerada",
-                        isNumberedMode, hasSelection, onOrderedList
-                    )
-                    EditorToolChip(
-                        Icons.Default.ViewColumn,
-                        if (isParallelTextMode) "Una columna" else "Columnas",
-                        isParallelTextMode, hasSelection, onInsertTwoColumn
-                    )
-                    EditorToolChip(Icons.Default.EditNote, "Nota", false, true, onInsertNote)
-                    EditorToolChip(Icons.Default.Lightbulb, "Reflexion", false, true, onInsertReflection)
-                    EditorToolChip(
-                        Icons.Default.FormatQuote,
-                        if (pendingCitations > 0) "Citar $pendingCitations" else "Citar",
-                        pendingCitations > 0, pendingCitations > 0, onInsertPendingCitations
-                    )
-                    EditorToolChip(
-                        Icons.Default.FormatColorText,
-                        "Color", expandedTool == "text", hasSelection,
-                        { expandedTool = if (expandedTool == "text") null else "text" }
-                    )
-                    EditorToolChip(
-                        Icons.Default.FormatColorFill,
-                        "Resaltar", expandedTool == "background", hasSelection,
-                        { expandedTool = if (expandedTool == "background") null else "background" }
-                    )
-                    EditorToolChip(
-                        Icons.Default.FormatClear,
-                        "Limpiar", false, hasSelection, onClearFormatting
-                    )
-                }
-            }
-        }
-        if (expandedTool != null && hasSelection) {
-            Popup(
-                alignment = Alignment.TopCenter,
-                offset = IntOffset(0, with(density) { (-200).dp.roundToPx() }),
-                onDismissRequest = { expandedTool = null },
-                properties = PopupProperties(focusable = false)
-            ) {
-                Surface(
-                    tonalElevation = 4.dp,
-                    color = MaterialTheme.colorScheme.surface,
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Column(modifier = Modifier.padding(8.dp)) {
-                        when (expandedTool) {
-                            "text" -> ColorTools(
-                                colors = textPalette,
-                                customColor = customColor,
-                                onRedChange = { customRed = it },
-                                onGreenChange = { customGreen = it },
-                                onBlueChange = { customBlue = it },
-                                onColorClick = onTextColor,
-                                onApplyCustom = { onTextColor(customColor) },
-                                onClear = onClearTextColor,
-                                clearLabel = "Auto"
-                            )
-                            "background" -> ColorTools(
-                                colors = backgroundPalette,
-                                customColor = customColor,
-                                onRedChange = { customRed = it },
-                                onGreenChange = { customGreen = it },
-                                onBlueChange = { customBlue = it },
-                                onColorClick = onBackgroundColor,
-                                onApplyCustom = { onBackgroundColor(customColor) },
-                                onClear = onClearBackground,
-                                clearLabel = "Sin fondo"
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-
-
-@Composable
-private fun TextEditorGlyphButton(
-    glyph: String,
-    description: String,
-    enabled: Boolean = true,
-    fontWeight: FontWeight = FontWeight.SemiBold,
-    fontStyle: FontStyle? = null,
-    textDecoration: TextDecoration? = null,
-    onClick: () -> Unit
-) {
-    IconButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.size(36.dp)
-    ) {
-        Text(
-            text = glyph,
-            modifier = Modifier.semantics { contentDescription = description },
-            fontSize = if (glyph.length > 1) 13.sp else 16.sp,
-            fontWeight = fontWeight,
-            fontStyle = fontStyle,
-            textDecoration = textDecoration,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 0.86f else 0.28f),
-            textAlign = TextAlign.Center
-        )
-    }
-}
-
-@Composable
-private fun CompactEditorButton(
-    icon: ImageVector,
-    description: String,
-    enabled: Boolean = true,
-    onClick: () -> Unit
-) {
-    IconButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.size(36.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = description,
-            modifier = Modifier.size(20.dp),
-            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 0.82f else 0.28f)
-        )
-    }
-}
-
-@Composable
-private fun TextToolChip(
-    label: String,
-    enabled: Boolean = true,
-    onClick: () -> Unit
-) {
-    AssistChip(
-        onClick = onClick,
-        enabled = enabled,
-        label = {
-            Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-        },
-        shape = RoundedCornerShape(14.dp),
-        border = null,
-        colors = AssistChipDefaults.assistChipColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
-            labelColor = MaterialTheme.colorScheme.onSurface,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f),
-            disabledLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.32f)
-        ),
-        modifier = Modifier.height(32.dp)
-    )
-}
-
-@Composable
-private fun EditorToolChip(
-    icon: ImageVector,
-    label: String,
-    selected: Boolean,
-    enabled: Boolean = true,
-    onClick: () -> Unit
-) {
-    AssistChip(
-        onClick = onClick,
-        enabled = enabled,
-        label = { Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-        leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp)) },
-        shape = RoundedCornerShape(14.dp),
-        border = null,
-        colors = AssistChipDefaults.assistChipColors(
-            containerColor = if (selected) BiblionGoldSoft.copy(alpha = 0.38f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
-            labelColor = MaterialTheme.colorScheme.onSurface,
-            leadingIconContentColor = if (selected) BiblionGoldPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f),
-            disabledLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.32f),
-            disabledLeadingIconContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.32f)
-        ),
-        modifier = Modifier.height(32.dp)
-    )
-}
-
-@Composable
-private fun ColorTools(
-    colors: List<Color>,
-    customColor: Color,
-    onRedChange: (Float) -> Unit,
-    onGreenChange: (Float) -> Unit,
-    onBlueChange: (Float) -> Unit,
-    onColorClick: (Color) -> Unit,
-    onApplyCustom: () -> Unit,
-    onClear: () -> Unit,
-    clearLabel: String
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        LazyRow(
-            modifier = Modifier.widthIn(max = 340.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            item {
-                AssistChip(
-                    onClick = onClear,
-                    label = { Text(clearLabel, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                    colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.surface)
-                )
-            }
-            items(colors) { color ->
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .background(color = color, shape = RoundedCornerShape(14.dp))
-                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
-                        .clickable { onColorClick(color) }
-                )
-            }
-        }
-
-        Row(
-            modifier = Modifier.widthIn(max = 340.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .background(customColor, RoundedCornerShape(17.dp))
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(17.dp))
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                ColorChannelSlider("R", customColor.red * 255f, onRedChange)
-                ColorChannelSlider("G", customColor.green * 255f, onGreenChange)
-                ColorChannelSlider("B", customColor.blue * 255f, onBlueChange)
-            }
-            Button(
-                onClick = onApplyCustom,
-                shape = RoundedCornerShape(14.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                modifier = Modifier.height(34.dp)
-            ) {
-                Text("Aplicar", fontSize = 11.sp)
             }
         }
     }

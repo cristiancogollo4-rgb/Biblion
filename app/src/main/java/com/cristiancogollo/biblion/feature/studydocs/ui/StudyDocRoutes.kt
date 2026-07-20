@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDatabase
 import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocRepository
+import com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocSplitViewModel
 import com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.StudyDocEditorScreen
 import com.cristiancogollo.biblion.feature.studydocs.ui.list.StudyDocsListScreen
@@ -41,10 +42,11 @@ fun StudyDocEditorRoute(
 ) {
     val context = LocalContext.current
     val repository = remember { StudyDocRepository(StudyDocDatabase.getInstance(context).studyDocDao()) }
-    val viewModel: StudyDocViewModel = viewModel(factory = StudyDocViewModel.Factory(repository))
+    val splitViewModel: StudyDocSplitViewModel = viewModel(factory = StudyDocSplitViewModel.Factory(repository))
     StudyDocEditorScreen(
-        viewModel = viewModel,
+        splitViewModel = splitViewModel,
         remoteId = remoteId,
+        isSplitMode = true,
         onBack = { navController.popBackStack() },
     )
 }

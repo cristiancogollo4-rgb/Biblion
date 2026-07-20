@@ -36,7 +36,9 @@ import com.cristiancogollo.biblion.feature.bibi.model.Confidence
 import com.cristiancogollo.biblion.GuidedTutorialTargets
 import com.cristiancogollo.biblion.guidedTutorialTarget
 import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Overlay de Bibi para el modo lector.
@@ -84,24 +86,26 @@ fun BibiReaderOverlay(
         scrollToBottom()
 
         scope.launch {
-            val result = processBibiQuery(
-                context = context,
-                question = q,
-                bookName = bookName,
-                chapter = chapter,
-                currentUserName = currentUserName,
-                chatHistory = chatHistory,
-                lastQueries = lastQueries,
-                onLocalHistorySave = { query, response, resolvedTerm, intent ->
-                    chatHistory = chatHistory + ChatExchange(
-                        question = query,
-                        response = response,
-                        resolvedTerm = resolvedTerm,
-                        intent = intent
-                    )
-                    lastQueries = (lastQueries + query).takeLast(5)
-                }
-            )
+            val result = withContext(Dispatchers.IO) {
+                processBibiQuery(
+                    context = context,
+                    question = q,
+                    bookName = bookName,
+                    chapter = chapter,
+                    currentUserName = currentUserName,
+                    chatHistory = chatHistory,
+                    lastQueries = lastQueries,
+                    onLocalHistorySave = { query, response, resolvedTerm, intent ->
+                        chatHistory = chatHistory + ChatExchange(
+                            question = query,
+                            response = response,
+                            resolvedTerm = resolvedTerm,
+                            intent = intent
+                        )
+                        lastQueries = (lastQueries + query).takeLast(5)
+                    }
+                )
+            }
 
             messages = messages + ChatMessageUi(
                 role = "assistant",
@@ -426,12 +430,49 @@ private suspend fun processBibiQuery(
         return text to localResponse.suggestions
     }
 
+    val detectedIntent = KnowledgeEngine.detectIntent(question, lastQueries)
+    val intentName = detectedIntent.name.lowercase()
+
+    val verseText = userContext.verseText.takeIf { it.isNotEmpty() }
+
+    val localContextParts = mutableListOf<String>()
+    if (localResponse != null) {
+        localContextParts.add("Contexto local disponible: ${localResponse.title} - ${localResponse.definition.take(200)}")
+    }
+    val localContext = localContextParts.joinToString("\n")
+
+    val richResponse = WorkerClient.askRich(
+        question = question,
+        bookName = bookName,
+        chapter = chapter,
+        selectedText = verseText ?: "",
+        intent = intentName,
+        chatHistory = chatHistory,
+        lastQueries = lastQueries,
+        localContext = localContext
+    )
+
+    if (richResponse != null) {
+        val answer = richResponse.answer
+        val workerSuggestions = mutableListOf<BibiSuggestion>()
+        for (ref in richResponse.references.take(3)) {
+            workerSuggestions.add(
+                BibiSuggestion("Explorar $ref", "explícame $ref")
+            )
+        }
+        onLocalHistorySave(question, answer, null, "AI")
+        return answer to workerSuggestions
+    }
+
     val onlineAnswer = WorkerClient.ask(
         question = question,
         bookName = bookName,
         chapter = chapter,
+        selectedText = verseText ?: "",
+        intent = intentName,
         chatHistory = chatHistory,
-        lastQueries = lastQueries
+        lastQueries = lastQueries,
+        localContext = localContext
     )
 
     if (!onlineAnswer.isNullOrBlank()) {

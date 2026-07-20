@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion.feature.studydocs.domain
 
+import android.util.Log
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -91,10 +92,12 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
     }
 
     fun loadByRemoteId(remoteId: String) {
+        Log.d("BIBLION_STUDY", "StudyDocViewModel.loadByRemoteId start remoteId=$remoteId")
         _autoSaveJob?.cancel()
         _uiState.update { it.copy(isLoading = true) }
         viewModelScope.launch {
             val doc = repository.getByRemoteId(remoteId)
+            Log.d("BIBLION_STUDY", "StudyDocViewModel.loadByRemoteId repo returned doc=${doc != null} blocks=${doc?.blocks?.size}")
             if (doc != null) {
                 _remoteId = doc.remoteId
                 blockRichStates.clear()
@@ -108,6 +111,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
                     }
                     blockRichStates[block.id] = rs
                 }
+                Log.d("BIBLION_STUDY", "StudyDocViewModel.loadByRemoteId blockRichStates populated size=${blockRichStates.size}")
                 val firstId = doc.blocks.firstOrNull()?.id
                 _uiState.value = StudyEditorUiState(
                     doc = doc,
@@ -116,6 +120,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
                 )
                 _isDocLoaded = true
             } else {
+                Log.d("BIBLION_STUDY", "StudyDocViewModel.loadByRemoteId doc NOT FOUND remoteId=$remoteId")
                 _uiState.update { it.copy(isLoading = false, lastError = "Documento no encontrado") }
             }
         }

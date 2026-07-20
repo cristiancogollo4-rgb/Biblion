@@ -10,7 +10,6 @@ private val utf8: String = StandardCharsets.UTF_8.toString()
 
 sealed class Screen(val route: String) {
     data object Home : Screen("home")
-    data object Ensenanzas : Screen("ensenanzas")
     data object Search : Screen("search?scope={scope}") {
         fun createRoute(scope: SearchScope = SearchScope.BIBLE): String = "search?scope=${scope.name.lowercase()}"
     }
@@ -44,17 +43,6 @@ sealed class Screen(val route: String) {
                 "reader/${encodeArg(bookName)}?studyMode=$studyMode&chapter=$chapterArg&verse=$verseArg&studyId=$studyIdArg"
             }
         }
-    }
-
-    data object Study : Screen("study?bookName={bookName}") {
-        fun createRoute(bookName: String? = null): String {
-            val encodedBook = encodeArg(bookName.orEmpty())
-            return "study?bookName=$encodedBook"
-        }
-    }
-
-    data object StudyRead : Screen("study-read/{studyId}") {
-        fun createRoute(studyId: Long): String = "study-read/$studyId"
     }
 
     data object ExploreTopics : Screen("explore_topics")

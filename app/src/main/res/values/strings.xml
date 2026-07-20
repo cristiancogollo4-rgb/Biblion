@@ -286,4 +286,8 @@
     <string name="dictionary_category_book">Biblical books</string>
     <string name="dictionary_category_book_desc">Introductions, context and key details for each book of the Bible</string>
     <string name="dictionary_category_entries">%1$d terms</string>
+
+    <!-- Study mode zoom controls -->
+    <string name="zoom_in">Increase zoom</string>
+    <string name="zoom_out">Decrease zoom</string>
 </resources>

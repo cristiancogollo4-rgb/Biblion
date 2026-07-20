@@ -51,18 +51,6 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
         }
     }
 
-    // Alias deprecado: redirige a la lista de documentos v2
-    composable(Screen.Ensenanzas.route) { backStackEntry ->
-        LaunchedEffect(Unit) {
-            navController.navigate(StudyDocScreen.StudyDocsList.route) {
-                popUpTo(backStackEntry.destination.route ?: Screen.Ensenanzas.route) {
-                    inclusive = true
-                }
-                launchSingleTop = true
-            }
-        }
-    }
-
     if (includeBooks) {
         composable(
             route = Screen.Books.route,
@@ -125,21 +113,6 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
             navController = navController,
             category = category
         )
-    }
-
-    // Alias deprecado: redirige a la lista de documentos v2
-    composable(
-        route = Screen.StudyRead.route,
-        arguments = listOf(navArgument("studyId") { type = NavType.LongType })
-    ) { backStackEntry ->
-        LaunchedEffect(Unit) {
-            navController.navigate(StudyDocScreen.StudyDocsList.route) {
-                popUpTo(backStackEntry.destination.route ?: Screen.StudyRead.route) {
-                    inclusive = true
-                }
-                launchSingleTop = true
-            }
-        }
     }
 
     // Rutas del modo estudio v2 (estudydocs)

@@ -5,6 +5,7 @@ import android.util.Log
 import com.cristiancogollo.biblion.feature.bibi.model.BibiResponse
 import com.cristiancogollo.biblion.feature.bibi.model.BibiSuggestion
 import com.cristiancogollo.biblion.feature.bibi.model.BibiUserContext
+import com.cristiancogollo.biblion.feature.bibi.model.BibiVerse
 import com.cristiancogollo.biblion.feature.bibi.model.ChatExchange
 import com.cristiancogollo.biblion.feature.bibi.model.MetadataFact
 import com.cristiancogollo.biblion.feature.dictionary.data.DictionaryCategory
@@ -153,6 +154,10 @@ object DictionaryEngine {
             details.add("Su nombre significa \"${entry.displayTitle}\".")
         }
 
+        val verses = entry.references.take(3).map { ref ->
+            BibiVerse(ref = ref, text = "")
+        }
+
         return BibiResponse(
             greeting = greet,
             title = entry.term,
@@ -160,6 +165,7 @@ object DictionaryEngine {
             definition = entry.definition,
             details = details,
             metadata = metadata,
+            verses = verses,
             followUp = "¿Quieres saber más sobre ${pronouns} o algún aspecto en particular?",
             suggestions = buildSuggestions(entry.term, chatHistory)
         )
@@ -184,12 +190,17 @@ object DictionaryEngine {
             metadata.add(MetadataFact("", "También conocido como", entry.aliases))
         }
 
+        val verses = entry.references.take(3).map { ref ->
+            BibiVerse(ref = ref, text = "")
+        }
+
         return BibiResponse(
             greeting = greet,
             title = "Lugar: ${entry.term}",
             subtitle = entry.displayTitle?.takeIf { it != entry.term },
             definition = entry.definition,
             metadata = metadata,
+            verses = verses,
             followUp = "¿Qué más te gustaría saber sobre este lugar?",
             suggestions = buildSuggestions(entry.term, chatHistory)
         )
@@ -202,10 +213,14 @@ object DictionaryEngine {
         chatHistory: List<ChatExchange> = emptyList()
     ): BibiResponse {
         val greet = userContext?.let { buildGreeting(it) }
+        val verses = entry.references.take(3).map { ref ->
+            BibiVerse(ref = ref, text = "")
+        }
         return BibiResponse(
             greeting = greet,
             title = entry.term,
             definition = entry.definition,
+            verses = verses,
             followUp = "¿Quieres profundizar en este concepto o ver cómo se aplica?",
             suggestions = buildSuggestions(entry.term, chatHistory)
         )
@@ -266,10 +281,14 @@ object DictionaryEngine {
         chatHistory: List<ChatExchange> = emptyList()
     ): BibiResponse {
         val greet = userContext?.let { buildGreeting(it) }
+        val verses = entry.references.take(3).map { ref ->
+            BibiVerse(ref = ref, text = "")
+        }
         return BibiResponse(
             greeting = greet,
             title = entry.term,
             definition = entry.definition,
+            verses = verses,
             followUp = "¿Quieres que busque algo más?",
             suggestions = buildSuggestions(entry.term, chatHistory)
         )

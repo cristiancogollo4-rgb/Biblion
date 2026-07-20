@@ -216,4 +216,209 @@ class KnowledgeEngineTest {
             KnowledgeEngine.detectIntent("explica más", history)
         )
     }
+
+    @Test
+    fun `temas de Genesis es TOPICS`() {
+        assertEquals(KnowledgeEngine.BibiIntent.TOPICS, KnowledgeEngine.detectIntent("temas de Genesis 1:1"))
+    }
+
+    @Test
+    fun `de que temas habla es TOPICS`() {
+        assertEquals(KnowledgeEngine.BibiIntent.TOPICS, KnowledgeEngine.detectIntent("de qué temas habla este versículo"))
+    }
+
+    @Test
+    fun `que temas habla es TOPICS`() {
+        assertEquals(KnowledgeEngine.BibiIntent.TOPICS, KnowledgeEngine.detectIntent("qué temas habla Juan 3:16"))
+    }
+
+    @Test
+    fun `temas del versiculo es TOPICS`() {
+        assertEquals(KnowledgeEngine.BibiIntent.TOPICS, KnowledgeEngine.detectIntent("temas del versículo"))
+    }
+
+    @Test
+    fun `TOPICS tiene prioridad menor que DIVE_DEEPER`() {
+        assertEquals(KnowledgeEngine.BibiIntent.DIVE_DEEPER, KnowledgeEngine.detectIntent("profundiza en temas"))
+    }
+
+    @Test
+    fun `TOPICS tiene prioridad menor que RELATED`() {
+        assertEquals(KnowledgeEngine.BibiIntent.RELATED, KnowledgeEngine.detectIntent("temas relacionados con Juan 3:16"))
+    }
+
+    @Test
+    fun `TOPICS tiene prioridad menor que GREETING`() {
+        assertEquals(KnowledgeEngine.BibiIntent.GREETING, KnowledgeEngine.detectIntent("hola, temas de Genesis"))
+    }
+
+    @Test
+    fun `TOPICS tiene prioridad menor que WHO`() {
+        assertEquals(KnowledgeEngine.BibiIntent.WHO, KnowledgeEngine.detectIntent("quien fue Abraham, temas de la Biblia"))
+    }
+
+    @Test
+    fun `TOPICS tiene prioridad menor que ORIGINAL_LANG`() {
+        assertEquals(KnowledgeEngine.BibiIntent.ORIGINAL_LANG, KnowledgeEngine.detectIntent("hebreo, temas de Génesis"))
+    }
+
+    @Test
+    fun `TOPICS sin acentos funciona`() {
+        assertEquals(KnowledgeEngine.BibiIntent.TOPICS, KnowledgeEngine.detectIntent("temas de genesis 1:1"))
+    }
+
+    @Test
+    fun `TOPICS con mayusculas funciona`() {
+        assertEquals(KnowledgeEngine.BibiIntent.TOPICS, KnowledgeEngine.detectIntent("TEMAS DE GENESIS 1:1"))
+    }
+
+    @Test
+    fun `TOPICS con tilde en que funciona`() {
+        assertEquals(KnowledgeEngine.BibiIntent.TOPICS, KnowledgeEngine.detectIntent("de qué temas habla"))
+    }
+
+    @Test
+    fun `tema singular de que tema habla es TOPICS`() {
+        assertEquals(KnowledgeEngine.BibiIntent.TOPICS, KnowledgeEngine.detectIntent("de que tema habla 1samuel 1:1?"))
+    }
+
+    @Test
+    fun `tema singular tema de genesis es TOPICS`() {
+        assertEquals(KnowledgeEngine.BibiIntent.TOPICS, KnowledgeEngine.detectIntent("tema de genesis 1:1"))
+    }
+
+    @Test
+    fun `de que trata es TOPICS`() {
+        assertEquals(KnowledgeEngine.BibiIntent.TOPICS, KnowledgeEngine.detectIntent("¿de qué trata este capítulo?"))
+    }
+
+    @Test
+    fun `que temas toca es TOPICS`() {
+        assertEquals(KnowledgeEngine.BibiIntent.TOPICS, KnowledgeEngine.detectIntent("¿qué temas toca Romanos 8?"))
+    }
+
+    @Test
+    fun `cuales son los temas es TOPICS`() {
+        assertEquals(KnowledgeEngine.BibiIntent.TOPICS, KnowledgeEngine.detectIntent("¿cuáles son los temas de Génesis 1?"))
+    }
+
+    @Test
+    fun `explícame genesis 1 1 es EXPLAIN_VERSE`() {
+        assertEquals(KnowledgeEngine.BibiIntent.EXPLAIN_VERSE, KnowledgeEngine.detectIntent("explícame genesis 1:1"))
+    }
+
+    @Test
+    fun `explica mateo 5 3 es EXPLAIN_VERSE`() {
+        assertEquals(KnowledgeEngine.BibiIntent.EXPLAIN_VERSE, KnowledgeEngine.detectIntent("explica mateo 5:3"))
+    }
+
+    @Test
+    fun `dime que es juan 3 16 es EXPLAIN_VERSE`() {
+        assertEquals(KnowledgeEngine.BibiIntent.EXPLAIN_VERSE, KnowledgeEngine.detectIntent("dime qué es juan 3:16"))
+    }
+
+    @Test
+    fun `explicame este capitulo es EXPLAIN_VERSE`() {
+        assertEquals(KnowledgeEngine.BibiIntent.EXPLAIN_VERSE, KnowledgeEngine.detectIntent("explícame este capítulo"))
+    }
+
+    @Test
+    fun `buenas tardes es GREETING`() {
+        assertEquals(KnowledgeEngine.BibiIntent.GREETING, KnowledgeEngine.detectIntent("buenas tardes"))
+    }
+
+    @Test
+    fun `buenas noches es GREETING`() {
+        assertEquals(KnowledgeEngine.BibiIntent.GREETING, KnowledgeEngine.detectIntent("buenas noches"))
+    }
+
+    @Test
+    fun `que tal es GREETING`() {
+        assertEquals(KnowledgeEngine.BibiIntent.GREETING, KnowledgeEngine.detectIntent("qué tal"))
+    }
+
+    @Test
+    fun `hello es GREETING`() {
+        assertEquals(KnowledgeEngine.BibiIntent.GREETING, KnowledgeEngine.detectIntent("hello"))
+    }
+
+    @Test
+    fun `cuéntame sobre es WHO`() {
+        assertEquals(KnowledgeEngine.BibiIntent.WHO, KnowledgeEngine.detectIntent("cuéntame sobre Pablo"))
+    }
+
+    @Test
+    fun `háblame sobre es WHO`() {
+        assertEquals(KnowledgeEngine.BibiIntent.WHO, KnowledgeEngine.detectIntent("háblame sobre Pedro"))
+    }
+
+    @Test
+    fun `historia de es WHO`() {
+        assertEquals(KnowledgeEngine.BibiIntent.WHO, KnowledgeEngine.detectIntent("historia de David"))
+    }
+
+    @Test
+    fun `dime quién fue es WHO`() {
+        assertEquals(KnowledgeEngine.BibiIntent.WHO, KnowledgeEngine.detectIntent("dime quién fue Moisés"))
+    }
+
+    @Test
+    fun `sabes quién es WHO`() {
+        assertEquals(KnowledgeEngine.BibiIntent.WHO, KnowledgeEngine.detectIntent("¿sabes quién fue Abraham?"))
+    }
+
+    @Test
+    fun `donde quedaba es WHERE`() {
+        assertEquals(KnowledgeEngine.BibiIntent.WHERE, KnowledgeEngine.detectIntent("¿dónde quedaba Babilonia?"))
+    }
+
+    @Test
+    fun `en qué lugar es WHERE`() {
+        assertEquals(KnowledgeEngine.BibiIntent.WHERE, KnowledgeEngine.detectIntent("¿en qué lugar quedaba Jerusalén?"))
+    }
+
+    @Test
+    fun `se encuentra en es WHERE`() {
+        assertEquals(KnowledgeEngine.BibiIntent.WHERE, KnowledgeEngine.detectIntent("¿se encuentra en Galilea?"))
+    }
+
+    @Test
+    fun `pasajes parecidos es RELATED`() {
+        assertEquals(KnowledgeEngine.BibiIntent.RELATED, KnowledgeEngine.detectIntent("pasajes parecidos a Juan 3:16"))
+    }
+
+    @Test
+    fun `paralelos es RELATED`() {
+        assertEquals(KnowledgeEngine.BibiIntent.RELATED, KnowledgeEngine.detectIntent("paralelos de Mateo 5:3"))
+    }
+
+    @Test
+    fun `comparar con es RELATED`() {
+        assertEquals(KnowledgeEngine.BibiIntent.RELATED, KnowledgeEngine.detectIntent("comparar con Romanos 8:28"))
+    }
+
+    @Test
+    fun `cuál es la definición es DEFINE`() {
+        assertEquals(KnowledgeEngine.BibiIntent.DEFINE, KnowledgeEngine.detectIntent("¿cuál es la definición de pacto?"))
+    }
+
+    @Test
+    fun `qué quiere decir es DEFINE`() {
+        assertEquals(KnowledgeEngine.BibiIntent.DEFINE, KnowledgeEngine.detectIntent("¿qué quiere decir gracia?"))
+    }
+
+    @Test
+    fun `qué representa es DEFINE`() {
+        assertEquals(KnowledgeEngine.BibiIntent.DEFINE, KnowledgeEngine.detectIntent("¿qué representa el bautismo?"))
+    }
+
+    @Test
+    fun `traducción literal es ORIGINAL_LANG`() {
+        assertEquals(KnowledgeEngine.BibiIntent.ORIGINAL_LANG, KnowledgeEngine.detectIntent("¿cómo es en traducción literal?"))
+    }
+
+    @Test
+    fun `raíz de la palabra es ORIGINAL_LANG`() {
+        assertEquals(KnowledgeEngine.BibiIntent.ORIGINAL_LANG, KnowledgeEngine.detectIntent("raíz de la palabra amor"))
+    }
 }

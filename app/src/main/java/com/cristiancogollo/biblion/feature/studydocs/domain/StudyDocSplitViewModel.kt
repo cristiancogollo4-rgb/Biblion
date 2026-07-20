@@ -97,6 +97,7 @@ class StudyDocSplitViewModel(
         val block = StudyBlock.Paragraph()
         val rs = RichTextState().apply { setHtml("<p></p>") }
         blockRichStates[block.id] = rs
+        Log.d("BIBLION_STUDY", "StudyDocSplitViewModel.newDraft blockId=${block.id} richState added, size=${blockRichStates.size}")
         _editorState.value = StudyEditorUiState(
             doc = StudyDoc(blocks = listOf(block)),
             activeBlockId = block.id,
@@ -106,9 +107,11 @@ class StudyDocSplitViewModel(
     }
 
     fun loadByRemoteId(remoteId: String) {
+        Log.d("BIBLION_STUDY", "StudyDocSplitViewModel.loadByRemoteId start remoteId=$remoteId")
         _editorState.value = _editorState.value.copy(isLoading = true)
         viewModelScope.launch {
             val doc = repository.getByRemoteId(remoteId)
+            Log.d("BIBLION_STUDY", "StudyDocSplitViewModel.loadByRemoteId repo returned doc=${doc != null} blocks=${doc?.blocks?.size}")
             if (doc != null) {
                 _remoteId = doc.remoteId
                 blockRichStates.clear()
@@ -122,6 +125,7 @@ class StudyDocSplitViewModel(
                     }
                     blockRichStates[block.id] = rs
                 }
+                Log.d("BIBLION_STUDY", "StudyDocSplitViewModel.loadByRemoteId blockRichStates size=${blockRichStates.size}")
                 val firstId = doc.blocks.firstOrNull()?.id
                 _editorState.value = StudyEditorUiState(
                     doc = doc,
@@ -307,7 +311,10 @@ class StudyDocSplitViewModel(
 
     fun saveNow(title: String, tags: List<String>) {
         viewModelScope.launch {
-            val current = _editorState.value.doc
+            val current = _editorState.value.doc.copy(
+                title = title.trim(),
+                metadata = com.cristiancogollo.biblion.feature.studydocs.model.DocMetadata(tags = tags),
+            )
             val blocksWithHtml = current.blocks.map { block ->
                 val rs = blockRichStates[block.id]
                 val styled = if (rs != null) {
@@ -321,7 +328,7 @@ class StudyDocSplitViewModel(
                     is StudyBlock.BulletList -> block
                     is StudyBlock.OrderedList -> block
                     is StudyBlock.Quote -> block.copy(text = styled)
-            is StudyBlock.Verse -> block
+                    is StudyBlock.Verse -> block
                 }
             }
             val doc = current.copy(
@@ -330,7 +337,11 @@ class StudyDocSplitViewModel(
                 updatedAt = System.currentTimeMillis()
             )
             repository.save(doc)
-            _editorState.value = _editorState.value.copy(lastSavedAt = System.currentTimeMillis())
+            _editorState.value = _editorState.value.copy(
+                doc = _editorState.value.doc.copy(title = doc.title, metadata = doc.metadata),
+                lastSavedAt = System.currentTimeMillis(),
+                hasUnsavedChanges = false,
+            )
         }
     }
 
@@ -551,30 +562,50 @@ class StudyDocSplitViewModel(
         val activeId = _editorState.value.activeBlockId ?: return
         val rs = blockRichStates[activeId] ?: return
         val sel = rs.selection
+        val textLength = rs.annotatedString.text.length
+        val isFullSelection = !sel.collapsed && sel.start == 0 && sel.end >= textLength
 
-        if (sel.collapsed) {
-            // Sin selección: cambiar fontSize del bloque (comportamiento B)
+        if (sel.collapsed || isFullSelection) {
+            // Reglas de negocio para cursor colapsado (o selección que cubre todo):
+            //   1) textLen == 0 (bloque vacío): cambiar block.fontSize.
+            //   2) textLen > 0 (cursor en texto): NO tocar block.fontSize.
+            //      Registrar Estilo de Escritura Pendiente (Pending Font Size)
+            //      en el RichTextState para que el próximo carácter se escriba
+            //      con SpanStyle(fontSize = newSize). El texto existente conserva
+            //      su tamaño actual.
             val idx = _editorState.value.doc.blocks.indexOfFirst { it.id == activeId }
             if (idx < 0) return
             val block = _editorState.value.doc.blocks[idx]
-            val currentSize = block.fontSize
-            val newSize = (currentSize + delta).coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
-            val updated = when (block) {
-                is StudyBlock.Paragraph -> block.copy(fontSize = newSize)
-                is StudyBlock.Heading -> block.copy(fontSize = newSize)
-                is StudyBlock.BulletList -> block.copy(fontSize = newSize)
-                is StudyBlock.OrderedList -> block.copy(fontSize = newSize)
-                is StudyBlock.Quote -> block.copy(fontSize = newSize)
-            is StudyBlock.Verse -> block
+            val baseSize = block.fontSize
+            val newSize = (baseSize + delta).coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
+
+            if (textLength == 0) {
+                // Regla 1: bloque vacío -> modificar tamaño base del bloque.
+                val updated = when (block) {
+                    is StudyBlock.Paragraph -> block.copy(fontSize = newSize)
+                    is StudyBlock.Heading -> block.copy(fontSize = newSize)
+                    is StudyBlock.BulletList -> block.copy(fontSize = newSize)
+                    is StudyBlock.OrderedList -> block.copy(fontSize = newSize)
+                    is StudyBlock.Quote -> block.copy(fontSize = newSize)
+                    is StudyBlock.Verse -> block
+                }
+                val newBlocks = _editorState.value.doc.blocks.toMutableList()
+                newBlocks[idx] = updated
+                _editorState.value = _editorState.value.copy(
+                    doc = _editorState.value.doc.copy(blocks = newBlocks, updatedAt = System.currentTimeMillis()),
+                    hasUnsavedChanges = true,
+                )
+            } else {
+                // Regla 2: cursor en texto -> no tocar el bloque, registrar tamaño
+                // pendiente en el RichTextState. El próximo carácter que se escriba
+                // quedará envuelto en SpanStyle(fontSize = newSize).
+                rs.addSpanStyle(
+                    androidx.compose.ui.text.SpanStyle(fontSize = newSize.sp),
+                    sel,
+                )
             }
-            val newBlocks = _editorState.value.doc.blocks.toMutableList()
-            newBlocks[idx] = updated
-            _editorState.value = _editorState.value.copy(
-                doc = _editorState.value.doc.copy(blocks = newBlocks, updatedAt = System.currentTimeMillis()),
-                hasUnsavedChanges = true,
-            )
         } else {
-            // Con selección: detectar tamaño base y normalizar TODA la selección
+            // Con selección parcial: detectar tamaño base y normalizar SOLO la selección
             val baseSize = detectBaseFontSize(rs, sel)
             val newSize = (baseSize + delta).coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
             rs.addSpanStyle(
