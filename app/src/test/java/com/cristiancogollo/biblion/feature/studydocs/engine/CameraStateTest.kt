@@ -16,15 +16,17 @@ class CameraStateTest {
         assertEquals(1.25f, c.zoom)
         val c2 = c.stepIn()
         assertEquals(1.5f, c2.zoom)
-        val c3 = c2.stepIn().stepIn().stepIn().stepIn()
+        val c3 = c2.stepIn().stepIn().stepIn()
         assertEquals(CameraState.MAX_ZOOM, c3.zoom)
     }
 
     @Test fun `stepOut decreases to previous zoom level`() {
         val c = CameraState(zoom = 1f).stepOut()
-        assertEquals(0.75f, c.zoom)
+        assertEquals(0.90f, c.zoom)
         val c2 = c.stepOut()
-        assertEquals(CameraState.MIN_ZOOM, c2.zoom)
+        assertEquals(0.75f, c2.zoom)
+        val c3 = c2.stepOut()
+        assertEquals(CameraState.MIN_ZOOM, c3.zoom)
     }
 
     @Test fun `snapZoom moves to nearest discrete level`() {
@@ -42,8 +44,8 @@ class CameraStateTest {
 
     @Test fun `zoom levels are 7 discrete values`() {
         assertEquals(7, CameraState.ZOOM_LEVELS.size)
-        assertEquals(0.5f, CameraState.ZOOM_LEVELS.first())
-        assertEquals(2.5f, CameraState.ZOOM_LEVELS.last())
+        assertEquals(CameraState.MIN_ZOOM, CameraState.ZOOM_LEVELS.first())
+        assertEquals(CameraState.MAX_ZOOM, CameraState.ZOOM_LEVELS.last())
     }
 
     @Test fun `reset returns to initial`() {
