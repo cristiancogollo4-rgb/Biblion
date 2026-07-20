@@ -22,12 +22,12 @@ object MarkdownImporter {
                     continue
                 }
 
-                line.startsWith("# ") && title.isEmpty() -> {
+                line.startsWith("#") && line.length > 1 && line[1] != '#' && title.isEmpty() -> {
                     title = line.removePrefix("# ").trim()
                     i++
                 }
 
-                line.startsWith("# ") -> {
+                Regex("^#{1,6}\\s").containsMatchIn(line) -> {
                     val level = line.takeWhile { it == '#' }.length.coerceIn(1, 6)
                     val text = line.dropWhile { it == '#' || it == ' ' }
                     blocks.add(StudyBlock.Heading(
