@@ -313,9 +313,60 @@ class StudyDocViewModel(
     }
 
     fun loadByRemoteId(remoteId: String) {
+        android.util.Log.d("StudyDocViewModel", "loadByRemoteId($remoteId) iniciado")
         _autoSaveJob?.cancel()
         _isDocLoaded = true
-        _uiState.update { it.copy(isLoading = false, wasJustCreated = false) }
+        _uiState.update { it.copy(isLoading = true, wasJustCreated = false) }
+        
+        viewModelScope.launch {
+            try {
+                val doc = repository.getByRemoteId(remoteId)
+                android.util.Log.d("StudyDocViewModel", "Documento cargado: ${doc != null}, blocks=${doc?.blocks?.size ?: 0}")
+                if (doc != null) {
+                    blockTextStates.clear()
+                    doc.blocks.forEach { block ->
+                        when (block) {
+                            is StudyBlock.Paragraph -> {
+                                blockTextStates[block.id] = TextFieldValue(
+                                    annotatedString = AnnotatedString(block.text.raw),
+                                    selection = TextRange(block.text.raw.length),
+                                )
+                            }
+                            is StudyBlock.Heading -> {
+                                blockTextStates[block.id] = TextFieldValue(
+                                    annotatedString = AnnotatedString(block.text.raw),
+                                    selection = TextRange(block.text.raw.length),
+                                )
+                            }
+                            else -> Unit
+                        }
+                    }
+                    val firstBlockId = doc.blocks.firstOrNull()?.id
+                    _uiState.update { 
+                        it.copy(
+                            doc = doc,
+                            selectedBlockId = firstBlockId?.value,
+                            isLoading = false,
+                            wasJustCreated = false,
+                        )
+                    }
+                } else {
+                    _uiState.update { 
+                        it.copy(
+                            isLoading = false,
+                            lastError = "Documento no encontrado",
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update { 
+                    it.copy(
+                        isLoading = false,
+                        lastError = "Error al cargar: ${e.message}",
+                    )
+                }
+            }
+        }
     }
 
     private fun scheduleAutoSave() {

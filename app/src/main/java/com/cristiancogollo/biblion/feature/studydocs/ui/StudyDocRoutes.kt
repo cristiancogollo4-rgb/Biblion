@@ -20,6 +20,7 @@ import com.cristiancogollo.biblion.feature.studydocs.ui.list.StudyDocsListScreen
 import com.cristiancogollo.biblion.feature.studydocs.ui.list.StudyDocsListViewModel
 import com.cristiancogollo.biblion.feature.studydocs.ui.read.StudyDocReadScreen
 import com.cristiancogollo.biblion.feature.studydocs.ui.templates.StudyTemplatePickerScreen
+import kotlinx.coroutines.launch
 
 @Composable
 fun StudyDocsListRoute(navController: NavController) {
@@ -47,14 +48,58 @@ fun StudyDocEditorRoute(
     val versionRepository = remember { DocVersionRepository(database.docVersionDao()) }
     val viewModel: StudyDocViewModel = viewModel(factory = StudyDocViewModel.Factory(repository, versionRepository))
     val listViewModel: StudyDocsListViewModel = viewModel(factory = StudyDocsListViewModel.Factory(repository))
+    
+    // Forzar orientación landscape al entrar al editor
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        context.findActivity()?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+    }
+    
+    // Restaurar orientación al salir del editor usando onBackPressedCallback
+    val activity = context.findActivity() as? androidx.activity.ComponentActivity
+    androidx.compose.runtime.DisposableEffect(activity) {
+        if (activity != null) {
+            val callback = object : androidx.activity.OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    context.findActivity()?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
+                    isEnabled = false
+                    activity.onBackPressedDispatcher.onBackPressed()
+                }
+            }
+            activity.onBackPressedDispatcher.addCallback(callback)
+            
+            onDispose {
+                callback.remove()
+                context.findActivity()?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
+            }
+        } else {
+            onDispose {
+                context.findActivity()?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
+            }
+        }
+    }
+    
     LaunchedEffect(remoteId) {
-        if (remoteId == null) viewModel.newDraft() else viewModel.loadByRemoteId(remoteId)
+        android.util.Log.d("StudyDocEditorRoute", "remoteId=$remoteId")
+        if (remoteId == null) {
+            viewModel.newDraft()
+            android.util.Log.d("StudyDocEditorRoute", "newDraft() llamado")
+        } else {
+            viewModel.loadByRemoteId(remoteId)
+            android.util.Log.d("StudyDocEditorRoute", "loadByRemoteId($remoteId) llamado")
+        }
     }
     StudyEditorLayout(
         editorContent = { isExpandable, isExpanded, onToggleExpand, isMultiColumnEnabled, onToggleMultiColumn ->
             StudyDocEditorScreen(
                 viewModel = viewModel,
-                onBack = { navController.popBackStack() },
+                onBack = {
+                    android.util.Log.d("StudyDocEditorRoute", "onBack() llamado, restaurando orientación")
+                    val activity = context.findActivity()
+                    android.util.Log.d("StudyDocEditorRoute", "Activity encontrada: ${activity != null}")
+                    activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
+                    android.util.Log.d("StudyDocEditorRoute", "Orientación restaurada a portrait")
+                    navController.popBackStack()
+                },
                 onNavigateToVersionHistory = {
                     navController.navigate(Screen.VersionHistory.createRoute(viewModel.uiState.value.doc.id.value))
                 },
@@ -103,12 +148,19 @@ fun StudyTemplatePickerRoute(
     val context = LocalContext.current
     val repository = remember { StudyDocRepository(StudyDocDatabase.getInstance(context).studyDocDao()) }
     val viewModel: StudyDocViewModel = viewModel(factory = StudyDocViewModel.Factory(repository))
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     
     StudyTemplatePickerScreen(
         onTemplateSelected = { template ->
-            viewModel.newFromTemplate(template)
-            navController.navigate(Screen.StudyDocEditor.newRoute()) {
-                popUpTo(Screen.StudyTemplatePicker.route) { inclusive = true }
+            scope.launch {
+                viewModel.newFromTemplate(template)
+                val doc = viewModel.uiState.value.doc
+                android.util.Log.d("StudyTemplatePicker", "Documento creado: id=${doc.id.value}, title=${doc.title}, blocks=${doc.blocks.size}")
+                repository.save(doc)
+                android.util.Log.d("StudyTemplatePicker", "Documento guardado en repositorio")
+                navController.navigate(Screen.StudyDocEditor.createRoute(doc.id.value)) {
+                    popUpTo(Screen.StudyTemplatePicker.route) { inclusive = true }
+                }
             }
         },
         onBack = { navController.popBackStack() },
@@ -179,4 +231,13 @@ object Screen {
         const val ARG_DOC_REMOTE_ID: String = "docRemoteId"
         const val ARG_VERSION_ID: String = "versionId"
     }
+}
+
+private fun android.content.Context.findActivity(): android.app.Activity? {
+    var context = this
+    while (context is android.content.ContextWrapper) {
+        if (context is android.app.Activity) return context
+        context = context.baseContext
+    }
+    return null
 }

@@ -1,6 +1,7 @@
 package com.cristiancogollo.biblion.feature.studydocs.ui.editor
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,6 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -48,8 +50,9 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.platform.LocalContext
+import android.content.pm.ActivityInfo
+import com.cristiancogollo.biblion.findActivity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cristiancogollo.biblion.feature.studydocs.domain.InsertBlockCommand
@@ -126,6 +129,18 @@ fun StudyDocEditorScreen(
     val context = LocalContext.current
 
     val scrollState = androidx.compose.foundation.rememberScrollState()
+
+    // Forzar orientación landscape cuando se abre el editor
+    LaunchedEffect(Unit) {
+        context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+    }
+
+    // Restaurar orientación al salir del editor
+    DisposableEffect(Unit) {
+        onDispose {
+            context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
+        }
+    }
 
     // Auto-foco en el primer bloque cuando se acaba de crear el doc.
     LaunchedEffect(uiState.wasJustCreated) {
@@ -1032,6 +1047,15 @@ private fun BlockWithHandle(
             }
         }
     }
+}
+
+private fun android.content.Context.findActivity(): android.app.Activity? {
+    var context = this
+    while (context is android.content.ContextWrapper) {
+        if (context is android.app.Activity) return context
+        context = context.baseContext
+    }
+    return null
 }
 
 
