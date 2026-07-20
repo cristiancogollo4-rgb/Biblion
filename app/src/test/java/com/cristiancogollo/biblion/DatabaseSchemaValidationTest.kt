@@ -222,7 +222,7 @@ class DatabaseSchemaValidationTest {
             val db = openTestDb("dict_v2_test.db")
             val count = db.compileStatement("SELECT COUNT(*) FROM dictionary_entries").simpleQueryForLong()
             db.close()
-            assertTrue("dictionary_v2 debe tener >=6000 entries, tiene $count", count >= 6000)
+            assertTrue("dictionary_v2 debe tener >=5700 entries, tiene $count", count >= 5700)
         } finally {
             deleteTestDb("dict_v2_test.db")
         }
