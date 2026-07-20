@@ -495,18 +495,18 @@ fun StudyDocEditorScreen(
                     
                     Box(
                         modifier = Modifier
-                            .fillMaxSize()
                             .background(MaterialTheme.colorScheme.surfaceVariant)
                             .verticalScroll(scrollState),
                         contentAlignment = Alignment.TopCenter,
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = DocConfig.EditorHorizontalPadding)
-                                .padding(vertical = DocConfig.EditorContentVerticalPadding),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = DocConfig.EditorHorizontalPadding)
+                            .padding(vertical = DocConfig.EditorContentVerticalPadding),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
                             Box(
                                 modifier = Modifier.widthIn(max = DocConfig.EditorMaxWidth).fillMaxWidth(),
                             ) {

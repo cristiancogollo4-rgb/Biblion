@@ -10,7 +10,7 @@ sealed class StudyTemplate(
     val id: String,
     val name: String,
     val description: String,
-    val icon: String,
+    val iconName: String,
 ) {
     abstract fun generateInitialBlocks(): List<StudyBlock>
     abstract fun generateMetadata(): DocMetadata
@@ -19,7 +19,7 @@ sealed class StudyTemplate(
         id = "expository_sermon",
         name = "Predicación Expositiva",
         description = "Estructura para predicación versículo por versículo",
-        icon = "📖",
+        iconName = "menu_book",
     ) {
         override fun generateInitialBlocks(): List<StudyBlock> = listOf(
             StudyBlock.Heading(
@@ -94,7 +94,7 @@ sealed class StudyTemplate(
         id = "devotional",
         name = "Devocional",
         description = "Reflexión personal y aplicación práctica",
-        icon = "🙏",
+        iconName = "favorite",
     ) {
         override fun generateInitialBlocks(): List<StudyBlock> = listOf(
             StudyBlock.Heading(
@@ -145,7 +145,7 @@ sealed class StudyTemplate(
         id = "bible_study",
         name = "Estudio Bíblico",
         description = "Análisis detallado de un tema o pasaje",
-        icon = "📚",
+        iconName = "library_books",
     ) {
         override fun generateInitialBlocks(): List<StudyBlock> = listOf(
             StudyBlock.Heading(
@@ -210,7 +210,7 @@ sealed class StudyTemplate(
         id = "bible_class",
         name = "Clase Bíblica",
         description = "Material para enseñanza en grupo",
-        icon = "🎓",
+        iconName = "school",
     ) {
         override fun generateInitialBlocks(): List<StudyBlock> = listOf(
             StudyBlock.Heading(
@@ -294,7 +294,7 @@ sealed class StudyTemplate(
         id = "blank",
         name = "Documento en Blanco",
         description = "Comenzar desde cero",
-        icon = "📄",
+        iconName = "description",
     ) {
         override fun generateInitialBlocks(): List<StudyBlock> = listOf(
             StudyBlock.Paragraph(text = StyledText.Empty),

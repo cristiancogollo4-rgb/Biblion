@@ -19,6 +19,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.LibraryBooks
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,9 +37,12 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.cristiancogollo.biblion.feature.studydocs.domain.StudyTemplate
+import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,8 +62,7 @@ fun StudyTemplatePickerScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    containerColor = MaterialTheme.colorScheme.surface,
                 ),
             )
         },
@@ -102,14 +109,16 @@ private fun TemplateCard(
                 modifier = Modifier
                     .size(56.dp)
                     .background(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(8.dp),
+                        color = BiblionBluePrimary.copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(12.dp),
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = template.icon,
-                    style = MaterialTheme.typography.headlineMedium,
+                Icon(
+                    imageVector = iconForTemplate(template),
+                    contentDescription = template.name,
+                    tint = BiblionBluePrimary,
+                    modifier = Modifier.size(28.dp),
                 )
             }
 
@@ -133,4 +142,13 @@ private fun TemplateCard(
             }
         }
     }
+}
+
+private fun iconForTemplate(template: StudyTemplate): ImageVector = when (template) {
+    is StudyTemplate.ExpositorySermon -> Icons.AutoMirrored.Filled.MenuBook
+    is StudyTemplate.Devotional -> Icons.Filled.Favorite
+    is StudyTemplate.BibleStudy -> Icons.Filled.LibraryBooks
+    is StudyTemplate.BibleClass -> Icons.Filled.School
+    is StudyTemplate.Blank -> Icons.Filled.Description
+    else -> Icons.Filled.Description
 }
