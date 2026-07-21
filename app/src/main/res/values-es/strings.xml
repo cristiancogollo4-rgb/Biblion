@@ -259,4 +259,7 @@
     <!-- Controles de zoom del modo estudio -->
     <string name="zoom_in">Aumentar zoom</string>
     <string name="zoom_out">Reducir zoom</string>
+    <string name="zoom_reset">Restablecer zoom</string>
+    <string name="zoom_label">Nivel de zoom</string>
+    <string name="zoom_current">Zoom actual: %1$d%%</string>
 </resources>

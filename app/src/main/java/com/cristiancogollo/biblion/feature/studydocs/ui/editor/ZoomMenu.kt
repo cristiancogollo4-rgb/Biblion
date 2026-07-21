@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -20,7 +21,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.cristiancogollo.biblion.R
 
@@ -28,10 +32,13 @@ import com.cristiancogollo.biblion.R
  * Control de zoom compacto para la barra de herramientas del modo estudio.
  *
  * - Muestra el porcentaje actual como boton tappable que abre un menu con los
- *   presets de [DocumentZoomState.PRESETS] (75/100/125/150/200%).
+ *   presets de [DocumentZoomState.PRESETS] (75/100/125/150/200%) y un item
+ *   "Restablecer" que devuelve el zoom a 1.0.
  * - Si [showStepButtons] es true, añade botones A-/A+ para zoom in/out en pasos
  *   de +/-20%/+25%. Se usa en standalone/lectura donde la toolbar admite mas
  *   controles; en modo split se omite para no saturar la barra.
+ * - El boton del % tiene `contentDescription` dinamico para TalkBack
+ *   ("Zoom actual: N%").
  */
 @Composable
 fun ZoomMenu(
@@ -41,6 +48,8 @@ fun ZoomMenu(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val currentPercent = (zoomState.zoom * 100).toInt().coerceIn(0, 999)
+    val context = LocalContext.current
+    val zoomCurrentCd = stringResource(R.string.zoom_current, currentPercent)
 
     Row(
         modifier = modifier,
@@ -56,7 +65,10 @@ fun ZoomMenu(
             }
         }
         Box {
-            TextButton(onClick = { expanded = true }) {
+            TextButton(
+                onClick = { expanded = true },
+                modifier = Modifier.semantics { contentDescription = zoomCurrentCd },
+            ) {
                 Text(
                     text = "$currentPercent%",
                     style = MaterialTheme.typography.labelLarge,
@@ -75,6 +87,14 @@ fun ZoomMenu(
                         },
                     )
                 }
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.zoom_reset)) },
+                    leadingIcon = { Icon(Icons.Filled.Refresh, contentDescription = null) },
+                    onClick = {
+                        zoomState.reset()
+                        expanded = false
+                    },
+                )
             }
         }
         if (showStepButtons) {

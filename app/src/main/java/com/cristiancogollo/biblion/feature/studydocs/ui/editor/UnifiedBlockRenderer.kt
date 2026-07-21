@@ -286,6 +286,30 @@ private fun renderFragmentReadOnly(
                 modifier = modifier.fillMaxWidth(),
             )
         }
+        is PageFragment.QuoteSlice -> {
+            val sliced = fragment.block.text.slice(
+                fragment.charStart until fragment.charEndExclusive
+            )
+            Column(modifier = modifier.fillMaxWidth()) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                Text(
+                    text = sliced.toAnnotatedString(),
+                    style = textStyle.copy(fontStyle = FontStyle.Italic),
+                    modifier = Modifier.padding(start = 16.dp),
+                )
+                if (fragment.charEndExclusive >= fragment.block.text.length &&
+                    !fragment.block.attribution.isNullOrBlank()
+                ) {
+                    Text(
+                        text = "\u2014 ${fragment.block.attribution}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 16.dp),
+                    )
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            }
+        }
     }
 }
 
@@ -296,6 +320,7 @@ private fun PageFragment.originBlock(allBlocks: List<StudyBlock>): StudyBlock? =
         is PageFragment.ListItemSlice -> block
         is PageFragment.OrderedListItemSlice -> block
         is PageFragment.VerseSlice -> block
+        is PageFragment.QuoteSlice -> block
         is PageFragment.Whole -> block
     }
 

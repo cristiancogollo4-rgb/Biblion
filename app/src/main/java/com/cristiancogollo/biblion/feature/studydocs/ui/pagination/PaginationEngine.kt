@@ -1,10 +1,16 @@
 package com.cristiancogollo.biblion.feature.studydocs.ui.pagination
 
-import android.util.Log
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.sp
+import com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment
+import com.cristiancogollo.biblion.feature.studydocs.model.DocConfig
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
 
 /**
@@ -12,26 +18,19 @@ import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
  * superficie de hoja (ancho y alto util en pixeles), produce una lista de [Page].
  *
  * El algoritmo recorre los bloques en orden y mide cada uno con [TextMeasurer].
- * Para bloques divisibles (parrafo, heading, item de lista) parte por linea.
- * Para bloques indivisibles (Quote, Table, Verse, Divider, PageBreak, etc.) los
- * mantiene enteros: si no caben en la pagina actual, saltan a la siguiente.
+ * Para bloques divisibles (parrafo, heading, item, quote, versiculo) parte por linea.
+ * Para bloques indivisibles (Divider, PageBreak, Callout, Note, Reflection, Table)
+ * los mantiene enteros: si no caben en la pagina actual, saltan a la siguiente.
  *
- * El motor mide en una densidad fija (la del "papel" fisico, no la del dispositivo),
- * por lo que el zoom visual posterior (via LocalDensity) no recalcula paginas.
- *
- * Texto medido: usa [TextMeasurer.measure] con el ancho util de la pagina para
- * obtener un [TextLayoutResult] del que extrae las lineas con
- * [TextLayoutResult.getLineForOffset], [TextLayoutResult.getLineTop],
- * [TextLayoutResult.getLineBottom].
+ * El motor respeta los invariantes:
+ *  I1: union de charStart..charEndExclusive de los *Slice de un bloque == 0..text.length.
+ *  I2: cada *Slice vive en exactamente una pagina.
+ *  I3: ninguna linea se parte por la mitad entre paginas.
+ *  I4: si un bloque cabe entero en el espacio restante, emite UN solo slice.
+ *  I5: si ninguna linea cabe en pagina vacia, se fuerza (progreso garantizado).
  */
 object PaginationEngine {
 
-    private val defaultTextStyle: TextStyle = TextStyle.Default
-
-    /**
-     * Pagina la lista de bloques. El resultado es siempre >= 1 pagina, incluso
-     * si la lista de bloques esta vacia (se devuelve una pagina vacia).
-     */
     fun paginate(
         blocks: List<StudyBlock>,
         pageWidthPx: Float,
@@ -44,27 +43,23 @@ object PaginationEngine {
         }
 
         val pages = mutableListOf<MutableList<PageFragment>>()
-        var currentPage = mutableListOf<PageFragment>()
+        var currentFragments = mutableListOf<PageFragment>()
         var cursorY = 0f
 
         fun openPage() {
-            if (currentPage.isNotEmpty()) {
-                pages.add(currentPage)
+            if (currentFragments.isNotEmpty()) {
+                pages.add(currentFragments)
             }
-            currentPage = mutableListOf()
+            currentFragments = mutableListOf()
             cursorY = 0f
         }
 
-        fun remainingHeight() = pageHeightPx - cursorY
-
         for (block in blocks) {
-            val textPreview = block.toStyledTextList().firstOrNull()?.raw?.take(40) ?: "<empty>"
-            Log.d("BIBLION_STUDY", "PaginationEngine block type=${block::class.simpleName} textPreview=[$textPreview] id=${block.id}")
+            val style = textStyleFor(block, density)
             when (block) {
                 is StudyBlock.Paragraph -> {
-                    cursorY = paginatePartible(
+                    cursorY = placePartible(
                         text = block.text.raw,
-                        blockId = block.id,
                         sliceFactory = { start, end ->
                             PageFragment.ParagraphSlice(
                                 originBlockId = block.id,
@@ -74,17 +69,18 @@ object PaginationEngine {
                             )
                         },
                         pageWidthPx = pageWidthPx,
-                        remainingHeight = remainingHeight(),
+                        pageHeightPx = pageHeightPx,
+                        cursorYStart = cursorY,
                         density = density,
                         textMeasurer = textMeasurer,
-                        onSliceEmitted = { fragment -> currentPage.add(fragment) },
+                        style = style,
+                        onSliceEmitted = { f -> currentFragments.add(f) },
                         onPageFilled = { openPage() },
                     )
                 }
                 is StudyBlock.Heading -> {
-                    cursorY = paginatePartible(
+                    cursorY = placePartible(
                         text = block.text.raw,
-                        blockId = block.id,
                         sliceFactory = { start, end ->
                             PageFragment.HeadingSlice(
                                 originBlockId = block.id,
@@ -94,19 +90,20 @@ object PaginationEngine {
                             )
                         },
                         pageWidthPx = pageWidthPx,
-                        remainingHeight = remainingHeight(),
+                        pageHeightPx = pageHeightPx,
+                        cursorYStart = cursorY,
                         density = density,
                         textMeasurer = textMeasurer,
-                        onSliceEmitted = { fragment -> currentPage.add(fragment) },
+                        style = style,
+                        onSliceEmitted = { f -> currentFragments.add(f) },
                         onPageFilled = { openPage() },
                     )
                 }
                 is StudyBlock.BulletList -> {
                     block.items.forEachIndexed { index, item ->
                         if (item.raw.isEmpty()) return@forEachIndexed
-                        cursorY = paginatePartible(
+                        cursorY = placePartible(
                             text = item.raw,
-                            blockId = block.id,
                             sliceFactory = { start, end ->
                                 PageFragment.ListItemSlice(
                                     originBlockId = block.id,
@@ -117,10 +114,12 @@ object PaginationEngine {
                                 )
                             },
                             pageWidthPx = pageWidthPx,
-                            remainingHeight = remainingHeight(),
+                            pageHeightPx = pageHeightPx,
+                            cursorYStart = cursorY,
                             density = density,
                             textMeasurer = textMeasurer,
-                            onSliceEmitted = { fragment -> currentPage.add(fragment) },
+                            style = style,
+                            onSliceEmitted = { f -> currentFragments.add(f) },
                             onPageFilled = { openPage() },
                         )
                     }
@@ -128,9 +127,8 @@ object PaginationEngine {
                 is StudyBlock.OrderedList -> {
                     block.items.forEachIndexed { index, item ->
                         if (item.raw.isEmpty()) return@forEachIndexed
-                        cursorY = paginatePartible(
+                        cursorY = placePartible(
                             text = item.raw,
-                            blockId = block.id,
                             sliceFactory = { start, end ->
                                 PageFragment.OrderedListItemSlice(
                                     originBlockId = block.id,
@@ -141,19 +139,20 @@ object PaginationEngine {
                                 )
                             },
                             pageWidthPx = pageWidthPx,
-                            remainingHeight = remainingHeight(),
+                            pageHeightPx = pageHeightPx,
+                            cursorYStart = cursorY,
                             density = density,
                             textMeasurer = textMeasurer,
-                            onSliceEmitted = { fragment -> currentPage.add(fragment) },
+                            style = style,
+                            onSliceEmitted = { f -> currentFragments.add(f) },
                             onPageFilled = { openPage() },
                         )
                     }
                 }
                 is StudyBlock.Verse -> {
                     val verseText = block.contents[block.sourceVersion] ?: ""
-                    cursorY = paginatePartible(
+                    cursorY = placePartible(
                         text = verseText,
-                        blockId = block.id,
                         sliceFactory = { start, end ->
                             PageFragment.VerseSlice(
                                 originBlockId = block.id,
@@ -163,97 +162,137 @@ object PaginationEngine {
                             )
                         },
                         pageWidthPx = pageWidthPx,
-                        remainingHeight = remainingHeight(),
+                        pageHeightPx = pageHeightPx,
+                        cursorYStart = cursorY,
                         density = density,
                         textMeasurer = textMeasurer,
-                        onSliceEmitted = { fragment -> currentPage.add(fragment) },
+                        style = style,
+                        onSliceEmitted = { f -> currentFragments.add(f) },
                         onPageFilled = { openPage() },
                     )
                 }
                 is StudyBlock.Quote -> {
-                    if (cursorY >= pageHeightPx && currentPage.isNotEmpty()) {
-                        openPage()
-                    }
-                    currentPage.add(PageFragment.Whole(originBlockId = block.id, block = block))
-                    cursorY = pageHeightPx
-                    openPage()
+                    cursorY = placePartible(
+                        text = block.text.raw,
+                        sliceFactory = { start, end ->
+                            PageFragment.QuoteSlice(
+                                originBlockId = block.id,
+                                block = block,
+                                charStart = start,
+                                charEndExclusive = end,
+                            )
+                        },
+                        pageWidthPx = pageWidthPx,
+                        pageHeightPx = pageHeightPx,
+                        cursorYStart = cursorY,
+                        density = density,
+                        textMeasurer = textMeasurer,
+                        style = style,
+                        onSliceEmitted = { f -> currentFragments.add(f) },
+                        onPageFilled = { openPage() },
+                    )
                 }
             }
         }
 
-        if (currentPage.isNotEmpty()) {
-            pages.add(currentPage)
+        if (currentFragments.isNotEmpty()) {
+            pages.add(currentFragments)
         }
-        if (pages.isEmpty()) pages.add(mutableListOf<PageFragment>().also { it -> })
-        Log.d("BIBLION_STUDY", "paginate END pages=${pages.size} fragments=${pages.sumOf { it.size }}")
+        if (pages.isEmpty()) {
+            pages.add(mutableListOf())
+        }
         return pages.mapIndexed { idx, frags -> Page(idx, frags) }
     }
 
     /**
-     * Pagina un texto divisible (parrafo, heading, item) midiendo cada linea con [TextMeasurer]
-     * y partiendo en los saltos de pagina segun [remainingHeight]. Retorna el [cursorY]
-     * actualizado al final del texto procesado.
+     * Coloca un texto divisible en las paginas, emitiendo slices contiguos por pagina.
+     * Mantiene los invariantes I1-I5.
      */
-    private fun paginatePartible(
+    private fun placePartible(
         text: String,
-        blockId: com.cristiancogollo.biblion.feature.studydocs.model.BlockId,
         sliceFactory: (start: Int, endExclusive: Int) -> PageFragment,
         pageWidthPx: Float,
-        remainingHeight: Float,
+        pageHeightPx: Float,
+        cursorYStart: Float,
         density: Density,
         textMeasurer: TextMeasurer,
+        style: TextStyle,
         onSliceEmitted: (PageFragment) -> Unit,
         onPageFilled: () -> Unit,
     ): Float {
-        Log.d("BIBLION_STUDY", "paginatePartible start text.length=${text.length} isEmpty=${text.isEmpty()}")
         if (text.isEmpty()) {
-            Log.d("BIBLION_STUDY", "paginatePartible EMPTY -> emitting slice(0,0)")
             onSliceEmitted(sliceFactory(0, 0))
-            return 0f
+            return cursorYStart
         }
+        val layout = textMeasurer.measure(
+            text = text,
+            style = style,
+            constraints = Constraints(maxWidth = pageWidthPx.toInt()),
+            density = density,
+        )
+        val total = text.length
+        var cursorY = cursorYStart
+        var blockOffset = 0
+        var pageSliceStart = 0
+        var guard = 0
+        while (blockOffset < total) {
+            val lineIndex = layout.getLineForOffset(blockOffset)
+            val lineEnd = layout.getLineEnd(lineIndex, true).coerceAtMost(total)
+            if (lineEnd <= blockOffset) break
+            val lineHeight = (layout.getLineBottom(lineIndex) - layout.getLineTop(lineIndex))
+                .coerceAtLeast(1f)
 
-        val result = with(density) {
-            textMeasurer.measure(
-                text = text,
-                style = defaultTextStyle,
-                constraints = Constraints(maxWidth = pageWidthPx.toInt()),
-            )
-        }
-
-        val totalLength = result.layoutInput.text.length
-        if (totalLength == 0) return 0f
-
-        var currentStart = 0
-        var sliceStart = 0
-        var cursorY = 0f
-        val pageHeight = remainingHeight
-
-        while (currentStart < totalLength) {
-            val endLine = result.getLineForOffset(currentStart)
-            val lineEndOffset = result.getLineEnd(endLine, false)
-            if (lineEndOffset <= currentStart) break
-            val lineTop = result.getLineTop(endLine)
-            val lineBottom = result.getLineBottom(endLine)
-            val lineHeightPx = (lineBottom - lineTop).coerceAtLeast(1f)
-
-            if (cursorY + lineHeightPx > pageHeight) {
-                if (currentStart > sliceStart) {
-                    onSliceEmitted(sliceFactory(sliceStart, currentStart))
+            if (cursorY + lineHeight > pageHeightPx && cursorY > 0f) {
+                if (blockOffset > pageSliceStart) {
+                    onSliceEmitted(sliceFactory(pageSliceStart, blockOffset))
                 }
                 onPageFilled()
                 cursorY = 0f
-                sliceStart = currentStart
+                pageSliceStart = blockOffset
                 continue
             }
-
-            cursorY += lineHeightPx
-            currentStart = lineEndOffset
+            cursorY += lineHeight
+            blockOffset = lineEnd
+            if (++guard > 100_000) break
         }
-
-        if (sliceStart < totalLength) {
-            onSliceEmitted(sliceFactory(sliceStart, totalLength))
+        if (total > pageSliceStart) {
+            onSliceEmitted(sliceFactory(pageSliceStart, total))
         }
-
         return cursorY
     }
+
+    private fun textStyleFor(block: StudyBlock, density: Density): TextStyle {
+        val fontSizeSp = when (block) {
+            is StudyBlock.Heading -> when (block.level) {
+                1 -> DocConfig.HEADING1_SIZE
+                2 -> DocConfig.HEADING2_SIZE
+                3 -> DocConfig.HEADING3_SIZE
+                else -> block.fontSize
+            }
+            else -> block.fontSize
+        }.coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
+        val fontFamily = if (block is StudyBlock.Verse || block.fontFamily == "serif") {
+            FontFamily.Serif
+        } else {
+            FontFamily.Default
+        }
+        val fontWeight = if (block is StudyBlock.Heading) FontWeight.Bold else FontWeight.Normal
+        val fontStyle = if (block is StudyBlock.Quote) FontStyle.Italic else FontStyle.Normal
+        val lineHeightSp = fontSizeSp * DocConfig.LINE_HEIGHT
+        return TextStyle(
+            fontSize = with(density) { fontSizeSp.sp },
+            fontFamily = fontFamily,
+            fontWeight = fontWeight,
+            fontStyle = fontStyle,
+            textAlign = block.alignment.toTextAlign(),
+            lineHeight = with(density) { lineHeightSp.sp },
+        )
+    }
+}
+
+private fun BlockAlignment.toTextAlign(): TextAlign = when (this) {
+    BlockAlignment.Start -> TextAlign.Start
+    BlockAlignment.Center -> TextAlign.Center
+    BlockAlignment.End -> TextAlign.End
+    BlockAlignment.Justify -> TextAlign.Justify
 }

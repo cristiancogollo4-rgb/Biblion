@@ -30,12 +30,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.cristiancogollo.biblion.addSharedPrimaryDestinations
+import com.cristiancogollo.biblion.AuthDialog
+import com.cristiancogollo.biblion.AuthDialogMode
+import com.cristiancogollo.biblion.AuthViewModel
 import com.cristiancogollo.biblion.feature.studydocs.domain.TextStyleKind
 import com.cristiancogollo.biblion.feature.studydocs.model.BlockId
 import com.cristiancogollo.biblion.feature.studydocs.model.DocConfig
 import com.cristiancogollo.biblion.feature.studydocs.model.DocTagGroups
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PaginatedSheet
+import com.cristiancogollo.biblion.addSharedPrimaryDestinations
 
 private val textColorPalette = listOf(
     Color(0xFF0F172A), Color(0xFF9E9E9E), Color(0xFFE53935), Color(0xFFFB8C00),
@@ -58,16 +65,20 @@ private fun currentHighlightPalette() = if (isSystemInDarkTheme()) highlightPale
 
 @Composable
 fun StudyModeEditorPanel(
+    modifier: Modifier = Modifier,
     editorState: com.cristiancogollo.biblion.feature.studydocs.domain.StudyEditorUiState,
     focusRequesters: androidx.compose.runtime.snapshots.SnapshotStateMap<BlockId, androidx.compose.ui.focus.FocusRequester>,
     splitViewModel: com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocSplitViewModel?,
     viewModel: com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel?,
     onSaveClick: () -> Unit,
     onBack: () -> Unit,
+    isFullScreen: Boolean = false,
+    onToggleFullScreen: () -> Unit = {},
+    isDarkTheme: Boolean = false,
+    navController: androidx.navigation.NavController? = null,
 ) {
     var documentTitle by remember { mutableStateOf(editorState.doc.title) }
     val editorZoomState = rememberDocumentZoomState()
-    var isFullScreen by remember { mutableStateOf(false) }
 
     LaunchedEffect(editorState.doc.title) {
         if (editorState.doc.title != documentTitle) {
@@ -75,16 +86,17 @@ fun StudyModeEditorPanel(
         }
     }
 
+    // Solo el editor (como en v3). El split 50/50 y el fullscreen se manejan
+    // en el padre (StudyDocEditorScreen) que envuelve este panel en un Row.
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
     ) {
-        // 1. Header: X + título + Alternar pantalla + Guardar
         StudyModeHeader(
             documentTitle = documentTitle,
             isFullScreen = isFullScreen,
-            onToggleFullScreen = { isFullScreen = !isFullScreen },
+            onToggleFullScreen = onToggleFullScreen,
             onTitleChange = { newTitle ->
                 documentTitle = newTitle
                 splitViewModel?.updateTitle(newTitle) ?: viewModel?.updateTitle(newTitle)
@@ -93,7 +105,6 @@ fun StudyModeEditorPanel(
             onSaveClick = onSaveClick,
         )
 
-        // 2. Toolbar integrada plana
         StudyModeToolbar(
             activeFormat = editorState.activeFormat,
             currentFontSize = run {
@@ -146,78 +157,21 @@ fun StudyModeEditorPanel(
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), thickness = 1.dp)
 
-        if (isFullScreen) {
-            PaginatedSheet(
-                blocks = editorState.doc.blocks,
-                isEditing = true,
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                zoomState = editorZoomState,
-            ) { fragment, _ ->
-                val activeId = splitViewModel?.editorState?.value?.activeBlockId
-                    ?: viewModel?.uiState?.value?.activeBlockId
-                val richState = splitViewModel?.blockRichStates?.get(fragment.originBlockId)
-                    ?: viewModel?.blockRichStates?.get(fragment.originBlockId)
-                val isOwner = activeId == fragment.originBlockId
-                Log.d("BIBLION_STUDY", "SplitEditor fragment blockId=${fragment.originBlockId} richState=${richState != null} isOwner=$isOwner activeBlockId=$activeId")
-                if (richState != null || fragment is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.VerseSlice) {
-                    UnifiedBlockRenderer(
-                        fragment = fragment,
-                        allBlocks = editorState.doc.blocks,
-                        isEditing = true,
-                        isOwnerFragment = isOwner,
-                        richState = richState,
-                        isActive = isOwner,
-                        focusRequesters = focusRequesters,
-                        splitViewModel = splitViewModel,
-                        viewModel = viewModel,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-        } else {
-            Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                // Panel izquierdo: lector bíblico
-                BibleReaderPane(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .background(MaterialTheme.colorScheme.surface),
-                )
-                VerticalDivider(
-                    color = MaterialTheme.colorScheme.outlineVariant,
-                    thickness = 1.dp,
-                )
-                // Panel derecho: editor
-                PaginatedSheet(
-                    blocks = editorState.doc.blocks,
-                    isEditing = true,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
-                    zoomState = editorZoomState,
-                ) { fragment, _ ->
-                    val activeId = splitViewModel?.editorState?.value?.activeBlockId
-                        ?: viewModel?.uiState?.value?.activeBlockId
-                    val richState = splitViewModel?.blockRichStates?.get(fragment.originBlockId)
-                        ?: viewModel?.blockRichStates?.get(fragment.originBlockId)
-                    val isOwner = activeId == fragment.originBlockId
-                    Log.d("BIBLION_STUDY", "SplitEditor fragment blockId=${fragment.originBlockId} richState=${richState != null} isOwner=$isOwner activeBlockId=$activeId")
-                    if (richState != null || fragment is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.VerseSlice) {
-                        UnifiedBlockRenderer(
-                            fragment = fragment,
-                            allBlocks = editorState.doc.blocks,
-                            isEditing = true,
-                            isOwnerFragment = isOwner,
-                            richState = richState,
-                            isActive = isOwner,
-                            focusRequesters = focusRequesters,
-                            splitViewModel = splitViewModel,
-                            viewModel = viewModel,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                }
-            }
+        PaginatedSheet(
+            blocks = editorState.doc.blocks,
+            isEditing = true,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            zoomState = editorZoomState,
+        ) { fragment, _ ->
+            EditorSheetFragment(
+                fragment = fragment,
+                allBlocks = editorState.doc.blocks,
+                activeIdProvider = { splitViewModel?.editorState?.value?.activeBlockId ?: viewModel?.uiState?.value?.activeBlockId },
+                richStateProvider = { id -> splitViewModel?.blockRichStates?.get(id) ?: viewModel?.blockRichStates?.get(id) },
+                focusRequesters = focusRequesters,
+                splitViewModel = splitViewModel,
+                viewModel = viewModel,
+            )
         }
     }
 }
@@ -301,16 +255,137 @@ private fun StudyModeHeader(
     }
 }
 
+/**
+ * Panel izquierdo del split: una instancia de la app con su propio NavController
+ * local. Usa [addSharedPrimaryDestinations] para registrar las rutas principales
+ * (Home, Books, Search, etc.) en el NavGraphBuilder local, de modo que la
+ * navegacion del usuario (ir a libros, abrir un libro, buscar) ocurre dentro
+ * del panel izquierdo sin cerrar el editor. Inicia en [Screen.Home].
+ *
+ * Las rutas del lector (Screen.ReaderWithBook / Screen.ReaderWithoutBook) y de
+ * perfil (Screen.Profile) se registran aqui mismo porque addSharedPrimaryDestinations
+ * no las incluye. El dark mode tiene estado local en este panel.
+ */
 @Composable
-private fun BibleReaderPane(modifier: Modifier = Modifier) {
-    val readerNavController = rememberNavController()
-    Box(modifier = modifier) {
-        com.cristiancogollo.biblion.ReaderScreen(
-            navController = readerNavController,
-            bookName = "Genesis",
-            initialChapter = 1,
-        )
+internal fun BibleReaderPane(
+    modifier: Modifier = Modifier,
+    navController: androidx.navigation.NavController? = null,
+    isDarkTheme: Boolean = false,
+    onToggleDarkTheme: (Boolean) -> Unit = {},
+) {
+    val localNavController = rememberNavController()
+    var isAuthenticated by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val onNavigateToProfile = {
+        Log.d("BIBLION_STUDY", "BibleReaderPane onNavigateToProfile called")
+        localNavController.navigate("profile")
     }
+    val onAuthActionClick = {
+        Log.d("BIBLION_STUDY", "BibleReaderPane onAuthActionClick (no auth) -> navigate to auth")
+        localNavController.navigate("auth")
+    }
+
+    NavHost(
+        navController = localNavController,
+        startDestination = "home",
+        modifier = modifier,
+    ) {
+        addSharedPrimaryDestinations(
+            navController = localNavController,
+            isDarkTheme = isDarkTheme,
+            onToggleDarkTheme = onToggleDarkTheme,
+            onNavigateToProfile = onNavigateToProfile,
+            isAuthenticated = isAuthenticated,
+            onAuthActionClick = onAuthActionClick,
+        )
+
+        // Ruta auth dentro del NavHost: muestra el AuthDialog real reutilizado de
+        // la app principal. Al autenticarse, isAuthenticated = true y navega a
+        // "profile". Si el AuthViewModel falla al inicializarse, el dialog puede
+        // no mostrarse; en ese caso se puede simplificar a un dialog con inputs.
+        composable("auth") {
+            Log.d("BIBLION_STUDY", "BibleReaderPane composable(auth) entered")
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val application = context.applicationContext as android.app.Application
+            val authViewModel = remember {
+                AuthViewModel(application)
+            }
+            val authState by authViewModel.state.collectAsState()
+
+            androidx.compose.runtime.LaunchedEffect(authState.isAuthenticated) {
+                if (authState.isAuthenticated) {
+                    Log.d("BIBLION_STUDY", "Auth success -> isAuthenticated=true, navigate profile")
+                    isAuthenticated = true
+                    localNavController.navigate("profile") {
+                        popUpTo("home")
+                    }
+                }
+            }
+
+            AuthDialog(
+                mode = AuthDialogMode.LOGIN,
+                uiState = authState,
+                onIntent = { authViewModel.process(it) },
+                onGoogleSignIn = { /* TODO: disparar intent de Google en este scope */ },
+                onModeChange = { /* mismo dialog */ },
+                onDismiss = { localNavController.popBackStack() },
+            )
+        }
+
+        // Rutas del lector (Reader) que addSharedPrimaryDestinations no registra
+        composable(
+            route = "reader/{bookName}?studyMode={studyMode}&chapter={chapter}&verse={verse}&studyId={studyId}",
+            arguments = listOf(
+                androidx.navigation.navArgument("bookName") {
+                    type = androidx.navigation.NavType.StringType
+                },
+            ),
+        ) { entry ->
+            val bookName = entry.arguments?.getString("bookName")
+            com.cristiancogollo.biblion.ReaderScreen(
+                navController = localNavController,
+                bookName = bookName,
+            )
+        }
+        composable(
+            route = "reader?studyMode={studyMode}&chapter={chapter}&verse={verse}&studyId={studyId}",
+        ) { entry ->
+            com.cristiancogollo.biblion.ReaderScreen(
+                navController = localNavController,
+                bookName = null,
+            )
+        }
+
+        // Pantalla de perfil (addSharedPrimaryDestinations no la registra).
+        // Usamos un placeholder para no acoplar el panel izquierdo al ProfileViewModel
+        // de la app principal.
+        composable("profile") {
+            androidx.compose.foundation.layout.Column(
+                modifier = androidx.compose.ui.Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+            ) {
+                androidx.compose.material3.IconButton(onClick = { localNavController.popBackStack() }) {
+                    androidx.compose.material3.Icon(
+                        androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Volver",
+                    )
+                }
+                androidx.compose.material3.Text(
+                    "Perfil",
+                    style = androidx.compose.material3.MaterialTheme.typography.headlineMedium,
+                )
+                androidx.compose.material3.Text(
+                    "Secci\u00f3n de perfil (placeholder).",
+                    style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+
+    }
+
+    // DEBUG eliminado: el if (showAuthDialog) estaba fuera del NavHost y no se
+    // recompone. Ahora la navegacion a "auth" ocurre dentro del NavHost.
 }
 
 @Composable
@@ -555,4 +630,41 @@ private fun ToolbarDivider() {
             .height(18.dp)
             .background(Color.LightGray),
     )
+}
+
+/**
+ * Renderiza un fragmento de pagina dentro del `PaginatedSheet` del editor.
+ * Extraido para no duplicar la logica entre el modo pantalla completa y el split.
+ */
+@Composable
+private fun EditorSheetFragment(
+    fragment: com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment,
+    allBlocks: List<com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock>,
+    activeIdProvider: () -> com.cristiancogollo.biblion.feature.studydocs.model.BlockId?,
+    richStateProvider: (com.cristiancogollo.biblion.feature.studydocs.model.BlockId) -> com.mohamedrejeb.richeditor.model.RichTextState?,
+    focusRequesters: androidx.compose.runtime.snapshots.SnapshotStateMap<com.cristiancogollo.biblion.feature.studydocs.model.BlockId, androidx.compose.ui.focus.FocusRequester>,
+    splitViewModel: com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocSplitViewModel?,
+    viewModel: com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel?,
+) {
+    val activeId = activeIdProvider()
+    val richState = richStateProvider(fragment.originBlockId)
+    val isOwner = activeId == fragment.originBlockId
+    Log.d(
+        "BIBLION_STUDY",
+        "SplitEditor fragment blockId=${fragment.originBlockId} richState=${richState != null} isOwner=$isOwner activeBlockId=$activeId",
+    )
+    if (richState != null || fragment is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.VerseSlice) {
+        UnifiedBlockRenderer(
+            fragment = fragment,
+            allBlocks = allBlocks,
+            isEditing = true,
+            isOwnerFragment = isOwner,
+            richState = richState,
+            isActive = isOwner,
+            focusRequesters = focusRequesters,
+            splitViewModel = splitViewModel,
+            viewModel = viewModel,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
 }

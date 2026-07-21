@@ -20,6 +20,7 @@ import com.cristiancogollo.biblion.feature.studydocs.ui.editor.fromAnnotatedStri
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.TextUnitType
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
 import com.mohamedrejeb.richeditor.model.RichTextState
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -599,10 +600,22 @@ class StudyDocSplitViewModel(
                 // Regla 2: cursor en texto -> no tocar el bloque, registrar tamaño
                 // pendiente en el RichTextState. El próximo carácter que se escriba
                 // quedará envuelto en SpanStyle(fontSize = newSize).
-                rs.addSpanStyle(
-                    androidx.compose.ui.text.SpanStyle(fontSize = newSize.sp),
-                    sel,
-                )
+                // El base se toma del currentSpanStyle (si está definido) para que
+                // cada click acumule: +1 desde 16 -> 17, +1 desde 17 -> 18, etc.
+                val currentFontSizeSp = rs.currentSpanStyle.fontSize
+                val currentFontSize = if (currentFontSizeSp.isSpecified) {
+                    currentFontSizeSp.value.toInt()
+                } else {
+                    block.fontSize
+                }
+                val baseSize = currentFontSize
+                val newSize = (baseSize + delta).coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
+                val newSizeSp = newSize.sp
+                if (currentFontSizeSp != newSizeSp) {
+                    rs.toggleSpanStyle(
+                        androidx.compose.ui.text.SpanStyle(fontSize = newSizeSp),
+                    )
+                }
             }
         } else {
             // Con selección parcial: detectar tamaño base y normalizar SOLO la selección

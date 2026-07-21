@@ -4,9 +4,12 @@ import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Save
@@ -22,6 +25,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -49,7 +53,8 @@ fun StudyDocEditorScreen(
     remoteId: String? = null,
     onBack: () -> Unit = {},
     isSplitMode: Boolean = false,
-    onFocusModeChanged: () -> Unit = {}
+    onFocusModeChanged: () -> Unit = {},
+    navController: androidx.navigation.NavController? = null,
 ) {
     // Usar splitViewModel si está disponible (modo split), sino usar viewModel (modo standalone)
     val editorState by (splitViewModel?.editorState ?: viewModel?.uiState)?.collectAsState()
@@ -60,6 +65,8 @@ fun StudyDocEditorScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     val standaloneZoomState = rememberDocumentZoomState()
+    var isFullScreen by remember { mutableStateOf(false) }
+    var isDarkTheme by remember { mutableStateOf(false) }
 
     LaunchedEffect(remoteId) {
         Log.d("BIBLION_STUDY", "StudyDocEditorScreen LaunchedEffect remoteId=$remoteId viewModel=${viewModel != null} splitViewModel=${splitViewModel != null}")
@@ -101,14 +108,40 @@ fun StudyDocEditorScreen(
                 CircularProgressIndicator()
             }
         } else {
-            StudyModeEditorPanel(
-                editorState = editorState,
-                focusRequesters = focusRequesters,
-                splitViewModel = splitViewModel,
-                viewModel = viewModel,
-                onSaveClick = { showSaveDialog = true },
-                onBack = onBack,
-            )
+            // Split 50/50 con el editor a la derecha y la app a la izquierda.
+            // BiblionTheme envuelve ambos paneles para que el dark mode los afecte.
+            com.cristiancogollo.biblion.ui.theme.BiblionTheme(darkTheme = isDarkTheme) {
+                Row(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))) {
+                    if (!isFullScreen) {
+                        BibleReaderPane(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .background(MaterialTheme.colorScheme.surface),
+                            navController = navController,
+                            isDarkTheme = isDarkTheme,
+                            onToggleDarkTheme = { isDarkTheme = it },
+                        )
+                        VerticalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                            thickness = 1.dp,
+                        )
+                    }
+                    StudyModeEditorPanel(
+                        modifier = if (isFullScreen) Modifier.fillMaxSize() else Modifier.weight(1f).fillMaxHeight(),
+                        editorState = editorState,
+                        focusRequesters = focusRequesters,
+                        splitViewModel = splitViewModel,
+                        viewModel = viewModel,
+                        onSaveClick = { showSaveDialog = true },
+                        onBack = onBack,
+                        isFullScreen = isFullScreen,
+                        onToggleFullScreen = { isFullScreen = !isFullScreen },
+                        isDarkTheme = isDarkTheme,
+                        navController = navController,
+                    )
+                }
+            }
         }
     } else {
         if (editorState.isLoading) {

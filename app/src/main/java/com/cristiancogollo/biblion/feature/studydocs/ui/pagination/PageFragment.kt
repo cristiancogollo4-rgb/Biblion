@@ -54,8 +54,15 @@ sealed interface PageFragment {
         val charEndExclusive: Int,
     ) : PageFragment
 
+    data class QuoteSlice(
+        override val originBlockId: BlockId,
+        val block: StudyBlock.Quote,
+        val charStart: Int,
+        val charEndExclusive: Int,
+    ) : PageFragment
+
     /**
-     * Bloque indivisible: Divider, PageBreak, Callout, Note, Reflection, Quote, Table.
+     * Bloque indivisible: Divider, PageBreak, Callout, Note, Reflection, Table.
      * Se renderiza completo o salta a la siguiente pagina si no cabe.
      */
     data class Whole(

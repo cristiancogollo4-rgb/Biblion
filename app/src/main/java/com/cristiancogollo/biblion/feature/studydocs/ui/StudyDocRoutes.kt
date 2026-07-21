@@ -48,6 +48,7 @@ fun StudyDocEditorRoute(
         remoteId = remoteId,
         isSplitMode = true,
         onBack = { navController.popBackStack() },
+        navController = navController,
     )
 }
 
