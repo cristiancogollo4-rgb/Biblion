@@ -290,7 +290,13 @@
     <!-- Study mode zoom controls -->
     <string name="zoom_in">Increase zoom</string>
     <string name="zoom_out">Decrease zoom</string>
-    <string name="zoom_reset">Reset zoom</string>
-    <string name="zoom_label">Zoom level</string>
+      <string name="zoom_reset">Reset zoom</string>
+      <string name="zoom_fit_width">Fit to width</string>
+      <string name="zoom_label">Zoom level</string>
     <string name="zoom_current">Current zoom: %1$d%%</string>
+
+    <!-- Study mode view mode toggle -->
+    <string name="view_mode_paginated">Paginated view</string>
+    <string name="view_mode_pageless">Continuous view</string>
+    <string name="view_mode_toggle">Toggle view mode</string>
 </resources>

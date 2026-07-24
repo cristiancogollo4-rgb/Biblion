@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [StudyDocEntity::class],
@@ -28,7 +30,14 @@ abstract class StudyDocDatabase : RoomDatabase() {
             context.applicationContext,
             StudyDocDatabase::class.java,
             DB_NAME,
-        ).fallbackToDestructiveMigration().build()
+        ).addMigrations(MIGRATION_1_2).build()
+
+        /** v2 eliminó el historial antiguo; los documentos permanecen intactos. */
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("DROP TABLE IF EXISTS doc_edit_history")
+            }
+        }
 
         fun resetInstance() { synchronized(this) { instance = null } }
     }

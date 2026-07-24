@@ -100,20 +100,21 @@ fun StudyDocReadScreen(
                 isEditing = false,
                 modifier = Modifier.fillMaxSize().padding(padding),
                 zoomState = readZoomState,
-            ) { fragment, _ ->
-                UnifiedBlockRenderer(
-                    fragment = fragment,
-                    allBlocks = uiState.doc.blocks,
-                    isEditing = false,
-                    isOwnerFragment = false,
-                    richState = null,
-                    isActive = false,
-                    focusRequesters = null,
-                    splitViewModel = null,
-                    viewModel = null,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+                contentFragmentRenderer = { fragment, _ ->
+                    UnifiedBlockRenderer(
+                        fragment = fragment,
+                        allBlocks = uiState.doc.blocks,
+                        isEditing = false,
+                        isOwnerFragment = false,
+                        richState = null,
+                        isActive = false,
+                        splitViewModel = null,
+                        viewModel = null,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                },
+                contentBlockRenderer = { _, _ -> },
+            )
         }
     }
 }

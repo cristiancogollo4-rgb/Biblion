@@ -146,6 +146,36 @@ class PaginationEngineTest {
     }
 
     @Test
+    fun empty_list_items_remain_editable_fragments() {
+        val pages = PaginationEngine.paginate(
+            blocks = listOf(
+                StudyBlock.BulletList(
+                    id = BlockId("empty-bullet"),
+                    items = listOf(StyledText.Empty),
+                ),
+                StudyBlock.OrderedList(
+                    id = BlockId("empty-ordered"),
+                    items = listOf(StyledText.Empty),
+                ),
+            ),
+            pageWidthPx = 658f,
+            pageHeightPx = 200f,
+            textMeasurer = textMeasurer,
+            density = density,
+        )
+
+        val fragments = pages.flatMap { it.fragments }
+        val bullet = fragments.filterIsInstance<PageFragment.ListItemSlice>().single()
+        val ordered = fragments.filterIsInstance<PageFragment.OrderedListItemSlice>().single()
+        assertEquals(0, bullet.itemIndex)
+        assertEquals(0, bullet.charStart)
+        assertEquals(0, bullet.charEndExclusive)
+        assertEquals(0, ordered.itemIndex)
+        assertEquals(0, ordered.charStart)
+        assertEquals(0, ordered.charEndExclusive)
+    }
+
+    @Test
     fun verse_block_preserves_char_contiguity() {
         val longVerse = "En el principio creo Dios los cielos y la tierra. ".repeat(30)
         val pages = PaginationEngine.paginate(
@@ -233,9 +263,146 @@ class PaginationEngineTest {
         assertTrue(frags[2] is PageFragment.QuoteSlice)
     }
 
+    // ── Tests de keep-with-next ──────────────────────────────────────────
+
+    @Test
+    fun heading_kept_with_next_when_both_fit_on_page() {
+        // Heading corto + parrafo corto en pagina grande → ambos en pagina 0
+        val pages = PaginationEngine.paginate(
+            blocks = listOf(
+                shortHeading(),
+                shortParagraph(),
+            ),
+            pageWidthPx = 658f,
+            pageHeightPx = 500f,
+            textMeasurer = textMeasurer,
+            density = density,
+        )
+        assertEquals(1, pages.size)
+        val frags = pages[0].fragments
+        assertEquals(2, frags.size)
+        assertTrue("El primer fragmento debe ser HeadingSlice", frags[0] is PageFragment.HeadingSlice)
+        assertTrue("El segundo fragmento debe ser ParagraphSlice", frags[1] is PageFragment.ParagraphSlice)
+    }
+
+    @Test
+    fun heading_at_top_of_page_not_pushed_even_if_next_overflows() {
+        // Regla keep-with-next: si cursorY == 0 (heading es lo primero en la pagina),
+        // NO se fuerza salto, incluso si heading + next excede la pagina.
+        val pages = PaginationEngine.paginate(
+            blocks = listOf(
+                headingH1(),
+                shortParagraph(),
+            ),
+            pageWidthPx = 658f,
+            pageHeightPx = 1f,
+            textMeasurer = textMeasurer,
+            density = density,
+        )
+        assertTrue("Debe haber al menos 1 pagina", pages.isNotEmpty())
+        val page0Frags = pages[0].fragments
+        assertTrue("Pagina 0 debe tener fragments", page0Frags.isNotEmpty())
+        assertTrue("El primer fragment debe ser HeadingSlice",
+            page0Frags[0] is PageFragment.HeadingSlice)
+    }
+
+    @Test
+    fun heading_not_pushed_when_cursorY_is_zero() {
+        // Verificacion directa: heading es el primer bloque, cursorY empieza en 0.
+        // keep-with-next chequea cursorY > 0f, no debe forzar salto.
+        val pages = PaginationEngine.paginate(
+            blocks = listOf(
+                headingH1(),
+                shortParagraph(),
+            ),
+            pageWidthPx = 658f,
+            pageHeightPx = 200f,
+            textMeasurer = textMeasurer,
+            density = density,
+        )
+        // Debe ser 1 pagina: heading y parrafo juntos (la pagina es suficientemente grande)
+        assertEquals(1, pages.size)
+        val frags = pages[0].fragments
+        assertTrue(frags[0] is PageFragment.HeadingSlice)
+        assertTrue(frags[1] is PageFragment.ParagraphSlice)
+    }
+
+    @Test
+    fun last_heading_not_crash_no_next_block() {
+        // Heading como ultimo bloque → nextBlock es null, keep-with-next no debe crashear.
+        val pages = PaginationEngine.paginate(
+            blocks = listOf(
+                shortParagraph(),
+                headingH1(),
+            ),
+            pageWidthPx = 658f,
+            pageHeightPx = 200f,
+            textMeasurer = textMeasurer,
+            density = density,
+        )
+        assertEquals(1, pages.size)
+        assertEquals(2, pages[0].fragments.size)
+    }
+
+    @Test
+    fun heading_and_next_on_same_page_when_there_is_room() {
+        // Cuando cursorY > 0 pero heading + next caben en la pagina,
+        // keep-with-next NO debe forzar salto.
+        val pages = PaginationEngine.paginate(
+            blocks = listOf(
+                shortParagraph(),  // cursorY avanza > 0
+                headingH2(),
+                shortParagraph(),
+            ),
+            pageWidthPx = 658f,
+            pageHeightPx = 2000f, // pagina enorme, todo cabe
+            textMeasurer = textMeasurer,
+            density = density,
+        )
+        assertEquals(1, pages.size)
+        assertEquals(3, pages[0].fragments.size)
+        assertEquals("El segundo fragmento debe ser HeadingSlice",
+            PageFragment.HeadingSlice::class, pages[0].fragments[1]::class)
+        assertEquals("El tercer fragmento debe ser ParagraphSlice",
+            PageFragment.ParagraphSlice::class, pages[0].fragments[2]::class)
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────
+
     private fun shortParagraph(): StudyBlock.Paragraph = StudyBlock.Paragraph(
         id = BlockId("p_short"),
         text = StyledText(raw = "Hola mundo"),
         fontSize = DocConfig.DEFAULT_FONT_SIZE,
     )
+
+    private fun shortHeading(): StudyBlock.Heading = StudyBlock.Heading(
+        id = BlockId("h_short"),
+        level = 2,
+        text = StyledText(raw = "Seccion breve"),
+        fontSize = DocConfig.HEADING2_SIZE,
+    )
+
+    private fun headingH1(): StudyBlock.Heading = StudyBlock.Heading(
+        id = BlockId("h1"),
+        level = 1,
+        text = StyledText(raw = "Titulo"),
+        fontSize = DocConfig.HEADING1_SIZE,
+    )
+
+    private fun headingH2(): StudyBlock.Heading = StudyBlock.Heading(
+        id = BlockId("h2"),
+        level = 2,
+        text = StyledText(raw = "Subseccion"),
+        fontSize = DocConfig.HEADING2_SIZE,
+    )
+
+    private fun headingH3(): StudyBlock.Heading = StudyBlock.Heading(
+        id = BlockId("h3"),
+        level = 3,
+        text = StyledText(raw = "Sub-subseccion"),
+        fontSize = DocConfig.HEADING3_SIZE,
+    )
+
+    private fun longText(lines: Int): String =
+        ("A ".repeat(40) + "\n").repeat(lines)
 }

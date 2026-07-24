@@ -1,7 +1,7 @@
 package com.cristiancogollo.biblion.feature.studydocs.ui.editor
 
 import android.util.Log
-import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,7 +13,10 @@ import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -23,6 +26,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.VerticalDivider
@@ -30,18 +34,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel
-import com.cristiancogollo.biblion.feature.studydocs.model.BlockId
 import com.cristiancogollo.biblion.feature.studydocs.model.DocConfig
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PaginatedSheet
 
@@ -60,13 +59,22 @@ fun StudyDocEditorScreen(
     val editorState by (splitViewModel?.editorState ?: viewModel?.uiState)?.collectAsState()
         ?: remember { mutableStateOf(com.cristiancogollo.biblion.feature.studydocs.domain.StudyEditorUiState()) }
 
-    val focusRequesters = remember { mutableStateMapOf<BlockId, FocusRequester>() }
     var showSaveDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
-    val context = LocalContext.current
     val standaloneZoomState = rememberDocumentZoomState()
     var isFullScreen by remember { mutableStateOf(false) }
     var isDarkTheme by remember { mutableStateOf(false) }
+    var showDiscardDialog by remember { mutableStateOf(false) }
+
+    val requestExit = {
+        if (editorState.hasUnsavedChanges && !editorState.isSaving) {
+            showDiscardDialog = true
+        } else {
+            onBack()
+        }
+    }
+
+    BackHandler { requestExit() }
 
     LaunchedEffect(remoteId) {
         Log.d("BIBLION_STUDY", "StudyDocEditorScreen LaunchedEffect remoteId=$remoteId viewModel=${viewModel != null} splitViewModel=${splitViewModel != null}")
@@ -81,12 +89,6 @@ fun StudyDocEditorScreen(
             splitViewModel?.loadByRemoteId(remoteId) ?: viewModel?.loadByRemoteId(remoteId)
         } else {
             splitViewModel?.newDraft() ?: viewModel?.newDraft()
-        }
-    }
-
-    LaunchedEffect(editorState.lastSavedAt) {
-        if (editorState.lastSavedAt != null && !editorState.isSaving) {
-            Toast.makeText(context, "Guardado", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -130,11 +132,10 @@ fun StudyDocEditorScreen(
                     StudyModeEditorPanel(
                         modifier = if (isFullScreen) Modifier.fillMaxSize() else Modifier.weight(1f).fillMaxHeight(),
                         editorState = editorState,
-                        focusRequesters = focusRequesters,
                         splitViewModel = splitViewModel,
                         viewModel = viewModel,
                         onSaveClick = { showSaveDialog = true },
-                        onBack = onBack,
+                        onBack = requestExit,
                         isFullScreen = isFullScreen,
                         onToggleFullScreen = { isFullScreen = !isFullScreen },
                         isDarkTheme = isDarkTheme,
@@ -152,14 +153,36 @@ fun StudyDocEditorScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { },
+                    title = {
+                        Text(
+                            text = when {
+                                editorState.lastError != null -> "Error al guardar"
+                                editorState.isSaving -> "Guardando..."
+                                editorState.hasUnsavedChanges -> "Cambios sin guardar"
+                                else -> "Guardado"
+                            },
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    },
                     navigationIcon = {
-                        IconButton(onClick = onBack) {
+                            IconButton(onClick = requestExit) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
                         }
                     },
                     actions = {
                         ZoomMenu(zoomState = standaloneZoomState, showStepButtons = true)
+                        IconButton(
+                            onClick = { splitViewModel?.undo() ?: viewModel?.undo() },
+                            enabled = editorState.canUndo,
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Undo, "Deshacer")
+                        }
+                        IconButton(
+                            onClick = { splitViewModel?.redo() ?: viewModel?.redo() },
+                            enabled = editorState.canRedo,
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Redo, "Rehacer")
+                        }
                         IconButton(onClick = { showSaveDialog = true }) {
                             Icon(Icons.Filled.Save, "Guardar")
                         }
@@ -219,29 +242,70 @@ fun StudyDocEditorScreen(
                     isEditing = true,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     zoomState = standaloneZoomState,
-                ) { fragment, _ ->
-                    val richState = splitViewModel?.blockRichStates?.get(fragment.originBlockId)
-                        ?: viewModel?.blockRichStates?.get(fragment.originBlockId)
-                    val isOwner = editorState.activeBlockId == fragment.originBlockId
-                    Log.d("BIBLION_STUDY", "EditorScreen fragment blockId=${fragment.originBlockId} richState=${richState != null} isOwner=$isOwner activeBlockId=${editorState.activeBlockId}")
-                    if (richState != null || fragment is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.VerseSlice) {
-                        UnifiedBlockRenderer(
-                            fragment = fragment,
-                            allBlocks = editorState.doc.blocks,
-                            isEditing = true,
-                            isOwnerFragment = isOwner,
-                            richState = richState,
-                            isActive = isOwner,
-                            focusRequesters = focusRequesters,
-                            splitViewModel = splitViewModel,
-                            viewModel = viewModel,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                }
+                    contentFragmentRenderer = { fragment, _ ->
+                        val itemIndex = when (fragment) {
+                            is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.ListItemSlice -> fragment.itemIndex
+                            is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.OrderedListItemSlice -> fragment.itemIndex
+                            else -> null
+                        }
+                        val richState = splitViewModel?.richStateFor(fragment.originBlockId, itemIndex)
+                            ?: viewModel?.richStateFor(fragment.originBlockId, itemIndex)
+                        val isFirstFragment = when (fragment) {
+                            is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.ParagraphSlice -> fragment.charStart == 0
+                            is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.HeadingSlice -> fragment.charStart == 0
+                            is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.ListItemSlice -> fragment.charStart == 0
+                            is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.OrderedListItemSlice -> fragment.charStart == 0
+                            is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.VerseSlice -> fragment.charStart == 0
+                            is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.QuoteSlice -> fragment.charStart == 0
+                            is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.Whole -> true
+                        }
+                        val isOwner = editorState.activeBlockId == fragment.originBlockId &&
+                            (itemIndex == null || editorState.activeListItemIndex == itemIndex) &&
+                            isFirstFragment
+                        if (richState != null ||
+                            fragment is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.VerseSlice ||
+                            fragment is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.ListItemSlice ||
+                            fragment is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.OrderedListItemSlice
+                        ) {
+                            UnifiedBlockRenderer(
+                                fragment = fragment,
+                                allBlocks = editorState.doc.blocks,
+                                isEditing = true,
+                                isOwnerFragment = isOwner,
+                                richState = richState,
+                                isActive = isOwner,
+                                focusRequest = editorState.focusRequest,
+                                splitViewModel = splitViewModel,
+                                viewModel = viewModel,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    },
+                    contentBlockRenderer = { _, _ -> },
+                )
             }
         }
     }
+
+    if (showDiscardDialog) {
+        AlertDialog(
+            onDismissRequest = { showDiscardDialog = false },
+            title = { Text("Cambios sin guardar") },
+            text = { Text("Todavia hay cambios que no se han guardado. Si sales ahora, se perderan.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDiscardDialog = false
+                    onBack()
+                }) {
+                    Text("Salir sin guardar", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDiscardDialog = false }) {
+                    Text("Seguir editando")
+                }
+            },
+        )
+    }
     }
 }
-

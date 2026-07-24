@@ -21,7 +21,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -48,7 +47,6 @@ fun ZoomMenu(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val currentPercent = (zoomState.zoom * 100).toInt().coerceIn(0, 999)
-    val context = LocalContext.current
     val zoomCurrentCd = stringResource(R.string.zoom_current, currentPercent)
 
     Row(
@@ -87,6 +85,13 @@ fun ZoomMenu(
                         },
                     )
                 }
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.zoom_fit_width)) },
+                    onClick = {
+                        zoomState.fitWidth()
+                        expanded = false
+                    },
+                )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.zoom_reset)) },
                     leadingIcon = { Icon(Icons.Filled.Refresh, contentDescription = null) },

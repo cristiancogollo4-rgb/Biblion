@@ -28,6 +28,8 @@ class StudyDocRepository(
         val entity = StudyDocEntity(
             remoteId = remoteId,
             title = doc.title,
+            notebookRemoteId = doc.metadata.notebook,
+            tagsCsv = doc.metadata.tags.joinToString(","),
             blockCount = doc.blocks.size,
             version = doc.version,
             docJson = StudyDocJson.encode(doc),

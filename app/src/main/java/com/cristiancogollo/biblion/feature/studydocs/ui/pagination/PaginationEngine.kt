@@ -54,7 +54,27 @@ object PaginationEngine {
             cursorY = 0f
         }
 
-        for (block in blocks) {
+        for ((index, block) in blocks.withIndex()) {
+            // KEEP-WITH-NEXT: si es Heading y el heading + el siguiente bloque
+            // no caben juntos en la pagina actual, empujamos el heading a la
+            // siguiente pagina para evitar encabezados huerfanos.
+            if (block is StudyBlock.Heading) {
+                val nextBlock = blocks.getOrNull(index + 1)
+                if (nextBlock != null && cursorY > 0f) {
+                    val headingHeight = estimateBlockHeight(
+                        block, pageWidthPx, density, textMeasurer,
+                    )
+                    val nextHeight = estimateBlockHeight(
+                        nextBlock, pageWidthPx, density, textMeasurer,
+                    )
+                    if (headingHeight > 0f && nextHeight > 0f &&
+                        cursorY + headingHeight + nextHeight > pageHeightPx
+                    ) {
+                        openPage()
+                    }
+                }
+            }
+
             val style = textStyleFor(block, density)
             when (block) {
                 is StudyBlock.Paragraph -> {
@@ -101,7 +121,6 @@ object PaginationEngine {
                 }
                 is StudyBlock.BulletList -> {
                     block.items.forEachIndexed { index, item ->
-                        if (item.raw.isEmpty()) return@forEachIndexed
                         cursorY = placePartible(
                             text = item.raw,
                             sliceFactory = { start, end ->
@@ -126,7 +145,6 @@ object PaginationEngine {
                 }
                 is StudyBlock.OrderedList -> {
                     block.items.forEachIndexed { index, item ->
-                        if (item.raw.isEmpty()) return@forEachIndexed
                         cursorY = placePartible(
                             text = item.raw,
                             sliceFactory = { start, end ->
@@ -261,7 +279,37 @@ object PaginationEngine {
         return cursorY
     }
 
-    private fun textStyleFor(block: StudyBlock, density: Density): TextStyle {
+    /**
+     * Estima la altura de un bloque midiendo su texto con el [TextMeasurer].
+     * Se usa en el chequeo de keep-with-next para headings para evitar encabezados
+     * huerfanos al final de una pagina.
+     */
+    internal fun estimateBlockHeight(
+        block: StudyBlock,
+        pageWidthPx: Float,
+        density: Density,
+        textMeasurer: TextMeasurer,
+    ): Float {
+        val text = when (block) {
+            is StudyBlock.Paragraph -> block.text.raw
+            is StudyBlock.Heading -> block.text.raw
+            is StudyBlock.Quote -> block.text.raw
+            is StudyBlock.Verse -> block.contents[block.sourceVersion] ?: ""
+            is StudyBlock.BulletList -> block.items.joinToString(" ") { it.raw }
+            is StudyBlock.OrderedList -> block.items.joinToString(" ") { it.raw }
+        }
+        if (text.isEmpty()) return 0f
+        val style = textStyleFor(block, density)
+        val layout = textMeasurer.measure(
+            text = text,
+            style = style,
+            constraints = androidx.compose.ui.unit.Constraints(maxWidth = pageWidthPx.toInt()),
+            density = density,
+        )
+        return layout.size.height.toFloat()
+    }
+
+    internal fun textStyleFor(block: StudyBlock, density: Density): TextStyle {
         val fontSizeSp = when (block) {
             is StudyBlock.Heading -> when (block.level) {
                 1 -> DocConfig.HEADING1_SIZE

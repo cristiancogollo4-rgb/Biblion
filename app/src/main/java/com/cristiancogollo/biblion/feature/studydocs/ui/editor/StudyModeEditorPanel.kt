@@ -16,6 +16,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -38,10 +40,14 @@ import com.cristiancogollo.biblion.AuthDialog
 import com.cristiancogollo.biblion.AuthDialogMode
 import com.cristiancogollo.biblion.AuthViewModel
 import com.cristiancogollo.biblion.feature.studydocs.domain.TextStyleKind
+import com.cristiancogollo.biblion.feature.studydocs.debug.StudyEditorDebugLog
 import com.cristiancogollo.biblion.feature.studydocs.model.BlockId
 import com.cristiancogollo.biblion.feature.studydocs.model.DocConfig
 import com.cristiancogollo.biblion.feature.studydocs.model.DocTagGroups
+import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
+import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PaginatedSheet
+import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.SheetViewMode
 import com.cristiancogollo.biblion.addSharedPrimaryDestinations
 
 private val textColorPalette = listOf(
@@ -67,7 +73,6 @@ private fun currentHighlightPalette() = if (isSystemInDarkTheme()) highlightPale
 fun StudyModeEditorPanel(
     modifier: Modifier = Modifier,
     editorState: com.cristiancogollo.biblion.feature.studydocs.domain.StudyEditorUiState,
-    focusRequesters: androidx.compose.runtime.snapshots.SnapshotStateMap<BlockId, androidx.compose.ui.focus.FocusRequester>,
     splitViewModel: com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocSplitViewModel?,
     viewModel: com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel?,
     onSaveClick: () -> Unit,
@@ -79,6 +84,7 @@ fun StudyModeEditorPanel(
 ) {
     var documentTitle by remember { mutableStateOf(editorState.doc.title) }
     val editorZoomState = rememberDocumentZoomState()
+    var viewMode by remember { mutableStateOf(SheetViewMode.PAGINATED) }
 
     LaunchedEffect(editorState.doc.title) {
         if (editorState.doc.title != documentTitle) {
@@ -97,10 +103,19 @@ fun StudyModeEditorPanel(
             documentTitle = documentTitle,
             isFullScreen = isFullScreen,
             onToggleFullScreen = onToggleFullScreen,
+            viewMode = viewMode,
+            onToggleViewMode = { viewMode = if (viewMode == SheetViewMode.PAGINATED) SheetViewMode.PAGELESS else SheetViewMode.PAGINATED },
             onTitleChange = { newTitle ->
                 documentTitle = newTitle
                 splitViewModel?.updateTitle(newTitle) ?: viewModel?.updateTitle(newTitle)
             },
+            canUndo = editorState.canUndo,
+            canRedo = editorState.canRedo,
+            onUndo = { splitViewModel?.undo() ?: viewModel?.undo() },
+            onRedo = { splitViewModel?.redo() ?: viewModel?.redo() },
+            isSaving = editorState.isSaving,
+            hasUnsavedChanges = editorState.hasUnsavedChanges,
+            lastError = editorState.lastError,
             onBackClick = onBack,
             onSaveClick = onSaveClick,
         )
@@ -140,10 +155,20 @@ fun StudyModeEditorPanel(
                 }
             },
             onInsertBlock = { type ->
+                StudyEditorDebugLog.log(
+                    "BLOCK_INSERT_REQUEST",
+                    "type=$type active=${editorState.activeBlockId?.value} " +
+                        "activeItem=${editorState.activeListItemIndex}",
+                )
                 splitViewModel?.insertBlock(editorState.activeBlockId, type)
                     ?: viewModel?.insertBlock(editorState.activeBlockId, type)
             },
             onChangeBlockType = { type ->
+                StudyEditorDebugLog.log(
+                    "BLOCK_TYPE_REQUEST",
+                    "type=$type active=${editorState.activeBlockId?.value} " +
+                        "activeItem=${editorState.activeListItemIndex}",
+                )
                 editorState.activeBlockId?.let { blockId ->
                     splitViewModel?.changeBlockType(blockId, type)
                         ?: viewModel?.changeBlockType(blockId, type)
@@ -162,17 +187,46 @@ fun StudyModeEditorPanel(
             isEditing = true,
             modifier = Modifier.weight(1f).fillMaxWidth(),
             zoomState = editorZoomState,
-        ) { fragment, _ ->
-            EditorSheetFragment(
-                fragment = fragment,
-                allBlocks = editorState.doc.blocks,
-                activeIdProvider = { splitViewModel?.editorState?.value?.activeBlockId ?: viewModel?.uiState?.value?.activeBlockId },
-                richStateProvider = { id -> splitViewModel?.blockRichStates?.get(id) ?: viewModel?.blockRichStates?.get(id) },
-                focusRequesters = focusRequesters,
-                splitViewModel = splitViewModel,
-                viewModel = viewModel,
-            )
-        }
+            viewMode = viewMode,
+            contentFragmentRenderer = { fragment, _ ->
+                EditorSheetFragment(
+                    fragment = fragment,
+                    allBlocks = editorState.doc.blocks,
+                    activeIdProvider = { splitViewModel?.editorState?.value?.activeBlockId ?: viewModel?.uiState?.value?.activeBlockId },
+                    activeListItemIndexProvider = { splitViewModel?.editorState?.value?.activeListItemIndex ?: viewModel?.uiState?.value?.activeListItemIndex },
+                    richStateProvider = { id, itemIndex ->
+                        splitViewModel?.richStateFor(id, itemIndex)
+                            ?: viewModel?.richStateFor(id, itemIndex)
+                    },
+                    focusRequest = editorState.focusRequest,
+                    splitViewModel = splitViewModel,
+                    viewModel = viewModel,
+                )
+            },
+            contentBlockRenderer = { block, idx ->
+                val richState = splitViewModel?.blockRichStates?.get(block.id)
+                    ?: viewModel?.blockRichStates?.get(block.id)
+                val isActive = editorState.activeBlockId == block.id
+                if (block is StudyBlock.Verse ||
+                    block is StudyBlock.BulletList ||
+                    block is StudyBlock.OrderedList ||
+                    richState != null
+                ) {
+                    UnifiedBlockRenderer(
+                        block = block,
+                        blockIndex = idx,
+                        richState = richState,
+                        isActive = isActive,
+                        isEditing = true,
+                        allBlocks = editorState.doc.blocks,
+                        focusRequest = editorState.focusRequest,
+                        splitViewModel = splitViewModel,
+                        viewModel = viewModel,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+        )
     }
 }
 
@@ -181,7 +235,16 @@ private fun StudyModeHeader(
     documentTitle: String,
     isFullScreen: Boolean,
     onToggleFullScreen: () -> Unit,
+    viewMode: SheetViewMode,
+    onToggleViewMode: () -> Unit,
     onTitleChange: (String) -> Unit,
+    canUndo: Boolean,
+    canRedo: Boolean,
+    onUndo: () -> Unit,
+    onRedo: () -> Unit,
+    isSaving: Boolean,
+    hasUnsavedChanges: Boolean,
+    lastError: String?,
     onBackClick: () -> Unit,
     onSaveClick: () -> Unit,
 ) {
@@ -234,10 +297,43 @@ private fun StudyModeHeader(
         )
 
         // Botón alternar pantalla completa / dividida
+        SaveStatus(
+            isSaving = isSaving,
+            hasUnsavedChanges = hasUnsavedChanges,
+            lastError = lastError,
+        )
+        IconButton(onClick = onUndo, enabled = canUndo) {
+            Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Deshacer")
+        }
+        IconButton(onClick = onRedo, enabled = canRedo) {
+            Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Rehacer")
+        }
         IconButton(onClick = onToggleFullScreen) {
             Icon(
                 imageVector = if (isFullScreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
                 contentDescription = if (isFullScreen) "Pantalla dividida" else "Pantalla completa",
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(24.dp),
+            )
+        }
+
+        // Botón alternar modo de vista (PAGINATED <-> PAGELESS)
+        IconButton(onClick = onToggleViewMode) {
+            Icon(
+                imageVector = if (viewMode == SheetViewMode.PAGINATED) {
+                    Icons.Default.ViewStream
+                } else {
+                    Icons.Default.Description
+                },
+                contentDescription = if (viewMode == SheetViewMode.PAGINATED) {
+                    androidx.compose.ui.res.stringResource(
+                        com.cristiancogollo.biblion.R.string.view_mode_pageless
+                    )
+                } else {
+                    androidx.compose.ui.res.stringResource(
+                        com.cristiancogollo.biblion.R.string.view_mode_paginated
+                    )
+                },
                 tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(24.dp),
             )
@@ -253,6 +349,31 @@ private fun StudyModeHeader(
             )
         }
     }
+}
+
+@Composable
+private fun SaveStatus(
+    isSaving: Boolean,
+    hasUnsavedChanges: Boolean,
+    lastError: String?,
+) {
+    val label = when {
+        lastError != null -> "Error al guardar"
+        isSaving -> "Guardando..."
+        hasUnsavedChanges -> "Cambios sin guardar"
+        else -> "Guardado"
+    }
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelSmall,
+        color = if (lastError != null) {
+            MaterialTheme.colorScheme.error
+        } else if (isSaving || hasUnsavedChanges) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+    )
 }
 
 /**
@@ -607,7 +728,13 @@ private fun ToolbarIcon(
     val bg = if (isActive) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
     val shape = RoundedCornerShape(6.dp)
     IconButton(
-        onClick = onClick,
+        onClick = {
+            StudyEditorDebugLog.log(
+                "TOOLBAR_CLICK",
+                "action=$contentDescription isActive=$isActive",
+            )
+            onClick()
+        },
         modifier = Modifier
             .size(36.dp)
             .clip(shape)
@@ -641,19 +768,38 @@ private fun EditorSheetFragment(
     fragment: com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment,
     allBlocks: List<com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock>,
     activeIdProvider: () -> com.cristiancogollo.biblion.feature.studydocs.model.BlockId?,
-    richStateProvider: (com.cristiancogollo.biblion.feature.studydocs.model.BlockId) -> com.mohamedrejeb.richeditor.model.RichTextState?,
-    focusRequesters: androidx.compose.runtime.snapshots.SnapshotStateMap<com.cristiancogollo.biblion.feature.studydocs.model.BlockId, androidx.compose.ui.focus.FocusRequester>,
+    activeListItemIndexProvider: () -> Int?,
+    focusRequest: com.cristiancogollo.biblion.feature.studydocs.domain.EditorFocusRequest?,
+    richStateProvider: (com.cristiancogollo.biblion.feature.studydocs.model.BlockId, Int?) -> com.mohamedrejeb.richeditor.model.RichTextState?,
     splitViewModel: com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocSplitViewModel?,
     viewModel: com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel?,
 ) {
     val activeId = activeIdProvider()
-    val richState = richStateProvider(fragment.originBlockId)
-    val isOwner = activeId == fragment.originBlockId
+    val activeListItemIndex = activeListItemIndexProvider()
+    val itemIndex = when (fragment) {
+        is PageFragment.ListItemSlice -> fragment.itemIndex
+        is PageFragment.OrderedListItemSlice -> fragment.itemIndex
+        else -> null
+    }
+    val richState = richStateProvider(fragment.originBlockId, itemIndex)
+    val isOwner = activeId == fragment.originBlockId &&
+        (itemIndex == null || activeListItemIndex == itemIndex) &&
+        fragment.isFirstOwnerFragment()
     Log.d(
         "BIBLION_STUDY",
         "SplitEditor fragment blockId=${fragment.originBlockId} richState=${richState != null} isOwner=$isOwner activeBlockId=$activeId",
     )
-    if (richState != null || fragment is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.VerseSlice) {
+    StudyEditorDebugLog.log(
+        "FRAGMENT_OWNER",
+        "fragment=${fragment::class.simpleName} origin=${fragment.originBlockId.value} " +
+            "item=$itemIndex active=${activeId?.value} activeItem=$activeListItemIndex " +
+            "owner=$isOwner richState=${richState != null}",
+    )
+    if (richState != null ||
+        fragment is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.VerseSlice ||
+        fragment is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.ListItemSlice ||
+        fragment is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.OrderedListItemSlice
+    ) {
         UnifiedBlockRenderer(
             fragment = fragment,
             allBlocks = allBlocks,
@@ -661,10 +807,21 @@ private fun EditorSheetFragment(
             isOwnerFragment = isOwner,
             richState = richState,
             isActive = isOwner,
-            focusRequesters = focusRequesters,
+            focusRequest = focusRequest,
             splitViewModel = splitViewModel,
             viewModel = viewModel,
             modifier = Modifier.fillMaxWidth(),
         )
     }
 }
+
+private fun com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.isFirstOwnerFragment(): Boolean =
+    when (this) {
+        is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.ParagraphSlice -> charStart == 0
+        is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.HeadingSlice -> charStart == 0
+        is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.ListItemSlice -> charStart == 0
+        is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.OrderedListItemSlice -> charStart == 0
+        is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.VerseSlice -> charStart == 0
+        is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.QuoteSlice -> charStart == 0
+        is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.Whole -> true
+    }

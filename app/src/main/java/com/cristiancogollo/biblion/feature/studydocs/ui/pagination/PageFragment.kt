@@ -75,3 +75,66 @@ data class Page(
     val index: Int,
     val fragments: List<PageFragment>,
 )
+
+/**
+ * Stable Compose identity for a visual fragment.
+ *
+ * It deliberately excludes the block payload and charEndExclusive because both
+ * change while typing. Including either value causes Compose to dispose the
+ * active BasicRichTextEditor on every document synchronization.
+ */
+internal data class PageFragmentCompositionKey(
+    val originBlockId: BlockId,
+    val kind: PageFragmentKind,
+    val itemIndex: Int? = null,
+    val charStart: Int = 0,
+)
+
+internal enum class PageFragmentKind {
+    PARAGRAPH,
+    HEADING,
+    BULLET_ITEM,
+    ORDERED_ITEM,
+    VERSE,
+    QUOTE,
+    WHOLE,
+}
+
+internal fun PageFragment.compositionKey(): PageFragmentCompositionKey = when (this) {
+    is PageFragment.ParagraphSlice -> PageFragmentCompositionKey(
+        originBlockId = originBlockId,
+        kind = PageFragmentKind.PARAGRAPH,
+        charStart = charStart,
+    )
+    is PageFragment.HeadingSlice -> PageFragmentCompositionKey(
+        originBlockId = originBlockId,
+        kind = PageFragmentKind.HEADING,
+        charStart = charStart,
+    )
+    is PageFragment.ListItemSlice -> PageFragmentCompositionKey(
+        originBlockId = originBlockId,
+        kind = PageFragmentKind.BULLET_ITEM,
+        itemIndex = itemIndex,
+        charStart = charStart,
+    )
+    is PageFragment.OrderedListItemSlice -> PageFragmentCompositionKey(
+        originBlockId = originBlockId,
+        kind = PageFragmentKind.ORDERED_ITEM,
+        itemIndex = itemIndex,
+        charStart = charStart,
+    )
+    is PageFragment.VerseSlice -> PageFragmentCompositionKey(
+        originBlockId = originBlockId,
+        kind = PageFragmentKind.VERSE,
+        charStart = charStart,
+    )
+    is PageFragment.QuoteSlice -> PageFragmentCompositionKey(
+        originBlockId = originBlockId,
+        kind = PageFragmentKind.QUOTE,
+        charStart = charStart,
+    )
+    is PageFragment.Whole -> PageFragmentCompositionKey(
+        originBlockId = originBlockId,
+        kind = PageFragmentKind.WHOLE,
+    )
+}

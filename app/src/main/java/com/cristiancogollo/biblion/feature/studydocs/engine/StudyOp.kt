@@ -37,6 +37,7 @@ sealed interface StudyOp {
     data class SplitBlock(
         val splitBlockId: BlockId,
         val newBlock: StudyBlock,
+        val updatedSplitBlock: StudyBlock? = null,
     ) : StudyOp
 
     @Serializable

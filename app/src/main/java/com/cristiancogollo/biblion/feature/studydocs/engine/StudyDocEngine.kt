@@ -2,6 +2,7 @@ package com.cristiancogollo.biblion.feature.studydocs.engine
 
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
+import com.cristiancogollo.biblion.feature.studydocs.model.StyledText
 
 sealed interface OpResult {
     data object Success : OpResult
@@ -54,14 +55,23 @@ object StudyDocEngine {
         val idx = doc.blocks.indexOfFirst { it.id == op.blockId }
         if (idx < 0) return doc to OpResult.Failed("Block not found")
         val block = doc.blocks[idx]
-        val text = block.toStyledTextList().firstOrNull() ?: com.cristiancogollo.biblion.feature.studydocs.model.StyledText.Empty
+        val text = when (block) {
+            is StudyBlock.BulletList -> StyledText(block.items.joinToString("\n") { it.raw })
+            is StudyBlock.OrderedList -> StyledText(block.items.joinToString("\n") { it.raw })
+            else -> block.toStyledTextList().firstOrNull() ?: StyledText.Empty
+        }
+        val listItems = when (block) {
+            is StudyBlock.BulletList -> block.items
+            is StudyBlock.OrderedList -> block.items
+            else -> listOf(text)
+        }
         val updated: StudyBlock = when (op.newType) {
             "bullet" -> StudyBlock.BulletList(
-                id = block.id, items = listOf(text),
+                id = block.id, items = listItems,
                 alignment = block.alignment, fontFamily = block.fontFamily, fontSize = block.fontSize,
             )
             "numbered" -> StudyBlock.OrderedList(
-                id = block.id, items = listOf(text),
+                id = block.id, items = listItems,
                 alignment = block.alignment, fontFamily = block.fontFamily, fontSize = block.fontSize,
             )
             "heading1" -> StudyBlock.Heading(
@@ -93,7 +103,11 @@ object StudyDocEngine {
     private fun splitBlock(doc: StudyDoc, op: StudyOp.SplitBlock): Pair<StudyDoc, OpResult> {
         val splitIdx = doc.blocks.indexOfFirst { it.id == op.splitBlockId }
         if (splitIdx < 0) return doc to OpResult.Failed("Block not found")
+        if (op.updatedSplitBlock != null && op.updatedSplitBlock.id != op.splitBlockId) {
+            return doc to OpResult.Failed("Updated split block must keep the original id")
+        }
         val newBlocks = doc.blocks.toMutableList()
+        op.updatedSplitBlock?.let { newBlocks[splitIdx] = it }
         newBlocks.add(splitIdx + 1, op.newBlock)
         return doc.copy(blocks = newBlocks, updatedAt = System.currentTimeMillis()) to OpResult.Success
     }

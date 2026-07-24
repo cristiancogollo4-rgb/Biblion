@@ -1,6 +1,7 @@
 package com.cristiancogollo.biblion.feature.studydocs.editor
 
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.DocumentZoomState
+import androidx.compose.ui.geometry.Size
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -51,5 +52,29 @@ class DocumentZoomStateTest {
         presets.forEach { p ->
             assertTrue(p in DocumentZoomState.MIN_ZOOM..DocumentZoomState.MAX_ZOOM)
         }
+    }
+
+    @Test
+    fun `fit width calcula la escala usando el ancho disponible`() {
+        val state = DocumentZoomState()
+        state.updateViewport(Size(600f, 1000f))
+        state.updateContent(Size(400f, 1200f))
+
+        state.fitWidth(horizontalPaddingPx = 20f)
+
+        assertEquals(1.4f, state.zoom, 0.0001f)
+    }
+
+    @Test
+    fun `fit width respeta el rango del zoom`() {
+        val state = DocumentZoomState()
+        state.updateViewport(Size(1000f, 1000f))
+        state.updateContent(Size(100f, 1000f))
+        state.fitWidth(horizontalPaddingPx = 0f)
+        assertEquals(DocumentZoomState.MAX_ZOOM, state.zoom, 0.0001f)
+
+        state.updateContent(Size(2000f, 1000f))
+        state.fitWidth(horizontalPaddingPx = 0f)
+        assertEquals(DocumentZoomState.MIN_ZOOM, state.zoom, 0.0001f)
     }
 }
