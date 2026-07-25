@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -23,13 +24,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cristiancogollo.biblion.BibleRepository
 import com.cristiancogollo.biblion.BibleVersionOption
-import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
 import kotlinx.coroutines.launch
 
-private val VerseBgColor = Color(0xFFFEF3C7)
-private val VerseBorderColor = Color(0xFFFDE68A)
-private val VerseRefColor = Color(0xFF92400E)
+private val LightVerseBgColor = Color(0xFFFEF3C7)
+private val LightVerseBorderColor = Color(0xFFFDE68A)
+private val LightVerseRefColor = Color(0xFF92400E)
+private val DarkVerseBgColor = Color(0xFF242016)
+private val DarkVerseBorderColor = Color(0xFF67551D)
+private val DarkVerseRefColor = Color(0xFFF1C75B)
 
 @Composable
 fun BibleVerseBlock(
@@ -43,11 +46,16 @@ fun BibleVerseBlock(
     var selectedVersions by remember { mutableStateOf<Set<String>>(emptySet()) }
     var availableVersions by remember { mutableStateOf<List<BibleVersionOption>>(emptyList()) }
     val scope = rememberCoroutineScope()
+    val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val verseBackground = if (isDarkTheme) DarkVerseBgColor else LightVerseBgColor
+    val verseBorder = if (isDarkTheme) DarkVerseBorderColor else LightVerseBorderColor
+    val verseReference = if (isDarkTheme) DarkVerseRefColor else LightVerseRefColor
+    val verseTextColor = if (isDarkTheme) MaterialTheme.colorScheme.onSurface else Color(0xFF0F172A)
 
     val currentText = block.contents[block.sourceVersion] ?: ""
 
     // Texto con números de versículo coloreados
-    val annotatedText = remember(currentText) {
+    val annotatedText = remember(currentText, verseReference) {
         buildAnnotatedString {
             // Si el texto contiene números de versículo al inicio de segmentos
             val segments = currentText.split(Regex("(?=\\d+ )"))
@@ -57,7 +65,7 @@ fun BibleVerseBlock(
                     val num = match.groupValues[1]
                     val txt = match.groupValues[2]
                     withStyle(SpanStyle(
-                        color = BiblionGoldPrimary,
+                        color = verseReference,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                     )) {
@@ -83,13 +91,13 @@ fun BibleVerseBlock(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(VerseBgColor)
+            .background(verseBackground)
             .padding(16.dp),
     ) {
         Text(
             text = "${block.bookId} ${block.chapter}:${block.verseStart}${if (block.verseEnd != block.verseStart) "-${block.verseEnd}" else ""} (${block.sourceVersion})",
             style = MaterialTheme.typography.labelMedium,
-            color = VerseRefColor,
+            color = verseReference,
             fontWeight = FontWeight.Bold,
             fontFamily = FontFamily.Serif,
         )
@@ -100,7 +108,7 @@ fun BibleVerseBlock(
             style = MaterialTheme.typography.bodyLarge.copy(
                 fontFamily = FontFamily.Serif,
                 lineHeight = 24.sp,
-                color = Color(0xFF0F172A),
+                color = verseTextColor,
             ),
         )
 
@@ -110,13 +118,13 @@ fun BibleVerseBlock(
             horizontalArrangement = Arrangement.End,
         ) {
             TextButton(onClick = { showVersionDialog = true }) {
-                Text("Comparar versiones", style = MaterialTheme.typography.labelSmall, color = VerseRefColor)
+                Text("Comparar versiones", style = MaterialTheme.typography.labelSmall, color = verseReference)
             }
         }
 
         // Panel de comparación — solo versiones adicionales, con texto completo del rango
         if (expanded && comparedTexts.isNotEmpty()) {
-            HorizontalDivider(color = VerseBorderColor, thickness = 1.dp)
+            HorizontalDivider(color = verseBorder, thickness = 1.dp)
             Spacer(Modifier.height(8.dp))
 
             val addicionalVersions = comparedTexts.filterKeys { it != block.sourceVersion }
@@ -124,7 +132,7 @@ fun BibleVerseBlock(
                 Text(
                     "No hay otras versiones disponibles.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = VerseRefColor.copy(alpha = 0.6f),
+                    color = verseReference.copy(alpha = 0.7f),
                 )
             } else {
                 addicionalVersions.forEach { (version, text) ->
@@ -134,17 +142,17 @@ fun BibleVerseBlock(
                             text = label,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = VerseRefColor,
+                                color = verseReference,
                             ),
                         )
                         Spacer(Modifier.height(2.dp))
-                        val comparedAnnotated = remember(text) {
+                        val comparedAnnotated = remember(text, verseReference) {
                             buildAnnotatedString {
                                 val segments = text.split(Regex("(?=\\d+)"))
                                 segments.forEach { seg ->
                                     val match = Regex("^(\\d+) (.+)$").find(seg.trim())
                                     if (match != null) {
-                                        withStyle(SpanStyle(color = BiblionGoldPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)) {
+                                        withStyle(SpanStyle(color = verseReference, fontSize = 11.sp, fontWeight = FontWeight.Bold)) {
                                             append(match.groupValues[1])
                                         }
                                         append(" ${match.groupValues[2]}")
@@ -159,7 +167,7 @@ fun BibleVerseBlock(
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontFamily = FontFamily.Serif,
                                 lineHeight = 22.sp,
-                                color = Color(0xFF1E293B),
+                                color = verseTextColor,
                             ),
                         )
                     }

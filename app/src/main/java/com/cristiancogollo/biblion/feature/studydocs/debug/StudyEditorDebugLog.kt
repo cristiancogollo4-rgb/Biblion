@@ -2,6 +2,7 @@ package com.cristiancogollo.biblion.feature.studydocs.debug
 
 import android.os.SystemClock
 import android.util.Log
+import com.cristiancogollo.biblion.BuildConfig
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
 import java.util.concurrent.atomic.AtomicLong
 
@@ -11,6 +12,7 @@ object StudyEditorDebugLog {
     private val sequence = AtomicLong(0L)
 
     fun log(stage: String, message: String) {
+        if (!BuildConfig.DEBUG) return
         val id = sequence.incrementAndGet()
         Log.d(TAG, "#$id t=${SystemClock.uptimeMillis()} $stage | $message")
     }

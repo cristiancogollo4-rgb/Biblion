@@ -58,8 +58,20 @@ class PageFragmentCompositionKeyTest {
             text = StyledText("texto largo"),
         )
 
-        val owner = PageFragment.ParagraphSlice(blockId, block, 0, 5)
-        val continuation = PageFragment.ParagraphSlice(blockId, block, 5, 11)
+        val owner = PageFragment.ParagraphSlice(
+            blockId,
+            block,
+            0,
+            5,
+            sliceIndex = 0,
+        )
+        val continuation = PageFragment.ParagraphSlice(
+            blockId,
+            block,
+            5,
+            11,
+            sliceIndex = 1,
+        )
 
         assertNotEquals(owner.compositionKey(), continuation.compositionKey())
     }

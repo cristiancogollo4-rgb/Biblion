@@ -30,4 +30,5 @@ data class StudyDocEntity(
     @ColumnInfo(name = "last_synced_at") val lastSyncedAt: Long? = null,
     @ColumnInfo(name = "sync_version") val syncVersion: Long = 0,
     @ColumnInfo(name = "is_dirty") val isDirty: Boolean = true,
+    @ColumnInfo(name = "is_published") val isPublished: Boolean = true,
 )

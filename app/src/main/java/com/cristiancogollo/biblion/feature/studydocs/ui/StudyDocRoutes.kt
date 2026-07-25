@@ -39,6 +39,8 @@ fun StudyDocsListRoute(navController: NavController) {
 fun StudyDocEditorRoute(
     navController: NavController,
     remoteId: String?,
+    isDarkTheme: Boolean = false,
+    onToggleDarkTheme: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val repository = remember { StudyDocRepository(StudyDocDatabase.getInstance(context).studyDocDao()) }
@@ -49,6 +51,8 @@ fun StudyDocEditorRoute(
         isSplitMode = true,
         onBack = { navController.popBackStack() },
         navController = navController,
+        isDarkTheme = isDarkTheme,
+        onToggleDarkTheme = onToggleDarkTheme,
     )
 }
 

@@ -128,6 +128,8 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
         StudyDocEditorRoute(
             navController = navController,
             remoteId = if (remoteId == "new") null else remoteId,
+            isDarkTheme = isDarkTheme,
+            onToggleDarkTheme = onToggleDarkTheme,
         )
     }
 

@@ -21,8 +21,6 @@ import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.FormatUnderlined
 import androidx.compose.material.icons.filled.StrikethroughS
-import androidx.compose.material.icons.filled.TextDecrease
-import androidx.compose.material.icons.filled.TextIncrease
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -56,6 +54,7 @@ fun EditorToolbar(
     onBackgroundColor: (Int) -> Unit,
     onClearColor: () -> Unit,
     onStepFontSize: (Int) -> Unit,
+    onSetFontSize: (Int) -> Unit,
     onFontFamily: (String) -> Unit,
     onCycleAlignment: () -> Unit,
     onInsertBlock: (String) -> Unit,
@@ -134,25 +133,11 @@ fun EditorToolbar(
 
             VerticalDivider(dividerModifier)
 
-            IconButton(onClick = { onStepFontSize(-1) }) {
-                Icon(
-                    Icons.Filled.TextDecrease,
-                    contentDescription = "Reducir",
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-            Text(
-                text = "${currentFontSize}px",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+            FontSizeControl(
+                currentFontSize = currentFontSize,
+                onStepFontSize = onStepFontSize,
+                onSetFontSize = onSetFontSize,
             )
-            IconButton(onClick = { onStepFontSize(1) }) {
-                Icon(
-                    Icons.Filled.TextIncrease,
-                    contentDescription = "Aumentar",
-                    modifier = Modifier.size(20.dp),
-                )
-            }
 
             VerticalDivider(dividerModifier)
 

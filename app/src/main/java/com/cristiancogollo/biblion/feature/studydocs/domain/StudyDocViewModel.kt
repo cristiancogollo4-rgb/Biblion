@@ -22,6 +22,7 @@ import com.cristiancogollo.biblion.feature.studydocs.engine.StudyDocEngine
 import com.cristiancogollo.biblion.feature.studydocs.model.BlockId
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
+import com.cristiancogollo.biblion.feature.studydocs.model.hasPersistableTitle
 import com.cristiancogollo.biblion.feature.studydocs.model.DocMetadata
 import com.cristiancogollo.biblion.feature.studydocs.model.DocConfig
 import com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment
@@ -67,7 +68,7 @@ enum class TextStyleKind { Bold, Italic, Underline, Strikethrough }
 
 class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(StudyEditorUiState())
+    private val _uiState = MutableStateFlow(StudyEditorUiState(isLoading = true))
     val uiState: StateFlow<StudyEditorUiState> = _uiState.asStateFlow()
 
     val blockRichStates: SnapshotStateMap<BlockId, RichTextState> =
@@ -79,6 +80,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
     private var _remoteId: String? = null
     private var _isDocLoaded = false
     private val history = EditorHistory()
+    private val listBackspaceExitTracker = ListBackspaceExitTracker()
     private val lastRichTexts = mutableMapOf<EditorTextKey, StyledText>()
     private var lastTextHistoryAt = 0L
     private var focusRequestSequence = 0L
@@ -94,6 +96,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
         listItemRichStates.clear()
         lastRichTexts.clear()
         history.clear()
+        listBackspaceExitTracker.clear()
         val block = StudyBlock.Paragraph()
         val rs = RichTextState().apply { setHtml("<p></p>") }
         blockRichStates[block.id] = rs
@@ -283,9 +286,8 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
             TextStyleKind.Underline -> rs.toggleSpanStyle(SpanStyle(textDecoration = TextDecoration.Underline))
             TextStyleKind.Strikethrough -> rs.toggleSpanStyle(SpanStyle(textDecoration = TextDecoration.LineThrough))
         }
+        onRichTextChanged(activeId, rs, _uiState.value.activeListItemIndex)
         syncActiveFormat(rs)
-        markDirty()
-        scheduleAutoSave()
     }
 
     fun setActiveTextColor(argb: Int) {
@@ -296,9 +298,8 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
         } else {
             rs.addSpanStyle(SpanStyle(color = Color(argb)))
         }
+        onRichTextChanged(activeId, rs, _uiState.value.activeListItemIndex)
         syncActiveFormat(rs)
-        markDirty()
-        scheduleAutoSave()
     }
 
     fun setActiveBackgroundColor(argb: Int) {
@@ -309,9 +310,8 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
         } else {
             rs.addSpanStyle(SpanStyle(background = Color(argb)))
         }
+        onRichTextChanged(activeId, rs, _uiState.value.activeListItemIndex)
         syncActiveFormat(rs)
-        markDirty()
-        scheduleAutoSave()
     }
 
     fun clearActiveColor() {
@@ -333,8 +333,8 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
                 rs.addSpanStyle(keepStyle, sel)
             }
         }
+        onRichTextChanged(activeId, rs, _uiState.value.activeListItemIndex)
         syncActiveFormat(rs)
-        scheduleAutoSave()
     }
 
     fun insertBlock(afterBlockId: BlockId?, type: String) {
@@ -477,13 +477,49 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
                 )
             }
         } else {
-            // Con selección: detectar tamaño base y normalizar TODA la selección
+            // Con selección: modificar solo el tamaño y conservar color, fondo y énfasis.
             val baseSize = detectBaseFontSize(rs, sel)
             val newSize = (baseSize + delta).coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
-            rs.addSpanStyle(SpanStyle(fontSize = newSize.sp), sel)
+            rs.applyFontSizePreservingStyles(sel, newSize.toFloat())
         }
+        onRichTextChanged(activeId, rs, _uiState.value.activeListItemIndex)
         syncActiveFormat(rs)
-        scheduleAutoSave()
+        if (rs.annotatedString.isEmpty()) scheduleAutoSave()
+    }
+
+    fun setFontSizeActive(fontSize: Int) {
+        val activeId = _uiState.value.activeBlockId ?: return
+        val rs = activeRichState() ?: return
+        val normalizedSize = fontSize.coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
+        val selection = rs.selection
+        val textLength = rs.annotatedString.length
+
+        if (selection.collapsed && textLength == 0) {
+            val index = _uiState.value.doc.blocks.indexOfFirst { it.id == activeId }
+            if (index < 0) return
+            val before = currentCheckpoint()
+            val blocks = _uiState.value.doc.blocks.toMutableList()
+            blocks[index] = blocks[index].withBaseFontSize(normalizedSize)
+            _uiState.update {
+                it.copy(
+                    doc = it.doc.copy(
+                        blocks = blocks,
+                        updatedAt = System.currentTimeMillis(),
+                    ),
+                    hasUnsavedChanges = true,
+                )
+            }
+            history.pushBeforeChange(before)
+            refreshHistoryState()
+            scheduleAutoSave()
+        } else if (selection.collapsed) {
+            rs.addSpanStyle(SpanStyle(fontSize = normalizedSize.sp))
+        } else {
+            rs.applyFontSizePreservingStyles(selection, normalizedSize.toFloat())
+        }
+
+        onRichTextChanged(activeId, rs, _uiState.value.activeListItemIndex)
+        syncActiveFormat(rs)
     }
 
     /**
@@ -590,10 +626,20 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
         val prevBlock = _uiState.value.doc.blocks[idx - 1]
         val prevRS = blockRichStates[prevBlock.id] ?: return false
         val joinOffset = prevRS.annotatedString.text.length
-        val currentHtml = currentRS.toHtml()
-        prevRS.setHtml(prevRS.toHtml() + currentHtml)
+        val mergedText = StyledText.fromAnnotatedString(prevRS.annotatedString)
+            .append(StyledText.fromAnnotatedString(currentRS.annotatedString))
+        val updatedPreviousBlock = prevBlock.withText(mergedText) ?: return false
+        applyOp(
+            StudyOp.MergeBlock(
+                removeBlockId = blockId,
+                updatedTargetBlock = updatedPreviousBlock,
+            ),
+        )
+        prevRS.syncFromStyledText(mergedText)
+        lastRichTexts[EditorTextKey(prevBlock.id)] =
+            StyledText.fromAnnotatedString(prevRS.annotatedString)
         blockRichStates.remove(blockId)
-        applyOp(StudyOp.MergeBlock(removeBlockId = blockId))
+        lastRichTexts.remove(EditorTextKey(blockId))
         prevRS.selection = androidx.compose.ui.text.TextRange(joinOffset)
         activateEditor(prevBlock.id, null, requestFocus = true)
         return true
@@ -627,12 +673,19 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
     }
 
     private fun handleListEnter(blockId: BlockId, block: StudyBlock): Boolean {
+        listBackspaceExitTracker.clear()
         val itemIndex = (_uiState.value.activeListItemIndex ?: 0).coerceIn(0, block.toStyledTextList().lastIndex)
         val state = richStateFor(blockId, itemIndex) ?: return false
         val current = StyledText.fromAnnotatedString(state.annotatedString)
-        if (current.raw.isBlank() && block.toStyledTextList().size == 1) {
-            changeBlockType(blockId, "paragraph")
-            return true
+        val currentItems = block.toStyledTextList()
+        if (current.raw.isBlank()) {
+            if (currentItems.size == 1) {
+                changeBlockType(blockId, "paragraph")
+                return true
+            }
+            if (itemIndex == currentItems.lastIndex) {
+                return exitListFromEmptyItem(blockId, block, itemIndex, "enter")
+            }
         }
         val splitAt = state.selection.start.coerceIn(0, current.length)
         val left = current.slice(0 until splitAt)
@@ -653,16 +706,38 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
     private fun handleListBackspace(blockId: BlockId, block: StudyBlock): Boolean {
         val itemIndex = (_uiState.value.activeListItemIndex ?: 0).coerceIn(0, block.toStyledTextList().lastIndex)
         val currentState = richStateFor(blockId, itemIndex) ?: return false
-        if (!currentState.selection.collapsed || currentState.selection.start > 0) return false
+        if (!currentState.selection.collapsed) {
+            listBackspaceExitTracker.clear()
+            return false
+        }
+        val cursorAtEnd = currentState.selection.start == currentState.annotatedString.length
+        if (cursorAtEnd && listBackspaceExitTracker.consume(blockId)) {
+            StudyEditorDebugLog.log(
+                "LIST_BACKSPACE_EXIT",
+                "vm=single block=${blockId.value}",
+            )
+            insertBlock(blockId, "paragraph")
+            return true
+        }
+        if (!cursorAtEnd) listBackspaceExitTracker.clear()
+        if (currentState.selection.start > 0) return false
         val items = block.toStyledTextList()
         if (itemIndex == 0 && items.size == 1) {
             changeBlockType(blockId, "paragraph")
             return true
         }
         val before = currentCheckpoint()
+        val currentText = StyledText.fromAnnotatedString(currentState.annotatedString)
+        val armListExit = itemIndex == items.lastIndex &&
+            itemIndex > 0 &&
+            currentText.raw.isBlank()
         val nextItems = items.toMutableList()
         val nextIndex = if (itemIndex > 0) {
-            val previous = items[itemIndex - 1].append(StyledText.fromAnnotatedString(currentState.annotatedString))
+            val previous = if (armListExit) {
+                items[itemIndex - 1]
+            } else {
+                items[itemIndex - 1].append(currentText)
+            }
             nextItems[itemIndex - 1] = previous
             nextItems.removeAt(itemIndex)
             richStateFor(blockId, itemIndex - 1)?.apply {
@@ -676,7 +751,46 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
         }
         removeListItemState(blockId, itemIndex)
         commitListItems(blockId, nextItems, nextIndex, before)
+        if (armListExit) {
+            listBackspaceExitTracker.arm(blockId)
+            StudyEditorDebugLog.log(
+                "LIST_BACKSPACE_ARM",
+                "vm=single block=${blockId.value} item=$itemIndex nextItem=$nextIndex",
+            )
+        }
         return true
+    }
+
+    private fun exitListFromEmptyItem(
+        blockId: BlockId,
+        block: StudyBlock,
+        itemIndex: Int,
+        source: String,
+    ): Boolean {
+        val remainingItems = block.toStyledTextList().toMutableList().apply {
+            removeAt(itemIndex)
+        }
+        val updatedList = when (block) {
+            is StudyBlock.BulletList -> block.copy(items = remainingItems)
+            is StudyBlock.OrderedList -> block.copy(items = remainingItems)
+            else -> return false
+        }
+        val paragraph = StudyBlock.Paragraph(
+            alignment = block.alignment,
+            fontFamily = block.fontFamily,
+            fontSize = block.fontSize,
+        )
+        removeListItemState(blockId, itemIndex)
+        initializeRichStates(paragraph)
+        val applied = applyOp(StudyOp.SplitBlock(blockId, paragraph, updatedList))
+        if (applied) {
+            StudyEditorDebugLog.log(
+                "LIST_EXIT",
+                "vm=single source=$source block=${blockId.value} paragraph=${paragraph.id.value}",
+            )
+            activateEditor(paragraph.id, null, requestFocus = true)
+        }
+        return applied
     }
 
     private fun commitListItems(
@@ -864,6 +978,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
     }
 
     fun saveNow(title: String, tags: List<String>) {
+        if (title.trim().isEmpty()) return
         _uiState.update {
             it.copy(
                 doc = it.doc.copy(title = title.trim(), metadata = DocMetadata(tags = tags)),
@@ -875,6 +990,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
 
     fun saveNow() {
         _autoSaveJob?.cancel()
+        if (!_uiState.value.doc.hasPersistableTitle()) return
         val current = _uiState.value.doc.withEditorTexts(currentRichTexts()).copy(
             remoteId = _remoteId ?: _uiState.value.doc.id.value,
             updatedAt = System.currentTimeMillis(),
@@ -900,6 +1016,11 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
                 }
             }
         }
+    }
+
+    fun discardDraft() {
+        val remoteId = _uiState.value.doc.remoteId ?: _uiState.value.doc.id.value
+        viewModelScope.launch { repository.discardDraft(remoteId) }
     }
 
     private fun applyOp(op: StudyOp): Boolean {
@@ -929,11 +1050,6 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
             )
             return false
         }
-    }
-
-    private fun markDirty() {
-        _uiState.update { it.copy(hasUnsavedChanges = true) }
-        scheduleAutoSave()
     }
 
     private fun currentRichTexts(
@@ -981,6 +1097,43 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
         }
     }
 
+    fun updatePagedSelection(
+        blockId: BlockId,
+        itemIndex: Int?,
+        selection: androidx.compose.ui.text.TextRange,
+    ) {
+        val state = richStateFor(blockId, itemIndex) ?: return
+        val safeSelection = androidx.compose.ui.text.TextRange(
+            selection.start.coerceIn(0, state.annotatedString.length),
+            selection.end.coerceIn(0, state.annotatedString.length),
+        )
+        if (state.selection != safeSelection) state.selection = safeSelection
+        if (_uiState.value.activeBlockId != blockId ||
+            _uiState.value.activeListItemIndex != itemIndex
+        ) {
+            onEditorFocused(blockId, itemIndex)
+        }
+        syncActiveFormat(state)
+    }
+
+    fun replacePagedText(
+        blockId: BlockId,
+        itemIndex: Int?,
+        rawText: String,
+        selection: androidx.compose.ui.text.TextRange,
+    ) {
+        val state = richStateFor(blockId, itemIndex) ?: return
+        val previous = StyledText.fromAnnotatedString(state.annotatedString)
+        val next = previous.reconcileRawText(rawText, _uiState.value.activeFormat)
+        state.syncFromStyledText(next)
+        state.selection = androidx.compose.ui.text.TextRange(
+            selection.start.coerceIn(0, next.length),
+            selection.end.coerceIn(0, next.length),
+        )
+        onRichTextChanged(blockId, state, itemIndex)
+        syncActiveFormat(state)
+    }
+
     fun onRichTextChanged(blockId: BlockId, richState: RichTextState, itemIndex: Int? = null) {
         val key = EditorTextKey(blockId, itemIndex)
         val next = StyledText.fromAnnotatedString(richState.annotatedString)
@@ -1002,6 +1155,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
             return
         }
 
+        listBackspaceExitTracker.clear()
         val now = System.currentTimeMillis()
         if (now - lastTextHistoryAt > TEXT_HISTORY_GROUP_MS) {
             history.pushBeforeChange(currentCheckpoint(mapOf(key to previous)))
@@ -1040,8 +1194,8 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
             } else {
                 listItemRichStates[key] ?: RichTextState().also { listItemRichStates[key] = it }
             }
-            lastRichTexts[key] = styled
             state.syncFromStyledText(styled)
+            lastRichTexts[key] = StyledText.fromAnnotatedString(state.annotatedString)
         }
         _uiState.update {
             it.copy(
@@ -1075,7 +1229,15 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
         _autoSaveJob?.cancel()
         _autoSaveJob = viewModelScope.launch {
             delay(AUTO_SAVE_DELAY_MS)
-            saveNow()
+            val current = _uiState.value.doc.withEditorTexts(currentRichTexts()).copy(
+                remoteId = _remoteId ?: _uiState.value.doc.remoteId ?: _uiState.value.doc.id.value,
+                updatedAt = System.currentTimeMillis(),
+            )
+            try {
+                repository.saveDraft(current)
+            } catch (error: Throwable) {
+                _uiState.update { it.copy(lastError = error.message ?: "No se pudo guardar el borrador") }
+            }
         }
     }
 

@@ -2,6 +2,7 @@ package com.cristiancogollo.biblion.feature.studydocs.data
 
 import com.cristiancogollo.biblion.feature.studydocs.model.DocId
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
+import com.cristiancogollo.biblion.feature.studydocs.model.hasPersistableTitle
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -22,6 +23,24 @@ class StudyDocRepository(
     suspend fun getDirtyForSync(): List<StudyDocEntity> = dao.getDirtyForSync()
 
     suspend fun save(doc: StudyDoc, ownerUid: String? = null) {
+        check(doc.hasPersistableTitle()) {
+            "No se puede guardar un documento sin titulo"
+        }
+        saveInternal(doc, ownerUid, isPublished = true)
+    }
+
+    /** Saves the working copy without publishing a new teaching to the list. */
+    suspend fun saveDraft(doc: StudyDoc, ownerUid: String? = null) {
+        val existing = doc.remoteId?.let { dao.getByRemoteId(it) }
+        saveInternal(
+            doc = doc,
+            ownerUid = ownerUid,
+            // Once published, autosave keeps the teaching visible while preserving its edits.
+            isPublished = existing?.isPublished == true,
+        )
+    }
+
+    private suspend fun saveInternal(doc: StudyDoc, ownerUid: String?, isPublished: Boolean) {
         val remoteId = doc.remoteId ?: doc.id.value
         val now = clock()
         val existing = dao.getByRemoteId(remoteId)
@@ -37,12 +56,21 @@ class StudyDocRepository(
             updatedAt = now,
             ownerUid = ownerUid ?: existing?.ownerUid,
             isDirty = true,
+            isPublished = isPublished,
         )
         if (existing == null) dao.insert(entity) else dao.update(entity.copy(id = existing.id))
     }
 
     suspend fun softDelete(localId: Long, deletedAt: Long) = dao.softDelete(localId, deletedAt)
     suspend fun hardDelete(docId: DocId) = dao.hardDeleteByRemoteId(docId.value)
+
+    suspend fun discardDraft(remoteId: String) {
+        val existing = dao.getByRemoteId(remoteId)
+        if (existing != null && !existing.isPublished) {
+            dao.hardDeleteByRemoteId(remoteId)
+        }
+    }
+
     suspend fun markSynced(localId: Long, syncVersion: Long) = dao.markSynced(localId, syncVersion)
     suspend fun countActive(): Int = dao.countActive()
 }

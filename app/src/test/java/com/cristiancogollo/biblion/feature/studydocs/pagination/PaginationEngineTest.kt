@@ -9,8 +9,13 @@ import com.cristiancogollo.biblion.feature.studydocs.model.BlockId
 import com.cristiancogollo.biblion.feature.studydocs.model.DocConfig
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
 import com.cristiancogollo.biblion.feature.studydocs.model.StyledText
+import com.cristiancogollo.biblion.feature.studydocs.ui.editor.PageGapVisualTransformation
+import com.cristiancogollo.biblion.feature.studydocs.ui.editor.calibratePageGapHeights
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PaginationEngine
+import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.buildPagedEditorUnits
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.unit.Constraints
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -64,6 +69,91 @@ class PaginationEngineTest {
         val slice = pages[0].fragments[0] as PageFragment.ParagraphSlice
         assertEquals(0, slice.charStart)
         assertEquals("Hola mundo".length, slice.charEndExclusive)
+    }
+
+    @Test
+    fun wrapped_paragraph_reserves_the_height_of_every_line() {
+        val block = StudyBlock.Paragraph(
+            id = BlockId("wrapped"),
+            text = StyledText(
+                raw = "Este parrafo termina cada linea ajustada con espacios y debe medirlas todas.",
+            ),
+            fontSize = DocConfig.DEFAULT_FONT_SIZE,
+        )
+        val pageWidth = 180f
+        val expectedHeight = PaginationEngine.estimateBlockHeight(
+            block = block,
+            pageWidthPx = pageWidth,
+            density = density,
+            textMeasurer = textMeasurer,
+        )
+
+        val slice = PaginationEngine.paginate(
+            blocks = listOf(block),
+            pageWidthPx = pageWidth,
+            pageHeightPx = 2_000f,
+            textMeasurer = textMeasurer,
+            density = density,
+        ).single().fragments.single() as PageFragment.ParagraphSlice
+
+        assertTrue("La prueba debe envolver el texto en varias lineas", expectedHeight > 30f)
+        assertEquals(expectedHeight, slice.heightPx, 0.01f)
+        assertEquals(block.text.length, slice.charEndExclusive)
+    }
+
+    @Test
+    fun calibrated_editor_gaps_align_every_page_continuation() {
+        val block = StudyBlock.Paragraph(
+            id = BlockId("multipage"),
+            text = StyledText(
+                raw = (
+                    "La continuacion debe comenzar exactamente dentro del margen siguiente. "
+                    ).repeat(80),
+            ),
+            fontSize = DocConfig.DEFAULT_FONT_SIZE,
+        )
+        val widthPx = 180f
+        val pages = PaginationEngine.paginate(
+            blocks = listOf(block),
+            pageWidthPx = widthPx,
+            pageHeightPx = 200f,
+            textMeasurer = textMeasurer,
+            density = density,
+        )
+        val unit = buildPagedEditorUnits(
+            pages = pages,
+            pageHeightPx = 300f,
+            pageGapPx = 20f,
+            pageMarginPx = 40f,
+            canvasVerticalPaddingPx = 10f,
+        ).single()
+        val style = PaginationEngine.textStyleFor(block, density)
+        val calibrated = calibratePageGapHeights(
+            unit = unit,
+            styledText = block.text,
+            textStyle = style,
+            widthPx = widthPx,
+            density = density,
+            textMeasurer = textMeasurer,
+        )
+        val transformed = PageGapVisualTransformation(
+            styledText = block.text,
+            gaps = calibrated.gaps,
+            pxToSp = { px -> with(density) { px.toSp() } },
+        ).filter(AnnotatedString(block.text.raw))
+        val layout = textMeasurer.measure(
+            text = transformed.text,
+            style = style,
+            constraints = Constraints(maxWidth = widthPx.toInt()),
+            density = density,
+        )
+
+        calibrated.gaps.forEach { gap ->
+            val transformedOffset = transformed.offsetMapping
+                .originalToTransformed(gap.offset)
+            val actualTop = layout.getLineTop(layout.getLineForOffset(transformedOffset))
+            assertEquals(gap.startPx + gap.heightPx, actualTop, 0.01f)
+        }
     }
 
     @Test

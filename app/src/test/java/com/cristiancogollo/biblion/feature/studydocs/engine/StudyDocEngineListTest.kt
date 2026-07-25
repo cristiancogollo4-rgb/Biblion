@@ -53,4 +53,64 @@ class StudyDocEngineListTest {
         assertTrue(status.isSuccess)
         assertEquals(listOf("texto", "completo"), result.blocks.map { it.plainText() })
     }
+
+    @Test
+    fun `salir de lista conserva items e inserta parrafo`() {
+        val original = StudyBlock.BulletList(
+            items = listOf(StyledText("uno"), StyledText.Empty),
+        )
+        val listWithoutEmptyItem = original.copy(items = listOf(StyledText("uno")))
+        val paragraph = StudyBlock.Paragraph()
+
+        val (result, status) = StudyDocEngine.apply(
+            StudyDoc(blocks = listOf(original)),
+            StudyOp.SplitBlock(
+                splitBlockId = original.id,
+                newBlock = paragraph,
+                updatedSplitBlock = listWithoutEmptyItem,
+            ),
+        )
+
+        assertTrue(status.isSuccess)
+        assertEquals(2, result.blocks.size)
+        assertEquals(listOf("uno"), (result.blocks[0] as StudyBlock.BulletList).items.map { it.raw })
+        assertTrue(result.blocks[1] is StudyBlock.Paragraph)
+    }
+
+    @Test
+    fun `unir parrafos actualiza destino y elimina origen atomicamente`() {
+        val first = StudyBlock.Paragraph(text = StyledText("primero"))
+        val second = StudyBlock.Paragraph(text = StyledText("segundo"))
+        val merged = first.copy(text = StyledText("primerosegundo"))
+
+        val (result, status) = StudyDocEngine.apply(
+            StudyDoc(blocks = listOf(first, second)),
+            StudyOp.MergeBlock(
+                removeBlockId = second.id,
+                updatedTargetBlock = merged,
+            ),
+        )
+
+        assertTrue(status.isSuccess)
+        assertEquals(1, result.blocks.size)
+        assertEquals("primerosegundo", result.blocks.single().plainText())
+    }
+
+    @Test
+    fun `unir bloques rechaza destino que no es el bloque anterior`() {
+        val first = StudyBlock.Paragraph(text = StyledText("primero"))
+        val second = StudyBlock.Paragraph(text = StyledText("segundo"))
+        val foreign = StudyBlock.Paragraph(text = StyledText("otro"))
+
+        val (result, status) = StudyDocEngine.apply(
+            StudyDoc(blocks = listOf(first, second)),
+            StudyOp.MergeBlock(
+                removeBlockId = second.id,
+                updatedTargetBlock = foreign,
+            ),
+        )
+
+        assertTrue(status is OpResult.Failed)
+        assertEquals(listOf("primero", "segundo"), result.blocks.map { it.plainText() })
+    }
 }

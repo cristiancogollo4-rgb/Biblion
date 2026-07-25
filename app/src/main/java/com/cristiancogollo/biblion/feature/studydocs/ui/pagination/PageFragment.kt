@@ -16,12 +16,18 @@ import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
  */
 sealed interface PageFragment {
     val originBlockId: BlockId
+    val sliceIndex: Int
+    val topPx: Float
+    val heightPx: Float
 
     data class ParagraphSlice(
         override val originBlockId: BlockId,
         val block: StudyBlock.Paragraph,
         val charStart: Int,
         val charEndExclusive: Int,
+        override val sliceIndex: Int = 0,
+        override val topPx: Float = 0f,
+        override val heightPx: Float = 0f,
     ) : PageFragment
 
     data class HeadingSlice(
@@ -29,6 +35,9 @@ sealed interface PageFragment {
         val block: StudyBlock.Heading,
         val charStart: Int,
         val charEndExclusive: Int,
+        override val sliceIndex: Int = 0,
+        override val topPx: Float = 0f,
+        override val heightPx: Float = 0f,
     ) : PageFragment
 
     data class ListItemSlice(
@@ -37,6 +46,9 @@ sealed interface PageFragment {
         val itemIndex: Int,
         val charStart: Int,
         val charEndExclusive: Int,
+        override val sliceIndex: Int = 0,
+        override val topPx: Float = 0f,
+        override val heightPx: Float = 0f,
     ) : PageFragment
 
     data class OrderedListItemSlice(
@@ -45,6 +57,9 @@ sealed interface PageFragment {
         val itemIndex: Int,
         val charStart: Int,
         val charEndExclusive: Int,
+        override val sliceIndex: Int = 0,
+        override val topPx: Float = 0f,
+        override val heightPx: Float = 0f,
     ) : PageFragment
 
     data class VerseSlice(
@@ -52,6 +67,9 @@ sealed interface PageFragment {
         val block: StudyBlock.Verse,
         val charStart: Int,
         val charEndExclusive: Int,
+        override val sliceIndex: Int = 0,
+        override val topPx: Float = 0f,
+        override val heightPx: Float = 0f,
     ) : PageFragment
 
     data class QuoteSlice(
@@ -59,6 +77,9 @@ sealed interface PageFragment {
         val block: StudyBlock.Quote,
         val charStart: Int,
         val charEndExclusive: Int,
+        override val sliceIndex: Int = 0,
+        override val topPx: Float = 0f,
+        override val heightPx: Float = 0f,
     ) : PageFragment
 
     /**
@@ -68,6 +89,9 @@ sealed interface PageFragment {
     data class Whole(
         override val originBlockId: BlockId,
         val block: StudyBlock,
+        override val sliceIndex: Int = 0,
+        override val topPx: Float = 0f,
+        override val heightPx: Float = 0f,
     ) : PageFragment
 }
 
@@ -87,7 +111,7 @@ internal data class PageFragmentCompositionKey(
     val originBlockId: BlockId,
     val kind: PageFragmentKind,
     val itemIndex: Int? = null,
-    val charStart: Int = 0,
+    val sliceIndex: Int = 0,
 )
 
 internal enum class PageFragmentKind {
@@ -104,34 +128,34 @@ internal fun PageFragment.compositionKey(): PageFragmentCompositionKey = when (t
     is PageFragment.ParagraphSlice -> PageFragmentCompositionKey(
         originBlockId = originBlockId,
         kind = PageFragmentKind.PARAGRAPH,
-        charStart = charStart,
+        sliceIndex = sliceIndex,
     )
     is PageFragment.HeadingSlice -> PageFragmentCompositionKey(
         originBlockId = originBlockId,
         kind = PageFragmentKind.HEADING,
-        charStart = charStart,
+        sliceIndex = sliceIndex,
     )
     is PageFragment.ListItemSlice -> PageFragmentCompositionKey(
         originBlockId = originBlockId,
         kind = PageFragmentKind.BULLET_ITEM,
         itemIndex = itemIndex,
-        charStart = charStart,
+        sliceIndex = sliceIndex,
     )
     is PageFragment.OrderedListItemSlice -> PageFragmentCompositionKey(
         originBlockId = originBlockId,
         kind = PageFragmentKind.ORDERED_ITEM,
         itemIndex = itemIndex,
-        charStart = charStart,
+        sliceIndex = sliceIndex,
     )
     is PageFragment.VerseSlice -> PageFragmentCompositionKey(
         originBlockId = originBlockId,
         kind = PageFragmentKind.VERSE,
-        charStart = charStart,
+        sliceIndex = sliceIndex,
     )
     is PageFragment.QuoteSlice -> PageFragmentCompositionKey(
         originBlockId = originBlockId,
         kind = PageFragmentKind.QUOTE,
-        charStart = charStart,
+        sliceIndex = sliceIndex,
     )
     is PageFragment.Whole -> PageFragmentCompositionKey(
         originBlockId = originBlockId,

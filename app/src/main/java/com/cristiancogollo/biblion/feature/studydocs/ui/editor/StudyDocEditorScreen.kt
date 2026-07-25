@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel
 import com.cristiancogollo.biblion.feature.studydocs.model.DocConfig
+import com.cristiancogollo.biblion.feature.studydocs.model.hasPersistableTitle
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PaginatedSheet
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -54,6 +55,8 @@ fun StudyDocEditorScreen(
     isSplitMode: Boolean = false,
     onFocusModeChanged: () -> Unit = {},
     navController: androidx.navigation.NavController? = null,
+    isDarkTheme: Boolean = false,
+    onToggleDarkTheme: (Boolean) -> Unit = {},
 ) {
     // Usar splitViewModel si está disponible (modo split), sino usar viewModel (modo standalone)
     val editorState by (splitViewModel?.editorState ?: viewModel?.uiState)?.collectAsState()
@@ -63,11 +66,14 @@ fun StudyDocEditorScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val standaloneZoomState = rememberDocumentZoomState()
     var isFullScreen by remember { mutableStateOf(false) }
-    var isDarkTheme by remember { mutableStateOf(false) }
     var showDiscardDialog by remember { mutableStateOf(false) }
 
     val requestExit = {
-        if (editorState.hasUnsavedChanges && !editorState.isSaving) {
+        val hasDraftContent = editorState.doc.blocks.size > 1 || editorState.doc.blocks.any { block ->
+            block.toStyledTextList().any { it.raw.isNotBlank() }
+        }
+        val isExistingTeaching = editorState.doc.remoteId != null
+        if (editorState.hasUnsavedChanges && !editorState.isSaving && (hasDraftContent || isExistingTeaching || editorState.doc.title.isNotBlank())) {
             showDiscardDialog = true
         } else {
             onBack()
@@ -122,7 +128,7 @@ fun StudyDocEditorScreen(
                                 .background(MaterialTheme.colorScheme.surface),
                             navController = navController,
                             isDarkTheme = isDarkTheme,
-                            onToggleDarkTheme = { isDarkTheme = it },
+                            onToggleDarkTheme = onToggleDarkTheme,
                         )
                         VerticalDivider(
                             color = MaterialTheme.colorScheme.outlineVariant,
@@ -139,6 +145,7 @@ fun StudyDocEditorScreen(
                         isFullScreen = isFullScreen,
                         onToggleFullScreen = { isFullScreen = !isFullScreen },
                         isDarkTheme = isDarkTheme,
+                        onToggleDarkTheme = onToggleDarkTheme,
                         navController = navController,
                     )
                 }
@@ -183,7 +190,10 @@ fun StudyDocEditorScreen(
                         ) {
                             Icon(Icons.AutoMirrored.Filled.Redo, "Rehacer")
                         }
-                        IconButton(onClick = { showSaveDialog = true }) {
+                        IconButton(
+                            onClick = { showSaveDialog = true },
+                            enabled = editorState.doc.hasPersistableTitle(),
+                        ) {
                             Icon(Icons.Filled.Save, "Guardar")
                         }
                     },
@@ -220,6 +230,9 @@ fun StudyDocEditorScreen(
                     },
                     onStepFontSize = { delta ->
                         splitViewModel?.stepFontSizeActive(delta) ?: viewModel?.stepFontSizeActive(delta)
+                    },
+                    onSetFontSize = { size ->
+                        splitViewModel?.setFontSizeActive(size) ?: viewModel?.setFontSizeActive(size)
                     },
                     onFontFamily = { family ->
                         splitViewModel?.setActiveFontFamily(family) ?: viewModel?.setActiveFontFamily(family)
@@ -282,6 +295,29 @@ fun StudyDocEditorScreen(
                         }
                     },
                     contentBlockRenderer = { _, _ -> },
+                    contentPagedEditorRenderer = { unit, baseDensity ->
+                        val richState = splitViewModel?.richStateFor(
+                            unit.key.blockId,
+                            unit.key.itemIndex,
+                        ) ?: viewModel?.richStateFor(
+                            unit.key.blockId,
+                            unit.key.itemIndex,
+                        )
+                        if (richState != null) {
+                            PagedEditorUnitRenderer(
+                                unit = unit,
+                                allBlocks = editorState.doc.blocks,
+                                richState = richState,
+                                isActive = editorState.activeBlockId == unit.key.blockId &&
+                                    editorState.activeListItemIndex == unit.key.itemIndex,
+                                focusRequest = editorState.focusRequest,
+                                baseDensity = baseDensity,
+                                splitViewModel = splitViewModel,
+                                viewModel = viewModel,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    },
                 )
             }
         }
@@ -291,10 +327,11 @@ fun StudyDocEditorScreen(
         AlertDialog(
             onDismissRequest = { showDiscardDialog = false },
             title = { Text("Cambios sin guardar") },
-            text = { Text("Todavia hay cambios que no se han guardado. Si sales ahora, se perderan.") },
+            text = { Text("Tienes contenido en esta enseñanza que todavía no has guardado. Si sales ahora, se perderá.") },
             confirmButton = {
                 TextButton(onClick = {
                     showDiscardDialog = false
+                    splitViewModel?.discardDraft() ?: viewModel?.discardDraft()
                     onBack()
                 }) {
                     Text("Salir sin guardar", color = MaterialTheme.colorScheme.error)

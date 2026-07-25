@@ -11,6 +11,7 @@ import com.cristiancogollo.biblion.feature.studydocs.debug.StudyEditorDebugLog
 import com.cristiancogollo.biblion.feature.studydocs.model.BlockId
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
+import com.cristiancogollo.biblion.feature.studydocs.model.hasPersistableTitle
 import com.cristiancogollo.biblion.feature.studydocs.model.StyledText
 import com.cristiancogollo.biblion.feature.studydocs.model.DocConfig
 import com.cristiancogollo.biblion.feature.studydocs.engine.StudyOp
@@ -48,7 +49,7 @@ class StudyDocSplitViewModel(
     val splitState: StateFlow<SplitUiState> = _splitState.asStateFlow()
 
     // Estado del editor (reutiliza StudyEditorUiState existente)
-    private val _editorState = MutableStateFlow(StudyEditorUiState())
+    private val _editorState = MutableStateFlow(StudyEditorUiState(isLoading = true))
     val editorState: StateFlow<StudyEditorUiState> = _editorState.asStateFlow()
 
     // Eventos del lector → editor (SharedFlow para one-shot events)
@@ -66,6 +67,7 @@ class StudyDocSplitViewModel(
     private var _isDocLoaded = false
     private var _autoSaveJob: kotlinx.coroutines.Job? = null
     private val history = EditorHistory()
+    private val listBackspaceExitTracker = ListBackspaceExitTracker()
     private val lastRichTexts = mutableMapOf<EditorTextKey, StyledText>()
     private var lastTextHistoryAt = 0L
     private var focusRequestSequence = 0L
@@ -109,6 +111,7 @@ class StudyDocSplitViewModel(
         listItemRichStates.clear()
         lastRichTexts.clear()
         history.clear()
+        listBackspaceExitTracker.clear()
         val block = StudyBlock.Paragraph()
         val rs = RichTextState().apply { setHtml("<p></p>") }
         blockRichStates[block.id] = rs
@@ -302,8 +305,8 @@ class StudyDocSplitViewModel(
                 androidx.compose.ui.text.SpanStyle(textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough)
             )
         }
+        onRichTextChanged(activeId, rs, _editorState.value.activeListItemIndex)
         syncActiveFormat(rs)
-        markDirty()
     }
 
     fun insertBlock(afterBlockId: BlockId?, type: String) {
@@ -469,11 +472,6 @@ class StudyDocSplitViewModel(
         }
     }
 
-    private fun markDirty() {
-        _editorState.value = _editorState.value.copy(hasUnsavedChanges = true)
-        scheduleAutoSave()
-    }
-
     private fun currentRichTexts(
         overrides: Map<EditorTextKey, StyledText> = emptyMap(),
     ): Map<EditorTextKey, StyledText> = buildMap {
@@ -520,6 +518,43 @@ class StudyDocSplitViewModel(
         )
     }
 
+    fun updatePagedSelection(
+        blockId: BlockId,
+        itemIndex: Int?,
+        selection: androidx.compose.ui.text.TextRange,
+    ) {
+        val state = richStateFor(blockId, itemIndex) ?: return
+        val safeSelection = androidx.compose.ui.text.TextRange(
+            selection.start.coerceIn(0, state.annotatedString.length),
+            selection.end.coerceIn(0, state.annotatedString.length),
+        )
+        if (state.selection != safeSelection) state.selection = safeSelection
+        if (_editorState.value.activeBlockId != blockId ||
+            _editorState.value.activeListItemIndex != itemIndex
+        ) {
+            onEditorFocused(blockId, itemIndex)
+        }
+        syncActiveFormat(state)
+    }
+
+    fun replacePagedText(
+        blockId: BlockId,
+        itemIndex: Int?,
+        rawText: String,
+        selection: androidx.compose.ui.text.TextRange,
+    ) {
+        val state = richStateFor(blockId, itemIndex) ?: return
+        val previous = StyledText.fromAnnotatedString(state.annotatedString)
+        val next = previous.reconcileRawText(rawText, _editorState.value.activeFormat)
+        state.syncFromStyledText(next)
+        state.selection = androidx.compose.ui.text.TextRange(
+            selection.start.coerceIn(0, next.length),
+            selection.end.coerceIn(0, next.length),
+        )
+        onRichTextChanged(blockId, state, itemIndex)
+        syncActiveFormat(state)
+    }
+
     fun onRichTextChanged(blockId: BlockId, richState: RichTextState, itemIndex: Int? = null) {
         val key = EditorTextKey(blockId, itemIndex)
         val next = StyledText.fromAnnotatedString(richState.annotatedString)
@@ -541,6 +576,7 @@ class StudyDocSplitViewModel(
             return
         }
 
+        listBackspaceExitTracker.clear()
         val now = System.currentTimeMillis()
         if (now - lastTextHistoryAt > TEXT_HISTORY_GROUP_MS) {
             history.pushBeforeChange(currentCheckpoint(mapOf(key to previous)))
@@ -577,8 +613,8 @@ class StudyDocSplitViewModel(
             } else {
                 listItemRichStates[key] ?: RichTextState().also { listItemRichStates[key] = it }
             }
-            lastRichTexts[key] = styled
             state.syncFromStyledText(styled)
+            lastRichTexts[key] = StyledText.fromAnnotatedString(state.annotatedString)
         }
         _editorState.value = _editorState.value.copy(
             doc = checkpoint.doc,
@@ -607,6 +643,7 @@ class StudyDocSplitViewModel(
 
     fun saveNow(title: String, tags: List<String>) {
         _autoSaveJob?.cancel()
+        if (title.trim().isEmpty()) return
         val current = _editorState.value.doc
             .copy(
                 title = title.trim(),
@@ -642,6 +679,11 @@ class StudyDocSplitViewModel(
         }
     }
 
+    fun discardDraft() {
+        val remoteId = _editorState.value.doc.remoteId ?: _editorState.value.doc.id.value
+        viewModelScope.launch { repository.discardDraft(remoteId) }
+    }
+
     private fun escapeHtml(text: String): String = text
         .replace("&", "&amp;")
         .replace("<", "&lt;")
@@ -666,7 +708,17 @@ class StudyDocSplitViewModel(
         _autoSaveJob?.cancel()
         _autoSaveJob = viewModelScope.launch {
             kotlinx.coroutines.delay(AUTO_SAVE_DELAY_MS)
-            saveNow(_editorState.value.doc.title, _editorState.value.doc.metadata.tags)
+            val current = _editorState.value.doc.copy(
+                remoteId = _remoteId ?: _editorState.value.doc.remoteId ?: _editorState.value.doc.id.value,
+                updatedAt = System.currentTimeMillis(),
+            ).withEditorTexts(currentRichTexts())
+            try {
+                repository.saveDraft(current)
+            } catch (error: Throwable) {
+                _editorState.value = _editorState.value.copy(
+                    lastError = error.message ?: "No se pudo guardar el borrador",
+                )
+            }
         }
     }
 
@@ -834,26 +886,26 @@ class StudyDocSplitViewModel(
             return false
         }
 
-        when (block) {
-            is StudyBlock.BulletList, is StudyBlock.OrderedList -> {
-                Log.d("LIST_DEBUG", "handleBackspace -> LIST: mutating to paragraph")
-                // Primer Backspace: mutar a paragraph (desvincular)
-                changeBlockType(blockId, "paragraph")
-                return true
-            }
-            else -> {
-                if (idx <= 0) return false
-                val prevBlock = _editorState.value.doc.blocks[idx - 1]
-                val prevRS = blockRichStates[prevBlock.id] ?: return false
-                val joinOffset = prevRS.annotatedString.text.length
-                val currentHtml = currentRS.toHtml()
-                prevRS.setHtml(prevRS.toHtml() + currentHtml)
-                blockRichStates.remove(blockId)
-                applyOp(StudyOp.MergeBlock(removeBlockId = blockId))
-                prevRS.selection = androidx.compose.ui.text.TextRange(joinOffset)
-                  activateEditor(prevBlock.id, null, requestFocus = true)
-            }
-        }
+        if (idx <= 0) return false
+        val prevBlock = _editorState.value.doc.blocks[idx - 1]
+        val prevRS = blockRichStates[prevBlock.id] ?: return false
+        val joinOffset = prevRS.annotatedString.text.length
+        val mergedText = StyledText.fromAnnotatedString(prevRS.annotatedString)
+            .append(StyledText.fromAnnotatedString(currentRS.annotatedString))
+        val updatedPreviousBlock = prevBlock.withText(mergedText) ?: return false
+        applyOp(
+            StudyOp.MergeBlock(
+                removeBlockId = blockId,
+                updatedTargetBlock = updatedPreviousBlock,
+            ),
+        )
+        prevRS.syncFromStyledText(mergedText)
+        lastRichTexts[EditorTextKey(prevBlock.id)] =
+            StyledText.fromAnnotatedString(prevRS.annotatedString)
+        blockRichStates.remove(blockId)
+        lastRichTexts.remove(EditorTextKey(blockId))
+        prevRS.selection = androidx.compose.ui.text.TextRange(joinOffset)
+        activateEditor(prevBlock.id, null, requestFocus = true)
         return true
     }
 
@@ -916,12 +968,19 @@ class StudyDocSplitViewModel(
     }
 
     private fun handleListEnter(blockId: BlockId, block: StudyBlock): Boolean {
+        listBackspaceExitTracker.clear()
         val itemIndex = (_editorState.value.activeListItemIndex ?: 0).coerceIn(0, block.toStyledTextList().lastIndex)
         val state = richStateFor(blockId, itemIndex) ?: return false
         val current = StyledText.fromAnnotatedString(state.annotatedString)
-        if (current.raw.isBlank() && block.toStyledTextList().size == 1) {
-            changeBlockType(blockId, "paragraph")
-            return true
+        val currentItems = block.toStyledTextList()
+        if (current.raw.isBlank()) {
+            if (currentItems.size == 1) {
+                changeBlockType(blockId, "paragraph")
+                return true
+            }
+            if (itemIndex == currentItems.lastIndex) {
+                return exitListFromEmptyItem(blockId, block, itemIndex, "enter")
+            }
         }
         val splitAt = state.selection.start.coerceIn(0, current.length)
         val left = current.slice(0 until splitAt)
@@ -942,16 +1001,38 @@ class StudyDocSplitViewModel(
     private fun handleListBackspace(blockId: BlockId, block: StudyBlock): Boolean {
         val itemIndex = (_editorState.value.activeListItemIndex ?: 0).coerceIn(0, block.toStyledTextList().lastIndex)
         val currentState = richStateFor(blockId, itemIndex) ?: return false
-        if (!currentState.selection.collapsed || currentState.selection.start > 0) return false
+        if (!currentState.selection.collapsed) {
+            listBackspaceExitTracker.clear()
+            return false
+        }
+        val cursorAtEnd = currentState.selection.start == currentState.annotatedString.length
+        if (cursorAtEnd && listBackspaceExitTracker.consume(blockId)) {
+            StudyEditorDebugLog.log(
+                "LIST_BACKSPACE_EXIT",
+                "vm=split block=${blockId.value}",
+            )
+            insertBlock(blockId, "paragraph")
+            return true
+        }
+        if (!cursorAtEnd) listBackspaceExitTracker.clear()
+        if (currentState.selection.start > 0) return false
         val items = block.toStyledTextList()
         if (itemIndex == 0 && items.size == 1) {
             changeBlockType(blockId, "paragraph")
             return true
         }
         val before = currentCheckpoint()
+        val currentText = StyledText.fromAnnotatedString(currentState.annotatedString)
+        val armListExit = itemIndex == items.lastIndex &&
+            itemIndex > 0 &&
+            currentText.raw.isBlank()
         val nextItems = items.toMutableList()
         val nextIndex = if (itemIndex > 0) {
-            val previous = items[itemIndex - 1].append(StyledText.fromAnnotatedString(currentState.annotatedString))
+            val previous = if (armListExit) {
+                items[itemIndex - 1]
+            } else {
+                items[itemIndex - 1].append(currentText)
+            }
             nextItems[itemIndex - 1] = previous
             nextItems.removeAt(itemIndex)
             richStateFor(blockId, itemIndex - 1)?.apply {
@@ -965,7 +1046,46 @@ class StudyDocSplitViewModel(
         }
         removeListItemState(blockId, itemIndex)
         commitListItems(blockId, nextItems, nextIndex, before)
+        if (armListExit) {
+            listBackspaceExitTracker.arm(blockId)
+            StudyEditorDebugLog.log(
+                "LIST_BACKSPACE_ARM",
+                "vm=split block=${blockId.value} item=$itemIndex nextItem=$nextIndex",
+            )
+        }
         return true
+    }
+
+    private fun exitListFromEmptyItem(
+        blockId: BlockId,
+        block: StudyBlock,
+        itemIndex: Int,
+        source: String,
+    ): Boolean {
+        val remainingItems = block.toStyledTextList().toMutableList().apply {
+            removeAt(itemIndex)
+        }
+        val updatedList = when (block) {
+            is StudyBlock.BulletList -> block.copy(items = remainingItems)
+            is StudyBlock.OrderedList -> block.copy(items = remainingItems)
+            else -> return false
+        }
+        val paragraph = StudyBlock.Paragraph(
+            alignment = block.alignment,
+            fontFamily = block.fontFamily,
+            fontSize = block.fontSize,
+        )
+        removeListItemState(blockId, itemIndex)
+        initializeRichStates(paragraph)
+        val applied = applyOp(StudyOp.SplitBlock(blockId, paragraph, updatedList))
+        if (applied) {
+            StudyEditorDebugLog.log(
+                "LIST_EXIT",
+                "vm=split source=$source block=${blockId.value} paragraph=${paragraph.id.value}",
+            )
+            activateEditor(paragraph.id, null, requestFocus = true)
+        }
+        return applied
     }
 
     fun moveCursorToPrevBlock(blockId: BlockId): Boolean {
@@ -1096,8 +1216,8 @@ class StudyDocSplitViewModel(
         } else {
             rs.addSpanStyle(androidx.compose.ui.text.SpanStyle(color = androidx.compose.ui.graphics.Color(argb)))
         }
+        onRichTextChanged(activeId, rs, _editorState.value.activeListItemIndex)
         syncActiveFormat(rs)
-        markDirty()
     }
 
     fun setActiveBackgroundColor(argb: Int) {
@@ -1108,8 +1228,8 @@ class StudyDocSplitViewModel(
         } else {
             rs.addSpanStyle(androidx.compose.ui.text.SpanStyle(background = androidx.compose.ui.graphics.Color(argb)))
         }
+        onRichTextChanged(activeId, rs, _editorState.value.activeListItemIndex)
         syncActiveFormat(rs)
-        markDirty()
     }
 
     fun clearActiveColor() {
@@ -1133,8 +1253,8 @@ class StudyDocSplitViewModel(
                 rs.addSpanStyle(keepStyle, sel)
             }
         }
+        onRichTextChanged(activeId, rs, _editorState.value.activeListItemIndex)
         syncActiveFormat(rs)
-        markDirty()
     }
 
     fun stepFontSizeActive(delta: Int) {
@@ -1142,10 +1262,8 @@ class StudyDocSplitViewModel(
         val rs = activeRichState() ?: return
         val sel = rs.selection
         val textLength = rs.annotatedString.text.length
-        val isFullSelection = !sel.collapsed && sel.start == 0 && sel.end >= textLength
-
-        if (sel.collapsed || isFullSelection) {
-            // Reglas de negocio para cursor colapsado (o selección que cubre todo):
+        if (sel.collapsed) {
+            // Reglas de negocio para cursor colapsado:
             //   1) textLen == 0 (bloque vacío): cambiar block.fontSize.
             //   2) textLen > 0 (cursor en texto): NO tocar block.fontSize.
             //      Registrar Estilo de Escritura Pendiente (Pending Font Size)
@@ -1193,22 +1311,51 @@ class StudyDocSplitViewModel(
                 val newSize = (baseSize + delta).coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
                 val newSizeSp = newSize.sp
                 if (currentFontSizeSp != newSizeSp) {
-                    rs.toggleSpanStyle(
-                        androidx.compose.ui.text.SpanStyle(fontSize = newSizeSp),
-                    )
+                    rs.addSpanStyle(androidx.compose.ui.text.SpanStyle(fontSize = newSizeSp))
                 }
             }
         } else {
-            // Con selección parcial: detectar tamaño base y normalizar SOLO la selección
+            // Con selección: modificar solo el tamaño y conservar color, fondo y énfasis.
             val baseSize = detectBaseFontSize(rs, sel)
             val newSize = (baseSize + delta).coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
-            rs.addSpanStyle(
-                androidx.compose.ui.text.SpanStyle(fontSize = newSize.sp),
-                sel,
-            )
+            rs.applyFontSizePreservingStyles(sel, newSize.toFloat())
         }
+        onRichTextChanged(activeId, rs, _editorState.value.activeListItemIndex)
         syncActiveFormat(rs)
-        markDirty()
+        if (textLength == 0) scheduleAutoSave()
+    }
+
+    fun setFontSizeActive(fontSize: Int) {
+        val activeId = _editorState.value.activeBlockId ?: return
+        val rs = activeRichState() ?: return
+        val normalizedSize = fontSize.coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
+        val selection = rs.selection
+        val textLength = rs.annotatedString.length
+
+        if (selection.collapsed && textLength == 0) {
+            val index = _editorState.value.doc.blocks.indexOfFirst { it.id == activeId }
+            if (index < 0) return
+            val before = currentCheckpoint()
+            val blocks = _editorState.value.doc.blocks.toMutableList()
+            blocks[index] = blocks[index].withBaseFontSize(normalizedSize)
+            _editorState.value = _editorState.value.copy(
+                doc = _editorState.value.doc.copy(
+                    blocks = blocks,
+                    updatedAt = System.currentTimeMillis(),
+                ),
+                hasUnsavedChanges = true,
+            )
+            history.pushBeforeChange(before)
+            refreshHistoryState()
+            scheduleAutoSave()
+        } else if (selection.collapsed) {
+            rs.addSpanStyle(androidx.compose.ui.text.SpanStyle(fontSize = normalizedSize.sp))
+        } else {
+            rs.applyFontSizePreservingStyles(selection, normalizedSize.toFloat())
+        }
+
+        onRichTextChanged(activeId, rs, _editorState.value.activeListItemIndex)
+        syncActiveFormat(rs)
     }
 
     /**

@@ -43,6 +43,7 @@ sealed interface StudyOp {
     @Serializable
     data class MergeBlock(
         val removeBlockId: BlockId,
+        val updatedTargetBlock: StudyBlock? = null,
     ) : StudyOp
 
     @Serializable

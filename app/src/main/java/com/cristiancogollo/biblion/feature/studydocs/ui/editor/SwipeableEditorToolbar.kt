@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
@@ -138,7 +139,7 @@ fun SwipeableEditorToolbar(
                 icon = Icons.Filled.FormatColorText,
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onTextColor(BiblionBluePrimary.hashCode())
+                    onTextColor(BiblionBluePrimary.toArgb())
                 }
             )
 
@@ -147,7 +148,7 @@ fun SwipeableEditorToolbar(
                 icon = Icons.Filled.FormatColorFill,
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onBackgroundColor(BiblionGoldPrimary.hashCode())
+                    onBackgroundColor(BiblionGoldPrimary.toArgb())
                 }
             )
 

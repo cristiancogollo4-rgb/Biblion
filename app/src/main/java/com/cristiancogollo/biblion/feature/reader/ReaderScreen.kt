@@ -176,8 +176,6 @@ fun ReaderScreen(
             factory = com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocSplitViewModel.Factory(repository)
         )
 
-        LaunchedEffect(Unit) { splitViewModel.newDraft() }
-
         DisposableEffect(Unit) {
             onDispose {
                 com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDatabase.resetInstance()
@@ -206,7 +204,9 @@ fun ReaderScreen(
                     splitViewModel = splitViewModel,
                     onBack = { navController.popBackStackOrNavigateHome() },
                     isSplitMode = true,
-                    onFocusModeChanged = { isFocusMode = !isFocusMode }
+                    onFocusModeChanged = { isFocusMode = !isFocusMode },
+                    isDarkTheme = isDarkTheme,
+                    onToggleDarkTheme = onToggleDarkTheme,
                 )
             }
         )
@@ -330,8 +330,6 @@ private fun StudyDocEditorSplitContent(
     val viewModel: com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel = viewModel(
         factory = com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel.Factory(repository)
     )
-    LaunchedEffect(Unit) { viewModel.newDraft() }
-
     DisposableEffect(Unit) {
         onDispose {
             com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDatabase.resetInstance()

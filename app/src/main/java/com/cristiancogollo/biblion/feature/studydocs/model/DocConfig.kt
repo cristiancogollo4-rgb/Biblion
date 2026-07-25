@@ -27,6 +27,7 @@ object PageDimensions {
     val LETTER_HEIGHT = 1100.dp
     /** Márgenes estándar: ~1" = 96dp */
     val PAGE_MARGIN = 48.dp
+    val FOOTER_HEIGHT = 24.dp
 }
 
 fun BlockAlignment.toTextAlign(): androidx.compose.ui.text.style.TextAlign = when (this) {

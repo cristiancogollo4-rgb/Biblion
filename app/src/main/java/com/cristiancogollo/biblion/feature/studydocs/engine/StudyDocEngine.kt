@@ -115,7 +115,12 @@ object StudyDocEngine {
     private fun mergeBlock(doc: StudyDoc, op: StudyOp.MergeBlock): Pair<StudyDoc, OpResult> {
         val removeIdx = doc.blocks.indexOfFirst { it.id == op.removeBlockId }
         if (removeIdx <= 0) return doc to OpResult.Failed("Cannot merge first block")
+        val targetIdx = removeIdx - 1
+        if (op.updatedTargetBlock != null && op.updatedTargetBlock.id != doc.blocks[targetIdx].id) {
+            return doc to OpResult.Failed("Updated merge target must keep the previous block id")
+        }
         val newBlocks = doc.blocks.toMutableList()
+        op.updatedTargetBlock?.let { newBlocks[targetIdx] = it }
         newBlocks.removeAt(removeIdx)
         return doc.copy(blocks = newBlocks, updatedAt = System.currentTimeMillis()) to OpResult.Success
     }

@@ -20,6 +20,61 @@ data class StyledText(
     fun plain(): String = raw
 
     /**
+     * Applies an inline font size without replacing any other visual attribute.
+     *
+     * Ranges may overlap because each toolbar action can add one independently.
+     * Flattening at every boundary first makes the resulting style deterministic
+     * and prevents a font-size range from hiding an existing color range.
+     */
+    fun withFontSize(
+        start: Int,
+        endExclusive: Int,
+        fontSizeSp: Float,
+    ): StyledText {
+        val safeStart = start.coerceIn(0, raw.length)
+        val safeEnd = endExclusive.coerceIn(safeStart, raw.length)
+        if (safeStart >= safeEnd || fontSizeSp <= 0f) return this
+
+        val validRanges = ranges
+            .filter { it.start in 0 until raw.length && it.endExclusive in 1..raw.length && it.start < it.endExclusive }
+            .sortedWith(compareBy({ it.start }, { it.endExclusive }))
+        val boundaries = buildSet {
+            add(0)
+            add(raw.length)
+            add(safeStart)
+            add(safeEnd)
+            validRanges.forEach {
+                add(it.start)
+                add(it.endExclusive)
+            }
+        }.sorted()
+
+        val flattened = buildList {
+            for (index in 0 until boundaries.lastIndex) {
+                val segmentStart = boundaries[index]
+                val segmentEnd = boundaries[index + 1]
+                if (segmentStart >= segmentEnd) continue
+
+                val active = validRanges.filter {
+                    it.start <= segmentStart && it.endExclusive >= segmentEnd
+                }
+                val merged = active.reduceOrNull { acc, range -> range.composeWith(acc) }
+                    ?: StyleRange(segmentStart, segmentEnd)
+                val resized = if (segmentStart >= safeStart && segmentEnd <= safeEnd) {
+                    merged.copy(fontSizeSp = fontSizeSp)
+                } else {
+                    merged
+                }
+                if (resized.hasVisualStyle()) {
+                    add(resized.copy(start = segmentStart, endExclusive = segmentEnd))
+                }
+            }
+        }
+
+        return copy(ranges = flattened.mergeAdjacentStyles())
+    }
+
+    /**
      * Devuelve un trozo inmutable de este texto acotado a [range] (half-open tipo `until`).
      * Los rangos de estilo que caen total o parcialmente dentro del corte se conservan
      * clamping y restando [range.first]; los externos se descartan.
@@ -70,4 +125,25 @@ data class StyledText(
     companion object {
         val Empty = StyledText()
     }
+}
+
+private fun StyleRange.hasVisualStyle(): Boolean =
+    bold || italic || underline || strikethrough ||
+        color != null || background != null || fontSizeSp != null || link != null
+
+private fun List<StyleRange>.mergeAdjacentStyles(): List<StyleRange> {
+    if (isEmpty()) return emptyList()
+    val merged = mutableListOf<StyleRange>()
+    forEach { current ->
+        val previous = merged.lastOrNull()
+        if (previous != null &&
+            previous.endExclusive == current.start &&
+            previous.copy(start = current.start, endExclusive = current.endExclusive) == current
+        ) {
+            merged[merged.lastIndex] = previous.copy(endExclusive = current.endExclusive)
+        } else {
+            merged.add(current)
+        }
+    }
+    return merged
 }

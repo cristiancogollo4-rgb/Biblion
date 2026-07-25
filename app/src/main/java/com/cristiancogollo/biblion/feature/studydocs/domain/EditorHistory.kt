@@ -91,3 +91,13 @@ internal fun StyledText.append(other: StyledText): StyledText {
         },
     )
 }
+
+internal fun StudyBlock.withText(text: StyledText): StudyBlock? = when (this) {
+    is StudyBlock.Paragraph -> copy(text = text)
+    is StudyBlock.Heading -> copy(text = text)
+    is StudyBlock.Quote -> copy(text = text)
+    is StudyBlock.BulletList,
+    is StudyBlock.OrderedList,
+    is StudyBlock.Verse,
+    -> null
+}

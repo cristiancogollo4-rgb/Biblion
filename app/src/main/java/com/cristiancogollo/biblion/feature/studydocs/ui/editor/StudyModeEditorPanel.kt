@@ -2,7 +2,6 @@ package com.cristiancogollo.biblion.feature.studydocs.ui.editor
 
 import android.widget.Toast
 import android.util.Log
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -26,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -45,6 +45,7 @@ import com.cristiancogollo.biblion.feature.studydocs.model.BlockId
 import com.cristiancogollo.biblion.feature.studydocs.model.DocConfig
 import com.cristiancogollo.biblion.feature.studydocs.model.DocTagGroups
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
+import com.cristiancogollo.biblion.feature.studydocs.model.hasPersistableTitle
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PaginatedSheet
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.SheetViewMode
@@ -66,8 +67,8 @@ private val highlightPaletteDark = listOf(
     Color(0xFF1565C0), Color(0xFF6A1B9A), Color(0xFFE65100),
 )
 
-@Composable
-private fun currentHighlightPalette() = if (isSystemInDarkTheme()) highlightPaletteDark else highlightPaletteLight
+private fun currentHighlightPalette(isDarkTheme: Boolean) =
+    if (isDarkTheme) highlightPaletteDark else highlightPaletteLight
 
 @Composable
 fun StudyModeEditorPanel(
@@ -80,11 +81,16 @@ fun StudyModeEditorPanel(
     isFullScreen: Boolean = false,
     onToggleFullScreen: () -> Unit = {},
     isDarkTheme: Boolean = false,
+    onToggleDarkTheme: (Boolean) -> Unit = {},
     navController: androidx.navigation.NavController? = null,
 ) {
     var documentTitle by remember { mutableStateOf(editorState.doc.title) }
     val editorZoomState = rememberDocumentZoomState()
     var viewMode by remember { mutableStateOf(SheetViewMode.PAGINATED) }
+
+    LaunchedEffect(isFullScreen) {
+        editorZoomState.set(if (isFullScreen) 1f else DocumentZoomState.MIN_ZOOM)
+    }
 
     LaunchedEffect(editorState.doc.title) {
         if (editorState.doc.title != documentTitle) {
@@ -116,6 +122,7 @@ fun StudyModeEditorPanel(
             isSaving = editorState.isSaving,
             hasUnsavedChanges = editorState.hasUnsavedChanges,
             lastError = editorState.lastError,
+            canSave = editorState.doc.hasPersistableTitle(),
             onBackClick = onBack,
             onSaveClick = onSaveClick,
         )
@@ -149,6 +156,9 @@ fun StudyModeEditorPanel(
             onStepFontSize = { delta ->
                 splitViewModel?.stepFontSizeActive(delta) ?: viewModel?.stepFontSizeActive(delta)
             },
+            onSetFontSize = { size ->
+                splitViewModel?.setFontSizeActive(size) ?: viewModel?.setFontSizeActive(size)
+            },
             onSetAlignment = { alignment ->
                 editorState.activeBlockId?.let {
                     splitViewModel?.setBlockAlignment(it, alignment) ?: viewModel?.setBlockAlignment(it, alignment)
@@ -177,6 +187,8 @@ fun StudyModeEditorPanel(
             onClearColor = {
                 splitViewModel?.clearActiveColor() ?: viewModel?.clearActiveColor()
             },
+            isDarkTheme = isDarkTheme,
+            onToggleDarkTheme = onToggleDarkTheme,
             zoomState = editorZoomState,
         )
 
@@ -226,6 +238,29 @@ fun StudyModeEditorPanel(
                     )
                 }
             },
+            contentPagedEditorRenderer = { unit, baseDensity ->
+                val richState = splitViewModel?.richStateFor(
+                    unit.key.blockId,
+                    unit.key.itemIndex,
+                ) ?: viewModel?.richStateFor(
+                    unit.key.blockId,
+                    unit.key.itemIndex,
+                )
+                if (richState != null) {
+                    PagedEditorUnitRenderer(
+                        unit = unit,
+                        allBlocks = editorState.doc.blocks,
+                        richState = richState,
+                        isActive = editorState.activeBlockId == unit.key.blockId &&
+                            editorState.activeListItemIndex == unit.key.itemIndex,
+                        focusRequest = editorState.focusRequest,
+                        baseDensity = baseDensity,
+                        splitViewModel = splitViewModel,
+                        viewModel = viewModel,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
         )
     }
 }
@@ -245,6 +280,7 @@ private fun StudyModeHeader(
     isSaving: Boolean,
     hasUnsavedChanges: Boolean,
     lastError: String?,
+    canSave: Boolean,
     onBackClick: () -> Unit,
     onSaveClick: () -> Unit,
 ) {
@@ -340,11 +376,11 @@ private fun StudyModeHeader(
         }
 
         // Botón Guardar
-        IconButton(onClick = onSaveClick) {
+        IconButton(onClick = onSaveClick, enabled = canSave) {
             Icon(
                 Icons.Default.Save,
                 contentDescription = "Guardar",
-                tint = MaterialTheme.colorScheme.primary,
+                tint = if (canSave) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
                 modifier = Modifier.size(24.dp),
             )
         }
@@ -518,10 +554,13 @@ private fun StudyModeToolbar(
     onTextColor: (Int) -> Unit,
     onBackgroundColor: (Int) -> Unit,
     onStepFontSize: (Int) -> Unit,
+    onSetFontSize: (Int) -> Unit,
     onSetAlignment: (com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment) -> Unit,
     onInsertBlock: (String) -> Unit,
     onChangeBlockType: (String) -> Unit,
     onClearColor: () -> Unit,
+    isDarkTheme: Boolean,
+    onToggleDarkTheme: (Boolean) -> Unit,
     zoomState: DocumentZoomState,
 ) {
     val scrollState = rememberScrollState()
@@ -588,7 +627,7 @@ private fun StudyModeToolbar(
                                 .size(32.dp)
                                 .background(color, CircleShape)
                                 .clickable {
-                                    onTextColor(color.hashCode())
+                                    onTextColor(color.toArgb())
                                     showTextColorMenu = false
                                 }
                         )
@@ -629,13 +668,13 @@ private fun StudyModeToolbar(
                     modifier = Modifier.padding(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    currentHighlightPalette().forEach { color ->
+                    currentHighlightPalette(isDarkTheme).forEach { color ->
                         Box(
                             modifier = Modifier
                                 .size(32.dp)
                                 .background(color, CircleShape)
                                 .clickable {
-                                    onBackgroundColor(color.hashCode())
+                                    onBackgroundColor(color.toArgb())
                                     showHighlightMenu = false
                                 }
                         )
@@ -700,21 +739,22 @@ private fun StudyModeToolbar(
         ToolbarDivider()
 
         // Tamaño de fuente
-        IconButton(onClick = { onStepFontSize(-1) }, modifier = Modifier.size(36.dp)) {
-            Icon(Icons.Default.TextDecrease, "Reducir", modifier = Modifier.size(18.dp))
-        }
-        Text(
-            text = if (currentFontSize == -1) "-" else "${currentFontSize}px",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurface,
+        FontSizeControl(
+            currentFontSize = currentFontSize,
+            onStepFontSize = onStepFontSize,
+            onSetFontSize = onSetFontSize,
         )
-        IconButton(onClick = { onStepFontSize(1) }, modifier = Modifier.size(36.dp)) {
-            Icon(Icons.Default.TextIncrease, "Aumentar", modifier = Modifier.size(18.dp))
-        }
 
         ToolbarDivider()
 
         ZoomMenu(zoomState = zoomState, showStepButtons = false)
+
+        ToolbarIcon(
+            icon = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
+            contentDescription = if (isDarkTheme) "Usar modo claro" else "Usar modo oscuro",
+            isActive = isDarkTheme,
+            onClick = { onToggleDarkTheme(!isDarkTheme) },
+        )
     }
 }
 
@@ -755,7 +795,7 @@ private fun ToolbarDivider() {
         modifier = Modifier
             .width(1.dp)
             .height(18.dp)
-            .background(Color.LightGray),
+            .background(MaterialTheme.colorScheme.outlineVariant),
     )
 }
 

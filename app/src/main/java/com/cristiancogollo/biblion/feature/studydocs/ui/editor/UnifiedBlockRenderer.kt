@@ -16,6 +16,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isShiftPressed
@@ -232,7 +233,7 @@ fun UnifiedBlockRenderer(
                     Text("\u2022", style = textStyle, modifier = Modifier.padding(top = 2.dp, end = 8.dp))
                     BasicRichTextEditor(state = richState!!, modifier = Modifier.weight(1f).focusRequester(focusRequester),
                         textStyle = textStyle, cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                        singleLine = true, keyboardOptions = imeOptions, keyboardActions = imeAction)
+                        singleLine = false, keyboardOptions = imeOptions, keyboardActions = imeAction)
                 }
             }
             is StudyBlock.OrderedList -> {
@@ -253,7 +254,7 @@ fun UnifiedBlockRenderer(
                     Text("$num.", style = textStyle, modifier = Modifier.padding(top = 2.dp, end = 8.dp))
                     BasicRichTextEditor(state = richState!!, modifier = Modifier.weight(1f).focusRequester(focusRequester),
                         textStyle = textStyle, cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                        singleLine = true, keyboardOptions = imeOptions, keyboardActions = imeAction)
+                        singleLine = false, keyboardOptions = imeOptions, keyboardActions = imeAction)
                 }
             }
             else -> {
@@ -271,7 +272,7 @@ fun UnifiedBlockRenderer(
                             }
                         },
                     textStyle = textStyle, cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    singleLine = true, keyboardOptions = imeOptions, keyboardActions = imeAction)
+                    singleLine = false, keyboardOptions = imeOptions, keyboardActions = imeAction)
             }
         }
     } else {
@@ -433,7 +434,7 @@ private fun EditableListBlock(
                         )
                         handled
                     }
-                    Key.Backspace -> if (state.selection.collapsed && state.selection.start == 0) {
+                    Key.Backspace -> {
                         val handled = splitViewModel?.handleBackspace(block.id)
                             ?: viewModel?.handleBackspace(block.id)
                             ?: false
@@ -442,7 +443,7 @@ private fun EditableListBlock(
                             "action=backspace block=${block.id.value} item=$itemIndex handled=$handled",
                         )
                         handled
-                    } else false
+                    }
                     Key.DirectionUp -> if (state.selection.collapsed && state.selection.start == 0) {
                         val handled = splitViewModel?.moveCursorToPrevListItem(block.id, itemIndex)
                             ?: viewModel?.moveCursorToPrevListItem(block.id, itemIndex)
@@ -723,7 +724,7 @@ private fun EditableListItemFragment(
                 )
                 handled
             }
-            Key.Backspace -> if (state.selection.collapsed && state.selection.start == 0) {
+            Key.Backspace -> {
                 val handled = splitViewModel?.handleBackspace(block.id)
                     ?: viewModel?.handleBackspace(block.id)
                     ?: false
@@ -732,7 +733,7 @@ private fun EditableListItemFragment(
                     "action=backspace renderer=list-fragment block=${block.id.value} item=$itemIndex handled=$handled",
                 )
                 handled
-            } else false
+            }
             Key.DirectionUp -> if (state.selection.collapsed && state.selection.start == 0) {
                 val handled = splitViewModel?.moveCursorToPrevListItem(block.id, itemIndex)
                     ?: viewModel?.moveCursorToPrevListItem(block.id, itemIndex)
@@ -803,7 +804,7 @@ private fun EditableListItemFragment(
     }
 }
 
-private suspend fun requestFocusWithRetry(
+internal suspend fun requestFocusWithRetry(
     requester: FocusRequester,
     target: String,
 ) : Boolean {
@@ -867,7 +868,7 @@ private fun renderFragmentReadOnly(
         is PageFragment.ListItemSlice -> {
             val item = fragment.block.items.getOrNull(fragment.itemIndex) ?: return
             val sliced = item.slice(fragment.charStart until fragment.charEndExclusive)
-            Row(modifier = activationModifier.fillMaxWidth().padding(vertical = 2.dp)) {
+            Row(modifier = activationModifier.fillMaxWidth()) {
                 Text("\u2022  ", style = textStyle)
                 Text(text = sliced.toAnnotatedString(), style = textStyle)
             }
@@ -876,7 +877,7 @@ private fun renderFragmentReadOnly(
             val item = fragment.block.items.getOrNull(fragment.itemIndex) ?: return
             val sliced = item.slice(fragment.charStart until fragment.charEndExclusive)
             val startNum = calculateOrderedListNumber(allBlocks, blockIndex)
-            Row(modifier = activationModifier.fillMaxWidth().padding(vertical = 2.dp)) {
+            Row(modifier = activationModifier.fillMaxWidth()) {
                 Text("${startNum + fragment.itemIndex}. ", style = textStyle)
                 Text(text = sliced.toAnnotatedString(), style = textStyle)
             }
@@ -897,25 +898,23 @@ private fun renderFragmentReadOnly(
             val sliced = fragment.block.text.slice(
                 fragment.charStart until fragment.charEndExclusive
             )
-            Column(modifier = activationModifier.fillMaxWidth()) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                Text(
-                    text = sliced.toAnnotatedString(),
-                    style = textStyle.copy(fontStyle = FontStyle.Italic),
-                    modifier = Modifier.padding(start = 16.dp),
-                )
-                if (fragment.charEndExclusive >= fragment.block.text.length &&
-                    !fragment.block.attribution.isNullOrBlank()
-                ) {
-                    Text(
-                        text = "\u2014 ${fragment.block.attribution}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 16.dp),
-                    )
-                }
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-            }
+            val accentColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
+            Text(
+                text = sliced.toAnnotatedString(),
+                style = textStyle.copy(fontStyle = FontStyle.Italic),
+                modifier = activationModifier
+                    .fillMaxWidth()
+                    .drawBehind {
+                        drawRect(
+                            color = accentColor,
+                            size = androidx.compose.ui.geometry.Size(
+                                width = 2.dp.toPx(),
+                                height = size.height,
+                            ),
+                        )
+                    }
+                    .padding(start = 16.dp),
+            )
         }
     }
 }
