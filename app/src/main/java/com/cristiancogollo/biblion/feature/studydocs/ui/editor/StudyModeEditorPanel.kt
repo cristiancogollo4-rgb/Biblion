@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion.feature.studydocs.ui.editor
 
+import android.content.res.Configuration
 import android.widget.Toast
 import android.util.Log
 import androidx.compose.foundation.background
@@ -27,6 +28,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -83,10 +86,17 @@ fun StudyModeEditorPanel(
     isDarkTheme: Boolean = false,
     onToggleDarkTheme: (Boolean) -> Unit = {},
     navController: androidx.navigation.NavController? = null,
+    showFullScreenToggle: Boolean = true,
+    isCompactLayout: Boolean = false,
 ) {
     var documentTitle by remember { mutableStateOf(editorState.doc.title) }
     val editorZoomState = rememberDocumentZoomState()
     var viewMode by remember { mutableStateOf(SheetViewMode.PAGINATED) }
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    val hardwareKeyboardPresent =
+        LocalConfiguration.current.keyboard != Configuration.KEYBOARD_NOKEYS
+    val allowProgrammaticFocus =
+        !isCompactLayout || imeVisible || hardwareKeyboardPresent
 
     LaunchedEffect(isFullScreen) {
         editorZoomState.set(if (isFullScreen) 1f else DocumentZoomState.MIN_ZOOM)
@@ -105,27 +115,30 @@ fun StudyModeEditorPanel(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
     ) {
-        StudyModeHeader(
-            documentTitle = documentTitle,
-            isFullScreen = isFullScreen,
-            onToggleFullScreen = onToggleFullScreen,
-            viewMode = viewMode,
-            onToggleViewMode = { viewMode = if (viewMode == SheetViewMode.PAGINATED) SheetViewMode.PAGELESS else SheetViewMode.PAGINATED },
-            onTitleChange = { newTitle ->
-                documentTitle = newTitle
-                splitViewModel?.updateTitle(newTitle) ?: viewModel?.updateTitle(newTitle)
-            },
-            canUndo = editorState.canUndo,
-            canRedo = editorState.canRedo,
-            onUndo = { splitViewModel?.undo() ?: viewModel?.undo() },
-            onRedo = { splitViewModel?.redo() ?: viewModel?.redo() },
-            isSaving = editorState.isSaving,
-            hasUnsavedChanges = editorState.hasUnsavedChanges,
-            lastError = editorState.lastError,
-            canSave = editorState.doc.hasPersistableTitle(),
-            onBackClick = onBack,
-            onSaveClick = onSaveClick,
-        )
+        if (!isCompactLayout || !imeVisible) {
+            StudyModeHeader(
+                documentTitle = documentTitle,
+                isFullScreen = isFullScreen,
+                onToggleFullScreen = onToggleFullScreen,
+                viewMode = viewMode,
+                onToggleViewMode = { viewMode = if (viewMode == SheetViewMode.PAGINATED) SheetViewMode.PAGELESS else SheetViewMode.PAGINATED },
+                onTitleChange = { newTitle ->
+                    documentTitle = newTitle
+                    splitViewModel?.updateTitle(newTitle) ?: viewModel?.updateTitle(newTitle)
+                },
+                canUndo = editorState.canUndo,
+                canRedo = editorState.canRedo,
+                onUndo = { splitViewModel?.undo() ?: viewModel?.undo() },
+                onRedo = { splitViewModel?.redo() ?: viewModel?.redo() },
+                isSaving = editorState.isSaving,
+                hasUnsavedChanges = editorState.hasUnsavedChanges,
+                lastError = editorState.lastError,
+                canSave = editorState.doc.hasPersistableTitle(),
+                onBackClick = onBack,
+                onSaveClick = onSaveClick,
+                showFullScreenToggle = showFullScreenToggle,
+            )
+        }
 
         StudyModeToolbar(
             activeFormat = editorState.activeFormat,
@@ -213,12 +226,14 @@ fun StudyModeEditorPanel(
                     focusRequest = editorState.focusRequest,
                     splitViewModel = splitViewModel,
                     viewModel = viewModel,
+                    allowProgrammaticFocus = allowProgrammaticFocus,
                 )
             },
             contentBlockRenderer = { block, idx ->
                 val richState = splitViewModel?.blockRichStates?.get(block.id)
                     ?: viewModel?.blockRichStates?.get(block.id)
-                val isActive = editorState.activeBlockId == block.id
+                val isActive = editorState.activeBlockId == block.id &&
+                    allowProgrammaticFocus
                 if (block is StudyBlock.Verse ||
                     block is StudyBlock.BulletList ||
                     block is StudyBlock.OrderedList ||
@@ -251,7 +266,8 @@ fun StudyModeEditorPanel(
                         unit = unit,
                         allBlocks = editorState.doc.blocks,
                         richState = richState,
-                        isActive = editorState.activeBlockId == unit.key.blockId &&
+                        isActive = allowProgrammaticFocus &&
+                            editorState.activeBlockId == unit.key.blockId &&
                             editorState.activeListItemIndex == unit.key.itemIndex,
                         focusRequest = editorState.focusRequest,
                         baseDensity = baseDensity,
@@ -283,6 +299,7 @@ private fun StudyModeHeader(
     canSave: Boolean,
     onBackClick: () -> Unit,
     onSaveClick: () -> Unit,
+    showFullScreenToggle: Boolean,
 ) {
     Row(
         modifier = Modifier
@@ -344,13 +361,15 @@ private fun StudyModeHeader(
         IconButton(onClick = onRedo, enabled = canRedo) {
             Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Rehacer")
         }
-        IconButton(onClick = onToggleFullScreen) {
-            Icon(
-                imageVector = if (isFullScreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                contentDescription = if (isFullScreen) "Pantalla dividida" else "Pantalla completa",
-                tint = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.size(24.dp),
-            )
+        if (showFullScreenToggle) {
+            IconButton(onClick = onToggleFullScreen) {
+                Icon(
+                    imageVector = if (isFullScreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                    contentDescription = if (isFullScreen) "Pantalla dividida" else "Pantalla completa",
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
         }
 
         // Botón alternar modo de vista (PAGINATED <-> PAGELESS)
@@ -813,6 +832,7 @@ private fun EditorSheetFragment(
     richStateProvider: (com.cristiancogollo.biblion.feature.studydocs.model.BlockId, Int?) -> com.mohamedrejeb.richeditor.model.RichTextState?,
     splitViewModel: com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocSplitViewModel?,
     viewModel: com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel?,
+    allowProgrammaticFocus: Boolean,
 ) {
     val activeId = activeIdProvider()
     val activeListItemIndex = activeListItemIndexProvider()
@@ -846,7 +866,7 @@ private fun EditorSheetFragment(
             isEditing = true,
             isOwnerFragment = isOwner,
             richState = richState,
-            isActive = isOwner,
+            isActive = isOwner && allowProgrammaticFocus,
             focusRequest = focusRequest,
             splitViewModel = splitViewModel,
             viewModel = viewModel,

@@ -357,6 +357,18 @@ El Worker tiene respaldos para respuestas de identidad, versiones, dominio no bi
 
 El modo estudio combina el lector biblico con un editor para preparar ensenanzas, bosquejos, devocionales o clases.
 
+### Estado actual (24 Jul 2026)
+
+La implementacion vigente vive en `feature/studydocs/`. El editor usa hojas carta fijas de 850 x 1100 dp, paginacion por fragmentos editables, zoom pinch 0.75x-2.0x, undo/redo, modo oscuro y formato enriquecido. Los bloques vigentes son parrafo, encabezado, lista con vinetas, lista numerada, versiculo y cita.
+
+El autosave siempre persiste una copia local mediante `StudyDocRepository.saveDraft()`, incluso sin titulo. Esa copia queda con `is_published = 0`, por lo que no aparece en "Mis ensenanzas", busqueda, conteos ni sincronizacion. El guardado manual exige un titulo y publica mediante `save()`.
+
+Al salir de un documento nuevo vacio no se muestra advertencia. Si existe contenido, titulo, bloques adicionales o cambios en una ensenanza existente, se muestra un dialogo para continuar editando o salir sin guardar.
+
+La persistencia actual es Room v3 con migraciones 1->2 y 2->3. La sincronizacion Firestore del modo estudio sigue deshabilitada. Tambien quedan pendientes la recuperacion visible de borradores tras cierre forzado y la separacion entre snapshot publicado y copia de trabajo.
+
+> La descripcion basada en `feature/study/`, `StudyEntity`, `StudyDocumentEngine` y `StudyEditorScreen` que aparece debajo se conserva como referencia historica del editor anterior. Para cambios nuevos se debe usar `STUDY_DOCS_V2.md` y el codigo de `feature/studydocs/`.
+
 ### Arquitectura del documento
 
 El documento de una ensenanza se representa como una lista de `StudyBlockNode` serializada en JSON dentro de `StudyEntity.contentSerialized`. Ese formato se conserva porque permite:

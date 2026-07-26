@@ -34,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -49,6 +50,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -79,6 +81,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import kotlinx.coroutines.launch
 import com.cristiancogollo.biblion.feature.reader.HighlightsCache
+import com.cristiancogollo.biblion.core.ui.StudyModeLandscapeLock
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
@@ -139,30 +142,37 @@ fun ReaderScreen(
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val useCompactStudyLayout =
+        com.cristiancogollo.biblion.feature.studydocs.ui.editor.shouldUseCompactStudyLayout(
+            widthDp = configuration.screenWidthDp,
+            heightDp = configuration.screenHeightDp,
+        )
 
     var isStudyModeEnabled by remember { mutableStateOf(initialStudyMode) }
     var isFocusMode by remember { mutableStateOf(false) }
+    var compactStudyPane by rememberSaveable { mutableStateOf("document") }
+    val focusManager = LocalFocusManager.current
+
+    LaunchedEffect(
+        isStudyModeEnabled,
+        isLandscape,
+        configuration.screenWidthDp,
+        configuration.screenHeightDp,
+        useCompactStudyLayout,
+    ) {
+        if (isStudyModeEnabled) {
+            Log.d(
+                "BIBLION_STUDY_LAYOUT",
+                "landscape=$isLandscape widthDp=${configuration.screenWidthDp} " +
+                    "heightDp=${configuration.screenHeightDp} compact=$useCompactStudyLayout",
+            )
+        }
+    }
 
     @Suppress("UNUSED_PARAMETER")
     val deprecatedInitialStudyId = initialStudyId
 
-    val isTablet = configuration.screenWidthDp >= 600
-
-    // EFECTO DE ENTRADA: Forzar horizontal solo en telefonos
-    LaunchedEffect(isStudyModeEnabled, isLandscape, isTablet) {
-        if (isStudyModeEnabled && !isLandscape && !isTablet) {
-            context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        }
-    }
-
-    // EFECTO DE SALIDA: Restaura vertical solo si se forzo
-    DisposableEffect(Unit) {
-        onDispose {
-            if (!isTablet) {
-                context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
-            }
-        }
-    }
+    StudyModeLandscapeLock(enabled = isStudyModeEnabled)
 
     if (isStudyModeEnabled && isLandscape) {
         // Nuevo: Usar SplitLayoutController con ViewModel compartido
@@ -184,9 +194,25 @@ fun ReaderScreen(
 
         val splitState by splitViewModel.splitState.collectAsState()
 
-        com.cristiancogollo.biblion.feature.studydocs.ui.editor.SplitLayoutController(
-            leftPane = {
-                if (!isFocusMode) {
+        if (useCompactStudyLayout) {
+            val activePane = if (compactStudyPane == "bible") {
+                com.cristiancogollo.biblion.feature.studydocs.ui.editor.CompactStudyPane.Bible
+            } else {
+                com.cristiancogollo.biblion.feature.studydocs.ui.editor.CompactStudyPane.Document
+            }
+            com.cristiancogollo.biblion.feature.studydocs.ui.editor.CompactStudyLayoutController(
+                activePane = activePane,
+                onPaneSelected = { pane ->
+                    focusManager.clearFocus(force = true)
+                    compactStudyPane = if (
+                        pane == com.cristiancogollo.biblion.feature.studydocs.ui.editor.CompactStudyPane.Bible
+                    ) {
+                        "bible"
+                    } else {
+                        "document"
+                    }
+                },
+                biblePane = {
                     androidx.compose.runtime.CompositionLocalProvider(
                         com.cristiancogollo.biblion.feature.studydocs.ui.editor.LocalSplitViewModel provides splitViewModel
                     ) {
@@ -197,19 +223,47 @@ fun ReaderScreen(
                             currentUserName = currentUserName,
                         )
                     }
-                }
-            },
-            rightPane = {
-                com.cristiancogollo.biblion.feature.studydocs.ui.editor.StudyDocEditorScreen(
-                    splitViewModel = splitViewModel,
-                    onBack = { navController.popBackStackOrNavigateHome() },
-                    isSplitMode = true,
-                    onFocusModeChanged = { isFocusMode = !isFocusMode },
-                    isDarkTheme = isDarkTheme,
-                    onToggleDarkTheme = onToggleDarkTheme,
-                )
-            }
-        )
+                },
+                documentPane = {
+                    com.cristiancogollo.biblion.feature.studydocs.ui.editor.StudyDocEditorScreen(
+                        splitViewModel = splitViewModel,
+                        onBack = { navController.popBackStackOrNavigateHome() },
+                        isSplitMode = false,
+                        isDarkTheme = isDarkTheme,
+                        onToggleDarkTheme = onToggleDarkTheme,
+                        isActive = activePane ==
+                            com.cristiancogollo.biblion.feature.studydocs.ui.editor.CompactStudyPane.Document,
+                    )
+                },
+            )
+        } else {
+            com.cristiancogollo.biblion.feature.studydocs.ui.editor.SplitLayoutController(
+                leftPane = {
+                    if (!isFocusMode) {
+                        androidx.compose.runtime.CompositionLocalProvider(
+                            com.cristiancogollo.biblion.feature.studydocs.ui.editor.LocalSplitViewModel provides splitViewModel
+                        ) {
+                            StudyModeNavigation(
+                                initialBook = bookName,
+                                isDarkTheme = isDarkTheme,
+                                onToggleDarkTheme = onToggleDarkTheme,
+                                currentUserName = currentUserName,
+                            )
+                        }
+                    }
+                },
+                rightPane = {
+                    com.cristiancogollo.biblion.feature.studydocs.ui.editor.StudyDocEditorScreen(
+                        splitViewModel = splitViewModel,
+                        onBack = { navController.popBackStackOrNavigateHome() },
+                        isSplitMode = true,
+                        onFocusModeChanged = { isFocusMode = !isFocusMode },
+                        isDarkTheme = isDarkTheme,
+                        onToggleDarkTheme = onToggleDarkTheme,
+                    )
+                },
+            )
+        }
     } else {
         ReaderContent(
             navController = navController,

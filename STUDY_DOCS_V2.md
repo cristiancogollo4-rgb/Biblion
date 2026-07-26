@@ -1,6 +1,31 @@
-# Biblion Docs v2 — Arquitectura del Modo Estudio
+# Biblion Docs v2 — Arquitectura vigente del Modo Estudio
 
-Documento generado el 23 Jun 2026. Reemplaza al antiguo sistema `feature/study/`.
+Actualizado el 24 Jul 2026 contra el codigo real. Reemplaza al antiguo sistema `feature/study/`.
+
+## Estado actual resumido
+
+- Modelo: `StudyDoc` inmutable con 6 bloques vigentes: `Paragraph`, `Heading`, `BulletList`, `OrderedList`, `Verse`, `Quote`.
+- Engine: `StudyDocEngine` procesa 8 operaciones: insertar, eliminar, titulo, metadata, cambiar tipo, dividir, unir y aplicar en lote.
+- Edicion: `PaginatedSheet` + `PaginationEngine` + `PagedEditorUnitRenderer`; el texto puede fragmentarse entre paginas sin crear editores duplicados.
+- Hoja: carta fija de 850 x 1100 dp, margen de 48 dp y footer de 24 dp. El documento conserva geometria logica entre dispositivos; solo cambia el zoom de visualizacion.
+- Zoom: 0.75x-2.0x con pinch, presets y ajuste al ancho. El scroll controla el paneo para evitar competencia entre gestos.
+- Formato: negrita, cursiva, subrayado, tachado, color, resaltado, familia, alineacion y tamano 8-72 mediante selector editable similar a Google Docs.
+- Listas: Enter crea un item; Enter sobre el ultimo item vacio sale a parrafo; doble Backspace usa `ListBackspaceExitTracker`.
+- Tema: modo claro/oscuro conectado al tema global; hoja, workspace, toolbar, citas y resaltados usan colores por tema.
+- Persistencia: Room v3. `saveDraft()` autoguarda sin titulo y no publica; `save()` exige titulo manual y marca `isPublished=true`.
+- Lista: DAO, busqueda, conteo y sync filtran `is_published = 1`; un borrador no aparece en "Mis ensenanzas".
+- Salida: documento nuevo vacio sale sin alerta; con contenido o cambios muestra un `Dialog` con continuar o descartar.
+- Navegacion: la ruta `study_doc_editor/new` se interpreta como borrador nuevo, no como remoteId.
+
+## Limitaciones conocidas
+
+- Falta recuperar automaticamente un borrador oculto tras cierre forzado o muerte del proceso.
+- Una ensenanza ya publicada y su copia de trabajo aun comparten registro; falta separar snapshot publicado y draft.
+- `discardDraft()` debe evolucionar a una salida que espere confirmacion de borrado antes de navegar.
+- La sincronizacion Firestore de estudios continua deshabilitada.
+- Antes de produccion faltan pruebas instrumentadas de migracion Room 2->3, rotacion, proceso, teclado y matrices amplias de dispositivos.
+
+> Las secciones historicas inferiores conservan decisiones de junio de 2026. Cuando contradigan el resumen anterior o el codigo, prevalecen el codigo y este bloque de estado actual.
 
 ## Indice
 
@@ -46,7 +71,7 @@ feature/studydocs/
 │   ├── StyleRange.kt        (rango de estilo: start, endExclusive, bold, italic, etc.)
 │   ├── TextStylePatch.kt    (patch parcial de estilo + TextStyleKind enum)
 │   ├── StyledText.kt        (texto inmutable con List<StyleRange> + withText/withStyle/clearStyle)
-│   ├── StudyBlock.kt        (sealed interface con 12 tipos de bloque)
+│   ├── StudyBlock.kt        (sealed interface con 6 tipos de bloque)
 │   └── StudyDoc.kt          (documento inmutable: id, title, blocks, metadata, version)
 │
 ├── engine/
@@ -59,7 +84,7 @@ feature/studydocs/
 │   ├── StudyDocJson.kt      (serializacion JSON via kotlinx.serialization)
 │   ├── StudyDocEntity.kt    (entidad Room con docJson blob)
 │   ├── StudyDocDao.kt       (13 queries)
-│   ├── StudyDocDatabase.kt  (Room v1, fallbackToDestructiveMigration)
+│   ├── StudyDocDatabase.kt  (Room v3, migraciones 1->2 y 2->3)
 │   └── StudyDocRepository.kt(fachada sobre DAO)
 │
 ├── domain/
@@ -76,23 +101,20 @@ feature/studydocs/
 │   │       ├── TextBlockEditors.kt   (Paragraph, Heading, Quote)
 │   │       └── MoreBlockEditors.kt   (List, Note, Reflection, Verse, Callout, Divider, PageBreak)
 │   ├── list/
-│   │   ├── StudyDocsListScreen.kt    ("Mis Documentos" con tarjetas)
+│   │   ├── StudyDocsListScreen.kt    ("Mis ensenanzas" publicadas)
 │   │   └── StudyDocsListViewModel.kt
 │   ├── read/
-│   │   └── StudyDocReadScreen.kt     (render de los 12 tipos de bloque)
+│   │   └── StudyDocReadScreen.kt     (render paginado de los 6 bloques)
 │   └── outline/
 │       └── OutlinePanel.kt           (tabla de contenidos por headings)
 │
 └── tests/ (en app/src/test/.../feature/studydocs/)
-    ├── engine/
-    │   ├── StudyDocEngineInsertTest.kt   (5 tests)
-    │   ├── StudyDocEngineEditTest.kt     (6 tests)
-    │   ├── StudyDocEngineStyleTest.kt    (4 tests)
-    │   ├── StudyDocEngineMoveTest.kt     (5 tests)
-    │   └── StudyDocValidatorTest.kt      (6 tests)
-    └── data/
-        ├── StudyDocJsonTest.kt           (6 tests)
-        └── StudyDocDaoTest.kt            (9 tests con Robolectric)
+    ├── domain/       (historia, listas y edicion paginada)
+    ├── editor/       (zoom, gaps y rich text)
+    ├── engine/       (operaciones de listas)
+    ├── model/        (guardado, rangos y slicing)
+    ├── pagination/   (engine, layout y composition keys)
+    └── ui/list/      (filtros del listado)
 ```
 
 ---
@@ -115,22 +137,16 @@ data class StudyDoc(
 
 Cada mutation via `StudyDocEngine.apply` genera una nueva instancia con `version` y `updatedAt` incrementados.
 
-### 3.2 `StudyBlock` — 12 tipos
+### 3.2 `StudyBlock` — 6 tipos vigentes
 
 | Tipo | Descripcion | Campos clave |
 |------|-------------|--------------|
 | `Paragraph` | Texto libre | `text: StyledText` |
-| `Heading` | Encabezado 1-6 | `level: Int`, `text`, `anchor: String?` |
+| `Heading` | Encabezado 1-3 | `level: Int`, `text` |
 | `BulletList` | Lista con vinetas | `items: List<StyledText>` |
-| `NumberedList` | Lista numerada | `items: List<StyledText>` |
-| `Quote` | Cita textual | `text`, `attribution: String?` |
-| `Table` | Tabla | `rows: List<TableRow>`, `hasHeaderRow` |
-| `Verse` | Versiculo biblico | `reference: VerseRef`, `primaryText`, `compareVersion`, `compareText`, `note` |
-| `Note` | Nota | `text`, `collapsed` |
-| `Reflection` | Reflexion personal | `prompt: String?`, `text`, `collapsed` |
-| `Callout` | Destacado con color | `icon`, `color: Int`, `text` |
-| `Divider` | Separador horizontal | — |
-| `PageBreak` | Salto de pagina | — |
+| `OrderedList` | Lista numerada | `items: List<StyledText>` |
+| `Verse` | Versiculo biblico | `bookId`, rango, version, contenidos comparados |
+| `Quote` | Cita textual | `text` |
 
 ### 3.3 `StyledText` — Texto con estilos inline
 
@@ -272,8 +288,10 @@ Configuracion de serializacion:
 
 ### 5.3 `StudyDocDatabase`
 
-- Room v1, `study_docs.db`
-- `fallbackToDestructiveMigration(dropAllTables = true)`
+- Room v3, `study_docs.db`
+- Migracion 1->2: elimina la tabla antigua `doc_edit_history`
+- Migracion 2->3: agrega `is_published INTEGER NOT NULL DEFAULT 1`
+- No usa `fallbackToDestructiveMigration`
 - Thread-safe con double-checked locking
 
 ---
@@ -285,9 +303,9 @@ Configuracion de serializacion:
 Lienzo principal del editor con:
 - **Top bar**: titulo editable, boton Back, boton Save, toggle outline
 - **Toolbar**: bold (Ctrl+B), italic (Ctrl+I), underline (Ctrl+U), boton "+" para slash commands
-- **LazyColumn**: render de bloques con drag handles y seleccion
-- **Outline panel**: panel lateral con tabla de contenidos (toggle)
-- **Slash command menu**: AlertDialog con 14 tipos de bloque
+- **PaginatedSheet**: hojas carta apiladas y centradas
+- **PagedEditorUnitRenderer**: editor por unidad/fragmento con cursor estable
+- **StudyModeEditorPanel**: toolbar, titulo, zoom, modo oscuro y acciones de bloque
 
 ### 6.2 `BlockWithHandle`
 
@@ -319,26 +337,34 @@ Convierte `StyledText` a `AnnotatedString`:
 
 | Tipo | Renderizador | Caracteristicas |
 |------|-------------|----------------|
-| Paragraph | `ParagraphBlockEditor` | Texto libre con StyledTextEditor |
-| Heading | `HeadingBlockEditor` | Tamano segun nivel (1-6) |
-| BulletList | `ListBlockEditor` | Items con • + boton eliminar |
-| NumberedList | `NumberedListBlockEditor` | Items con N. |
-| Quote | `QuoteBlockEditor` | Icono " + atribucion |
-| Table | (inline Text) | Muestra dimensiones |
-| Verse | `VerseBlockEditor` | Referencia + primaryText + compare |
-| Note | `NoteBlockEditor` | Card tertiaryContainer |
-| Reflection | `ReflectionBlockEditor` | Card secondaryContainer + prompt |
-| Callout | `CalloutBlockEditor` | Card con color personalizable |
-| Divider | `DividerBlockView` | HorizontalDivider |
-| PageBreak | `PageBreakBlockView` | Indicador de salto |
+| Paragraph | `PagedEditorUnitRenderer` | Texto libre paginado |
+| Heading | `PagedEditorUnitRenderer` | Tamano segun nivel (1-3) |
+| BulletList | `PagedEditorUnitRenderer` | Items con vineta |
+| OrderedList | `PagedEditorUnitRenderer` | Items numerados editables |
+| Quote | `PagedEditorUnitRenderer` | Cita textual partible |
+| Verse | `BibleVerseBlock` | Referencia, contenido y comparacion |
 
 ### 6.6 Zoom con gestos
 
-`Modifier.canvasZoom(minScale=0.5f, maxScale=3.0f)`:
-- `detectTransformGestures` para pinch + pan
-- Scale: `(scale * zoom).coerceIn(0.5f, 3.0f)`
-- Offset: `offsetX += pan.x`, `offsetY += pan.y`
-- Layout: `width * scale`, `height * scale`, `place(offsetX, offsetY)`
+`DocumentZoomState`:
+- rango 0.75x-2.0x
+- presets 75%, 100%, 125%, 150% y 200%
+- pinch mediante transform gestures
+- ajuste al ancho usando medidas de viewport/contenido
+- el scroll del lienzo conserva la autoridad del paneo
+
+### 6.7 Orientacion y pantallas compactas
+
+- `StudyModeLandscapeLock` fuerza `SCREEN_ORIENTATION_SENSOR_LANDSCAPE` mientras Modo estudio esta activo.
+- Aplica tanto al editor independiente como al modo dividido abierto desde el lector.
+- Permite las dos direcciones horizontales y restaura la politica de orientacion anterior al salir.
+- Como Biblion usa `targetSdk 36`, `MainActivity` declara `PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY`; Android 16 puede ignorar las solicitudes de orientacion en pantallas `sw600dp` sin esta compatibilidad temporal.
+- En telefonos, la evolucion recomendada es una vista de un solo panel con cambio rapido Biblia/Documento; no se debe comprimir el split 50/50.
+- Esta vista ya se implementa mediante `CompactStudyLayoutController` para ancho `< 840dp` o altura `< 480dp`.
+- Biblia y Documento permanecen montados en capas para no reiniciar el borrador, el foco logico ni el `NavHost` biblico al alternar.
+- El contenedor de cada capa recorta su dibujo a los limites disponibles y la barra lateral usa un nivel visual superior; drawers, lectores y overlays biblicos no pueden cubrir los controles de cambio de panel.
+- En layout compacto el editor evita solicitar foco inicial. Con teclado virtual visible se oculta temporalmente el encabezado, manteniendo accesibles la toolbar y una franja util de hoja.
+- La hoja conserva su geometria logica. El tamano fisico del documento no depende de la orientacion ni del dispositivo.
 
 ---
 
@@ -346,7 +372,7 @@ Convierte `StyledText` a `AnnotatedString`:
 
 ### 7.1 `StudyDocsListScreen`
 
-Pantalla "Mis Documentos":
+Pantalla "Mis ensenanzas":
 - Fab: boton "Nuevo" (ExtendedFloatingActionButton)
 - LazyColumn con StudyDocCard
 - Estado vacio con mensaje
@@ -365,7 +391,7 @@ Tarjeta con:
 
 ### 8.1 `StudyDocReadScreen`
 
-Render completo de los 12 tipos de bloque:
+Render completo de los 6 tipos de bloque vigentes:
 - Top bar con titulo + Back + boton Edit
 - LazyColumn con separadores entre bloques
 - Estilos inline via `StyledTextRenderer.toAnnotatedString`
@@ -446,7 +472,7 @@ Validacion via `StudyDocValidator.validateMetadata()`:
 ### 11.3 Flujo de navegacion
 
 ```
-Home → "Mis Documentos" (study_docs_list)
+Home → "Mis ensenanzas" (`study_docs_list`)
        ├──→ Crear nuevo (study_doc_editor/new)
        ├──→ Abrir existente → lectura (study_doc_read/{id})
        └──→ Editar desde lectura → editor (study_doc_editor/{id})
@@ -456,17 +482,16 @@ Home → "Mis Documentos" (study_docs_list)
 
 ## 12. Tests
 
-### 12.1 Total: 41 tests en `feature/studydocs/`
+### 12.1 Total actual: 72 tests en `feature/studydocs/`
 
-| Archivo | Tests | Tipo |
-|---------|-------|------|
-| `StudyDocEngineInsertTest` | 5 | Unit (insert al inicio, medio, final, duplicado, version bump) |
-| `StudyDocEngineEditTest` | 6 | Unit (replace, insert, no-existe, heading level, delete, move) |
-| `StudyDocEngineStyleTest` | 4 | Unit (bold, merge contiguo, clear con split, shift con edit) |
-| `StudyDocEngineMoveTest` | 5 | Unit (noop, swap vecinos, no-existe, replace same id, replace diff id) |
-| `StudyDocValidatorTest` | 6 | Unit (vacio, duplicados, heading level, verse compare, style bounds, metadata) |
-| `StudyDocJsonTest` | 6 | Unit (round-trip doc vacio, doc con 11 tipos, tabla, verse con compare, JSON malformado, discriminator) |
-| `StudyDocDaoTest` | 9 | Robolectric (insert, update, soft delete, hard delete, observe by owner, search title, search tag, mark synced, count) |
+| Area | Cobertura principal |
+|------|---------------------|
+| `domain/` | Historia, listas, doble Backspace y edicion paginada |
+| `editor/` | Zoom, offsets de gaps y puente rich text |
+| `engine/` | Operaciones de listas |
+| `model/` | Guardado por titulo, rangos y slicing |
+| `pagination/` | 16 casos del engine, layout y composition keys |
+| `ui/list/` | 11 casos de filtros/listado |
 
 Ejecutar: `.\gradlew.bat :app:testDebugUnitTest --tests "com.cristiancogollo.biblion.feature.studydocs.*"`
 
@@ -548,6 +573,6 @@ Ejecutar: `.\gradlew.bat :app:testDebugUnitTest --tests "com.cristiancogollo.bib
 | Baja | Internacionalizacion (strings.xml) | 2-3 dias |
 | Baja | Mejorar render de tablas en el editor | 1-2 dias |
 | Baja | Eliminar stubs (`StudyViewModelStub.kt`, `ReaderAssistantOverlay`) | 1 dia |
-| Baja | Limpiar deprecation warnings de `fallbackToDestructiveMigration` | 1 dia |
+| Alta | Agregar pruebas instrumentadas de las migraciones Room 1->2 y 2->3 | 1 dia |
 | Baja | Eliminar 3 tests pre-existentes fallando (dictionary_v2 count, DictionaryEngine) | 1 dia |
 | Baja | Auditoria `BibleBookMapper` | 1 dia |

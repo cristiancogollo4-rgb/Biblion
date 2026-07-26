@@ -38,13 +38,14 @@ Biblion ya incluye:
 - **Reiniciar tutorial de lectura** desde la seccion Perfil.
 - Base inicial para la red de Biblion sobre Firestore.
 - **Modo estudio v2 (Biblion Docs)**: editor estilo Google Docs con modelo por operaciones puras.
-  - **Editor visual**: `StudyDocEditorScreen` con `LazyColumn`, drag handles, slash commands, outline panel, zoom con gestos.
-  - **Modelo inmutable**: `StudyDoc` con `List<StudyBlock>` (12 tipos: Paragraph, Heading, BulletList, NumberedList, Quote, Table, Verse, Note, Reflection, Callout, Divider, PageBreak).
-  - **Motor puro**: `StudyDocEngine.apply(doc, op): Pair<StudyDoc, OpResult>` — 10 operaciones selladas (InsertBlock, DeleteBlock, MoveBlock, ReplaceBlock, EditText, ApplyStyle, ClearStyle, UpdateTitle, UpdateMetadata, BulkApply).
+  - **Editor visual actual**: `StudyDocEditorScreen` + `StudyModeEditorPanel` sobre `PaginatedSheet`, con fragmentos editables, foco estable, navegacion entre bloques y listas, undo/redo y zoom con gestos.
+  - **Modelo inmutable**: `StudyDoc` con `List<StudyBlock>` y 6 tipos vigentes: `Paragraph`, `Heading`, `BulletList`, `OrderedList`, `Verse`, `Quote`.
+  - **Motor puro**: `StudyDocEngine.apply(doc, op): Pair<StudyDoc, OpResult>` con 8 operaciones vigentes: `InsertBlock`, `DeleteBlock`, `UpdateTitle`, `UpdateMetadata`, `ChangeBlockType`, `SplitBlock`, `MergeBlock`, `BulkApply`.
   - **StyledText**: texto con rangos de estilo inmutables (bold, italic, underline, strikethrough, color, background, fontSize, link).
-  - **Persistencia Room v1**: `StudyDocEntity` + `StudyDocDao` + `StudyDocRepository` en `study_docs.db`. Documento serializado como JSON blob con kotlinx.serialization.
-  - **Listado "Mis Documentos"**: `StudyDocsListScreen` con vista de tarjetas, conteo de bloques y palabras.
-  - **Modo lectura**: `StudyDocReadScreen` con render completo de todos los tipos de bloque.
+  - **Persistencia Room v3**: `StudyDocEntity` + `StudyDocDao` + `StudyDocRepository` en `study_docs.db`, JSON con kotlinx.serialization y flag `isPublished`.
+  - **Borrador vs publicacion**: el autosave usa `saveDraft()` aunque no exista titulo; solo `save()` publica una ensenanza. Los borradores no aparecen en "Mis ensenanzas", busqueda ni sincronizacion.
+  - **Listado "Mis ensenanzas"**: `StudyDocsListScreen` muestra exclusivamente documentos publicados.
+  - **Modo lectura**: `StudyDocReadScreen` usa el mismo sistema de hoja paginada.
   - **Sistema de etiquetas**: `DocMetadata` con `DocTagGroups` (proposito, audiencia, tema, estado) validado por `StudyDocValidator`.
   - **Navegacion**: rutas `study_docs_list`, `study_doc_editor/{remoteId}`, `study_doc_read/{remoteId}`.
   - **Compatibilidad temporal**: `StudyViewModelStub.kt` mantiene `ReaderScreen` compilando (citation insert y Bibi overlay son stubs).
@@ -148,7 +149,9 @@ El sistema de tutorial guiado usa `GuidedTutorialOverlay` + `GuideBubble` para m
 
 ## 6) Modo estudio: herramientas y responsabilidades
 
-> **NOTA (23 Jun 2026)**: El modo estudio fue completamente reestructurado a una arquitectura por operaciones puras estilo Google Docs.
+> **ACTUALIZACION (24 Jul 2026)**: esta seccion refleja el codigo vigente. `STUDY_DOCS_V2.md` contiene el inventario tecnico actual; `PLAN_PAGINACION.md` es historico.
+>
+> El modo estudio fue completamente reestructurado a una arquitectura por operaciones puras estilo Google Docs.
 > El sistema viejo (`feature/study/`) fue eliminado y reemplazado por `feature/studydocs/`.
 > Ver `STUDY_DOCS_V2.md` para documentacion completa de la nueva arquitectura.
 
@@ -157,39 +160,39 @@ El modo estudio v2 se compone de `StudyDocEditorScreen`, `StudyDocViewModel`, `S
 ### Arquitectura del documento de estudio (v2)
 
 - **`StudyDoc`** (`feature/studydocs/model/StudyDoc.kt`): documento inmutable con `id: DocId`, `title`, `blocks: List<StudyBlock>`, `metadata: DocMetadata`, `version: Int`.
-- **`StudyBlock`** (`feature/studydocs/model/StudyBlock.kt`): sealed interface con **12 tipos**: `Paragraph`, `Heading` (1-6), `BulletList`, `NumberedList`, `Quote`, `Table`, `Verse` (con `primaryVersion`/`compareVersion`/`compareText`), `Note`, `Reflection`, `Callout`, `Divider`, `PageBreak`.
+- **`StudyBlock`** (`feature/studydocs/model/StudyBlock.kt`): sealed interface con **6 tipos vigentes**: `Paragraph`, `Heading` (1-3), `BulletList`, `OrderedList`, `Verse`, `Quote`.
 - **`StyledText`** (`feature/studydocs/model/StyledText.kt`): texto con lista inmutable de `StyleRange` (bold, italic, underline, strikethrough, color, background, fontSizeSp, link). Soporta `withText(range, replacement)`, `withStyle(range, patch)`, `clearStyle(range, kind)`.
-- **`StudyOp`** (`feature/studydocs/engine/StudyOp.kt`): 10 operaciones selladas — `InsertBlock`, `DeleteBlock`, `MoveBlock`, `ReplaceBlock`, `EditText`, `ApplyStyle`, `ClearStyle`, `UpdateTitle`, `UpdateMetadata`, `BulkApply`.
+- **`StudyOp`** (`feature/studydocs/engine/StudyOp.kt`): 8 operaciones selladas — `InsertBlock`, `DeleteBlock`, `UpdateTitle`, `UpdateMetadata`, `ChangeBlockType`, `SplitBlock`, `MergeBlock`, `BulkApply`.
 - **`StudyDocEngine`** (`feature/studydocs/engine/StudyDocEngine.kt`): motor puro. `apply(doc, op): Pair<StudyDoc, OpResult>`. Sin estado mutable, 100% testeable.
 - **`StudyDocValidator`** (`feature/studydocs/engine/StudyDocValidator.kt`): 8 tipos de `ValidationIssue` (duplicate block ids, invalid heading level, verse compare mismatch, style out of bounds, table shape, missing required tags).
 - **`StudyDocNormalizer`** (`feature/studydocs/engine/StudyDocNormalizer.kt`): merge de rangos de estilo, dedup de dividers consecutivos, strip de parrafos vacios al final, intro block automatico.
 - **`StudyDocViewModel`** (`feature/studydocs/domain/StudyDocViewModel.kt`): MVVM con `StudyEditorUiState` (doc, selectedBlockId, isLoading, lastError, isSaving). Expone `applyOp(op)`, `applyAll(ops)`, `saveNow()`, `loadByRemoteId(id)`.
-- **`StudyDocEditorScreen`** (`feature/studydocs/ui/editor/StudyDocEditorScreen.kt`): lienzo con `LazyColumn` + drag handles + toolbar (bold/italic/underline) + slash commands + outline panel.
-- **`StudyDocReadScreen`** (`feature/studydocs/ui/read/StudyDocReadScreen.kt`): render de todos los 12 tipos de bloque con `AnnotatedString` para estilos inline.
-- **`StudyDocsListScreen`** (`feature/studydocs/ui/list/StudyDocsListScreen.kt`): lista de "Mis Documentos" con tarjetas, conteo de bloques y palabras.
+- **`StudyDocEditorScreen`** (`feature/studydocs/ui/editor/StudyDocEditorScreen.kt`): coordina modo split/standalone, dialogos de guardado/salida y el `PaginatedSheet`.
+- **`StudyModeEditorPanel`**: header editable, toolbar, modo oscuro, selector de fuente/tamano y hoja paginada.
+- **`PagedEditorUnitRenderer`**: edicion por unidad paginada con cursor/seleccion estable entre fragmentos y paginas.
+- **`StudyDocReadScreen`** (`feature/studydocs/ui/read/StudyDocReadScreen.kt`): render paginado de los 6 tipos vigentes.
+- **`StudyDocsListScreen`** (`feature/studydocs/ui/list/StudyDocsListScreen.kt`): lista de "Mis ensenanzas" con documentos publicados.
 
 ### Persistencia
 
-- **`study_docs.db`**: Room v1 con `StudyDocEntity` (id, remoteId, title, notebookRemoteId, ownerUid, tagsCsv, blockCount, version, docJson, createdAt, updatedAt, deletedAt, isDirty).
+- **`study_docs.db`**: Room v3. La migracion 1->2 elimina `doc_edit_history`; 2->3 agrega `is_published` conservando visibles los documentos existentes.
 - **`StudyDocDao`**: 13 queries (observeAll, observeByNotebook, observeByOwner, getById, getByRemoteId, search, getDirtyForSync, insert, update, softDelete, hardDelete, markSynced, countActive).
-- **`StudyDocRepository`**: fachada con `save(doc)`, `getByRemoteId`, `observeAll`, `search`, `softDelete`, `hardDelete`, `markSynced`.
+- **`StudyDocRepository`**: `save(doc)` exige titulo y publica; `saveDraft(doc)` permite autosave sin titulo; `discardDraft(remoteId)` elimina solo registros no publicados.
 - **`StudyDocJson`**: serializacion JSON via kotlinx.serialization con `classDiscriminator = "type"` y `ignoreUnknownKeys = true`.
 
 ### Herramientas del editor (v2)
 
-- **Slash commands**: boton "+" en toolbar abre un `AlertDialog` con 14 tipos de bloque. Fabrica el bloque y lo inserta via `StudyOp.InsertBlock`.
-- **Drag handles**: icono de arrastre lateral en cada bloque. Detecta seleccion via long-press para modo multi-bloque.
-- **Outline panel**: panel lateral que lista `StudyDoc.headings()` jerarquicamente por nivel.
-- **Zoom con gestos**: `Modifier.canvasZoom` con `detectTransformGestures` (pinch-to-zoom 0.5x-3.0x y pan).
-- **Texto inline**: `StyledTextEditor` con `BasicTextField` + `AnnotatedString` derivado de `StyledText.ranges`.
-- **Estilos de texto**: toolbar con bold/italic/underline que aplica `TextStylePatch` via `StudyOp.ApplyStyle`.
-- **Citar versiculo**: bloque `StudyBlock.Verse` con `VerseRef` (book, chapter, verseStart, verseEnd, version). Soporta comparacion de versiones via `compareVersion` + `compareText`.
-- **Nota / Reflexion**: bloques `Note` y `Reflection` con cards coloreadas (tertiaryContainer y secondaryContainer).
-- **Listas**: `BulletList` y `NumberedList` con items editables independientes y boton de eliminar item.
-- **Callout**: bloque destacado con color personalizable e icono.
-- **Separadores**: `Divider` (HorizontalDivider) y `PageBreak` (indicador visual de salto de pagina).
-- **Tabla**: bloque con filas y celdas, render basico.
-- **Guardar**: boton Save en top bar llama a `viewModel.saveNow()` que persiste via `StudyDocRepository.save()`.
+- **Tipos de bloque**: la toolbar inserta o transforma entre los 6 tipos vigentes mediante `StudyDocEngine`.
+- **Paginacion editable**: `PaginationEngine` produce `PageFragment`; `PagedEditorLayout` genera unidades editables y `PagedEditorUnitRenderer` mantiene una sola autoridad de texto/foco.
+- **Zoom con gestos**: `DocumentZoomState` + transform gestures, rango 0.75x-2.0x, presets y ajuste al ancho. El scroll conserva la autoridad del paneo.
+- **Orientacion de estudio**: `StudyModeLandscapeLock` mantiene el editor en `sensorLandscape` en telefonos, plegables y tabletas, y restaura la politica de orientacion anterior al salir. `MainActivity` declara la compatibilidad temporal requerida por Android 16 para respetar esta politica en pantallas `sw600dp`.
+- **Layout compacto de estudio**: cuando el viewport tiene ancho menor a 840dp o altura menor a 480dp, `CompactStudyLayoutController` reemplaza el split 50/50 por un panel unico con selector lateral Biblia/Documento. Ambos paneles permanecen compuestos para conservar editor, cursor y navegacion. El teclado virtual no se abre automaticamente y el encabezado se oculta mientras el IME esta visible.
+- **Texto inline**: `RichTextState` se sincroniza con `StyledText`; `RichTextBridge` preserva rangos y `PageGapVisualTransformation` mapea offsets visuales/logicos.
+- **Estilos de texto**: toolbar con enfasis, color, resaltado, familia, alineacion y tamano 8-72. Los cambios de tamano conservan el resto de estilos.
+- **Citar versiculo**: bloque `StudyBlock.Verse` con libro, capitulo, rango, version fuente y mapa de contenidos comparados.
+- **Listas**: `BulletList` y `OrderedList`; Enter crea items, Enter en item final vacio sale de la lista y el flujo de doble Backspace usa `ListBackspaceExitTracker`.
+- **Guardar**: autosave diferido persiste con `saveDraft()` sin publicar. El boton Guardar exige titulo escrito por el usuario y llama a `save()`.
+- **Salida segura**: si hay contenido o cambios pendientes se presenta un `Dialog`; "Seguir editando" conserva el estado y "Salir sin guardar" descarta el borrador.
 
 ### Stubs temporales
 
@@ -678,10 +681,10 @@ Los 6 versiculos populares curados en `PopularVersesData` ya no se usan en el ca
 
 Funciones actuales:
 
-- Render de todos los 12 tipos de bloque con `AnnotatedString`.
+- Render paginado de los 6 tipos de bloque vigentes con `AnnotatedString`.
 - Cambio de version y comparacion en bloques `Verse`.
 - Modo claro/oscuro desde la lectura.
-- Filtro y administracion desde "Mis Documentos".
+- Filtro y administracion desde "Mis ensenanzas"; solo incluye documentos publicados.
 - Boton de editar que navega al `StudyDocEditorScreen`.
 
 ## 7) Perfil y red de Biblion
@@ -782,7 +785,7 @@ Reglas principales:
 - La Biblia se consulta desde la base SQLite preempaquetada `app/src/main/assets/databases/bible_content.db`.
 - La base se genera desde los JSON fuente con `tools/build_bible_sqlite.py`; si se regeneran versiones, conservar la deduplicacion de libros por nombre normalizado para evitar duplicados como los de NVI.
 - Las citas vinculadas deben conservar `book`, `chapter`, `verseStart`, `verseEnd` y `version`.
-- **Documentos de estudio**: Room database `study_docs.db` con `StudyDocEntity` (id, remoteId, title, notebookRemoteId, ownerUid, tagsCsv, blockCount, version, docJson). Migracion destructiva aceptable en v1 ya que los datos viejos del sistema anterior (`feature/study/`) no son compatibles.
+- **Documentos de estudio**: Room v3 `study_docs.db` con `StudyDocEntity` (id, remoteId, title, notebookRemoteId, ownerUid, tagsCsv, blockCount, version, docJson, isPublished). Toda evolucion futura requiere migracion compatible; no usar migracion destructiva.
 - **Diccionario biblico local unificado**: `app/src/main/assets/databases/dictionary_v2.db` contiene 6,346 entradas (Easton's + Theographic). Generado por `tools/build_knowledge_sqlite.py`. Esquema version 2 (con metadata Theographic).
 - **Historial de busquedas**: Room database `search_history.db` con `SearchHistoryEntity` (query, normalized_query, use_count, last_used_at). Se usa para mostrar busquedas recientes en `SearchScreen`. Migracion destructiva aceptable (datos regenerables).
 - **Chats de Bibi**: Room database `bibi_chat.db` con `ChatSessionEntity` y `ChatMessageEntity`. Permite multiples sesiones independientes de conversacion.
@@ -822,13 +825,13 @@ Antes de proponer merge, validar al menos:
 Si se ejecuta un subconjunto, reportarlo claramente.
 
 **Tests del nuevo modo estudio (v2)**: viven en `app/src/test/java/com/cristiancogollo/biblion/feature/studydocs/`:
-- `engine/StudyDocEngineInsertTest.kt` (5 tests)
-- `engine/StudyDocEngineEditTest.kt` (6 tests)
-- `engine/StudyDocEngineStyleTest.kt` (4 tests)
-- `engine/StudyDocEngineMoveTest.kt` (5 tests)
-- `engine/StudyDocValidatorTest.kt` (6 tests)
-- `data/StudyDocJsonTest.kt` (6 tests)
-- `data/StudyDocDaoTest.kt` (9 tests) — Robolectric con `Room.inMemoryDatabaseBuilder`
+- `domain/`: historia, Enter/listas, doble Backspace y edicion paginada.
+- `editor/`: zoom, mapeo de gaps y puente de texto enriquecido.
+- `engine/`: operaciones de lista y transformaciones del documento.
+- `model/`: reglas de guardado, rangos y slicing de `StyledText`.
+- `pagination/`: 16 casos del engine, layout paginado y claves de composicion.
+- `ui/list/`: filtros y listado de documentos publicados.
+- Inventario actual: 72 metodos `@Test` en 14 archivos.
 
 Para ejecutar solo los tests del modo estudio:
 ```powershell

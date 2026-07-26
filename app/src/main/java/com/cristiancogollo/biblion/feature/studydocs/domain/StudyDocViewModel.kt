@@ -106,7 +106,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
             doc = StudyDoc(blocks = listOf(block)),
             activeBlockId = block.id,
             focusRequest = initialFocusRequest,
-            hasUnsavedChanges = true,
+            hasUnsavedChanges = false,
         )
         _isDocLoaded = true
     }

@@ -1,5 +1,11 @@
 # PLAN: Hoja paginada estilo Word/Google Docs (modo estudio)
 
+> **ESTADO (24 Jul 2026): IMPLEMENTADO / DOCUMENTO HISTORICO.**
+>
+> La arquitectura final usa `PaginatedSheet`, `PaginationEngine`, `PageFragment`, `PagedEditorLayout`, `PagedEditorUnitRenderer` y `PageGapVisualTransformation`. Ya existen pruebas para paginacion, claves de composicion, layout paginado y mapeo de offsets. Las tablas de "faltante/roto" de este plan describen el estado del 20 Jul 2026 y no deben usarse como diagnostico vigente.
+>
+> Pendientes reales actuales: recuperacion de borradores tras cierre forzado, snapshot publicado separado del draft, confirmacion de descarte antes de navegar, sync Firestore y pruebas instrumentadas multi-dispositivo.
+
 > **Documento autocontenido**: cualquier agente puede ejecutar este plan sin contexto adicional. Toda la información técnica (firmas, file:line, decisiones) está fijada aquí.
 
 ---

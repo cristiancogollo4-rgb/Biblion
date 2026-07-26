@@ -16,7 +16,6 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -25,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -37,9 +37,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import com.cristiancogollo.biblion.core.ui.StudyModeLandscapeLock
 import com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel
 import com.cristiancogollo.biblion.feature.studydocs.model.DocConfig
 import com.cristiancogollo.biblion.feature.studydocs.model.hasPersistableTitle
@@ -57,7 +62,19 @@ fun StudyDocEditorScreen(
     navController: androidx.navigation.NavController? = null,
     isDarkTheme: Boolean = false,
     onToggleDarkTheme: (Boolean) -> Unit = {},
+    isActive: Boolean = true,
 ) {
+    StudyModeLandscapeLock()
+
+    val configuration = LocalConfiguration.current
+    val useCompactStudyLayout = isSplitMode && shouldUseCompactStudyLayout(
+        widthDp = configuration.screenWidthDp,
+        heightDp = configuration.screenHeightDp,
+    )
+    var compactStudyPane by rememberSaveable { mutableStateOf("document") }
+    val compactDocumentActive = compactStudyPane == "document"
+    val focusManager = LocalFocusManager.current
+
     // Usar splitViewModel si está disponible (modo split), sino usar viewModel (modo standalone)
     val editorState by (splitViewModel?.editorState ?: viewModel?.uiState)?.collectAsState()
         ?: remember { mutableStateOf(com.cristiancogollo.biblion.feature.studydocs.domain.StudyEditorUiState()) }
@@ -68,22 +85,60 @@ fun StudyDocEditorScreen(
     var isFullScreen by remember { mutableStateOf(false) }
     var showDiscardDialog by remember { mutableStateOf(false) }
 
-    val requestExit = {
+    val requestExit: (String) -> Unit = { source ->
         val hasDraftContent = editorState.doc.blocks.size > 1 || editorState.doc.blocks.any { block ->
             block.toStyledTextList().any { it.raw.isNotBlank() }
         }
         val isExistingTeaching = editorState.doc.remoteId != null
-        if (editorState.hasUnsavedChanges && !editorState.isSaving && (hasDraftContent || isExistingTeaching || editorState.doc.title.isNotBlank())) {
-            showDiscardDialog = true
+        val hasPendingNewTeaching = !isExistingTeaching &&
+            (editorState.hasUnsavedChanges || hasDraftContent || editorState.doc.title.isNotBlank())
+        val shouldWarn = !editorState.isSaving && if (isExistingTeaching) {
+            editorState.hasUnsavedChanges
         } else {
+            hasPendingNewTeaching
+        }
+        Log.d(
+            "BIBLION_STUDY_EXIT",
+            "event source=$source existing=$isExistingTeaching unsaved=${editorState.hasUnsavedChanges} " +
+                "saving=${editorState.isSaving} blocks=${editorState.doc.blocks.size} " +
+                "hasDraftContent=$hasDraftContent titleBlank=${editorState.doc.title.isBlank()} " +
+                "showBefore=$showDiscardDialog shouldWarn=$shouldWarn",
+        )
+        if (shouldWarn) {
+            showDiscardDialog = true
+            Log.d("BIBLION_STUDY_EXIT", "event source=$source action=show_discard_dialog")
+        } else {
+            Log.d("BIBLION_STUDY_EXIT", "event source=$source action=onBack_without_dialog")
             onBack()
         }
     }
 
-    BackHandler { requestExit() }
+    BackHandler(enabled = isActive && (!useCompactStudyLayout || compactDocumentActive)) {
+        Log.d("BIBLION_STUDY_EXIT", "event source=system_back handler_invoked")
+        requestExit("system_back")
+    }
+
+    LaunchedEffect(showDiscardDialog) {
+        Log.d("BIBLION_STUDY_EXIT", "dialog_state showDiscardDialog=$showDiscardDialog")
+    }
 
     LaunchedEffect(remoteId) {
         Log.d("BIBLION_STUDY", "StudyDocEditorScreen LaunchedEffect remoteId=$remoteId viewModel=${viewModel != null} splitViewModel=${splitViewModel != null}")
+    }
+
+    LaunchedEffect(
+        isSplitMode,
+        configuration.screenWidthDp,
+        configuration.screenHeightDp,
+        useCompactStudyLayout,
+    ) {
+        if (isSplitMode) {
+            Log.d(
+                "BIBLION_STUDY_LAYOUT",
+                "editor widthDp=${configuration.screenWidthDp} " +
+                    "heightDp=${configuration.screenHeightDp} compact=$useCompactStudyLayout",
+            )
+        }
     }
 
     LaunchedEffect(editorState.isLoading, editorState.doc.blocks.size) {
@@ -91,7 +146,12 @@ fun StudyDocEditorScreen(
     }
 
     LaunchedEffect(remoteId) {
-        if (remoteId != null) {
+        val isNewDocument = remoteId == null || remoteId == "new"
+        Log.d(
+            "BIBLION_STUDY_EXIT",
+            "initializeEditor remoteId=$remoteId isNewDocument=$isNewDocument",
+        )
+        if (!isNewDocument) {
             splitViewModel?.loadByRemoteId(remoteId) ?: viewModel?.loadByRemoteId(remoteId)
         } else {
             splitViewModel?.newDraft() ?: viewModel?.newDraft()
@@ -119,35 +179,80 @@ fun StudyDocEditorScreen(
             // Split 50/50 con el editor a la derecha y la app a la izquierda.
             // BiblionTheme envuelve ambos paneles para que el dark mode los afecte.
             com.cristiancogollo.biblion.ui.theme.BiblionTheme(darkTheme = isDarkTheme) {
-                Row(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))) {
-                    if (!isFullScreen) {
-                        BibleReaderPane(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .background(MaterialTheme.colorScheme.surface),
-                            navController = navController,
+                if (useCompactStudyLayout) {
+                    val activePane = if (compactDocumentActive) {
+                        CompactStudyPane.Document
+                    } else {
+                        CompactStudyPane.Bible
+                    }
+                    CompactStudyLayoutController(
+                        activePane = activePane,
+                        onPaneSelected = { pane ->
+                            focusManager.clearFocus(force = true)
+                            compactStudyPane = if (pane == CompactStudyPane.Document) {
+                                "document"
+                            } else {
+                                "bible"
+                            }
+                        },
+                        biblePane = {
+                            BibleReaderPane(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.surface),
+                                navController = navController,
+                                isDarkTheme = isDarkTheme,
+                                onToggleDarkTheme = onToggleDarkTheme,
+                            )
+                        },
+                        documentPane = {
+                            StudyModeEditorPanel(
+                                modifier = Modifier.fillMaxSize(),
+                                editorState = editorState,
+                                splitViewModel = splitViewModel,
+                                viewModel = viewModel,
+                                onSaveClick = { showSaveDialog = true },
+                                onBack = { requestExit("panel_back") },
+                                isFullScreen = true,
+                                isDarkTheme = isDarkTheme,
+                                onToggleDarkTheme = onToggleDarkTheme,
+                                navController = navController,
+                                showFullScreenToggle = false,
+                                isCompactLayout = true,
+                            )
+                        },
+                    )
+                } else {
+                    Row(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))) {
+                        if (!isFullScreen) {
+                            BibleReaderPane(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .background(MaterialTheme.colorScheme.surface),
+                                navController = navController,
+                                isDarkTheme = isDarkTheme,
+                                onToggleDarkTheme = onToggleDarkTheme,
+                            )
+                            VerticalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                                thickness = 1.dp,
+                            )
+                        }
+                        StudyModeEditorPanel(
+                            modifier = if (isFullScreen) Modifier.fillMaxSize() else Modifier.weight(1f).fillMaxHeight(),
+                            editorState = editorState,
+                            splitViewModel = splitViewModel,
+                            viewModel = viewModel,
+                            onSaveClick = { showSaveDialog = true },
+                            onBack = { requestExit("panel_back") },
+                            isFullScreen = isFullScreen,
+                            onToggleFullScreen = { isFullScreen = !isFullScreen },
                             isDarkTheme = isDarkTheme,
                             onToggleDarkTheme = onToggleDarkTheme,
-                        )
-                        VerticalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant,
-                            thickness = 1.dp,
+                            navController = navController,
                         )
                     }
-                    StudyModeEditorPanel(
-                        modifier = if (isFullScreen) Modifier.fillMaxSize() else Modifier.weight(1f).fillMaxHeight(),
-                        editorState = editorState,
-                        splitViewModel = splitViewModel,
-                        viewModel = viewModel,
-                        onSaveClick = { showSaveDialog = true },
-                        onBack = requestExit,
-                        isFullScreen = isFullScreen,
-                        onToggleFullScreen = { isFullScreen = !isFullScreen },
-                        isDarkTheme = isDarkTheme,
-                        onToggleDarkTheme = onToggleDarkTheme,
-                        navController = navController,
-                    )
                 }
             }
         }
@@ -172,7 +277,10 @@ fun StudyDocEditorScreen(
                         )
                     },
                     navigationIcon = {
-                            IconButton(onClick = requestExit) {
+                            IconButton(onClick = {
+                                Log.d("BIBLION_STUDY_EXIT", "event source=top_bar_back clicked")
+                                requestExit("top_bar_back")
+                            }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
                         }
                     },
@@ -322,27 +430,45 @@ fun StudyDocEditorScreen(
             }
         }
     }
+    }
 
     if (showDiscardDialog) {
-        AlertDialog(
-            onDismissRequest = { showDiscardDialog = false },
-            title = { Text("Cambios sin guardar") },
-            text = { Text("Tienes contenido en esta enseñanza que todavía no has guardado. Si sales ahora, se perderá.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showDiscardDialog = false
-                    splitViewModel?.discardDraft() ?: viewModel?.discardDraft()
-                    onBack()
-                }) {
-                    Text("Salir sin guardar", color = MaterialTheme.colorScheme.error)
-                }
+        Dialog(
+            onDismissRequest = {
+                Log.d("BIBLION_STUDY_EXIT", "dialog_event action=custom_dismiss_request")
+                showDiscardDialog = false
             },
-            dismissButton = {
-                TextButton(onClick = { showDiscardDialog = false }) {
-                    Text("Seguir editando")
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+            ) {
+                Column(modifier = Modifier.padding(24.dp)) {
+                    Text("Cambios sin guardar", style = MaterialTheme.typography.headlineSmall)
+                    Text(
+                        "Tienes contenido en esta enseñanza que todavía no has guardado. Si sales ahora, se perderá.",
+                        modifier = Modifier.padding(top = 16.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End,
+                    ) {
+                        TextButton(onClick = {
+                            Log.d("BIBLION_STUDY_EXIT", "dialog_event action=custom_continue_editing")
+                            showDiscardDialog = false
+                        }) { Text("Seguir editando") }
+                        TextButton(onClick = {
+                            Log.d("BIBLION_STUDY_EXIT", "dialog_event action=custom_discard_and_exit")
+                            showDiscardDialog = false
+                            splitViewModel?.discardDraft() ?: viewModel?.discardDraft()
+                            onBack()
+                        }) { Text("Salir sin guardar", color = MaterialTheme.colorScheme.error) }
+                    }
                 }
-            },
-        )
-    }
+            }
+        }
     }
 }
