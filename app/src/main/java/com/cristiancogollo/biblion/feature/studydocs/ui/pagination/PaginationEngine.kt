@@ -193,28 +193,15 @@ object PaginationEngine {
                     }
                 }
                 is StudyBlock.Verse -> {
-                    val verseText = block.contents[block.sourceVersion] ?: ""
-                    var sliceIndex = 0
-                    cursorY = placePartible(
-                        text = AnnotatedString(verseText),
-                        sliceFactory = { start, end, top, height ->
-                            PageFragment.VerseSlice(
-                                originBlockId = block.id,
-                                block = block,
-                                charStart = start,
-                                charEndExclusive = end,
-                                sliceIndex = sliceIndex++,
-                                topPx = top,
-                                heightPx = height,
-                            )
-                        },
+                    cursorY = placeVerseColumns(
+                        block = block,
                         pageWidthPx = pageWidthPx,
                         pageHeightPx = pageHeightPx,
                         cursorYStart = cursorY,
                         density = density,
                         textMeasurer = textMeasurer,
                         style = style,
-                        onSliceEmitted = { f -> currentFragments.add(f) },
+                        onSliceEmitted = { currentFragments.add(it) },
                         onPageFilled = { openPage() },
                     )
                 }
@@ -359,6 +346,163 @@ object PaginationEngine {
         return cursorY
     }
 
+    private fun placeVerseColumns(
+        block: StudyBlock.Verse,
+        pageWidthPx: Float,
+        pageHeightPx: Float,
+        cursorYStart: Float,
+        density: Density,
+        textMeasurer: TextMeasurer,
+        style: TextStyle,
+        onSliceEmitted: (PageFragment.VerseSlice) -> Unit,
+        onPageFilled: () -> Unit,
+    ): Float {
+        val primaryText = block.contents[block.sourceVersion].orEmpty()
+        val comparisonVersion = block.displayedVersions().drop(1).firstOrNull()
+        val comparisonText = comparisonVersion?.let { block.contents[it].orEmpty() }.orEmpty()
+        val hasComparison = comparisonVersion != null && comparisonText.isNotBlank()
+        val contentWidth = (
+            pageWidthPx - with(density) { VERSE_CONTENT_INDENT.toPx() }
+            ).coerceAtLeast(1f)
+        val gapPx = with(density) { VERSE_COLUMN_GAP.toPx() }
+        val columnWidth = if (hasComparison) {
+            ((contentWidth - gapPx) / 2f).coerceAtLeast(1f)
+        } else {
+            contentWidth
+        }
+        val headerHeight = with(density) { VERSE_HEADER_HEIGHT.toPx() }
+        val labelsHeight = if (hasComparison) {
+            with(density) { VERSE_VERSION_LABEL_HEIGHT.toPx() }
+        } else {
+            0f
+        }
+        val bottomReserve = with(density) { VERSE_BOTTOM_RESERVE.toPx() }
+        val minimumLineHeight = textMeasurer.measure(
+            text = AnnotatedString(" "),
+            style = style,
+            constraints = Constraints(maxWidth = columnWidth.toInt()),
+            density = density,
+        ).size.height.toFloat().coerceAtLeast(1f)
+
+        var primaryOffset = 0
+        var comparisonOffset = 0
+        var cursorY = cursorYStart
+        var sliceIndex = 0
+        var firstSlice = true
+
+        do {
+            val fixedHeight = (if (firstSlice) headerHeight else 0f) +
+                (if (firstSlice) labelsHeight else 0f)
+            if (
+                cursorY > 0f &&
+                cursorY + fixedHeight + minimumLineHeight + bottomReserve > pageHeightPx
+            ) {
+                onPageFilled()
+                cursorY = 0f
+            }
+            val availableBodyHeight =
+                (pageHeightPx - cursorY - fixedHeight - bottomReserve)
+                    .coerceAtLeast(minimumLineHeight)
+            val primaryFit = fitTextSlice(
+                text = primaryText,
+                start = primaryOffset,
+                widthPx = columnWidth,
+                maxHeightPx = availableBodyHeight,
+                density = density,
+                textMeasurer = textMeasurer,
+                style = style,
+            )
+            val comparisonFit = if (hasComparison) {
+                fitTextSlice(
+                    text = comparisonText,
+                    start = comparisonOffset,
+                    widthPx = columnWidth,
+                    maxHeightPx = availableBodyHeight,
+                    density = density,
+                    textMeasurer = textMeasurer,
+                    style = style,
+                )
+            } else {
+                TextSliceFit(0, 0f)
+            }
+            val bodyHeight = maxOf(
+                primaryFit.heightPx,
+                comparisonFit.heightPx,
+                if (primaryText.isEmpty() && !hasComparison) minimumLineHeight else 0f,
+            )
+            onSliceEmitted(
+                PageFragment.VerseSlice(
+                    originBlockId = block.id,
+                    block = block,
+                    charStart = primaryOffset,
+                    charEndExclusive = primaryFit.endExclusive,
+                    comparisonVersion = comparisonVersion.takeIf { hasComparison },
+                    comparisonCharStart = comparisonOffset,
+                    comparisonCharEndExclusive = comparisonFit.endExclusive,
+                    showHeader = firstSlice,
+                    sliceIndex = sliceIndex++,
+                    topPx = cursorY,
+                    heightPx = fixedHeight + bodyHeight + bottomReserve,
+                )
+            )
+            primaryOffset = primaryFit.endExclusive
+            comparisonOffset = comparisonFit.endExclusive
+            cursorY += fixedHeight + bodyHeight + bottomReserve
+            firstSlice = false
+
+            val hasRemaining = primaryOffset < primaryText.length ||
+                (hasComparison && comparisonOffset < comparisonText.length)
+            if (hasRemaining) {
+                onPageFilled()
+                cursorY = 0f
+            }
+        } while (
+            primaryOffset < primaryText.length ||
+            (hasComparison && comparisonOffset < comparisonText.length)
+        )
+
+        return cursorY
+    }
+
+    private fun fitTextSlice(
+        text: String,
+        start: Int,
+        widthPx: Float,
+        maxHeightPx: Float,
+        density: Density,
+        textMeasurer: TextMeasurer,
+        style: TextStyle,
+    ): TextSliceFit {
+        if (start >= text.length) return TextSliceFit(text.length, 0f)
+        val remaining = text.substring(start)
+        val layout = textMeasurer.measure(
+            text = AnnotatedString(remaining),
+            style = style,
+            constraints = Constraints(maxWidth = widthPx.toInt()),
+            density = density,
+        )
+        var localEnd = 0
+        var height = 0f
+        for (line in 0 until layout.lineCount) {
+            val lineHeight = (layout.getLineBottom(line) - layout.getLineTop(line))
+                .coerceAtLeast(1f)
+            if (height + lineHeight > maxHeightPx && localEnd > 0) break
+            height += lineHeight
+            localEnd = layout.getLineEnd(line, false).coerceAtMost(remaining.length)
+            if (height >= maxHeightPx) break
+        }
+        if (localEnd <= 0) {
+            localEnd = layout.getLineEnd(0, false).coerceAtLeast(1).coerceAtMost(remaining.length)
+            height = (layout.getLineBottom(0) - layout.getLineTop(0)).coerceAtLeast(1f)
+        }
+        return TextSliceFit(start + localEnd, height)
+    }
+
+    private data class TextSliceFit(
+        val endExclusive: Int,
+        val heightPx: Float,
+    )
+
     /**
      * Estima la altura de un bloque midiendo su texto con el [TextMeasurer].
      * Se usa en el chequeo de keep-with-next para headings para evitar encabezados
@@ -370,11 +514,51 @@ object PaginationEngine {
         density: Density,
         textMeasurer: TextMeasurer,
     ): Float {
+        if (block is StudyBlock.Verse) {
+            val style = textStyleFor(block, density)
+            val comparisonVersion = block.displayedVersions().drop(1).firstOrNull()
+            val hasComparison = comparisonVersion
+                ?.let { block.contents[it].orEmpty().isNotBlank() }
+                ?: false
+            val contentWidth = (
+                pageWidthPx - with(density) { VERSE_CONTENT_INDENT.toPx() }
+                ).coerceAtLeast(1f)
+            val gapPx = with(density) { VERSE_COLUMN_GAP.toPx() }
+            val width = if (hasComparison) {
+                ((contentWidth - gapPx) / 2f).coerceAtLeast(1f)
+            } else {
+                contentWidth
+            }
+            val primaryHeight = measureTextHeight(
+                block.contents[block.sourceVersion].orEmpty(),
+                width,
+                density,
+                textMeasurer,
+                style,
+            )
+            val comparisonHeight = comparisonVersion?.let { version ->
+                measureTextHeight(
+                    block.contents[version].orEmpty(),
+                    width,
+                    density,
+                    textMeasurer,
+                    style,
+                )
+            } ?: 0f
+            return maxOf(primaryHeight, comparisonHeight) +
+                with(density) {
+                    (VERSE_HEADER_HEIGHT + if (hasComparison) {
+                        VERSE_VERSION_LABEL_HEIGHT
+                    } else {
+                        0.dp
+                    } + VERSE_BOTTOM_RESERVE).toPx()
+                }
+        }
         val text = when (block) {
             is StudyBlock.Paragraph -> block.text.toAnnotatedString()
             is StudyBlock.Heading -> block.text.toAnnotatedString()
             is StudyBlock.Quote -> block.text.toAnnotatedString()
-            is StudyBlock.Verse -> AnnotatedString(block.contents[block.sourceVersion] ?: "")
+            is StudyBlock.Verse -> AnnotatedString(block.documentText())
             is StudyBlock.BulletList -> block.items.fold(AnnotatedString("")) { acc, item ->
                 acc + item.toAnnotatedString() + AnnotatedString(" ")
             }
@@ -402,6 +586,22 @@ object PaginationEngine {
         return layout.size.height.toFloat()
     }
 
+    private fun measureTextHeight(
+        text: String,
+        widthPx: Float,
+        density: Density,
+        textMeasurer: TextMeasurer,
+        style: TextStyle,
+    ): Float {
+        if (text.isEmpty()) return 0f
+        return textMeasurer.measure(
+            text = AnnotatedString(text),
+            style = style,
+            constraints = Constraints(maxWidth = widthPx.toInt()),
+            density = density,
+        ).size.height.toFloat()
+    }
+
     internal fun textStyleFor(block: StudyBlock, density: Density): TextStyle {
         val fontSizeSp = when (block) {
             is StudyBlock.Heading -> when (block.level) {
@@ -419,7 +619,11 @@ object PaginationEngine {
         }
         val fontWeight = if (block is StudyBlock.Heading) FontWeight.Bold else FontWeight.Normal
         val fontStyle = if (block is StudyBlock.Quote) FontStyle.Italic else FontStyle.Normal
-        val lineHeightSp = fontSizeSp * DocConfig.LINE_HEIGHT
+        val lineHeightSp = fontSizeSp * if (block is StudyBlock.Verse) {
+            VERSE_LINE_HEIGHT_MULTIPLIER
+        } else {
+            DocConfig.LINE_HEIGHT
+        }
         return TextStyle(
             fontSize = with(density) { fontSizeSp.sp },
             fontFamily = fontFamily,
@@ -432,6 +636,12 @@ object PaginationEngine {
 
     private val LIST_MARKER_GUTTER = 40.dp
     internal val QUOTE_INDENT = 16.dp
+    private const val VERSE_LINE_HEIGHT_MULTIPLIER = 1.55f
+    private val VERSE_CONTENT_INDENT = 16.dp
+    private val VERSE_COLUMN_GAP = 20.dp
+    private val VERSE_HEADER_HEIGHT = 40.dp
+    private val VERSE_VERSION_LABEL_HEIGHT = 24.dp
+    private val VERSE_BOTTOM_RESERVE = 2.dp
 }
 
 private fun BlockAlignment.toTextAlign(): TextAlign = when (this) {

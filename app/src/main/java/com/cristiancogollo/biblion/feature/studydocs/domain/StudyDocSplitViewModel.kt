@@ -10,6 +10,7 @@ import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocRepository
 import com.cristiancogollo.biblion.feature.studydocs.debug.StudyEditorDebugLog
 import com.cristiancogollo.biblion.feature.studydocs.model.BlockId
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
+import com.cristiancogollo.biblion.feature.studydocs.model.capabilities
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
 import com.cristiancogollo.biblion.feature.studydocs.model.hasPersistableTitle
 import com.cristiancogollo.biblion.feature.studydocs.model.StyledText
@@ -169,7 +170,13 @@ class StudyDocSplitViewModel(
     }
 
     fun setActiveBlock(blockId: BlockId, itemIndex: Int?) {
-        activateEditor(blockId, itemIndex, requestFocus = true)
+        val block = _editorState.value.doc.blocks.firstOrNull { it.id == blockId } ?: return
+        activateEditor(blockId, itemIndex, requestFocus = block !is StudyBlock.Verse)
+        if (block is StudyBlock.Verse) {
+            _editorState.value = _editorState.value.copy(
+                activeFormat = ActiveFormatSnapshot(fontSize = block.fontSize),
+            )
+        }
     }
 
     /** Called only after the real BasicRichTextEditor reports physical focus. */
@@ -290,6 +297,9 @@ class StudyDocSplitViewModel(
 
     fun applyStyleToActive(kind: TextStyleKind) {
         val activeId = _editorState.value.activeBlockId ?: return
+        if (_editorState.value.doc.blocks.firstOrNull { it.id == activeId }
+                ?.capabilities()?.supportsInlineFormatting == false
+        ) return
         val rs = activeRichState() ?: return
         when (kind) {
             TextStyleKind.Bold -> rs.toggleSpanStyle(
@@ -396,7 +406,8 @@ class StudyDocSplitViewModel(
         verseStart: Int,
         verseEnd: Int,
         text: String,
-        version: String
+        version: String,
+        verseNumbers: List<Int> = emptyList(),
     ) {
         Log.d("BIBLION_CRASH", "insertVerseAsQuote CALLED book=$book chapter=$chapter verse=$verseStart-$verseEnd version=$version text.length=${text.length}")
         viewModelScope.launch {
@@ -404,7 +415,7 @@ class StudyDocSplitViewModel(
             insertVerseAsQuoteInternal(
                 book = book, chapter = chapter,
                 verseStart = verseStart, verseEnd = verseEnd,
-                text = text, version = version,
+                text = text, version = version, verseNumbers = verseNumbers,
             )
         }
     }
@@ -415,7 +426,8 @@ class StudyDocSplitViewModel(
         verseStart: Int,
         verseEnd: Int,
         text: String,
-        version: String
+        version: String,
+        verseNumbers: List<Int>,
     ) {
         val reference = "$book $chapter:$verseStart" + if (verseEnd != verseStart) "-$verseEnd" else ""
         val contents = mapOf(version to text)
@@ -425,6 +437,7 @@ class StudyDocSplitViewModel(
             chapter = chapter,
             verseStart = verseStart,
             verseEnd = verseEnd,
+            verseNumbers = verseNumbers,
             sourceVersion = version,
             contents = contents,
             showCompare = false,
@@ -470,6 +483,40 @@ class StudyDocSplitViewModel(
             )
             return false
         }
+    }
+
+    fun updateVerseComparisons(
+        blockId: BlockId,
+        comparedVersions: List<String>,
+        comparedContents: Map<String, String>,
+    ) {
+        val version = comparedVersions.firstOrNull()
+        applyOp(
+            StudyOp.SetVerseComparison(
+                blockId = blockId,
+                version = version,
+                content = version?.let(comparedContents::get),
+            )
+        )
+    }
+
+    fun deleteBlock(blockId: BlockId) {
+        val index = _editorState.value.doc.blocks.indexOfFirst { it.id == blockId }
+        if (index < 0) return
+        blockRichStates.remove(blockId)
+        listItemRichStates.keys.toList()
+            .filter { it.blockId == blockId }
+            .forEach { listItemRichStates.remove(it) }
+        lastRichTexts.keys.toList()
+            .filter { it.blockId == blockId }
+            .forEach { lastRichTexts.remove(it) }
+        if (!applyOp(StudyOp.DeleteBlock(blockId))) return
+
+        val blocks = _editorState.value.doc.blocks
+        val target = blocks.getOrNull(index.coerceAtMost(blocks.lastIndex)) ?: return
+        val itemIndex = navigationItemIndex(target, toEnd = false)
+        if (richStateFor(target.id, itemIndex) == null) initializeRichStates(target)
+        setActiveBlock(target.id, itemIndex)
     }
 
     private fun currentRichTexts(
@@ -1210,6 +1257,9 @@ class StudyDocSplitViewModel(
 
     fun setActiveTextColor(argb: Int) {
         val activeId = _editorState.value.activeBlockId ?: return
+        if (_editorState.value.doc.blocks.firstOrNull { it.id == activeId }
+                ?.capabilities()?.supportsInlineFormatting == false
+        ) return
         val rs = activeRichState() ?: return
         if (rs.selection.collapsed) {
             rs.toggleSpanStyle(androidx.compose.ui.text.SpanStyle(color = androidx.compose.ui.graphics.Color(argb)))
@@ -1222,6 +1272,9 @@ class StudyDocSplitViewModel(
 
     fun setActiveBackgroundColor(argb: Int) {
         val activeId = _editorState.value.activeBlockId ?: return
+        if (_editorState.value.doc.blocks.firstOrNull { it.id == activeId }
+                ?.capabilities()?.supportsInlineFormatting == false
+        ) return
         val rs = activeRichState() ?: return
         if (rs.selection.collapsed) {
             rs.toggleSpanStyle(androidx.compose.ui.text.SpanStyle(background = androidx.compose.ui.graphics.Color(argb)))
@@ -1234,6 +1287,9 @@ class StudyDocSplitViewModel(
 
     fun clearActiveColor() {
         val activeId = _editorState.value.activeBlockId ?: return
+        if (_editorState.value.doc.blocks.firstOrNull { it.id == activeId }
+                ?.capabilities()?.supportsInlineFormatting == false
+        ) return
         val rs = activeRichState() ?: return
         val sel = rs.selection
 
@@ -1259,6 +1315,16 @@ class StudyDocSplitViewModel(
 
     fun stepFontSizeActive(delta: Int) {
         val activeId = _editorState.value.activeBlockId ?: return
+        val activeBlock = _editorState.value.doc.blocks.firstOrNull { it.id == activeId } ?: return
+        if (activeBlock is StudyBlock.Verse) {
+            val size = (activeBlock.fontSize + delta)
+                .coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
+            applyOp(StudyOp.UpdateBlock(activeBlock.copy(fontSize = size)))
+            _editorState.value = _editorState.value.copy(
+                activeFormat = ActiveFormatSnapshot(fontSize = size),
+            )
+            return
+        }
         val rs = activeRichState() ?: return
         val sel = rs.selection
         val textLength = rs.annotatedString.text.length
@@ -1285,7 +1351,7 @@ class StudyDocSplitViewModel(
                     is StudyBlock.BulletList -> block.copy(fontSize = newSize)
                     is StudyBlock.OrderedList -> block.copy(fontSize = newSize)
                     is StudyBlock.Quote -> block.copy(fontSize = newSize)
-                    is StudyBlock.Verse -> block
+                    is StudyBlock.Verse -> block.copy(fontSize = newSize)
                 }
                 val newBlocks = _editorState.value.doc.blocks.toMutableList()
                 newBlocks[idx] = updated
@@ -1327,8 +1393,16 @@ class StudyDocSplitViewModel(
 
     fun setFontSizeActive(fontSize: Int) {
         val activeId = _editorState.value.activeBlockId ?: return
-        val rs = activeRichState() ?: return
+        val activeBlock = _editorState.value.doc.blocks.firstOrNull { it.id == activeId } ?: return
         val normalizedSize = fontSize.coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
+        if (activeBlock is StudyBlock.Verse) {
+            applyOp(StudyOp.UpdateBlock(activeBlock.copy(fontSize = normalizedSize)))
+            _editorState.value = _editorState.value.copy(
+                activeFormat = ActiveFormatSnapshot(fontSize = normalizedSize),
+            )
+            return
+        }
+        val rs = activeRichState() ?: return
         val selection = rs.selection
         val textLength = rs.annotatedString.length
 
@@ -1421,7 +1495,7 @@ class StudyDocSplitViewModel(
             is StudyBlock.BulletList -> block.copy(alignment = next)
             is StudyBlock.OrderedList -> block.copy(alignment = next)
             is StudyBlock.Quote -> block.copy(alignment = next)
-            is StudyBlock.Verse -> block
+            is StudyBlock.Verse -> block.copy(alignment = next)
         }
         val before = currentCheckpoint()
         val newBlocks = _editorState.value.doc.blocks.toMutableList()

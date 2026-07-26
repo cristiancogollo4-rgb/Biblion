@@ -27,9 +27,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
@@ -137,7 +135,8 @@ fun ReaderScreen(
     onGuidedTutorialSkip: () -> Unit = {},
     onGuidedTutorialRestart: () -> Unit = {},
     onGuidedTutorialTargetAction: (String) -> Unit = {},
-    onTutorialEvent: (String) -> Unit = {}
+    onTutorialEvent: (String) -> Unit = {},
+    onInsertVerseCitation: ((CitationVerseGroup, String) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -276,7 +275,8 @@ fun ReaderScreen(
             onGuidedTutorialSkip = onGuidedTutorialSkip,
             onGuidedTutorialRestart = onGuidedTutorialRestart,
             onGuidedTutorialTargetAction = onGuidedTutorialTargetAction,
-            onTutorialEvent = onTutorialEvent
+            onTutorialEvent = onTutorialEvent,
+            onInsertVerseCitation = onInsertVerseCitation,
         )
     }
 }
@@ -401,7 +401,12 @@ data class VerseAction(val number: String, val text: String)
 
 data class CitationVerseGroup(
     val reference: String,
-    val text: String
+    val text: String,
+    val bookName: String,
+    val chapter: Int,
+    val verseStart: Int,
+    val verseEnd: Int,
+    val verseNumbers: List<Int> = emptyList(),
 )
 
 enum class VerseSelectionRangePosition {
@@ -445,40 +450,22 @@ internal fun buildCitationVerseGroups(
 
     if (sortedSelections.isEmpty()) return emptyList()
 
-    val groups = mutableListOf<CitationVerseGroup>()
-    var currentStart = sortedSelections.first().first
-    var currentEnd = currentStart
-    val currentTexts = mutableListOf(
-        formatCitationVerseText(
-            number = sortedSelections.first().first,
-            text = sortedSelections.first().second.text
+    val verseNumbers = sortedSelections.map { it.first }.distinct()
+    return listOf(
+        CitationVerseGroup(
+            reference = "$bookName $chapter:" +
+                com.cristiancogollo.biblion.feature.studydocs.model
+                    .formatVerseNumberRanges(verseNumbers),
+            text = sortedSelections.joinToString(" ") { (number, selection) ->
+                formatCitationVerseText(number, selection.text)
+            },
+            bookName = bookName,
+            chapter = chapter,
+            verseStart = verseNumbers.first(),
+            verseEnd = verseNumbers.last(),
+            verseNumbers = verseNumbers,
         )
     )
-
-    fun flushGroup() {
-        val reference = "$bookName $chapter:$currentStart" +
-            if (currentEnd > currentStart) "-$currentEnd" else ""
-        groups += CitationVerseGroup(
-            reference = reference,
-            text = currentTexts.joinToString(" ")
-        )
-    }
-
-    sortedSelections.drop(1).forEach { (number, selection) ->
-        if (number == currentEnd + 1) {
-            currentEnd = number
-            currentTexts += formatCitationVerseText(number, selection.text)
-        } else {
-            flushGroup()
-            currentStart = number
-            currentEnd = number
-            currentTexts.clear()
-            currentTexts += formatCitationVerseText(number, selection.text)
-        }
-    }
-    flushGroup()
-
-    return groups
 }
 
 @Composable
@@ -501,7 +488,8 @@ fun ReaderContent(
     onGuidedTutorialSkip: () -> Unit = {},
     onGuidedTutorialRestart: () -> Unit = {},
     onGuidedTutorialTargetAction: (String) -> Unit = {},
-    onTutorialEvent: (String) -> Unit = {}
+    onTutorialEvent: (String) -> Unit = {},
+    onInsertVerseCitation: ((CitationVerseGroup, String) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -527,7 +515,6 @@ fun ReaderContent(
     var showVersionDialog by remember { mutableStateOf(false) }
     var selectedVersionKey by remember { mutableStateOf(BibleRepository.getSelectedVersionKey(context)) }
     var availableVersions by remember { mutableStateOf<List<BibleVersionOption>>(emptyList()) }
-    var showCitationInsertDialog by remember { mutableStateOf(false) }
     var selectedVerseActions by remember { mutableStateOf<Map<String, VerseAction>>(emptyMap()) }
     var horizontalDrag by remember { mutableFloatStateOf(0f) }
     var pendingTargetVerse by remember(bookName, targetVerse) { mutableStateOf(targetVerse) }
@@ -603,13 +590,6 @@ fun ReaderContent(
             chapter = selectedChapter,
             verses = result.updatedChapterHighlights
         )
-    }
-
-    fun addSelectedCitations(includeFullText: Boolean) {
-        // La insercion de citas en el cuaderno se movio al flujo de StudyDocEditorRoute
-        // (modo estudio v2). Esta funcion queda como no-op para preservar la API interna.
-        @Suppress("UNUSED_PARAMETER")
-        val ignored = includeFullText
     }
 
     fun loadChapter(book: String, chapter: Int) {
@@ -1007,54 +987,36 @@ fun ReaderContent(
                     }
                     selectedVerseActions = emptyMap()
                 },
-                onInsertAsQuote = com.cristiancogollo.biblion.feature.studydocs.ui.editor.LocalSplitViewModel.current?.let { splitViewModel ->
-                    {
-                        Log.d("BIBLION_CRASH", "onInsertAsQuote START: count=${selectedVerseActions.size} bookName=${bookName} chapter=$selectedChapter version=$selectedVersionKey")
-                        val sorted = selectedVerseActions.entries
-                            .sortedBy { it.key.toIntOrNull() ?: Int.MAX_VALUE }
-                        if (sorted.isEmpty()) return@let
-
-                        val firstVerse = sorted.first().key.toIntOrNull() ?: return@let
-                        val lastVerse = sorted.last().key.toIntOrNull() ?: firstVerse
-                        val combinedText = sorted.joinToString(" ") { (verseNumber, action) ->
-                            "$verseNumber ${action.text}"
+                onInsertAsQuote = run {
+                    val splitViewModel =
+                        com.cristiancogollo.biblion.feature.studydocs.ui.editor.LocalSplitViewModel.current
+                    if (onInsertVerseCitation == null && splitViewModel == null) {
+                        null
+                    } else {
+                        {
+                            buildCitationVerseGroups(
+                                bookName = bookName ?: "Desconocido",
+                                chapter = selectedChapter,
+                                selections = selectedVerseActions.values,
+                            ).forEach { group ->
+                                if (onInsertVerseCitation != null) {
+                                    onInsertVerseCitation(group, selectedVersionKey)
+                                } else {
+                                    splitViewModel?.insertVerseAsQuote(
+                                        book = group.bookName,
+                                        chapter = group.chapter,
+                                        verseStart = group.verseStart,
+                                        verseEnd = group.verseEnd,
+                                        verseNumbers = group.verseNumbers,
+                                        text = group.text,
+                                        version = selectedVersionKey,
+                                    )
+                                }
+                            }
+                            selectedVerseActions = emptyMap()
                         }
-
-                        Log.d("BIBLION_CRASH", "inserting combined verses=$firstVerse-$lastVerse total=${sorted.size}")
-                        splitViewModel.insertVerseAsQuote(
-                            book = bookName ?: "Desconocido",
-                            chapter = selectedChapter,
-                            verseStart = firstVerse,
-                            verseEnd = lastVerse,
-                            text = combinedText,
-                            version = selectedVersionKey
-                        )
-                        Log.d("BIBLION_CRASH", "onInsertAsQuote DONE, clearing selection")
-                        selectedVerseActions = emptyMap()
                     }
                 },
-            )
-        }
-
-        if (showCitationInsertDialog) {
-            AlertDialog(
-                onDismissRequest = { showCitationInsertDialog = false },
-                title = { Text("Insertar cita") },
-                text = { Text("Elige cómo insertar los versículos seleccionados.") },
-                confirmButton = {
-                    TextButton(onClick = {
-                        addSelectedCitations(includeFullText = true)
-                        selectedVerseActions = emptyMap()
-                        showCitationInsertDialog = false
-                    }) { Text("Texto completo") }
-                },
-                dismissButton = {
-                    TextButton(onClick = {
-                        addSelectedCitations(includeFullText = false)
-                        selectedVerseActions = emptyMap()
-                        showCitationInsertDialog = false
-                    }) { Text("Solo referencia") }
-                }
             )
         }
 

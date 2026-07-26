@@ -28,7 +28,7 @@ class ReaderCitationGroupingTest {
     }
 
     @Test
-    fun non_contiguous_verses_are_kept_as_separate_groups() {
+    fun non_contiguous_verses_are_kept_in_one_citation_block() {
         val groups = buildCitationVerseGroups(
             bookName = "Genesis",
             chapter = 1,
@@ -39,9 +39,10 @@ class ReaderCitationGroupingTest {
             )
         )
 
-        assertEquals(2, groups.size)
-        assertEquals("Genesis 1:1-2", groups[0].reference)
-        assertEquals("Genesis 1:4", groups[1].reference)
+        assertEquals(1, groups.size)
+        assertEquals("Genesis 1:1-2,4", groups.first().reference)
+        assertEquals(listOf(1, 2, 4), groups.first().verseNumbers)
+        assertEquals("1 Texto 1 2 Texto 2 4 Texto 4", groups.first().text)
     }
 
     @Test

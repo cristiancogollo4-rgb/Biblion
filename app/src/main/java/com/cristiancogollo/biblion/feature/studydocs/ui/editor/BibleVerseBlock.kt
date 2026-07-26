@@ -1,280 +1,542 @@
 package com.cristiancogollo.biblion.feature.studydocs.ui.editor
 
-import android.content.Context
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FormatColorReset
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CompareArrows
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.cristiancogollo.biblion.BibleRepository
 import com.cristiancogollo.biblion.BibleVersionOption
+import com.cristiancogollo.biblion.ChapterContent
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
-import kotlinx.coroutines.launch
+import com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment
+import com.cristiancogollo.biblion.feature.studydocs.model.DocConfig
 
-private val LightVerseBgColor = Color(0xFFFEF3C7)
-private val LightVerseBorderColor = Color(0xFFFDE68A)
-private val LightVerseRefColor = Color(0xFF92400E)
-private val DarkVerseBgColor = Color(0xFF242016)
-private val DarkVerseBorderColor = Color(0xFF67551D)
-private val DarkVerseRefColor = Color(0xFFF1C75B)
+private val LightVerseAccent = Color(0xFF9A6A00)
+private val DarkVerseAccent = Color(0xFFE4BD55)
+
+enum class VerseBlockMode {
+    Editing,
+    Reading,
+}
 
 @Composable
 fun BibleVerseBlock(
     block: StudyBlock.Verse,
     modifier: Modifier = Modifier,
+    mode: VerseBlockMode = VerseBlockMode.Reading,
+    isSelected: Boolean = false,
+    onClick: (() -> Unit)? = null,
+    onComparisonSelected: ((String?) -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
 ) {
-    val context = LocalContext.current
-    var expanded by remember { mutableStateOf(block.showCompare) }
-    var showVersionDialog by remember { mutableStateOf(false) }
-    var comparedTexts by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
-    var selectedVersions by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var availableVersions by remember { mutableStateOf<List<BibleVersionOption>>(emptyList()) }
-    val scope = rememberCoroutineScope()
-    val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val verseBackground = if (isDarkTheme) DarkVerseBgColor else LightVerseBgColor
-    val verseBorder = if (isDarkTheme) DarkVerseBorderColor else LightVerseBorderColor
-    val verseReference = if (isDarkTheme) DarkVerseRefColor else LightVerseRefColor
-    val verseTextColor = if (isDarkTheme) MaterialTheme.colorScheme.onSurface else Color(0xFF0F172A)
-
-    val currentText = block.contents[block.sourceVersion] ?: ""
-
-    // Texto con números de versículo coloreados
-    val annotatedText = remember(currentText, verseReference) {
-        buildAnnotatedString {
-            // Si el texto contiene números de versículo al inicio de segmentos
-            val segments = currentText.split(Regex("(?=\\d+ )"))
-            segments.forEachIndexed { _, segment ->
-                val match = Regex("^(\\d+) (.+)").find(segment.trim())
-                if (match != null) {
-                    val num = match.groupValues[1]
-                    val txt = match.groupValues[2]
-                    withStyle(SpanStyle(
-                        color = verseReference,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                    )) {
-                        append(num)
-                    }
-                    append(" ")
-                    append(txt)
-                } else {
-                    append(segment)
-                }
+    val accent = verseAccent()
+    val comparisonVersion = block.displayedVersions().drop(1).firstOrNull()
+    val hasComparison = comparisonVersion != null
+    val focusRequester = remember(block.id) { FocusRequester() }
+    val bodyClick = onClick?.let { select ->
+        {
+            if (mode == VerseBlockMode.Editing) {
+                runCatching { focusRequester.requestFocus() }
             }
-        }
-    }
-
-    LaunchedEffect(showVersionDialog) {
-        if (showVersionDialog) {
-            availableVersions = BibleRepository.getAvailableVersions(context)
-            selectedVersions = block.comparedVersions.toSet()
+            select()
         }
     }
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(verseBackground)
-            .padding(16.dp),
-    ) {
-        Text(
-            text = "${block.bookId} ${block.chapter}:${block.verseStart}${if (block.verseEnd != block.verseStart) "-${block.verseEnd}" else ""} (${block.sourceVersion})",
-            style = MaterialTheme.typography.labelMedium,
-            color = verseReference,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Serif,
-        )
-        Spacer(Modifier.height(8.dp))
-
-        Text(
-            text = annotatedText,
-            style = MaterialTheme.typography.bodyLarge.copy(
-                fontFamily = FontFamily.Serif,
-                lineHeight = 24.sp,
-                color = verseTextColor,
-            ),
-        )
-
-        Spacer(Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
-        ) {
-            TextButton(onClick = { showVersionDialog = true }) {
-                Text("Comparar versiones", style = MaterialTheme.typography.labelSmall, color = verseReference)
-            }
-        }
-
-        // Panel de comparación — solo versiones adicionales, con texto completo del rango
-        if (expanded && comparedTexts.isNotEmpty()) {
-            HorizontalDivider(color = verseBorder, thickness = 1.dp)
-            Spacer(Modifier.height(8.dp))
-
-            val addicionalVersions = comparedTexts.filterKeys { it != block.sourceVersion }
-            if (addicionalVersions.isEmpty()) {
-                Text(
-                    "No hay otras versiones disponibles.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = verseReference.copy(alpha = 0.7f),
-                )
-            } else {
-                addicionalVersions.forEach { (version, text) ->
-                    val label = availableVersions.firstOrNull { it.key == version }?.label ?: version.uppercase()
-                    Column {
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = verseReference,
-                            ),
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        val comparedAnnotated = remember(text, verseReference) {
-                            buildAnnotatedString {
-                                val segments = text.split(Regex("(?=\\d+)"))
-                                segments.forEach { seg ->
-                                    val match = Regex("^(\\d+) (.+)$").find(seg.trim())
-                                    if (match != null) {
-                                        withStyle(SpanStyle(color = verseReference, fontSize = 11.sp, fontWeight = FontWeight.Bold)) {
-                                            append(match.groupValues[1])
-                                        }
-                                        append(" ${match.groupValues[2]}")
-                                    } else {
-                                        append(seg)
-                                    }
-                                }
+            .then(
+                if (mode == VerseBlockMode.Editing && onDelete != null) {
+                    Modifier
+                        .focusRequester(focusRequester)
+                        .focusable()
+                        .onPreviewKeyEvent { event ->
+                            val deletesBlock =
+                                event.type == KeyEventType.KeyDown &&
+                                    (event.key == Key.Backspace || event.key == Key.Delete)
+                            if (deletesBlock) {
+                                onDelete()
+                                true
+                            } else {
+                                false
                             }
                         }
-                        Text(
-                            text = comparedAnnotated,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontFamily = FontFamily.Serif,
-                                lineHeight = 22.sp,
-                                color = verseTextColor,
-                            ),
-                        )
-                    }
-                    Spacer(Modifier.height(8.dp))
+                } else {
+                    Modifier
                 }
+            )
+            .then(
+                if (mode == VerseBlockMode.Editing && isSelected) {
+                    Modifier.background(accent.copy(alpha = 0.08f))
+                } else {
+                    Modifier
+                }
+            )
+            .drawBehind {
+                drawRect(
+                    color = accent,
+                    size = androidx.compose.ui.geometry.Size(2.dp.toPx(), size.height),
+                )
             }
+            .padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
+    ) {
+        VerseReferenceHeader(
+            block = block,
+            onReferenceClick = bodyClick,
+            onComparisonSelected = onComparisonSelected,
+            onDelete = onDelete.takeIf { mode == VerseBlockMode.Editing },
+        )
+        Spacer(Modifier.height(6.dp))
+        if (hasComparison) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min)
+                    .then(if (bodyClick != null) Modifier.clickable(onClick = bodyClick) else Modifier),
+            ) {
+                VerseColumn(
+                    block = block,
+                    version = block.sourceVersion,
+                    text = block.contents[block.sourceVersion].orEmpty(),
+                    showVersion = true,
+                    modifier = Modifier.weight(1f),
+                )
+                VerticalVerseDivider()
+                VerseColumn(
+                    block = block,
+                    version = comparisonVersion,
+                    text = block.contents[comparisonVersion].orEmpty(),
+                    showVersion = true,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        } else {
+            VerseColumn(
+                block = block,
+                version = block.sourceVersion,
+                text = block.contents[block.sourceVersion].orEmpty(),
+                showVersion = false,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (bodyClick != null) Modifier.clickable(onClick = bodyClick) else Modifier),
+            )
         }
     }
-
-    // Diálogo de selección de versiones
-    if (showVersionDialog) {
-        VersionSelectorDialog(
-            availableVersions = availableVersions,
-            selectedVersions = selectedVersions,
-            sourceVersion = block.sourceVersion,
-            onDismiss = { showVersionDialog = false },
-            onConfirm = { chosen ->
-                selectedVersions = chosen
-                showVersionDialog = false
-                scope.launch {
-                    val results = mutableMapOf<String, String>()
-                    results[block.sourceVersion] = currentText
-                    for (vk in chosen.filter { it != block.sourceVersion }) {
-                        val fullText = buildFullVerseRangeText(context, vk, block)
-                        if (fullText.isNotBlank()) results[vk] = fullText
-                    }
-                    comparedTexts = results
-                    expanded = true
-                }
-            },
-        )
-    }
-}
-
-private suspend fun buildFullVerseRangeText(
-    context: Context,
-    versionKey: String,
-    block: StudyBlock.Verse,
-): String {
-    val parts = mutableListOf<String>()
-    for (v in block.verseStart..block.verseEnd) {
-        val dv = BibleRepository.getVerseText(
-            context, versionKey, block.bookId,
-            block.chapter.toString(), v.toString()
-        )
-        if (dv.text.isNotBlank()) {
-            parts.add("$v ${dv.text}")
-        }
-    }
-    return parts.joinToString(" ")
 }
 
 @Composable
-private fun VersionSelectorDialog(
-    availableVersions: List<BibleVersionOption>,
-    selectedVersions: Set<String>,
-    sourceVersion: String,
-    onDismiss: () -> Unit,
-    onConfirm: (Set<String>) -> Unit,
+internal fun VerseReferenceHeader(
+    block: StudyBlock.Verse,
+    onReferenceClick: (() -> Unit)?,
+    onComparisonSelected: ((String?) -> Unit)?,
+    onDelete: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
 ) {
-    var chosenVersions by remember { mutableStateOf(selectedVersions) }
+    val context = LocalContext.current
+    val accent = verseAccent()
+    var expanded by remember(block.id) { mutableStateOf(false) }
+    var versions by remember { mutableStateOf<List<BibleVersionOption>>(emptyList()) }
+    val comparisonVersion = block.displayedVersions().drop(1).firstOrNull()
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Seleccionar versiones") },
-        text = {
-            Column {
-                Text(
-                    "Elige las versiones para comparar:",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(12.dp))
-                availableVersions.forEach { v ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable {
-                            if (v.key != sourceVersion) {
-                                chosenVersions = if (v.key in chosenVersions) {
-                                    chosenVersions - v.key
-                                } else {
-                                    chosenVersions + v.key
-                                }
-                            }
-                        }.padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Checkbox(
-                            checked = v.key in chosenVersions,
-                            onCheckedChange = { checked ->
-                                if (v.key != sourceVersion) {
-                                    chosenVersions = if (checked) chosenVersions + v.key else chosenVersions - v.key
-                                }
+    LaunchedEffect(expanded) {
+        if (expanded && versions.isEmpty()) {
+            versions = BibleRepository.getAvailableVersions(context)
+        }
+    }
+
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "${block.referenceLabel()}  ${block.sourceVersion.uppercase()}",
+            style = MaterialTheme.typography.labelMedium,
+            color = accent,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .weight(1f)
+                .then(
+                    if (onReferenceClick != null) {
+                        Modifier.clickable(onClick = onReferenceClick)
+                    } else {
+                        Modifier
+                    }
+                ),
+        )
+        if (onComparisonSelected != null) {
+            Box {
+                IconButton(
+                    onClick = { expanded = true },
+                    modifier = Modifier.size(34.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CompareArrows,
+                        contentDescription = "Comparar con otra version",
+                        tint = accent,
+                    )
+                }
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                ) {
+                    if (comparisonVersion != null) {
+                        DropdownMenuItem(
+                            text = { Text("Sin comparacion") },
+                            leadingIcon = {
+                                Icon(Icons.Default.Close, contentDescription = null)
                             },
-                            enabled = v.key != sourceVersion,
+                            onClick = {
+                                expanded = false
+                                onComparisonSelected(null)
+                            },
                         )
-                        Spacer(Modifier.width(8.dp))
+                        HorizontalDivider()
+                    }
+                    versions
+                        .filter { it.key != block.sourceVersion }
+                        .forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option.label) },
+                                leadingIcon = if (option.key == comparisonVersion) {
+                                    {
+                                        Icon(Icons.Default.Check, contentDescription = null)
+                                    }
+                                } else {
+                                    null
+                                },
+                                onClick = {
+                                    expanded = false
+                                    onComparisonSelected(option.key)
+                                },
+                            )
+                        }
+                }
+            }
+        }
+        if (onDelete != null) {
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier.size(34.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Eliminar cita",
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun VerseColumn(
+    block: StudyBlock.Verse,
+    version: String,
+    text: String,
+    showVersion: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        if (showVersion) {
+            Text(
+                text = version.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = verseAccent(),
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
+        }
+        Text(
+            text = text,
+            style = verseBodyTextStyle(
+                block = block,
+                color = MaterialTheme.colorScheme.onSurface,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+internal fun verseBodyTextStyle(
+    block: StudyBlock.Verse,
+    color: Color,
+): TextStyle {
+    val fontSizeSp = block.fontSize.coerceIn(
+        DocConfig.MIN_FONT_SIZE,
+        DocConfig.MAX_FONT_SIZE,
+    )
+    return TextStyle(
+        color = color,
+        fontFamily = FontFamily.Serif,
+        fontWeight = FontWeight.Normal,
+        fontStyle = FontStyle.Normal,
+        fontSize = fontSizeSp.sp,
+        lineHeight = (fontSizeSp * 1.55f).sp,
+        textAlign = block.alignment.toVerseTextAlign(),
+    )
+}
+
+private fun BlockAlignment.toVerseTextAlign(): TextAlign = when (this) {
+    BlockAlignment.Start -> TextAlign.Start
+    BlockAlignment.Center -> TextAlign.Center
+    BlockAlignment.End -> TextAlign.End
+    BlockAlignment.Justify -> TextAlign.Justify
+}
+
+@Composable
+private fun VerticalVerseDivider() {
+    Box(
+        modifier = Modifier
+            .width(20.dp)
+            .fillMaxHeight(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .fillMaxHeight()
+                .background(MaterialTheme.colorScheme.outlineVariant),
+        )
+    }
+}
+
+@Composable
+fun VerseContextDialog(
+    block: StudyBlock.Verse,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    val listState = rememberLazyListState()
+    var selectedVersion by remember(block.id) { mutableStateOf(block.sourceVersion) }
+    var chapter by remember { mutableStateOf<ChapterContent?>(null) }
+    var loading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(selectedVersion, block.id) {
+        loading = true
+        chapter = BibleRepository.getChapter(
+            context = context,
+            bookName = block.bookId,
+            chapterNumber = block.chapter,
+            versionKey = selectedVersion,
+        )
+        loading = false
+        val targetVerse = block.selectedVerseNumbers().firstOrNull() ?: block.verseStart
+        val target = chapter?.verses?.indexOfFirst {
+            it.first.toIntOrNull() == targetVerse
+        } ?: -1
+        if (target >= 0) listState.scrollToItem(target)
+    }
+
+    StudyDialog(onDismiss = onDismiss) {
+        DialogHeader(title = block.referenceLabel(), onDismiss = onDismiss)
+        val displayedVersions = block.displayedVersions()
+        if (displayedVersions.size > 1) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                displayedVersions.forEach { version ->
+                    Surface(
+                        onClick = { selectedVersion = version },
+                        color = if (selectedVersion == version) {
+                            verseAccent().copy(alpha = 0.14f)
+                        } else {
+                            Color.Transparent
+                        },
+                        shape = RoundedCornerShape(4.dp),
+                        border = BorderStroke(
+                            1.dp,
+                            if (selectedVersion == version) {
+                                verseAccent()
+                            } else {
+                                MaterialTheme.colorScheme.outlineVariant
+                            },
+                        ),
+                    ) {
                         Text(
-                            text = v.label,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (v.key == sourceVersion) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                            else MaterialTheme.colorScheme.onSurface,
+                            text = version.uppercase(),
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
                         )
                     }
                 }
             }
-        },
-        confirmButton = { Button(onClick = { onConfirm(chosenVersions.toSet()) }) { Text("Comparar") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
+        }
+        if (loading) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp),
+            ) {
+                items(chapter?.verses.orEmpty(), key = { it.first }) { (number, text) ->
+                    val selected =
+                        (number.toIntOrNull() ?: -1) in block.selectedVerseNumbers()
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = if (selected) {
+                            verseAccent().copy(alpha = 0.12f)
+                        } else {
+                            Color.Transparent
+                        },
+                        shape = RoundedCornerShape(4.dp),
+                    ) {
+                        Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp)) {
+                            Text(
+                                text = number,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = verseAccent(),
+                                modifier = Modifier.width(28.dp),
+                            )
+                            Text(
+                                text = text,
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontFamily = FontFamily.Serif,
+                                    lineHeight = 25.sp,
+                                ),
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StudyDialog(
+    onDismiss: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .fillMaxHeight(0.88f)
+                .widthIn(max = 760.dp),
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            tonalElevation = 4.dp,
+        ) {
+            Column(content = content)
+        }
+    }
+}
+
+@Composable
+private fun DialogHeader(title: String, onDismiss: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 24.dp, top = 12.dp, end = 12.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onDismiss) {
+            Icon(Icons.Default.Close, contentDescription = "Cerrar")
+        }
+    }
+}
+
+@Composable
+internal fun verseAccent(): Color {
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    return if (dark) DarkVerseAccent else LightVerseAccent
+}
+
+internal suspend fun loadVerseRangeText(
+    context: android.content.Context,
+    version: String,
+    block: StudyBlock.Verse,
+): String {
+    val chapter = BibleRepository.getChapter(
+        context = context,
+        bookName = block.bookId,
+        chapterNumber = block.chapter,
+        versionKey = version,
     )
+    val selectedNumbers = block.selectedVerseNumbers().toSet()
+    return chapter.verses
+        .filter { (number, _) ->
+            (number.toIntOrNull() ?: -1) in selectedNumbers
+        }
+        .joinToString(" ") { (number, text) -> "$number $text" }
 }

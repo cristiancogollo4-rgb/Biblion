@@ -18,6 +18,18 @@ sealed interface StudyOp {
     ) : StudyOp
 
     @Serializable
+    data class UpdateBlock(
+        val block: StudyBlock,
+    ) : StudyOp
+
+    @Serializable
+    data class SetVerseComparison(
+        val blockId: BlockId,
+        val version: String? = null,
+        val content: String? = null,
+    ) : StudyOp
+
+    @Serializable
     data class UpdateTitle(
         val newTitle: String,
     ) : StudyOp

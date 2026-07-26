@@ -68,6 +68,7 @@ sealed interface StudyBlock {
         val chapter: Int = 1,
         val verseStart: Int = 1,
         val verseEnd: Int = 1,
+        val verseNumbers: List<Int> = emptyList(),
         val sourceVersion: String = "",
         val contents: Map<String, String> = emptyMap(),
         val showCompare: Boolean = false,
@@ -75,7 +76,46 @@ sealed interface StudyBlock {
         override val alignment: BlockAlignment = BlockAlignment.Start,
         override val fontFamily: String? = "serif",
         override val fontSize: Int = DocConfig.DEFAULT_FONT_SIZE,
-    ) : StudyBlock
+    ) : StudyBlock {
+        fun selectedVerseNumbers(): List<Int> =
+            verseNumbers
+                .filter { it > 0 }
+                .distinct()
+                .sorted()
+                .ifEmpty { (verseStart..verseEnd.coerceAtLeast(verseStart)).toList() }
+
+        fun referenceLabel(): String =
+            "$bookId $chapter:${formatVerseNumberRanges(selectedVerseNumbers())}"
+
+        fun displayedVersions(): List<String> = buildList {
+            if (sourceVersion.isNotBlank()) add(sourceVersion)
+            if (showCompare) {
+                comparedVersions
+                    .filter { it.isNotBlank() && it != sourceVersion && contents[it].isNullOrBlank().not() }
+                    .take(1)
+                    .forEach { if (it !in this) add(it) }
+            }
+        }
+
+        fun documentText(): String {
+            val versions = displayedVersions()
+            val reference = referenceLabel()
+            if (versions.isEmpty()) return reference
+            if (versions.size == 1) {
+                val version = versions.first()
+                return "$reference · ${version.uppercase()}\n${contents[version].orEmpty()}"
+            }
+            return buildString {
+                append(reference)
+                versions.forEachIndexed { index, version ->
+                    append(if (index == 0) "\n" else "\n\n")
+                    append(version.uppercase())
+                    append("\n")
+                    append(contents[version].orEmpty())
+                }
+            }
+        }
+    }
 
     @Serializable
     @SerialName("quote")
@@ -93,7 +133,7 @@ sealed interface StudyBlock {
         is Heading -> text.plain()
         is BulletList -> items.joinToString("\n") { it.plain() }
         is OrderedList -> items.joinToString("\n") { it.plain() }
-        is Verse -> contents[sourceVersion] ?: ""
+        is Verse -> documentText()
         is Quote -> text.plain()
     }
 
@@ -105,4 +145,23 @@ sealed interface StudyBlock {
         is Verse -> listOf(StyledText(contents[sourceVersion] ?: ""))
         is Quote -> listOf(text)
     }
+}
+
+internal fun formatVerseNumberRanges(numbers: List<Int>): String {
+    val sorted = numbers.filter { it > 0 }.distinct().sorted()
+    if (sorted.isEmpty()) return "1"
+    val parts = mutableListOf<String>()
+    var start = sorted.first()
+    var end = start
+    sorted.drop(1).forEach { number ->
+        if (number == end + 1) {
+            end = number
+        } else {
+            parts += if (start == end) "$start" else "$start-$end"
+            start = number
+            end = number
+        }
+    }
+    parts += if (start == end) "$start" else "$start-$end"
+    return parts.joinToString(",")
 }

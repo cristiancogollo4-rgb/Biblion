@@ -36,19 +36,22 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.cristiancogollo.biblion.core.ui.StudyModeLandscapeLock
 import com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel
 import com.cristiancogollo.biblion.feature.studydocs.model.DocConfig
-import com.cristiancogollo.biblion.feature.studydocs.model.hasPersistableTitle
+import com.cristiancogollo.biblion.feature.studydocs.model.capabilities
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PaginatedSheet
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
@@ -74,6 +77,8 @@ fun StudyDocEditorScreen(
     var compactStudyPane by rememberSaveable { mutableStateOf("document") }
     val compactDocumentActive = compactStudyPane == "document"
     val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     // Usar splitViewModel si está disponible (modo split), sino usar viewModel (modo standalone)
     val editorState by (splitViewModel?.editorState ?: viewModel?.uiState)?.collectAsState()
@@ -84,6 +89,38 @@ fun StudyDocEditorScreen(
     val standaloneZoomState = rememberDocumentZoomState()
     var isFullScreen by remember { mutableStateOf(false) }
     var showDiscardDialog by remember { mutableStateOf(false) }
+
+    val onVerseComparisonSelected:
+        (com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock.Verse, String?) -> Unit =
+        { block, version ->
+            if (version == null) {
+                splitViewModel?.updateVerseComparisons(block.id, emptyList(), emptyMap())
+                    ?: viewModel?.updateVerseComparisons(block.id, emptyList(), emptyMap())
+            } else {
+                scope.launch {
+                    val text = loadVerseRangeText(context, version, block)
+                    splitViewModel?.updateVerseComparisons(
+                        block.id,
+                        listOf(version),
+                        mapOf(version to text),
+                    ) ?: viewModel?.updateVerseComparisons(
+                        block.id,
+                        listOf(version),
+                        mapOf(version to text),
+                    )
+                }
+            }
+    }
+    val onVerseSelected:
+        (com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock.Verse) -> Unit =
+        { block ->
+            splitViewModel?.setActiveBlock(block.id) ?: viewModel?.setActiveBlock(block.id)
+        }
+    val onVerseDelete:
+        (com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock.Verse) -> Unit =
+        { block ->
+            splitViewModel?.deleteBlock(block.id) ?: viewModel?.deleteBlock(block.id)
+        }
 
     val requestExit: (String) -> Unit = { source ->
         val hasDraftContent = editorState.doc.blocks.size > 1 || editorState.doc.blocks.any { block ->
@@ -203,6 +240,25 @@ fun StudyDocEditorScreen(
                                 navController = navController,
                                 isDarkTheme = isDarkTheme,
                                 onToggleDarkTheme = onToggleDarkTheme,
+                                onInsertVerseCitation = { group, version ->
+                                    splitViewModel?.insertVerseAsQuote(
+                                        book = group.bookName,
+                                        chapter = group.chapter,
+                                        verseStart = group.verseStart,
+                                        verseEnd = group.verseEnd,
+                                        text = group.text,
+                                        version = version,
+                                        verseNumbers = group.verseNumbers,
+                                    ) ?: viewModel?.insertVerseCitation(
+                                        book = group.bookName,
+                                        chapter = group.chapter,
+                                        verseStart = group.verseStart,
+                                        verseEnd = group.verseEnd,
+                                        text = group.text,
+                                        version = version,
+                                        verseNumbers = group.verseNumbers,
+                                    )
+                                },
                             )
                         },
                         documentPane = {
@@ -233,6 +289,25 @@ fun StudyDocEditorScreen(
                                 navController = navController,
                                 isDarkTheme = isDarkTheme,
                                 onToggleDarkTheme = onToggleDarkTheme,
+                                onInsertVerseCitation = { group, version ->
+                                    splitViewModel?.insertVerseAsQuote(
+                                        book = group.bookName,
+                                        chapter = group.chapter,
+                                        verseStart = group.verseStart,
+                                        verseEnd = group.verseEnd,
+                                        text = group.text,
+                                        version = version,
+                                        verseNumbers = group.verseNumbers,
+                                    ) ?: viewModel?.insertVerseCitation(
+                                        book = group.bookName,
+                                        chapter = group.chapter,
+                                        verseStart = group.verseStart,
+                                        verseEnd = group.verseEnd,
+                                        text = group.text,
+                                        version = version,
+                                        verseNumbers = group.verseNumbers,
+                                    )
+                                },
                             )
                             VerticalDivider(
                                 color = MaterialTheme.colorScheme.outlineVariant,
@@ -300,7 +375,7 @@ fun StudyDocEditorScreen(
                         }
                         IconButton(
                             onClick = { showSaveDialog = true },
-                            enabled = editorState.doc.hasPersistableTitle(),
+                            enabled = !editorState.isSaving,
                         ) {
                             Icon(Icons.Filled.Save, "Guardar")
                         }
@@ -317,8 +392,15 @@ fun StudyDocEditorScreen(
                     .fillMaxSize()
                     .padding(padding),
             ) {
+                val activeCapabilities = editorState.doc.blocks
+                    .firstOrNull { it.id == editorState.activeBlockId }
+                    ?.capabilities()
                 EditorToolbar(
                     activeFormat = editorState.activeFormat,
+                    inlineFormattingEnabled =
+                        activeCapabilities?.supportsInlineFormatting != false,
+                    fontFamilyEnabled =
+                        activeCapabilities?.supportsInlineFormatting != false,
                     currentFontSize = editorState.doc.blocks
                         .firstOrNull { it.id == editorState.activeBlockId }?.fontSize
                         ?: DocConfig.DEFAULT_FONT_SIZE,
@@ -398,6 +480,9 @@ fun StudyDocEditorScreen(
                                 focusRequest = editorState.focusRequest,
                                 splitViewModel = splitViewModel,
                                 viewModel = viewModel,
+                                onVerseClick = onVerseSelected,
+                                onVerseComparisonSelected = onVerseComparisonSelected,
+                                onVerseDelete = onVerseDelete,
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }

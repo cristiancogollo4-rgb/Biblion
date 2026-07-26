@@ -2,6 +2,7 @@ package com.cristiancogollo.biblion.feature.studydocs.pagination
 
 import android.content.Context
 import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.test.core.app.ApplicationProvider
@@ -11,6 +12,7 @@ import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
 import com.cristiancogollo.biblion.feature.studydocs.model.StyledText
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.PageGapVisualTransformation
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.calibratePageGapHeights
+import com.cristiancogollo.biblion.feature.studydocs.ui.editor.verseBodyTextStyle
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PaginationEngine
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.buildPagedEditorUnits
@@ -294,6 +296,185 @@ class PaginationEngineTest {
             cursor = slice.charEndExclusive
         }
         assertEquals(longVerse.length, cursor)
+    }
+
+    @Test
+    fun compared_verse_preserves_both_column_ranges() {
+        val primary = "Texto principal de la cita. ".repeat(25)
+        val comparison = "Texto de la version comparada con otra longitud. ".repeat(20)
+        val pages = PaginationEngine.paginate(
+            blocks = listOf(
+                StudyBlock.Verse(
+                    id = BlockId("compared"),
+                    bookId = "Juan",
+                    chapter = 3,
+                    verseStart = 16,
+                    sourceVersion = "RVR1960",
+                    contents = mapOf(
+                        "RVR1960" to primary,
+                        "NVI" to comparison,
+                    ),
+                    showCompare = true,
+                    comparedVersions = listOf("NVI"),
+                )
+            ),
+            pageWidthPx = 658f,
+            pageHeightPx = 120f,
+            textMeasurer = textMeasurer,
+            density = density,
+        )
+
+        val slices = pages.flatMap { it.fragments }
+            .filterIsInstance<PageFragment.VerseSlice>()
+        var primaryCursor = 0
+        var comparisonCursor = 0
+        slices.forEach { slice ->
+            assertEquals("NVI", slice.comparisonVersion)
+            assertEquals(primaryCursor, slice.charStart)
+            assertEquals(comparisonCursor, slice.comparisonCharStart)
+            primaryCursor = slice.charEndExclusive
+            comparisonCursor = slice.comparisonCharEndExclusive
+        }
+        assertEquals(primary.length, primaryCursor)
+        assertEquals(comparison.length, comparisonCursor)
+    }
+
+    @Test
+    fun verse_between_paragraphs_reserves_its_calculated_position_and_height() {
+        val pages = PaginationEngine.paginate(
+            blocks = listOf(
+                StudyBlock.Paragraph(
+                    id = BlockId("before-verse"),
+                    text = StyledText(raw = "Texto antes de la cita."),
+                ),
+                StudyBlock.Verse(
+                    id = BlockId("verse-between"),
+                    bookId = "Juan",
+                    chapter = 3,
+                    verseStart = 16,
+                    sourceVersion = "RVR1960",
+                    contents = mapOf(
+                        "RVR1960" to "Porque de tal manera amo Dios al mundo.",
+                    ),
+                ),
+                StudyBlock.Paragraph(
+                    id = BlockId("after-verse"),
+                    text = StyledText(raw = "Texto despues de la cita."),
+                ),
+            ),
+            pageWidthPx = 658f,
+            pageHeightPx = 2_000f,
+            textMeasurer = textMeasurer,
+            density = density,
+        )
+
+        val fragments = pages.single().fragments
+        val before = fragments[0] as PageFragment.ParagraphSlice
+        val verse = fragments[1] as PageFragment.VerseSlice
+        val after = fragments[2] as PageFragment.ParagraphSlice
+
+        assertEquals(before.topPx + before.heightPx, verse.topPx, 0.01f)
+        assertEquals(verse.topPx + verse.heightPx, after.topPx, 0.01f)
+    }
+
+    @Test
+    fun compared_verse_reserves_more_height_than_the_same_single_column_verse() {
+        val primary = "Texto principal suficientemente largo para ocupar varias lineas. ".repeat(4)
+        val comparison = "Texto comparado suficientemente largo para ocupar varias lineas. ".repeat(4)
+        val single = StudyBlock.Verse(
+            id = BlockId("single-height"),
+            bookId = "Romanos",
+            chapter = 8,
+            verseStart = 28,
+            sourceVersion = "RVR1960",
+            contents = mapOf("RVR1960" to primary),
+        )
+        val compared = single.copy(
+            id = BlockId("compared-height"),
+            contents = mapOf("RVR1960" to primary, "NVI" to comparison),
+            showCompare = true,
+            comparedVersions = listOf("NVI"),
+        )
+
+        val singleHeight = PaginationEngine.estimateBlockHeight(
+            block = single,
+            pageWidthPx = 658f,
+            density = density,
+            textMeasurer = textMeasurer,
+        )
+        val comparedHeight = PaginationEngine.estimateBlockHeight(
+            block = compared,
+            pageWidthPx = 658f,
+            density = density,
+            textMeasurer = textMeasurer,
+        )
+
+        assertTrue(comparedHeight > singleHeight)
+    }
+
+    @Test
+    fun longer_second_version_never_shares_vertical_space_with_the_next_block() {
+        val compared = StudyBlock.Verse(
+            id = BlockId("long-second-column"),
+            bookId = "Salmos",
+            chapter = 119,
+            verseStart = 1,
+            sourceVersion = "RVR1960",
+            contents = mapOf(
+                "RVR1960" to "Bienaventurados los perfectos de camino.",
+                "NVI" to (
+                    "Texto de comparacion deliberadamente mucho mas largo para envolver " +
+                        "varias lineas mientras la columna principal ya termino. "
+                    ).repeat(16),
+            ),
+            showCompare = true,
+            comparedVersions = listOf("NVI"),
+        )
+        val pages = PaginationEngine.paginate(
+            blocks = listOf(
+                compared,
+                StudyBlock.Paragraph(
+                    id = BlockId("after-long-comparison"),
+                    text = StyledText(raw = "El contenido posterior no debe superponerse."),
+                ),
+            ),
+            pageWidthPx = 360f,
+            pageHeightPx = 240f,
+            textMeasurer = textMeasurer,
+            density = density,
+        )
+
+        pages.forEach { page ->
+            page.fragments.zipWithNext().forEach { (current, next) ->
+                assertTrue(
+                    "Los fragments de la pagina ${page.index} se superponen",
+                    next.topPx + 0.01f >= current.topPx + current.heightPx,
+                )
+            }
+        }
+    }
+
+    @Test
+    fun rendered_verse_style_matches_the_style_used_for_pagination() {
+        val verse = StudyBlock.Verse(
+            id = BlockId("style-match"),
+            bookId = "Juan",
+            chapter = 1,
+            verseStart = 1,
+            sourceVersion = "RVR1960",
+            contents = mapOf("RVR1960" to "En el principio era el Verbo."),
+            fontSize = 17,
+        )
+
+        val measured = PaginationEngine.textStyleFor(verse, density)
+        val rendered = verseBodyTextStyle(verse, Color.Black)
+
+        assertEquals(measured.fontSize, rendered.fontSize)
+        assertEquals(measured.lineHeight, rendered.lineHeight)
+        assertEquals(measured.fontFamily, rendered.fontFamily)
+        assertEquals(measured.fontWeight, rendered.fontWeight)
+        assertEquals(measured.fontStyle, rendered.fontStyle)
+        assertEquals(measured.letterSpacing, rendered.letterSpacing)
     }
 
     @Test

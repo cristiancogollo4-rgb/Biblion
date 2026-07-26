@@ -3,6 +3,7 @@ package com.cristiancogollo.biblion.feature.studydocs.engine
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
 import com.cristiancogollo.biblion.feature.studydocs.model.StyledText
+import com.cristiancogollo.biblion.feature.studydocs.model.VerseBusinessRules
 
 sealed interface OpResult {
     data object Success : OpResult
@@ -15,6 +16,8 @@ object StudyDocEngine {
     fun apply(doc: StudyDoc, op: StudyOp): Pair<StudyDoc, OpResult> = when (op) {
         is StudyOp.InsertBlock -> insertBlock(doc, op)
         is StudyOp.DeleteBlock -> deleteBlock(doc, op)
+        is StudyOp.UpdateBlock -> updateBlock(doc, op)
+        is StudyOp.SetVerseComparison -> setVerseComparison(doc, op)
         is StudyOp.ChangeBlockType -> changeBlockType(doc, op)
         is StudyOp.SplitBlock -> splitBlock(doc, op)
         is StudyOp.MergeBlock -> mergeBlock(doc, op)
@@ -24,6 +27,8 @@ object StudyDocEngine {
     }
 
     private fun insertBlock(doc: StudyDoc, op: StudyOp.InsertBlock): Pair<StudyDoc, OpResult> {
+        val block = normalizeForMutation(op.block)
+        invalidReason(block)?.let { return doc to OpResult.Failed(it) }
         val insertAt = if (op.afterBlockId != null) {
             val idx = doc.blocks.indexOfFirst { it.id == op.afterBlockId }
             if (idx < 0) return doc to OpResult.Failed("Referenced block not found")
@@ -32,7 +37,7 @@ object StudyDocEngine {
             doc.blocks.size
         }
         val newBlocks = doc.blocks.toMutableList()
-        newBlocks.add(insertAt, op.block)
+        newBlocks.add(insertAt, block)
         return doc.copy(blocks = newBlocks, updatedAt = System.currentTimeMillis()) to OpResult.Success
     }
 
@@ -51,10 +56,49 @@ object StudyDocEngine {
         return doc.copy(blocks = newBlocks, updatedAt = System.currentTimeMillis()) to OpResult.Success
     }
 
+    private fun updateBlock(doc: StudyDoc, op: StudyOp.UpdateBlock): Pair<StudyDoc, OpResult> {
+        val idx = doc.blocks.indexOfFirst { it.id == op.block.id }
+        if (idx < 0) return doc to OpResult.Failed("Block not found")
+        val block = normalizeForMutation(op.block)
+        invalidReason(block)?.let { return doc to OpResult.Failed(it) }
+        val newBlocks = doc.blocks.toMutableList()
+        newBlocks[idx] = block
+        return doc.copy(blocks = newBlocks, updatedAt = System.currentTimeMillis()) to OpResult.Success
+    }
+
+    private fun setVerseComparison(
+        doc: StudyDoc,
+        op: StudyOp.SetVerseComparison,
+    ): Pair<StudyDoc, OpResult> {
+        val idx = doc.blocks.indexOfFirst { it.id == op.blockId }
+        if (idx < 0) return doc to OpResult.Failed("Block not found")
+        val verse = doc.blocks[idx] as? StudyBlock.Verse
+            ?: return doc to OpResult.Failed("Only a Bible citation can be compared")
+        if (
+            op.version != null &&
+            (
+                op.version.isBlank() ||
+                    op.version.equals(verse.sourceVersion, ignoreCase = true) ||
+                    op.content.isNullOrBlank()
+                )
+        ) {
+            return doc to OpResult.Failed("The comparison requires a different version and its text")
+        }
+        val updated = VerseBusinessRules.withComparison(verse, op.version, op.content)
+        val newBlocks = doc.blocks.toMutableList().also { it[idx] = updated }
+        return doc.copy(
+            blocks = newBlocks,
+            updatedAt = System.currentTimeMillis(),
+        ) to OpResult.Success
+    }
+
     private fun changeBlockType(doc: StudyDoc, op: StudyOp.ChangeBlockType): Pair<StudyDoc, OpResult> {
         val idx = doc.blocks.indexOfFirst { it.id == op.blockId }
         if (idx < 0) return doc to OpResult.Failed("Block not found")
         val block = doc.blocks[idx]
+        if (block is StudyBlock.Verse) {
+            return doc to OpResult.Failed("Bible citations are protected atomic blocks")
+        }
         val text = when (block) {
             is StudyBlock.BulletList -> StyledText(block.items.joinToString("\n") { it.raw })
             is StudyBlock.OrderedList -> StyledText(block.items.joinToString("\n") { it.raw })
@@ -103,12 +147,21 @@ object StudyDocEngine {
     private fun splitBlock(doc: StudyDoc, op: StudyOp.SplitBlock): Pair<StudyDoc, OpResult> {
         val splitIdx = doc.blocks.indexOfFirst { it.id == op.splitBlockId }
         if (splitIdx < 0) return doc to OpResult.Failed("Block not found")
+        if (doc.blocks[splitIdx] is StudyBlock.Verse) {
+            return doc to OpResult.Failed("Bible citations cannot be split")
+        }
         if (op.updatedSplitBlock != null && op.updatedSplitBlock.id != op.splitBlockId) {
             return doc to OpResult.Failed("Updated split block must keep the original id")
         }
+        val updatedSplitBlock = op.updatedSplitBlock?.let(::normalizeForMutation)
+        val newBlock = normalizeForMutation(op.newBlock)
+        updatedSplitBlock?.let { invalidReason(it) }?.let {
+            return doc to OpResult.Failed(it)
+        }
+        invalidReason(newBlock)?.let { return doc to OpResult.Failed(it) }
         val newBlocks = doc.blocks.toMutableList()
-        op.updatedSplitBlock?.let { newBlocks[splitIdx] = it }
-        newBlocks.add(splitIdx + 1, op.newBlock)
+        updatedSplitBlock?.let { newBlocks[splitIdx] = it }
+        newBlocks.add(splitIdx + 1, newBlock)
         return doc.copy(blocks = newBlocks, updatedAt = System.currentTimeMillis()) to OpResult.Success
     }
 
@@ -119,8 +172,15 @@ object StudyDocEngine {
         if (op.updatedTargetBlock != null && op.updatedTargetBlock.id != doc.blocks[targetIdx].id) {
             return doc to OpResult.Failed("Updated merge target must keep the previous block id")
         }
+        if (doc.blocks[removeIdx] is StudyBlock.Verse || doc.blocks[targetIdx] is StudyBlock.Verse) {
+            return doc to OpResult.Failed("Bible citations cannot be merged with text blocks")
+        }
+        val updatedTargetBlock = op.updatedTargetBlock?.let(::normalizeForMutation)
+        updatedTargetBlock?.let { invalidReason(it) }?.let {
+            return doc to OpResult.Failed(it)
+        }
         val newBlocks = doc.blocks.toMutableList()
-        op.updatedTargetBlock?.let { newBlocks[targetIdx] = it }
+        updatedTargetBlock?.let { newBlocks[targetIdx] = it }
         newBlocks.removeAt(removeIdx)
         return doc.copy(blocks = newBlocks, updatedAt = System.currentTimeMillis()) to OpResult.Success
     }
@@ -141,5 +201,15 @@ object StudyDocEngine {
             current = next
         }
         return current to OpResult.Success
+    }
+
+    private fun normalizeForMutation(block: StudyBlock): StudyBlock = when (block) {
+        is StudyBlock.Verse -> VerseBusinessRules.normalize(block)
+        else -> block
+    }
+
+    private fun invalidReason(block: StudyBlock): String? = when (block) {
+        is StudyBlock.Verse -> VerseBusinessRules.invalidReason(block)
+        else -> null
     }
 }

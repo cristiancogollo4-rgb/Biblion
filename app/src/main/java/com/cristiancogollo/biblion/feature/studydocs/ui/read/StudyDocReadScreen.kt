@@ -22,16 +22,28 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel
+import com.cristiancogollo.biblion.feature.studydocs.model.BlockId
+import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
+import com.cristiancogollo.biblion.feature.studydocs.model.VerseBusinessRules
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.UnifiedBlockRenderer
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.ZoomMenu
+import com.cristiancogollo.biblion.feature.studydocs.ui.editor.VerseContextDialog
+import com.cristiancogollo.biblion.feature.studydocs.ui.editor.loadVerseRangeText
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.rememberDocumentZoomState
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PaginatedSheet
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,9 +55,46 @@ fun StudyDocReadScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val readZoomState = rememberDocumentZoomState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var verseOverrides by remember {
+        mutableStateOf<Map<BlockId, StudyBlock.Verse>>(emptyMap())
+    }
+    var contextVerseId by remember {
+        mutableStateOf<BlockId?>(null)
+    }
+    val displayedBlocks = remember(uiState.doc.blocks, verseOverrides) {
+        uiState.doc.blocks.map { block -> verseOverrides[block.id] ?: block }
+    }
+    val contextVerse = displayedBlocks
+        .firstOrNull { it.id == contextVerseId } as? StudyBlock.Verse
+
+    val onVerseComparisonSelected: (StudyBlock.Verse, String?) -> Unit = { block, version ->
+        if (version == null) {
+            verseOverrides = verseOverrides + (
+                block.id to VerseBusinessRules.withComparison(block, null, null)
+            )
+        } else {
+            scope.launch {
+                val text = loadVerseRangeText(context, version, block)
+                verseOverrides = verseOverrides + (
+                    block.id to VerseBusinessRules.withComparison(block, version, text)
+                )
+            }
+        }
+    }
+
+    if (contextVerse != null) {
+        VerseContextDialog(
+            block = contextVerse,
+            onDismiss = { contextVerseId = null },
+        )
+    }
 
     LaunchedEffect(remoteId) {
         Log.d("BIBLION_STUDY", "StudyDocReadScreen LaunchedEffect remoteId=$remoteId")
+        verseOverrides = emptyMap()
+        contextVerseId = null
     }
 
     LaunchedEffect(uiState.isLoading, uiState.doc.blocks.size) {
@@ -57,6 +106,7 @@ fun StudyDocReadScreen(
     }
 
     Scaffold(
+        modifier = Modifier.blur(if (contextVerse != null) 6.dp else 0.dp),
         topBar = {
             TopAppBar(
                 title = {
@@ -83,7 +133,7 @@ fun StudyDocReadScreen(
             ) {
                 CircularProgressIndicator()
             }
-        } else if (uiState.doc.blocks.all { it.plainText().isBlank() }) {
+        } else if (displayedBlocks.all { it.plainText().isBlank() }) {
             Column(
                 modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
                 verticalArrangement = Arrangement.Center,
@@ -96,20 +146,22 @@ fun StudyDocReadScreen(
             }
         } else {
             PaginatedSheet(
-                blocks = uiState.doc.blocks,
+                blocks = displayedBlocks,
                 isEditing = false,
                 modifier = Modifier.fillMaxSize().padding(padding),
                 zoomState = readZoomState,
                 contentFragmentRenderer = { fragment, _ ->
                     UnifiedBlockRenderer(
                         fragment = fragment,
-                        allBlocks = uiState.doc.blocks,
+                        allBlocks = displayedBlocks,
                         isEditing = false,
                         isOwnerFragment = false,
                         richState = null,
                         isActive = false,
                         splitViewModel = null,
                         viewModel = null,
+                        onVerseClick = { contextVerseId = it.id },
+                        onVerseComparisonSelected = onVerseComparisonSelected,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 },

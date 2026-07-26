@@ -1,7 +1,9 @@
 package com.cristiancogollo.biblion.feature.studydocs.ui.editor
 
 import android.util.Log
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -65,6 +67,9 @@ fun UnifiedBlockRenderer(
     focusRequest: EditorFocusRequest? = null,
     splitViewModel: StudyDocSplitViewModel? = null,
     viewModel: StudyDocViewModel? = null,
+    onVerseClick: ((StudyBlock.Verse) -> Unit)? = null,
+    onVerseComparisonSelected: ((StudyBlock.Verse, String?) -> Unit)? = null,
+    onVerseDelete: ((StudyBlock.Verse) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val textColor = MaterialTheme.colorScheme.onSurface
@@ -215,7 +220,17 @@ fun UnifiedBlockRenderer(
         val imeOptions = KeyboardOptions(imeAction = ImeAction.Done)
 
         when (block) {
-            is StudyBlock.Verse -> BibleVerseBlock(block = block, modifier = modifier.fillMaxWidth())
+            is StudyBlock.Verse -> BibleVerseBlock(
+                block = block,
+                mode = VerseBlockMode.Editing,
+                isSelected = isActive,
+                onClick = onVerseClick?.let { callback -> { callback(block) } },
+                onComparisonSelected = onVerseComparisonSelected?.let { callback ->
+                    { version -> callback(block, version) }
+                },
+                onDelete = onVerseDelete?.let { callback -> { callback(block) } },
+                modifier = modifier.fillMaxWidth(),
+            )
             is StudyBlock.BulletList -> {
                 Row(modifier = modifier.fillMaxWidth().then(keyModifier)
                     .onFocusChanged {
@@ -277,7 +292,15 @@ fun UnifiedBlockRenderer(
         }
     } else {
         when (block) {
-            is StudyBlock.Verse -> BibleVerseBlock(block = block, modifier = modifier.fillMaxWidth())
+            is StudyBlock.Verse -> BibleVerseBlock(
+                block = block,
+                mode = VerseBlockMode.Reading,
+                onClick = onVerseClick?.let { callback -> { callback(block) } },
+                onComparisonSelected = onVerseComparisonSelected?.let { callback ->
+                    { version -> callback(block, version) }
+                },
+                modifier = modifier.fillMaxWidth(),
+            )
             is StudyBlock.BulletList -> {
                 val itemTexts = block.toStyledTextList()
                 Column(modifier = modifier.fillMaxWidth()) {
@@ -529,6 +552,9 @@ fun UnifiedBlockRenderer(
     focusRequest: EditorFocusRequest? = null,
     splitViewModel: StudyDocSplitViewModel? = null,
     viewModel: StudyDocViewModel? = null,
+    onVerseClick: ((StudyBlock.Verse) -> Unit)? = null,
+    onVerseComparisonSelected: ((StudyBlock.Verse, String?) -> Unit)? = null,
+    onVerseDelete: ((StudyBlock.Verse) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val textColor = MaterialTheme.colorScheme.onSurface
@@ -563,7 +589,7 @@ fun UnifiedBlockRenderer(
         )
     }
 
-    if (isEditing && isOwnerFragment && richState != null) {
+    if (isEditing && isOwnerFragment && richState != null && block !is StudyBlock.Verse) {
         when (fragment) {
             is PageFragment.ListItemSlice -> {
                 EditableListItemFragment(
@@ -601,7 +627,7 @@ fun UnifiedBlockRenderer(
         }
     }
 
-    if (isEditing && isOwnerFragment && richState != null) {
+    if (isEditing && isOwnerFragment && richState != null && block !is StudyBlock.Verse) {
         UnifiedBlockRenderer(
             block = block,
             blockIndex = blockIndex,
@@ -612,6 +638,9 @@ fun UnifiedBlockRenderer(
             focusRequest = focusRequest,
             splitViewModel = splitViewModel,
             viewModel = viewModel,
+            onVerseClick = onVerseClick,
+            onVerseComparisonSelected = onVerseComparisonSelected,
+            onVerseDelete = onVerseDelete,
             modifier = modifier,
         )
         return
@@ -643,7 +672,19 @@ fun UnifiedBlockRenderer(
                 ?: viewModel?.setActiveBlock(block.id, itemIndex)
         }
     } else null
-    renderFragmentReadOnly(fragment, block, blockIndex, textStyle, allBlocks, modifier, activateText)
+    renderFragmentReadOnly(
+        fragment = fragment,
+        block = block,
+        blockIndex = blockIndex,
+        textStyle = textStyle,
+        allBlocks = allBlocks,
+        modifier = modifier,
+        onActivate = activateText,
+        onVerseClick = onVerseClick,
+        onVerseComparisonSelected = onVerseComparisonSelected,
+        onVerseDelete = onVerseDelete,
+        isVerseSelected = isActive && block is StudyBlock.Verse,
+    )
 }
 
 @Composable
@@ -829,6 +870,10 @@ private fun renderFragmentReadOnly(
     allBlocks: List<StudyBlock>,
     modifier: Modifier,
     onActivate: (() -> Unit)? = null,
+    onVerseClick: ((StudyBlock.Verse) -> Unit)? = null,
+    onVerseComparisonSelected: ((StudyBlock.Verse, String?) -> Unit)? = null,
+    onVerseDelete: ((StudyBlock.Verse) -> Unit)? = null,
+    isVerseSelected: Boolean = false,
 ) {
     val activationModifier = modifier.clickable(
         enabled = onActivate != null,
@@ -846,6 +891,9 @@ private fun renderFragmentReadOnly(
                 focusRequest = null,
                 splitViewModel = null,
                 viewModel = null,
+                onVerseClick = onVerseClick,
+                onVerseComparisonSelected = onVerseComparisonSelected,
+                onVerseDelete = onVerseDelete,
                 modifier = activationModifier,
             )
         }
@@ -883,16 +931,136 @@ private fun renderFragmentReadOnly(
             }
         }
         is PageFragment.VerseSlice -> {
-            val original = fragment.block.contents[fragment.block.sourceVersion] ?: ""
-            val recorte = original.substring(
-                fragment.charStart.coerceAtLeast(0),
-                fragment.charEndExclusive.coerceAtMost(original.length),
+            val accent = verseAccent()
+            val verseFocusRequester = remember(
+                fragment.originBlockId,
+                fragment.sliceIndex,
+            ) { FocusRequester() }
+            val selectVerse = onVerseClick?.let { callback ->
+                {
+                    if (onVerseDelete != null) {
+                        runCatching { verseFocusRequester.requestFocus() }
+                    }
+                    callback(fragment.block)
+                }
+            }
+            val primaryText = fragment.block.contents[fragment.block.sourceVersion].orEmpty()
+            val primaryStart = fragment.charStart.coerceIn(0, primaryText.length)
+            val primaryEnd = fragment.charEndExclusive.coerceIn(primaryStart, primaryText.length)
+            val comparisonText = fragment.comparisonVersion
+                ?.let { fragment.block.contents[it] }
+                .orEmpty()
+            val comparisonStart =
+                fragment.comparisonCharStart.coerceIn(0, comparisonText.length)
+            val comparisonEnd =
+                fragment.comparisonCharEndExclusive.coerceIn(comparisonStart, comparisonText.length)
+            val bodyStyle = verseBodyTextStyle(
+                block = fragment.block,
+                color = MaterialTheme.colorScheme.onSurface,
             )
-            Text(
-                text = recorte,
-                style = textStyle.copy(fontFamily = FontFamily.Serif),
-                modifier = activationModifier.fillMaxWidth(),
-            )
+            Column(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (onVerseDelete != null) {
+                            Modifier
+                                .focusRequester(verseFocusRequester)
+                                .focusable()
+                                .onPreviewKeyEvent { event ->
+                                    val deletesBlock =
+                                        event.type == KeyEventType.KeyDown &&
+                                            (
+                                                event.key == Key.Backspace ||
+                                                    event.key == Key.Delete
+                                                )
+                                    if (deletesBlock) {
+                                        onVerseDelete(fragment.block)
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
+                        } else {
+                            Modifier
+                        }
+                    )
+                    .then(
+                        if (isVerseSelected) {
+                            Modifier.background(accent.copy(alpha = 0.08f))
+                        } else {
+                            Modifier
+                        }
+                    )
+                    .drawBehind {
+                        drawRect(
+                            color = accent,
+                            size = androidx.compose.ui.geometry.Size(2.dp.toPx(), size.height),
+                        )
+                    }
+                    .padding(start = 16.dp),
+            ) {
+                if (fragment.showHeader) {
+                    VerseReferenceHeader(
+                        block = fragment.block,
+                        onReferenceClick = selectVerse,
+                        onComparisonSelected = onVerseComparisonSelected?.let {
+                            { version -> it(fragment.block, version) }
+                        },
+                        onDelete = onVerseDelete?.let {
+                            { it(fragment.block) }
+                        },
+                    )
+                    Spacer(Modifier.height(6.dp))
+                }
+                if (fragment.comparisonVersion != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(IntrinsicSize.Min)
+                            .clickable(enabled = selectVerse != null) {
+                                selectVerse?.invoke()
+                            },
+                    ) {
+                        VerseColumn(
+                            block = fragment.block,
+                            version = fragment.block.sourceVersion,
+                            text = primaryText.substring(primaryStart, primaryEnd),
+                            showVersion = fragment.showHeader,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Box(
+                            modifier = Modifier
+                                .width(20.dp)
+                                .fillMaxHeight(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(1.dp)
+                                    .fillMaxHeight()
+                                    .background(MaterialTheme.colorScheme.outlineVariant),
+                            )
+                        }
+                        VerseColumn(
+                            block = fragment.block,
+                            version = fragment.comparisonVersion,
+                            text = comparisonText.substring(comparisonStart, comparisonEnd),
+                            showVersion = fragment.showHeader,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                } else {
+                    Text(
+                        text = primaryText.substring(primaryStart, primaryEnd),
+                        style = bodyStyle,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = selectVerse != null) {
+                                selectVerse?.invoke()
+                            },
+                    )
+                }
+            }
         }
         is PageFragment.QuoteSlice -> {
             val sliced = fragment.block.text.slice(

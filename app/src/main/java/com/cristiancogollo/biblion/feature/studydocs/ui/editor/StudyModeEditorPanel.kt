@@ -48,11 +48,12 @@ import com.cristiancogollo.biblion.feature.studydocs.model.BlockId
 import com.cristiancogollo.biblion.feature.studydocs.model.DocConfig
 import com.cristiancogollo.biblion.feature.studydocs.model.DocTagGroups
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
-import com.cristiancogollo.biblion.feature.studydocs.model.hasPersistableTitle
+import com.cristiancogollo.biblion.feature.studydocs.model.capabilities
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PaginatedSheet
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.SheetViewMode
 import com.cristiancogollo.biblion.addSharedPrimaryDestinations
+import kotlinx.coroutines.launch
 
 private val textColorPalette = listOf(
     Color(0xFF0F172A), Color(0xFF9E9E9E), Color(0xFFE53935), Color(0xFFFB8C00),
@@ -90,6 +91,8 @@ fun StudyModeEditorPanel(
     isCompactLayout: Boolean = false,
 ) {
     var documentTitle by remember { mutableStateOf(editorState.doc.title) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val editorZoomState = rememberDocumentZoomState()
     var viewMode by remember { mutableStateOf(SheetViewMode.PAGINATED) }
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
@@ -97,6 +100,32 @@ fun StudyModeEditorPanel(
         LocalConfiguration.current.keyboard != Configuration.KEYBOARD_NOKEYS
     val allowProgrammaticFocus =
         !isCompactLayout || imeVisible || hardwareKeyboardPresent
+
+    val onVerseComparisonSelected: (StudyBlock.Verse, String?) -> Unit = { block, version ->
+        if (version == null) {
+            splitViewModel?.updateVerseComparisons(block.id, emptyList(), emptyMap())
+                ?: viewModel?.updateVerseComparisons(block.id, emptyList(), emptyMap())
+        } else {
+            scope.launch {
+                val text = loadVerseRangeText(context, version, block)
+                splitViewModel?.updateVerseComparisons(
+                    block.id,
+                    listOf(version),
+                    mapOf(version to text),
+                ) ?: viewModel?.updateVerseComparisons(
+                    block.id,
+                    listOf(version),
+                    mapOf(version to text),
+                )
+            }
+        }
+    }
+    val onVerseSelected: (StudyBlock.Verse) -> Unit = { block ->
+        splitViewModel?.setActiveBlock(block.id) ?: viewModel?.setActiveBlock(block.id)
+    }
+    val onVerseDelete: (StudyBlock.Verse) -> Unit = { block ->
+        splitViewModel?.deleteBlock(block.id) ?: viewModel?.deleteBlock(block.id)
+    }
 
     LaunchedEffect(isFullScreen) {
         editorZoomState.set(if (isFullScreen) 1f else DocumentZoomState.MIN_ZOOM)
@@ -133,15 +162,21 @@ fun StudyModeEditorPanel(
                 isSaving = editorState.isSaving,
                 hasUnsavedChanges = editorState.hasUnsavedChanges,
                 lastError = editorState.lastError,
-                canSave = editorState.doc.hasPersistableTitle(),
                 onBackClick = onBack,
                 onSaveClick = onSaveClick,
                 showFullScreenToggle = showFullScreenToggle,
             )
         }
 
+        val activeCapabilities = editorState.doc.blocks
+            .firstOrNull { it.id == editorState.activeBlockId }
+            ?.capabilities()
         StudyModeToolbar(
             activeFormat = editorState.activeFormat,
+            inlineFormattingEnabled =
+                activeCapabilities?.supportsInlineFormatting != false,
+            blockTypeChangeEnabled =
+                activeCapabilities?.supportsBlockTypeChange != false,
             currentFontSize = run {
                 val af = editorState.activeFormat.fontSize
                 val bf = editorState.doc.blocks.firstOrNull { it.id == editorState.activeBlockId }?.fontSize
@@ -227,6 +262,9 @@ fun StudyModeEditorPanel(
                     splitViewModel = splitViewModel,
                     viewModel = viewModel,
                     allowProgrammaticFocus = allowProgrammaticFocus,
+                    onVerseSelected = onVerseSelected,
+                    onVerseComparisonSelected = onVerseComparisonSelected,
+                    onVerseDelete = onVerseDelete,
                 )
             },
             contentBlockRenderer = { block, idx ->
@@ -249,6 +287,9 @@ fun StudyModeEditorPanel(
                         focusRequest = editorState.focusRequest,
                         splitViewModel = splitViewModel,
                         viewModel = viewModel,
+                        onVerseClick = onVerseSelected,
+                        onVerseComparisonSelected = onVerseComparisonSelected,
+                        onVerseDelete = onVerseDelete,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -296,7 +337,6 @@ private fun StudyModeHeader(
     isSaving: Boolean,
     hasUnsavedChanges: Boolean,
     lastError: String?,
-    canSave: Boolean,
     onBackClick: () -> Unit,
     onSaveClick: () -> Unit,
     showFullScreenToggle: Boolean,
@@ -395,11 +435,15 @@ private fun StudyModeHeader(
         }
 
         // Botón Guardar
-        IconButton(onClick = onSaveClick, enabled = canSave) {
+        IconButton(onClick = onSaveClick, enabled = !isSaving) {
             Icon(
                 Icons.Default.Save,
                 contentDescription = "Guardar",
-                tint = if (canSave) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                tint = if (!isSaving) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                },
                 modifier = Modifier.size(24.dp),
             )
         }
@@ -448,6 +492,7 @@ internal fun BibleReaderPane(
     navController: androidx.navigation.NavController? = null,
     isDarkTheme: Boolean = false,
     onToggleDarkTheme: (Boolean) -> Unit = {},
+    onInsertVerseCitation: ((com.cristiancogollo.biblion.CitationVerseGroup, String) -> Unit)? = null,
 ) {
     val localNavController = rememberNavController()
     var isAuthenticated by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
@@ -520,6 +565,7 @@ internal fun BibleReaderPane(
             com.cristiancogollo.biblion.ReaderScreen(
                 navController = localNavController,
                 bookName = bookName,
+                onInsertVerseCitation = onInsertVerseCitation,
             )
         }
         composable(
@@ -528,6 +574,7 @@ internal fun BibleReaderPane(
             com.cristiancogollo.biblion.ReaderScreen(
                 navController = localNavController,
                 bookName = null,
+                onInsertVerseCitation = onInsertVerseCitation,
             )
         }
 
@@ -567,6 +614,8 @@ internal fun BibleReaderPane(
 @Composable
 private fun StudyModeToolbar(
     activeFormat: com.cristiancogollo.biblion.feature.studydocs.domain.ActiveFormatSnapshot,
+    inlineFormattingEnabled: Boolean,
+    blockTypeChangeEnabled: Boolean,
     currentFontSize: Int,
     currentAlignment: com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment,
     onToggleStyle: (TextStyleKind) -> Unit,
@@ -598,6 +647,7 @@ private fun StudyModeToolbar(
             icon = Icons.Default.FormatBold,
             contentDescription = "Negrita",
             isActive = activeFormat.bold,
+            enabled = inlineFormattingEnabled,
             onClick = { onToggleStyle(TextStyleKind.Bold) },
         )
 
@@ -606,6 +656,7 @@ private fun StudyModeToolbar(
             icon = Icons.Default.FormatItalic,
             contentDescription = "Cursiva",
             isActive = activeFormat.italic,
+            enabled = inlineFormattingEnabled,
             onClick = { onToggleStyle(TextStyleKind.Italic) },
         )
 
@@ -614,6 +665,7 @@ private fun StudyModeToolbar(
             icon = Icons.Default.FormatUnderlined,
             contentDescription = "Subrayado",
             isActive = activeFormat.underline,
+            enabled = inlineFormattingEnabled,
             onClick = { onToggleStyle(TextStyleKind.Underline) },
         )
 
@@ -624,10 +676,11 @@ private fun StudyModeToolbar(
                 icon = Icons.Default.FormatColorText,
                 contentDescription = "Color de Texto",
                 isActive = activeFormat.color != null,
+                enabled = inlineFormattingEnabled,
                 onClick = { showTextColorMenu = true },
             )
             DropdownMenu(
-                expanded = showTextColorMenu,
+                expanded = showTextColorMenu && inlineFormattingEnabled,
                 onDismissRequest = { showTextColorMenu = false },
             ) {
                 Text(
@@ -671,10 +724,11 @@ private fun StudyModeToolbar(
                 icon = Icons.Default.FormatColorFill,
                 contentDescription = "Color de Resaltado",
                 isActive = activeFormat.background != null,
+                enabled = inlineFormattingEnabled,
                 onClick = { showHighlightMenu = true },
             )
             DropdownMenu(
-                expanded = showHighlightMenu,
+                expanded = showHighlightMenu && inlineFormattingEnabled,
                 onDismissRequest = { showHighlightMenu = false },
             ) {
                 Text(
@@ -718,6 +772,7 @@ private fun StudyModeToolbar(
             icon = Icons.Default.FormatListBulleted,
             contentDescription = "Lista vinetas",
             isActive = false,
+            enabled = blockTypeChangeEnabled,
             onClick = { onChangeBlockType("bullet") },
         )
 
@@ -726,6 +781,7 @@ private fun StudyModeToolbar(
             icon = Icons.Default.FormatListNumbered,
             contentDescription = "Lista numerada",
             isActive = false,
+            enabled = blockTypeChangeEnabled,
             onClick = { onChangeBlockType("numbered") },
         )
 
@@ -782,11 +838,13 @@ private fun ToolbarIcon(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     contentDescription: String,
     isActive: Boolean,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     val bg = if (isActive) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
     val shape = RoundedCornerShape(6.dp)
     IconButton(
+        enabled = enabled,
         onClick = {
             StudyEditorDebugLog.log(
                 "TOOLBAR_CLICK",
@@ -802,7 +860,11 @@ private fun ToolbarIcon(
         Icon(
             icon,
             contentDescription = contentDescription,
-            tint = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+            tint = when {
+                !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                isActive -> MaterialTheme.colorScheme.onPrimaryContainer
+                else -> MaterialTheme.colorScheme.onSurface
+            },
             modifier = Modifier.size(18.dp),
         )
     }
@@ -833,6 +895,9 @@ private fun EditorSheetFragment(
     splitViewModel: com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocSplitViewModel?,
     viewModel: com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel?,
     allowProgrammaticFocus: Boolean,
+    onVerseSelected: (StudyBlock.Verse) -> Unit,
+    onVerseComparisonSelected: (StudyBlock.Verse, String?) -> Unit,
+    onVerseDelete: (StudyBlock.Verse) -> Unit,
 ) {
     val activeId = activeIdProvider()
     val activeListItemIndex = activeListItemIndexProvider()
@@ -866,10 +931,16 @@ private fun EditorSheetFragment(
             isEditing = true,
             isOwnerFragment = isOwner,
             richState = richState,
-            isActive = isOwner && allowProgrammaticFocus,
+            isActive = isOwner && (
+                allowProgrammaticFocus ||
+                    fragment is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.VerseSlice
+                ),
             focusRequest = focusRequest,
             splitViewModel = splitViewModel,
             viewModel = viewModel,
+            onVerseClick = onVerseSelected,
+            onVerseComparisonSelected = onVerseComparisonSelected,
+            onVerseDelete = onVerseDelete,
             modifier = Modifier.fillMaxWidth(),
         )
     }

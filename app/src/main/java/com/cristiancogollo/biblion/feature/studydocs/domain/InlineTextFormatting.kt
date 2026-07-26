@@ -31,5 +31,5 @@ internal fun StudyBlock.withBaseFontSize(fontSize: Int): StudyBlock = when (this
     is StudyBlock.BulletList -> copy(fontSize = fontSize)
     is StudyBlock.OrderedList -> copy(fontSize = fontSize)
     is StudyBlock.Quote -> copy(fontSize = fontSize)
-    is StudyBlock.Verse -> this
+    is StudyBlock.Verse -> copy(fontSize = fontSize)
 }

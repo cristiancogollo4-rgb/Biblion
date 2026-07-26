@@ -28,8 +28,8 @@ data class StudyDoc(
                 is StudyBlock.OrderedList -> block.items.forEachIndexed { i, item ->
                     if (item.raw.isNotBlank()) appendLine("${i + 1}. ${item.raw}")
                 }
-                is StudyBlock.Verse -> run {}
-is StudyBlock.Quote -> {
+                is StudyBlock.Verse -> appendLine(block.documentText())
+                is StudyBlock.Quote -> {
                     if (block.text.raw.isNotBlank()) appendLine(block.text.raw)
                     if (block.attribution != null) appendLine("— ${block.attribution}")
                 }

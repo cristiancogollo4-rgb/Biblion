@@ -47,6 +47,8 @@ import com.cristiancogollo.biblion.feature.studydocs.domain.TextStyleKind
 @Composable
 fun EditorToolbar(
     activeFormat: ActiveFormatSnapshot,
+    inlineFormattingEnabled: Boolean = true,
+    fontFamilyEnabled: Boolean = true,
     currentFontSize: Int,
     currentFontFamily: String?,
     onToggleStyle: (TextStyleKind) -> Unit,
@@ -78,24 +80,28 @@ fun EditorToolbar(
                 icon = Icons.Filled.FormatBold,
                 label = "Negrita",
                 isActive = activeFormat.bold,
+                enabled = inlineFormattingEnabled,
                 onClick = { onToggleStyle(TextStyleKind.Bold) },
             )
             FormatToggleButton(
                 icon = Icons.Filled.FormatItalic,
                 label = "Cursiva",
                 isActive = activeFormat.italic,
+                enabled = inlineFormattingEnabled,
                 onClick = { onToggleStyle(TextStyleKind.Italic) },
             )
             FormatToggleButton(
                 icon = Icons.Filled.FormatUnderlined,
                 label = "Subrayado",
                 isActive = activeFormat.underline,
+                enabled = inlineFormattingEnabled,
                 onClick = { onToggleStyle(TextStyleKind.Underline) },
             )
             FormatToggleButton(
                 icon = Icons.Filled.StrikethroughS,
                 label = "Tachado",
                 isActive = activeFormat.strikethrough,
+                enabled = inlineFormattingEnabled,
                 onClick = { onToggleStyle(TextStyleKind.Strikethrough) },
             )
 
@@ -103,7 +109,10 @@ fun EditorToolbar(
 
             var showTextColor by remember { mutableStateOf(false) }
             Box {
-                IconButton(onClick = { showTextColor = true }) {
+                IconButton(
+                    onClick = { showTextColor = true },
+                    enabled = inlineFormattingEnabled,
+                ) {
                     Icon(
                         Icons.Filled.FormatColorText,
                         contentDescription = "Color de texto",
@@ -113,7 +122,7 @@ fun EditorToolbar(
                     )
                 }
                 ColorDropdown(
-                    expanded = showTextColor,
+                    expanded = showTextColor && inlineFormattingEnabled,
                     onDismiss = { showTextColor = false },
                     onColorPicked = { onTextColor(it); showTextColor = false },
                     onClear = { onClearColor(); showTextColor = false },
@@ -127,7 +136,7 @@ fun EditorToolbar(
                 icon = Icons.Filled.FormatClear,
                 label = "Limpiar formato",
                 isActive = false,
-                enabled = hasFormat,
+                enabled = hasFormat && inlineFormattingEnabled,
                 onClick = { onClearColor() },
             )
 
@@ -149,14 +158,17 @@ fun EditorToolbar(
                 else -> "Sans"
             }
             Box {
-                TextButton(onClick = { showFontMenu = true }) {
+                TextButton(
+                    onClick = { showFontMenu = true },
+                    enabled = fontFamilyEnabled,
+                ) {
                     Text(
                         text = fontLabel,
                         style = MaterialTheme.typography.labelSmall,
                     )
                 }
                 DropdownMenu(
-                    expanded = showFontMenu,
+                    expanded = showFontMenu && fontFamilyEnabled,
                     onDismissRequest = { showFontMenu = false },
                 ) {
                     listOf(

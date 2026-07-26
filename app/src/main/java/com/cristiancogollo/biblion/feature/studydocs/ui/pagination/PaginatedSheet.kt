@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -320,6 +322,7 @@ private fun PaginatedSheetImpl(
                                                 page = page,
                                                 contentFragmentRenderer = contentFragmentRenderer,
                                                 editorOverlay = isEditing,
+                                                baseDensity = density,
                                             )
                                         }
                                     }
@@ -522,6 +525,7 @@ private fun PageCard(
     page: Page,
     contentFragmentRenderer: @Composable (PageFragment, Int) -> Unit,
     editorOverlay: Boolean = false,
+    baseDensity: Density = LocalDensity.current,
 ) {
     val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val pageColor = if (isDarkTheme) DarkStudyPage else MaterialTheme.colorScheme.surface
@@ -530,11 +534,12 @@ private fun PageCard(
             .width(PageDimensions.LETTER_WIDTH)
             .height(PageDimensions.LETTER_HEIGHT),
         colors = CardDefaults.cardColors(containerColor = pageColor),
+        shape = RoundedCornerShape(2.dp),
         border = BorderStroke(
             width = 1.dp,
             color = if (isDarkTheme) DarkStudyPageBorder else MaterialTheme.colorScheme.outlineVariant,
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(
             modifier = Modifier
@@ -547,10 +552,15 @@ private fun PageCard(
                         fragment !is PageFragment.VerseSlice &&
                         fragment !is PageFragment.Whole
                     ) {
-                        return@forEachIndexed
-                    }
-                    key(fragment.compositionKey()) {
-                        contentFragmentRenderer(fragment, idx)
+                        Spacer(
+                            modifier = Modifier.height(
+                                with(baseDensity) { fragment.heightPx.toDp() },
+                            ),
+                        )
+                    } else {
+                        key(fragment.compositionKey()) {
+                            contentFragmentRenderer(fragment, idx)
+                        }
                     }
                 }
             }

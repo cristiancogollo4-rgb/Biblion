@@ -142,14 +142,26 @@ object BibleRepository {
         context: Context,
         bookName: String,
         chapterNumber: Int
+    ): ChapterContent = getChapter(
+        context = context,
+        bookName = bookName,
+        chapterNumber = chapterNumber,
+        versionKey = getSelectedVersionKey(context),
+    )
+
+    suspend fun getChapter(
+        context: Context,
+        bookName: String,
+        chapterNumber: Int,
+        versionKey: String,
     ): ChapterContent = withContext(Dispatchers.IO) {
-        val versionKey = normalizeVersionKey(getSelectedVersionKey(context))
+        val normalizedVersionKey = normalizeVersionKey(versionKey)
         val dao = bibleDao(context)
         val searchNormalized = bookName.normalizeBookName()
-        val chapterCount = dao.getChapterCount(versionKey, searchNormalized)
-        val verses = dao.getChapterVerses(versionKey, searchNormalized, chapterNumber)
+        val chapterCount = dao.getChapterCount(normalizedVersionKey, searchNormalized)
+        val verses = dao.getChapterVerses(normalizedVersionKey, searchNormalized, chapterNumber)
             .map { it.verse.toString() to it.text }
-        val titlesByVerse = dao.getChapterTitles(versionKey, searchNormalized, chapterNumber)
+        val titlesByVerse = dao.getChapterTitles(normalizedVersionKey, searchNormalized, chapterNumber)
             .associate { it.verse.toString() to it.title }
 
         ChapterContent(
