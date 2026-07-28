@@ -44,13 +44,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.cristiancogollo.biblion.core.ui.StudyModeLandscapeLock
+import com.cristiancogollo.biblion.feature.bibi.ui.BibiStudyFloatingWindow
+import com.cristiancogollo.biblion.feature.bibi.ui.StudyBibiController
 import com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel
 import com.cristiancogollo.biblion.feature.studydocs.model.DocConfig
 import com.cristiancogollo.biblion.feature.studydocs.model.capabilities
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PaginatedSheet
+import com.cristiancogollo.biblion.ui.theme.BiblionThemeMode
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -65,7 +69,11 @@ fun StudyDocEditorScreen(
     navController: androidx.navigation.NavController? = null,
     isDarkTheme: Boolean = false,
     onToggleDarkTheme: (Boolean) -> Unit = {},
+    themeMode: BiblionThemeMode = if (isDarkTheme) BiblionThemeMode.DARK else BiblionThemeMode.LIGHT,
+    onThemeModeChange: (BiblionThemeMode) -> Unit = {},
     isActive: Boolean = true,
+    currentUserName: String? = null,
+    bibiController: StudyBibiController? = null,
 ) {
     StudyModeLandscapeLock()
 
@@ -89,6 +97,8 @@ fun StudyDocEditorScreen(
     val standaloneZoomState = rememberDocumentZoomState()
     var isFullScreen by remember { mutableStateOf(false) }
     var showDiscardDialog by remember { mutableStateOf(false) }
+    val internalBibiController = remember { StudyBibiController() }
+    val activeBibiController = bibiController ?: internalBibiController
 
     val onVerseComparisonSelected:
         (com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock.Verse, String?) -> Unit =
@@ -151,8 +161,12 @@ fun StudyDocEditorScreen(
     }
 
     BackHandler(enabled = isActive && (!useCompactStudyLayout || compactDocumentActive)) {
-        Log.d("BIBLION_STUDY_EXIT", "event source=system_back handler_invoked")
-        requestExit("system_back")
+        if (activeBibiController.isOpen) {
+            activeBibiController.close()
+        } else {
+            Log.d("BIBLION_STUDY_EXIT", "event source=system_back handler_invoked")
+            requestExit("system_back")
+        }
     }
 
     LaunchedEffect(showDiscardDialog) {
@@ -214,9 +228,7 @@ fun StudyDocEditorScreen(
             }
         } else {
             // Split 50/50 con el editor a la derecha y la app a la izquierda.
-            // BiblionTheme envuelve ambos paneles para que el dark mode los afecte.
-            com.cristiancogollo.biblion.ui.theme.BiblionTheme(darkTheme = isDarkTheme) {
-                if (useCompactStudyLayout) {
+            if (useCompactStudyLayout) {
                     val activePane = if (compactDocumentActive) {
                         CompactStudyPane.Document
                     } else {
@@ -237,9 +249,10 @@ fun StudyDocEditorScreen(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .background(MaterialTheme.colorScheme.surface),
-                                navController = navController,
                                 isDarkTheme = isDarkTheme,
                                 onToggleDarkTheme = onToggleDarkTheme,
+                                themeMode = themeMode,
+                                onThemeModeChange = onThemeModeChange,
                                 onInsertVerseCitation = { group, version ->
                                     splitViewModel?.insertVerseAsQuote(
                                         book = group.bookName,
@@ -275,6 +288,7 @@ fun StudyDocEditorScreen(
                                 navController = navController,
                                 showFullScreenToggle = false,
                                 isCompactLayout = true,
+                                onBibiClick = activeBibiController::open,
                             )
                         },
                     )
@@ -286,9 +300,10 @@ fun StudyDocEditorScreen(
                                     .weight(1f)
                                     .fillMaxHeight()
                                     .background(MaterialTheme.colorScheme.surface),
-                                navController = navController,
                                 isDarkTheme = isDarkTheme,
                                 onToggleDarkTheme = onToggleDarkTheme,
+                                themeMode = themeMode,
+                                onThemeModeChange = onThemeModeChange,
                                 onInsertVerseCitation = { group, version ->
                                     splitViewModel?.insertVerseAsQuote(
                                         book = group.bookName,
@@ -326,9 +341,9 @@ fun StudyDocEditorScreen(
                             isDarkTheme = isDarkTheme,
                             onToggleDarkTheme = onToggleDarkTheme,
                             navController = navController,
+                            onBibiClick = activeBibiController::open,
                         )
                     }
-                }
             }
         }
     } else {
@@ -386,6 +401,18 @@ fun StudyDocEditorScreen(
                 )
             },
             snackbarHost = { SnackbarHost(snackbarHostState) },
+            floatingActionButton = {
+                androidx.compose.material3.FloatingActionButton(
+                    onClick = activeBibiController::open,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ) {
+                    Icon(
+                        painter = painterResource(com.cristiancogollo.biblion.R.drawable.bibi_logo),
+                        contentDescription = "Abrir Bibi",
+                    )
+                }
+            },
         ) { padding ->
             Column(
                 modifier = Modifier
@@ -515,6 +542,14 @@ fun StudyDocEditorScreen(
             }
         }
     }
+    }
+
+    if (activeBibiController.isOpen) {
+        BibiStudyFloatingWindow(
+            editorState = editorState,
+            currentUserName = currentUserName,
+            onClose = activeBibiController::close,
+        )
     }
 
     if (showDiscardDialog) {

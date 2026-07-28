@@ -1,4 +1,4 @@
-package com.cristiancogollo.biblion.feature.bibi.engine
+﻿package com.cristiancogollo.biblion.feature.bibi.engine
 
 import android.content.Context
 import android.util.Log
@@ -339,7 +339,7 @@ object KnowledgeEngine {
             BibiResponse(
                 title = "No encontré \"$term\"",
                 definition = "En el diccionario bíblico no tengo información sobre \"$term\".",
-                followUp = "¿Quizás quisiste decir ${alternatives.joinToString(" o ")}?",
+                followUp = "Creo que quizás buscabas ${alternatives.joinToString(" o ")}.",
                 suggestions = alternatives.map { BibiSuggestion("Consultar $it", "¿qué significa $it?") } +
                     BibiSuggestion("Preguntar de otra forma", "cuéntame sobre algo", isAi = true),
                 confidence = Confidence.LOW
@@ -349,7 +349,7 @@ object KnowledgeEngine {
                 title = "No encontré \"$term\"",
                 definition = "No tengo información sobre \"$term\" en el diccionario bíblico. " +
                     "Puedes intentar con otra palabra o preguntarme por un personaje o lugar.",
-                followUp = "¿Pruebas con otra palabra?",
+                followUp = "Si quieres, prueba con otra palabra.",
                 suggestions = listOf(
                     BibiSuggestion("Buscar un personaje", "¿quién fue Moisés?"),
                     BibiSuggestion("Buscar un lugar", "¿dónde queda Galilea?"),
@@ -885,7 +885,7 @@ object KnowledgeEngine {
             title = "No entendí tu pregunta",
             definition = "No pude identificar qué término quieres buscar. " +
                 "Intenta con frases como \"¿qué significa pacto?\" o \"¿quién fue Moisés?\".",
-            followUp = "¿Cómo puedo ayudarte?",
+            followUp = "¿Cómo quieres que te ayude?",
             suggestions = listOf(
                 BibiSuggestion("Definir un concepto", "¿qué significa gracia?"),
                 BibiSuggestion("Buscar un personaje", "¿quién fue David?"),

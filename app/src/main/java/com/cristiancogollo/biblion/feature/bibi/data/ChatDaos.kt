@@ -26,6 +26,12 @@ interface ChatSessionDao {
     @Query("SELECT * FROM chat_sessions ORDER BY updated_at DESC LIMIT 1")
     suspend fun getMostRecent(): ChatSessionEntity?
 
+    @Query("SELECT * FROM chat_sessions WHERE mode = :mode ORDER BY updated_at DESC LIMIT 1")
+    suspend fun getMostRecentByMode(mode: String): ChatSessionEntity?
+
+    @Query("SELECT * FROM chat_sessions WHERE mode = :mode ORDER BY updated_at DESC")
+    suspend fun getByMode(mode: String): List<ChatSessionEntity>
+
     @Delete
     suspend fun delete(session: ChatSessionEntity)
 

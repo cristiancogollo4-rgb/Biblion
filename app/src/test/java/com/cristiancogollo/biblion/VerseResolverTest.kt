@@ -9,7 +9,7 @@ import org.junit.Test
 class VerseResolverTest {
 
     @Test
-    fun `forma 1 - versiculo seleccionado tiene prioridad sobre forma 2`() {
+    fun `referencia escrita tiene prioridad sobre versiculo seleccionado`() {
         val reader = VerseResolver.ReaderSnapshot(
             bookName = "Genesis",
             chapter = 1,
@@ -19,10 +19,10 @@ class VerseResolverTest {
 
         val resolution = VerseResolver.resolve(reader, question)
 
-        assertEquals(VerseResolver.Source.SELECTION, resolution.source)
-        assertEquals("Genesis", resolution.book)
-        assertEquals(1, resolution.chapter)
-        assertEquals(3, resolution.verse)
+        assertEquals(VerseResolver.Source.EXPLICIT_IN_QUESTION, resolution.source)
+        assertEquals("Juan", resolution.book)
+        assertEquals(3, resolution.chapter)
+        assertEquals(16, resolution.verse)
         assertEquals(VerseResolver.Confidence.HIGH, resolution.confidence)
     }
 
@@ -87,6 +87,38 @@ class VerseResolverTest {
         assertEquals("1 Juan", resolution.book)
         assertEquals(4, resolution.chapter)
         assertEquals(8, resolution.verse)
+    }
+
+    @Test
+    fun `abreviatura espanola resuelve libro fuera del lector`() {
+        val reader = VerseResolver.ReaderSnapshot("Genesis", 1, emptySet())
+
+        val resolution = VerseResolver.resolve(reader, "explicame Jn 3:16")
+
+        assertEquals("Juan", resolution.book)
+        assertEquals(16, resolution.verse)
+    }
+
+    @Test
+    fun `rango conserva inicio y final`() {
+        val reader = VerseResolver.ReaderSnapshot("Genesis", 1, emptySet())
+
+        val resolution = VerseResolver.resolve(reader, "explica 1 Corintios 13:4-7")
+
+        assertEquals("1 Corintios", resolution.book)
+        assertEquals(4, resolution.verse)
+        assertEquals(7, resolution.verseEnd)
+    }
+
+    @Test
+    fun `ordinal natural resuelve libro numerado`() {
+        val reader = VerseResolver.ReaderSnapshot(null, 0, emptySet())
+
+        val resolution = VerseResolver.resolve(reader, "explica Primera de Corintios 13:4")
+
+        assertEquals("1 Corintios", resolution.book)
+        assertEquals(13, resolution.chapter)
+        assertEquals(4, resolution.verse)
     }
 
     @Test

@@ -38,10 +38,16 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cristiancogollo.biblion.addSharedPrimaryDestinations
 import com.cristiancogollo.biblion.AuthDialog
 import com.cristiancogollo.biblion.AuthDialogMode
 import com.cristiancogollo.biblion.AuthViewModel
+import com.cristiancogollo.biblion.AuthIntent
+import com.cristiancogollo.biblion.feature.auth.data.GoogleCredentialsAuth
+import com.cristiancogollo.biblion.ProfileScreen
+import com.cristiancogollo.biblion.ProfileViewModel
+import com.cristiancogollo.biblion.Screen
 import com.cristiancogollo.biblion.feature.studydocs.domain.TextStyleKind
 import com.cristiancogollo.biblion.feature.studydocs.debug.StudyEditorDebugLog
 import com.cristiancogollo.biblion.feature.studydocs.model.BlockId
@@ -52,7 +58,7 @@ import com.cristiancogollo.biblion.feature.studydocs.model.capabilities
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PaginatedSheet
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.SheetViewMode
-import com.cristiancogollo.biblion.addSharedPrimaryDestinations
+import com.cristiancogollo.biblion.ui.theme.BiblionThemeMode
 import kotlinx.coroutines.launch
 
 private val textColorPalette = listOf(
@@ -89,6 +95,7 @@ fun StudyModeEditorPanel(
     navController: androidx.navigation.NavController? = null,
     showFullScreenToggle: Boolean = true,
     isCompactLayout: Boolean = false,
+    onBibiClick: () -> Unit = {},
 ) {
     var documentTitle by remember { mutableStateOf(editorState.doc.title) }
     val context = LocalContext.current
@@ -139,11 +146,12 @@ fun StudyModeEditorPanel(
 
     // Solo el editor (como en v3). El split 50/50 y el fullscreen se manejan
     // en el padre (StudyDocEditorScreen) que envuelve este panel en un Row.
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
     ) {
+        Column(modifier = Modifier.fillMaxSize()) {
         if (!isCompactLayout || !imeVisible) {
             StudyModeHeader(
                 documentTitle = documentTitle,
@@ -319,6 +327,26 @@ fun StudyModeEditorPanel(
                 }
             },
         )
+        }
+
+        if (!imeVisible) {
+            FloatingActionButton(
+                onClick = onBibiClick,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 24.dp, bottom = 96.dp)
+                    .size(56.dp),
+            ) {
+                Icon(
+                    painter = androidx.compose.ui.res.painterResource(
+                        com.cristiancogollo.biblion.R.drawable.bibi_logo
+                    ),
+                    contentDescription = "Abrir Bibi",
+                )
+            }
+        }
     }
 }
 
@@ -482,23 +510,43 @@ private fun SaveStatus(
  * navegacion del usuario (ir a libros, abrir un libro, buscar) ocurre dentro
  * del panel izquierdo sin cerrar el editor. Inicia en [Screen.Home].
  *
- * Las rutas del lector (Screen.ReaderWithBook / Screen.ReaderWithoutBook) y de
- * perfil (Screen.Profile) se registran aqui mismo porque addSharedPrimaryDestinations
- * no las incluye. El dark mode tiene estado local en este panel.
+ * Las rutas del lector y Perfil se registran aqui porque addSharedPrimaryDestinations
+ * no las incluye. Todos estos destinos permanecen dentro del panel izquierdo.
  */
 @Composable
 internal fun BibleReaderPane(
     modifier: Modifier = Modifier,
-    navController: androidx.navigation.NavController? = null,
     isDarkTheme: Boolean = false,
     onToggleDarkTheme: (Boolean) -> Unit = {},
+    themeMode: BiblionThemeMode = if (isDarkTheme) BiblionThemeMode.DARK else BiblionThemeMode.LIGHT,
+    onThemeModeChange: (BiblionThemeMode) -> Unit = {},
     onInsertVerseCitation: ((com.cristiancogollo.biblion.CitationVerseGroup, String) -> Unit)? = null,
 ) {
     val localNavController = rememberNavController()
-    var isAuthenticated by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val context = LocalContext.current
+    val appContext = context.applicationContext
+    val scope = rememberCoroutineScope()
+    val googleCredentialsAuth = remember(context) { GoogleCredentialsAuth(context) }
+    val authViewModel: AuthViewModel = viewModel()
+    val profileViewModel: ProfileViewModel = viewModel()
+    val authState by authViewModel.state.collectAsState()
+    val profileState by profileViewModel.state.collectAsState()
+
+    LaunchedEffect(authState.currentUser?.uid) {
+        profileViewModel.setCurrentUser(authState.currentUser)
+    }
+
     val onNavigateToProfile = {
-        Log.d("BIBLION_STUDY", "BibleReaderPane onNavigateToProfile called")
-        localNavController.navigate("profile")
+        Log.d("BIBLION_STUDY", "BibleReaderPane navigating to embedded profile")
+        if (authState.isAuthenticated) {
+            localNavController.navigate(Screen.Profile.route) {
+                launchSingleTop = true
+            }
+        } else {
+            localNavController.navigate("auth") {
+                launchSingleTop = true
+            }
+        }
     }
     val onAuthActionClick = {
         Log.d("BIBLION_STUDY", "BibleReaderPane onAuthActionClick (no auth) -> navigate to auth")
@@ -514,8 +562,10 @@ internal fun BibleReaderPane(
             navController = localNavController,
             isDarkTheme = isDarkTheme,
             onToggleDarkTheme = onToggleDarkTheme,
+            themeMode = themeMode,
+            onThemeModeChange = onThemeModeChange,
             onNavigateToProfile = onNavigateToProfile,
-            isAuthenticated = isAuthenticated,
+            isAuthenticated = authState.isAuthenticated,
             onAuthActionClick = onAuthActionClick,
         )
 
@@ -525,19 +575,13 @@ internal fun BibleReaderPane(
         // no mostrarse; en ese caso se puede simplificar a un dialog con inputs.
         composable("auth") {
             Log.d("BIBLION_STUDY", "BibleReaderPane composable(auth) entered")
-            val context = androidx.compose.ui.platform.LocalContext.current
-            val application = context.applicationContext as android.app.Application
-            val authViewModel = remember {
-                AuthViewModel(application)
-            }
-            val authState by authViewModel.state.collectAsState()
 
             androidx.compose.runtime.LaunchedEffect(authState.isAuthenticated) {
                 if (authState.isAuthenticated) {
-                    Log.d("BIBLION_STUDY", "Auth success -> isAuthenticated=true, navigate profile")
-                    isAuthenticated = true
-                    localNavController.navigate("profile") {
+                    Log.d("BIBLION_STUDY", "Auth success -> navigate embedded profile")
+                    localNavController.navigate(Screen.Profile.route) {
                         popUpTo("home")
+                        launchSingleTop = true
                     }
                 }
             }
@@ -549,6 +593,37 @@ internal fun BibleReaderPane(
                 onGoogleSignIn = { /* TODO: disparar intent de Google en este scope */ },
                 onModeChange = { /* mismo dialog */ },
                 onDismiss = { localNavController.popBackStack() },
+            )
+        }
+
+        composable(Screen.Profile.route) {
+            ProfileScreen(
+                navController = localNavController,
+                uiState = profileState,
+                onNombresChange = profileViewModel::updateNombres,
+                onApellidosChange = profileViewModel::updateApellidos,
+                onAliasChange = profileViewModel::updateAlias,
+                onBiografiaChange = profileViewModel::updateBiografia,
+                onAvatarColorChange = profileViewModel::updateAvatarColor,
+                onProfilePhotoSelected = { uri -> profileViewModel.uploadProfilePhoto(appContext, uri) },
+                onClearProfilePhoto = profileViewModel::clearProfilePhoto,
+                onSave = { profileViewModel.saveProfile() },
+                onClearSaveSuccess = profileViewModel::clearSaveSuccess,
+                onSignOut = {
+                    authViewModel.process(AuthIntent.SignOut)
+                    scope.launch {
+                        googleCredentialsAuth.clearCredentialState()
+                    }
+                    localNavController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Home.route) {
+                            inclusive = false
+                        }
+                        launchSingleTop = true
+                    }
+                },
+                themeMode = themeMode,
+                onThemeModeChange = onThemeModeChange,
+                forceCompactLayout = true,
             )
         }
 
@@ -565,6 +640,7 @@ internal fun BibleReaderPane(
             com.cristiancogollo.biblion.ReaderScreen(
                 navController = localNavController,
                 bookName = bookName,
+                showBibi = false,
                 onInsertVerseCitation = onInsertVerseCitation,
             )
         }
@@ -574,35 +650,9 @@ internal fun BibleReaderPane(
             com.cristiancogollo.biblion.ReaderScreen(
                 navController = localNavController,
                 bookName = null,
+                showBibi = false,
                 onInsertVerseCitation = onInsertVerseCitation,
             )
-        }
-
-        // Pantalla de perfil (addSharedPrimaryDestinations no la registra).
-        // Usamos un placeholder para no acoplar el panel izquierdo al ProfileViewModel
-        // de la app principal.
-        composable("profile") {
-            androidx.compose.foundation.layout.Column(
-                modifier = androidx.compose.ui.Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
-            ) {
-                androidx.compose.material3.IconButton(onClick = { localNavController.popBackStack() }) {
-                    androidx.compose.material3.Icon(
-                        androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
-                    )
-                }
-                androidx.compose.material3.Text(
-                    "Perfil",
-                    style = androidx.compose.material3.MaterialTheme.typography.headlineMedium,
-                )
-                androidx.compose.material3.Text(
-                    "Secci\u00f3n de perfil (placeholder).",
-                    style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                )
-            }
         }
 
     }

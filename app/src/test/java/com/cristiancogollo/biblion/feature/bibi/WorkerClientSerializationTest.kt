@@ -103,7 +103,7 @@ class WorkerClientSerializationTest {
         val response = json.decodeFromString(WorkerClient.WorkerResponse.serializer(), jsonStr)
         assertEquals("Abraham fue el padre de la fe.", response.answer)
         assertEquals(2, response.references.size)
-        assertEquals("Génesis 12:1-3", response.references[0])
+        assertEquals("Génesis 12:1-3", response.references[0].reference)
         assertEquals("high", response.confidence)
     }
 
@@ -185,15 +185,39 @@ class WorkerClientSerializationTest {
     fun `RichWorkerResponse has correct fields`() {
         val rich = WorkerClient.RichWorkerResponse(
             answer = "Abraham fue el padre de la fe.",
-            references = listOf("Génesis 12:1-3"),
+            references = listOf(
+                WorkerClient.WorkerReference("Génesis 12:1-3")
+            ),
             suggestedBlocks = emptyList(),
             confidence = "high",
-            disclaimer = null
+            disclaimer = null,
+            intentDetected = "define"
         )
         assertEquals("Abraham fue el padre de la fe.", rich.answer)
         assertEquals(1, rich.references.size)
         assertEquals("high", rich.confidence)
         assertNotNull(rich.suggestedBlocks)
+    }
+
+    @Test
+    fun `WorkerResponse deserializes structured production references`() {
+        val jsonStr = """
+            {
+                "answer": "Consulta también este pasaje.",
+                "references": [
+                    {
+                        "reference": "Isaías 53:5",
+                        "reason": "Profecía relacionada"
+                    }
+                ],
+                "confidence": "high"
+            }
+        """.trimIndent()
+
+        val response = json.decodeFromString(WorkerClient.WorkerResponse.serializer(), jsonStr)
+
+        assertEquals("Isaías 53:5", response.references.single().reference)
+        assertEquals("Profecía relacionada", response.references.single().reason)
     }
 
     // ── ChatHistoryEntry ───────────────────────────────────────

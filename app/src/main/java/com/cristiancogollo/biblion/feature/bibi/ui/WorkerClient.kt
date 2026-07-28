@@ -2,28 +2,39 @@ package com.cristiancogollo.biblion.feature.bibi.ui
 
 import android.util.Log
 import com.cristiancogollo.biblion.BuildConfig
+import com.cristiancogollo.biblion.feature.bibi.model.BibiContext
 import com.cristiancogollo.biblion.feature.bibi.model.ChatExchange
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
+import com.google.firebase.auth.FirebaseAuth
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonEncoder
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import kotlin.coroutines.resume
 
-/**
- * Cliente HTTP simple para llamar al Cloudflare Worker de Bibi.
- * Solo se usa cuando KnowledgeEngine retorna null (DIVE_DEEPER / FALLBACK).
- */
 object WorkerClient {
+    private const val TAG = "BibiWorker"
+    private const val CONNECT_TIMEOUT = 10_000
+    private const val READ_TIMEOUT = 30_000
 
-    private const val TAG = "WorkerClient"
-    private const val CONNECT_TIMEOUT = 15_000
-    private const val READ_TIMEOUT = 45_000
-
-    private val json = Json {
+    val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
+        explicitNulls = false
     }
 
     @Serializable
@@ -34,7 +45,7 @@ object WorkerClient {
         val study: StudyPayload? = null,
         val bible: BiblePayload? = null,
         val chatHistory: List<ChatHistoryEntry> = emptyList(),
-        val lastQueries: List<String> = emptyList()
+        val lastQueries: List<String> = emptyList(),
     )
 
     @Serializable
@@ -43,14 +54,14 @@ object WorkerClient {
         val tags: List<String> = emptyList(),
         val selectedText: String = "",
         val currentOutline: List<String> = emptyList(),
-        val notes: List<String> = emptyList()
+        val notes: List<String> = emptyList(),
     )
 
     @Serializable
     data class BiblePayload(
         val version: String = "rv1960",
         val availableVersions: List<String> = emptyList(),
-        val passages: List<String> = emptyList()
+        val passages: List<String> = emptyList(),
     )
 
     @Serializable
@@ -58,266 +69,177 @@ object WorkerClient {
         val question: String,
         val response: String,
         val resolvedTerm: String? = null,
-        val intent: String = ""
+        val intent: String = "",
+    )
+
+    @Serializable(with = WorkerReferenceSerializer::class)
+    data class WorkerReference(
+        val reference: String,
+        val reason: String = "",
     )
 
     @Serializable
     data class WorkerResponse(
         val answer: String = "",
-        val references: List<String> = emptyList(),
+        val references: List<WorkerReference> = emptyList(),
         val suggestedBlocks: List<String> = emptyList(),
         val confidence: String = "high",
         val disclaimer: String? = null,
-        val intentDetected: String? = null
+        val intentDetected: String? = null,
     )
 
     data class RichWorkerResponse(
         val answer: String,
-        val references: List<String>,
+        val references: List<WorkerReference>,
         val suggestedBlocks: List<String>,
         val confidence: String,
-        val disclaimer: String?
+        val disclaimer: String?,
+        val intentDetected: String?,
     )
 
-    /**
-     * Envía una pregunta al Worker y retorna la respuesta como texto.
-     * Retorna null si hay error o la respuesta esta vacia.
-     */
-    suspend fun ask(
+    fun buildRequest(
         question: String,
-        bookName: String? = null,
-        chapter: Int = 0,
-        verse: Int = 0,
-        selectedText: String = "",
-        intent: String = "question",
-        chatHistory: List<ChatExchange> = emptyList(),
-        lastQueries: List<String> = emptyList(),
-        bibleVersion: String = "rv1960",
-        localContext: String = ""
-    ): String? = withContext(Dispatchers.IO) {
-        val endpoint = BuildConfig.BIBI_ENDPOINT_URL
-        if (endpoint.isBlank()) {
-            Log.w(TAG, "BIBI_ENDPOINT_URL is empty, skipping Worker call")
-            return@withContext null
+        context: BibiContext,
+        intent: String,
+        chatHistory: List<ChatExchange>,
+        lastQueries: List<String>,
+        localContext: String = "",
+    ): WorkerRequest {
+        val commonHistory = chatHistory.takeLast(5).map {
+            ChatHistoryEntry(
+                question = it.question,
+                response = it.response,
+                resolvedTerm = it.resolvedTerm,
+                intent = it.intent,
+            )
         }
-
-        var connection: HttpURLConnection? = null
-        try {
-            val studyTitle = listOfNotNull(
-                bookName,
-                chapter.takeIf { it > 0 }?.let { "capítulo $it" }
-            ).joinToString(" ")
-
-            val passages = if (verse > 0 && chapter > 0 && !bookName.isNullOrBlank()) {
-                listOf("$bookName $chapter:$verse")
-            } else {
-                emptyList()
-            }
-
-            val effectiveContext = listOfNotNull(
-                localContext.takeIf { it.isNotBlank() }
-            ).joinToString("\n")
-
-            val request = WorkerRequest(
+        return when (context) {
+            is BibiContext.Reader -> WorkerRequest(
                 question = question,
                 mode = "reader",
                 intent = intent,
                 study = StudyPayload(
-                    title = studyTitle,
-                    selectedText = selectedText,
-                    notes = if (effectiveContext.isNotBlank()) listOf(effectiveContext) else emptyList()
+                    title = "${context.book} ${context.chapter}".trim(),
+                    selectedText = context.passages.joinToString("\n") { it.asPromptText() },
+                    notes = listOfNotNull(localContext.takeIf { it.isNotBlank() }),
                 ),
-                bible = BiblePayload(version = bibleVersion, passages = passages),
-                chatHistory = chatHistory.takeLast(5).map {
-                    ChatHistoryEntry(
-                        question = it.question,
-                        response = it.response,
-                        resolvedTerm = it.resolvedTerm,
-                        intent = it.intent
-                    )
-                },
-                lastQueries = lastQueries.takeLast(5)
+                bible = BiblePayload(
+                    version = context.bibleVersion,
+                    passages = context.passages.map { it.asPromptText() },
+                ),
+                chatHistory = commonHistory,
+                lastQueries = lastQueries.takeLast(5),
             )
+            is BibiContext.Study -> WorkerRequest(
+                question = question,
+                mode = "study",
+                intent = intent,
+                study = StudyPayload(
+                    title = context.title,
+                    tags = context.tags,
+                    selectedText = context.selectedText,
+                    currentOutline = context.outline,
+                    notes = context.notes + listOfNotNull(localContext.takeIf { it.isNotBlank() }),
+                ),
+                bible = BiblePayload(
+                    version = context.bibleVersion,
+                    passages = context.passages.map { it.asPromptText() },
+                ),
+                chatHistory = commonHistory,
+                lastQueries = lastQueries.takeLast(5),
+            )
+        }
+    }
 
-            val body = json.encodeToString(WorkerRequest.serializer(), request)
-            Log.d(TAG, "Sending to Worker: $question")
+    suspend fun askRich(request: WorkerRequest): RichWorkerResponse? = withContext(Dispatchers.IO) {
+        val endpoint = BuildConfig.BIBI_ENDPOINT_URL
+        if (endpoint.isBlank()) return@withContext null
 
-            val url = URL(endpoint)
-            connection = (url.openConnection() as HttpURLConnection).apply {
+        var connection: HttpURLConnection? = null
+        try {
+            val token = getFirebaseIdToken()
+            connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "application/json")
+                token?.let { setRequestProperty("Authorization", "Bearer $it") }
                 connectTimeout = CONNECT_TIMEOUT
                 readTimeout = READ_TIMEOUT
                 doOutput = true
             }
-
-            OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                writer.write(body)
-                writer.flush()
+            val body = json.encodeToString(WorkerRequest.serializer(), request)
+            OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use {
+                it.write(body)
             }
-
             val responseCode = connection.responseCode
             val stream = if (responseCode in 200..299) {
                 connection.inputStream
             } else {
-                Log.w(TAG, "Worker returned $responseCode")
-                connection.errorStream ?: return@withContext null
-            }
+                connection.errorStream
+            } ?: return@withContext null
             val responseBody = stream.bufferedReader().use { it.readText() }
-
-            if (responseCode !in 200..299) {
+            if (responseCode !in 200..299 || responseBody.isBlank()) {
+                Log.w(TAG, "Worker request failed with status $responseCode")
                 return@withContext null
             }
-
-            if (responseBody.isBlank()) {
-                Log.w(TAG, "Worker returned empty body")
-                return@withContext null
+            val parsed = json.decodeFromString(WorkerResponse.serializer(), responseBody)
+            parsed.answer.trim().takeIf { it.isNotEmpty() }?.let { answer ->
+                RichWorkerResponse(
+                    answer = answer,
+                    references = parsed.references,
+                    suggestedBlocks = parsed.suggestedBlocks,
+                    confidence = parsed.confidence,
+                    disclaimer = parsed.disclaimer,
+                    intentDetected = parsed.intentDetected,
+                )
             }
-
-            val parsed = try {
-                json.decodeFromString(WorkerResponse.serializer(), responseBody)
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to parse Worker response, trying raw text")
-                WorkerResponse(answer = responseBody)
-            }
-
-            val answer = parsed.answer.trim()
-            if (answer.isBlank()) {
-                Log.w(TAG, "Worker returned blank answer")
-                return@withContext null
-            }
-
-            Log.d(TAG, "Worker response: ${answer.take(100)}...")
-            answer
-        } catch (e: Exception) {
-            Log.e(TAG, "Error calling Worker", e)
+        } catch (error: Exception) {
+            Log.w(TAG, "Worker request could not be completed: ${error.javaClass.simpleName}")
             null
         } finally {
             connection?.disconnect()
         }
     }
 
-    /**
-     * Versión enriquecida de ask() que retorna la respuesta completa del Worker
-     * incluyendo referencias, sugerencias y confianza.
-     */
-    suspend fun askRich(
-        question: String,
-        bookName: String? = null,
-        chapter: Int = 0,
-        verse: Int = 0,
-        selectedText: String = "",
-        intent: String = "question",
-        chatHistory: List<ChatExchange> = emptyList(),
-        lastQueries: List<String> = emptyList(),
-        bibleVersion: String = "rv1960",
-        localContext: String = ""
-    ): RichWorkerResponse? = withContext(Dispatchers.IO) {
-        val endpoint = BuildConfig.BIBI_ENDPOINT_URL
-        if (endpoint.isBlank()) {
-            Log.w(TAG, "BIBI_ENDPOINT_URL is empty, skipping Worker call")
-            return@withContext null
+    private suspend fun getFirebaseIdToken(): String? = suspendCancellableCoroutine { continuation ->
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user == null) {
+            continuation.resume(null)
+            return@suspendCancellableCoroutine
         }
+        user.getIdToken(false)
+            .addOnSuccessListener { continuation.resume(it.token) }
+            .addOnFailureListener { continuation.resume(null) }
+    }
+}
 
-        var connection: HttpURLConnection? = null
-        try {
-            val studyTitle = listOfNotNull(
-                bookName,
-                chapter.takeIf { it > 0 }?.let { "capítulo $it" }
-            ).joinToString(" ")
+object WorkerReferenceSerializer : KSerializer<WorkerClient.WorkerReference> {
+    override val descriptor: SerialDescriptor =
+        JsonElement.serializer().descriptor
 
-            val passages = if (verse > 0 && chapter > 0 && !bookName.isNullOrBlank()) {
-                listOf("$bookName $chapter:$verse")
-            } else {
-                emptyList()
-            }
-
-            val effectiveContext = listOfNotNull(
-                localContext.takeIf { it.isNotBlank() }
-            ).joinToString("\n")
-
-            val request = WorkerRequest(
-                question = question,
-                mode = "reader",
-                intent = intent,
-                study = StudyPayload(
-                    title = studyTitle,
-                    selectedText = selectedText,
-                    notes = if (effectiveContext.isNotBlank()) listOf(effectiveContext) else emptyList()
-                ),
-                bible = BiblePayload(version = bibleVersion, passages = passages),
-                chatHistory = chatHistory.takeLast(5).map {
-                    ChatHistoryEntry(
-                        question = it.question,
-                        response = it.response,
-                        resolvedTerm = it.resolvedTerm,
-                        intent = it.intent
-                    )
-                },
-                lastQueries = lastQueries.takeLast(5)
+    override fun deserialize(decoder: Decoder): WorkerClient.WorkerReference {
+        val element = (decoder as JsonDecoder).decodeJsonElement()
+        return when (element) {
+            is JsonPrimitive -> WorkerClient.WorkerReference(
+                reference = element.contentOrNull.orEmpty(),
             )
-
-            val body = json.encodeToString(WorkerRequest.serializer(), request)
-            Log.d(TAG, "Sending rich request to Worker: $question")
-
-            val url = URL(endpoint)
-            connection = (url.openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"
-                setRequestProperty("Content-Type", "application/json")
-                connectTimeout = CONNECT_TIMEOUT
-                readTimeout = READ_TIMEOUT
-                doOutput = true
-            }
-
-            OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                writer.write(body)
-                writer.flush()
-            }
-
-            val responseCode = connection.responseCode
-            val stream = if (responseCode in 200..299) {
-                connection.inputStream
-            } else {
-                Log.w(TAG, "Worker returned $responseCode")
-                connection.errorStream ?: return@withContext null
-            }
-            val responseBody = stream.bufferedReader().use { it.readText() }
-
-            if (responseCode !in 200..299) {
-                return@withContext null
-            }
-
-            if (responseBody.isBlank()) {
-                Log.w(TAG, "Worker returned empty body")
-                return@withContext null
-            }
-
-            val parsed = try {
-                json.decodeFromString(WorkerResponse.serializer(), responseBody)
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to parse Worker response, trying raw text")
-                WorkerResponse(answer = responseBody)
-            }
-
-            val answer = parsed.answer.trim()
-            if (answer.isBlank()) {
-                Log.w(TAG, "Worker returned blank answer")
-                return@withContext null
-            }
-
-            Log.d(TAG, "Worker rich response: ${answer.take(100)}...")
-            RichWorkerResponse(
-                answer = answer,
-                references = parsed.references,
-                suggestedBlocks = parsed.suggestedBlocks,
-                confidence = parsed.confidence,
-                disclaimer = parsed.disclaimer
+            is JsonObject -> WorkerClient.WorkerReference(
+                reference = element["reference"]?.jsonPrimitive?.contentOrNull
+                    ?: element["ref"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                reason = element["reason"]?.jsonPrimitive?.contentOrNull.orEmpty(),
             )
-        } catch (e: Exception) {
-            Log.e(TAG, "Error calling Worker (rich)", e)
-            null
-        } finally {
-            connection?.disconnect()
+            else -> WorkerClient.WorkerReference("")
         }
+    }
+
+    override fun serialize(encoder: Encoder, value: WorkerClient.WorkerReference) {
+        (encoder as JsonEncoder).encodeJsonElement(
+            JsonObject(
+                mapOf(
+                    "reference" to JsonPrimitive(value.reference),
+                    "reason" to JsonPrimitive(value.reason),
+                )
+            )
+        )
     }
 }

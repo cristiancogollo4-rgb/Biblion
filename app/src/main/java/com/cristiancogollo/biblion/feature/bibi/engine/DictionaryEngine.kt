@@ -20,7 +20,8 @@ object DictionaryEngine {
         context: Context,
         term: String,
         userContext: BibiUserContext? = null,
-        chatHistory: List<ChatExchange> = emptyList()
+        chatHistory: List<ChatExchange> = emptyList(),
+        allowedCategories: Set<DictionaryCategory>? = null
     ): BibiResponse? {
         Log.d(TAG, "Definiendo: $term")
         val entry = DictionaryRepository.getEntryByTerm(context, term)
@@ -30,6 +31,11 @@ object DictionaryEngine {
 
         if (entry == null) {
             Log.d(TAG, "No se encontro: $term")
+            return null
+        }
+
+        if (allowedCategories != null && entry.category !in allowedCategories) {
+            Log.d(TAG, "Entrada fuera de categoria para $term: ${entry.category}")
             return null
         }
 

@@ -25,6 +25,7 @@ data class ChatMessage(
 )
 
 object ChatSessionRepository {
+    const val MAX_SESSIONS = 5
 
     private suspend fun sessionDao(context: Context) =
         ChatDatabase.getInstance(context).sessionDao()
@@ -44,7 +45,11 @@ object ChatSessionRepository {
                 firstQuery = firstQuery,
                 mode = mode
             )
-            sessionDao(context).insert(entity)
+            val dao = sessionDao(context)
+            val sessionId = dao.insert(entity)
+            sessionsToPrune(dao.getAll())
+                .forEach { dao.delete(it) }
+            sessionId
         } catch (e: Exception) {
             android.util.Log.e("ChatSession", "Error creating session", e)
             0L
@@ -119,6 +124,15 @@ object ChatSessionRepository {
         }
     }
 
+    suspend fun getMostRecentSession(context: Context, mode: String): ChatSession? =
+        withContext(Dispatchers.IO) {
+            try {
+                sessionDao(context).getMostRecentByMode(mode)?.toDomain()
+            } catch (e: Exception) {
+                null
+            }
+        }
+
     suspend fun getSessionMessages(context: Context, sessionId: Long): List<ChatMessage> =
         withContext(Dispatchers.IO) {
             try {
@@ -150,19 +164,23 @@ object ChatSessionRepository {
 
     fun buildChatHistory(messages: List<ChatMessage>): List<ChatExchange> {
         val history = mutableListOf<ChatExchange>()
-        val grouped = messages.windowed(2, 2, false)
-        for (group in grouped) {
-            val user = group.getOrNull(0)
-            val assistant = group.getOrNull(1)
-            if (user != null && assistant != null) {
+        var pendingUser: ChatMessage? = null
+        for (message in messages.sortedBy { it.createdAt }) {
+            when (message.role) {
+                "user" -> pendingUser = message
+                "assistant" -> {
+                    val user = pendingUser
+                    if (user == null) continue
                 history.add(
                     ChatExchange(
                         question = user.content,
-                        response = assistant.content,
-                        resolvedTerm = assistant.resolvedTerm,
-                        intent = assistant.intent ?: "FALLBACK"
+                            response = message.content,
+                            resolvedTerm = message.resolvedTerm,
+                            intent = message.intent ?: "FALLBACK"
                     )
                 )
+                    pendingUser = null
+                }
             }
         }
         return history.takeLast(10)
@@ -186,4 +204,13 @@ object ChatSessionRepository {
         intent = intent,
         createdAt = createdAt
     )
+}
+
+internal fun sessionsToPrune(
+    sessions: List<ChatSessionEntity>,
+    maxSessions: Int = ChatSessionRepository.MAX_SESSIONS,
+): List<ChatSessionEntity> {
+    return sessions
+        .sortedBy { it.createdAt }
+        .dropLast(maxSessions.coerceAtLeast(0))
 }

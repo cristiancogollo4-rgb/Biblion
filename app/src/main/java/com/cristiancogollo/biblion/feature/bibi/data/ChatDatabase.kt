@@ -25,7 +25,6 @@ abstract class ChatDatabase : RoomDatabase() {
                     ChatDatabase::class.java,
                     "bibi_chat.db"
                 )
-                    .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }
             }
