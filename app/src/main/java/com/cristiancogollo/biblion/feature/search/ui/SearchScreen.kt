@@ -1,9 +1,11 @@
 package com.cristiancogollo.biblion.feature.search.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -19,18 +21,17 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AutoStories
-import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
@@ -38,15 +39,12 @@ import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Lightbulb
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -60,7 +58,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -83,9 +80,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -93,9 +92,10 @@ import com.cristiancogollo.biblion.R
 import com.cristiancogollo.biblion.BibleSearchTestament
 import com.cristiancogollo.biblion.Screen
 import com.cristiancogollo.biblion.BiblionBottomNavigation
+import com.cristiancogollo.biblion.BiblionTopAppBar
 import com.cristiancogollo.biblion.Testament
+import com.cristiancogollo.biblion.biblionLogoResForCurrentTheme
 import com.cristiancogollo.biblion.feature.studydocs.ui.Screen as StudyDocScreen
-import com.cristiancogollo.biblion.DailyVerseCard
 import com.cristiancogollo.biblion.BibleRepository
 import com.cristiancogollo.biblion.BibleSearchFilter
 import com.cristiancogollo.biblion.feature.bibi.data.TopicDatabase
@@ -107,14 +107,12 @@ import com.cristiancogollo.biblion.feature.search.components.PopularTopic
 import com.cristiancogollo.biblion.feature.search.components.PopularTopicsData
 import com.cristiancogollo.biblion.feature.search.model.SearchScope
 import com.cristiancogollo.biblion.navigateSingleTop
-import com.cristiancogollo.biblion.popBackStackOrNavigateHome
 import com.cristiancogollo.biblion.feature.search.components.TopicHit
 import com.cristiancogollo.biblion.feature.search.components.TopicsSection
 import com.cristiancogollo.biblion.feature.search.data.SearchHistoryEntry
 import com.cristiancogollo.biblion.feature.search.data.SearchHistoryRepository
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -125,7 +123,6 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
-import java.text.Normalizer
 
 private val searchOldTestamentBooks = listOf(
     "Genesis", "Exodo", "Levitico", "Numeros", "Deuteronomio", "Josue", "Jueces", "Rut",
@@ -387,13 +384,10 @@ fun SearchScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        stringResource(R.string.search_title),
-                        fontWeight = FontWeight.Bold
-                    )
-                },
+            BiblionTopAppBar(
+                logoResId = biblionLogoResForCurrentTheme(),
+                showNavigationIcon = false,
+                showSearchIcon = false,
             )
         },
         bottomBar = {
@@ -409,98 +403,102 @@ fun SearchScreen(
             }
         }
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .padding(innerPadding)
-                .fillMaxSize()
+                .fillMaxSize(),
+            contentAlignment = Alignment.TopCenter,
         ) {
-            SearchInputCard(
-                query = searchQuery,
-                onQueryChange = { searchQuery = it },
-                onSubmit = { runSearchImmediate(searchQuery) },
-                onClear = {
-                    searchQuery = ""
-                    uiState = SearchUiState.Idle
-                }
-            )
-
-            val isTyping = searchQuery.isNotBlank()
-            // Solo mostrar el carrusel y busquedas recientes si:
-            // 1) el primer frame ya termino (isReady)
-            // 2) NO hay query activa
-            // 3) estamos en Idle
-            val showPopular = isReady && uiState is SearchUiState.Idle && !isTyping
-
-            SearchContent(
-                uiState = uiState,
-                currentQuery = searchQuery,
-                isTyping = isTyping,
-                showPopular = showPopular,
-                recentSearches = recentSearches,
-                showAllRecent = showAllRecent,
-                rotationPool = rotationPool,
-                onToggleShowAll = { showAllRecent = !showAllRecent },
-                onRecentClick = { query ->
-                    searchQuery = query
-                    runSearchImmediate(query)
-                },
-                onClearHistory = { clearAllHistory() },
-                onPopularClick = { topic ->
-                    expandedTopicSlug = null
-                    searchQuery = topic.nameEs
-                    runSearchImmediate(topic.nameEs)
-                },
-                onClearSearch = {
-                    searchQuery = ""
-                    searchRequestFlow.value = VerseSearchRequest(
-                        testament = selectedTestament,
-                        bookName = selectedBook,
-                    )
-                    uiState = SearchUiState.Idle
-                    expandedTopicSlug = null
-                },
-                onRetry = { runSearchImmediate(searchQuery) },
-                onResultClick = { result ->
-                    openVerse(result.bookName, result.chapter, result.verse)
-                },
-                onTopicVerseClick = { verse ->
-                    coroutineScope.launch {
-                        AchievementTracker.track(
-                            context,
-                            AchievementEvent.TopicReferenceOpened(
-                                topicSlug = expandedTopicSlug.orEmpty(),
-                                referenceKey = "${verse.book}:${verse.chapter}:${verse.verseStart}",
-                            ),
-                        )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .widthIn(max = 1120.dp),
+            ) {
+                SearchPageIntro()
+                SearchInputCard(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    onSubmit = { runSearchImmediate(searchQuery) },
+                    onClear = {
+                        searchQuery = ""
+                        uiState = SearchUiState.Idle
                     }
-                    openVerse(verse.book, verse.chapter, verse.verseStart.toString())
-                },
-                onToggleTopicExpansion = { topic ->
-                    val isExpanding = expandedTopicSlug != topic.slug
-                    expandedTopicSlug = if (isExpanding) topic.slug else null
-                    if (isExpanding && guidedTutorial == null) {
+                )
+
+                val isTyping = searchQuery.isNotBlank()
+                val showPopular = isReady && uiState is SearchUiState.Idle && !isTyping
+
+                SearchContent(
+                    uiState = uiState,
+                    currentQuery = searchQuery,
+                    isTyping = isTyping,
+                    showPopular = showPopular,
+                    recentSearches = recentSearches,
+                    showAllRecent = showAllRecent,
+                    rotationPool = rotationPool,
+                    onToggleShowAll = { showAllRecent = !showAllRecent },
+                    onRecentClick = { query ->
+                        searchQuery = query
+                        runSearchImmediate(query)
+                    },
+                    onClearHistory = { clearAllHistory() },
+                    onPopularClick = { topic ->
+                        expandedTopicSlug = null
+                        searchQuery = topic.nameEs
+                        runSearchImmediate(topic.nameEs)
+                    },
+                    onClearSearch = {
+                        searchQuery = ""
+                        searchRequestFlow.value = VerseSearchRequest(
+                            testament = selectedTestament,
+                            bookName = selectedBook,
+                        )
+                        uiState = SearchUiState.Idle
+                        expandedTopicSlug = null
+                    },
+                    onRetry = { runSearchImmediate(searchQuery) },
+                    onResultClick = { result ->
+                        openVerse(result.bookName, result.chapter, result.verse)
+                    },
+                    onTopicVerseClick = { verse ->
                         coroutineScope.launch {
                             AchievementTracker.track(
                                 context,
-                                AchievementEvent.TopicExpanded(topic.slug),
+                                AchievementEvent.TopicReferenceOpened(
+                                    topicSlug = expandedTopicSlug.orEmpty(),
+                                    referenceKey = "${verse.book}:${verse.chapter}:${verse.verseStart}",
+                                ),
                             )
                         }
+                        openVerse(verse.book, verse.chapter, verse.verseStart.toString())
+                    },
+                    onToggleTopicExpansion = { topic ->
+                        val isExpanding = expandedTopicSlug != topic.slug
+                        expandedTopicSlug = if (isExpanding) topic.slug else null
+                        if (isExpanding && guidedTutorial == null) {
+                            coroutineScope.launch {
+                                AchievementTracker.track(
+                                    context,
+                                    AchievementEvent.TopicExpanded(topic.slug),
+                                )
+                            }
+                        }
+                    },
+                    expandedTopicSlug = expandedTopicSlug,
+                    selectedTestament = selectedTestament,
+                    onTestamentSelected = { setTestament(it) },
+                    availableBooks = availableBooks,
+                    selectedBook = selectedBook,
+                    onBookSelected = { setBook(it) },
+                    onClearFilters = { clearAllFilters() },
+                    onExploreTopics = {
+                        navController.navigate(Screen.ExploreTopics.route)
+                    },
+                    onOpenDictionary = {
+                        navController.navigate(Screen.Dictionary.route)
                     }
-                },
-                expandedTopicSlug = expandedTopicSlug,
-                selectedTestament = selectedTestament,
-                onTestamentSelected = { setTestament(it) },
-                availableBooks = availableBooks,
-                selectedBook = selectedBook,
-                onBookSelected = { setBook(it) },
-                onClearFilters = { clearAllFilters() },
-                onExploreTopics = {
-                    navController.navigate(Screen.ExploreTopics.route)
-                },
-                onOpenDictionary = {
-                    navController.navigate(Screen.Dictionary.route)
-                }
-            )
+                )
+            }
         }
     }
 
@@ -529,6 +527,28 @@ private val rotatingPlaceholders = listOf(
     "fe"
 )
 
+@Composable
+private fun SearchPageIntro() {
+    Column(
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.search_title),
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontFamily = FontFamily.Serif,
+                fontWeight = FontWeight.Bold,
+            ),
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = "Encuentra pasajes, palabras y conexiones bíblicas.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SearchInputCard(
@@ -548,13 +568,14 @@ private fun SearchInputCard(
         }
     }
 
-    Card(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, BiblionGoldSoft.copy(alpha = 0.65f)),
+        shadowElevation = 4.dp,
     ) {
         OutlinedTextField(
             value = query,
@@ -585,13 +606,16 @@ private fun SearchInputCard(
                 }
             },
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = BiblionGoldPrimary,
-                unfocusedBorderColor = BiblionGoldSoft,
+                focusedBorderColor = Color.Transparent,
+                unfocusedBorderColor = Color.Transparent,
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
                 focusedLeadingIconColor = BiblionGoldPrimary,
-                unfocusedLeadingIconColor = BiblionGoldPrimary
-                )
-             )
-     }
+                unfocusedLeadingIconColor = BiblionGoldPrimary,
+            ),
+            shape = RoundedCornerShape(22.dp),
+        )
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -628,34 +652,32 @@ private fun SearchContent(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 112.dp)
+        contentPadding = PaddingValues(top = 8.dp, bottom = 124.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item {
-            TestamentTabsRow(
-                selected = selectedTestament,
-                onSelect = onTestamentSelected
-            )
-        }
-
-        item {
-            BookFilterRow(
+            SearchFilterShelf(
+                selectedTestament = selectedTestament,
+                onTestamentSelected = onTestamentSelected,
                 availableBooks = availableBooks,
                 selectedBook = selectedBook,
                 onBookSelected = onBookSelected,
                 hasActiveFilters = hasActiveFilters,
-                onClearFilters = onClearFilters
+                onClearFilters = onClearFilters,
             )
         }
 
-        item {
-            RecentSearchesSection(
-                entries = displayedRecent,
-                hasMore = recentSearches.size > 5,
-                showAll = showAllRecent,
-                onToggleShowAll = onToggleShowAll,
-                onRecentClick = onRecentClick,
-                onClearHistory = onClearHistory
-            )
+        if (uiState is SearchUiState.Idle && !isTyping) {
+            item {
+                RecentSearchesSection(
+                    entries = displayedRecent,
+                    hasMore = recentSearches.size > 5,
+                    showAll = showAllRecent,
+                    onToggleShowAll = onToggleShowAll,
+                    onRecentClick = onRecentClick,
+                    onClearHistory = onClearHistory
+                )
+            }
         }
 
         when (val state = uiState) {
@@ -668,13 +690,9 @@ private fun SearchContent(
                         )
                     }
                     item {
-                        ExploreTopicsButton(
-                            onClick = onExploreTopics
-                        )
-                    }
-                    item {
-                        DictionaryButton(
-                            onClick = onOpenDictionary
+                        SearchDiscoveryCards(
+                            onExploreTopics = onExploreTopics,
+                            onOpenDictionary = onOpenDictionary,
                         )
                     }
                     item { EmptyStateHint() }
@@ -728,11 +746,10 @@ private fun SearchContent(
                             )
                         )
                     }
-                    items(state.results) { result ->
-                        DailyVerseCard(
-                            verse = result.text,
-                            reference = result.reference,
-                            onClick = { onResultClick(result) }
+                    items(state.results, key = { "${it.bookName}:${it.chapter}:${it.verse}" }) { result ->
+                        SearchVerseResultCard(
+                            result = result,
+                            onClick = { onResultClick(result) },
                         )
                     }
                 } else if (state.topicHits.isNotEmpty()) {
@@ -760,6 +777,57 @@ private fun SearchContent(
 }
 
 @Composable
+private fun SearchFilterShelf(
+    selectedTestament: BibleSearchTestament,
+    onTestamentSelected: (BibleSearchTestament) -> Unit,
+    availableBooks: List<String>,
+    selectedBook: String?,
+    onBookSelected: (String?) -> Unit,
+    hasActiveFilters: Boolean,
+    onClearFilters: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp),
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(modifier = Modifier.padding(vertical = 10.dp)) {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.FilterAlt,
+                    contentDescription = null,
+                    tint = BiblionGoldPrimary,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Dónde buscar",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            TestamentTabsRow(
+                selected = selectedTestament,
+                onSelect = onTestamentSelected,
+            )
+            BookFilterRow(
+                availableBooks = availableBooks,
+                selectedBook = selectedBook,
+                onBookSelected = onBookSelected,
+                hasActiveFilters = hasActiveFilters,
+                onClearFilters = onClearFilters,
+            )
+        }
+    }
+}
+
+@Composable
 private fun buildFilterLabel(
     testament: BibleSearchTestament,
     book: String?
@@ -775,33 +843,109 @@ private fun buildFilterLabel(
 
 @Composable
 private fun ResultsHeader(query: String, count: Int, filterLabel: String? = null) {
-    Row(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .padding(horizontal = 20.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = stringResource(R.string.search_results_header, query),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
+        Row {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(58.dp)
+                    .background(
+                        color = BiblionGoldPrimary,
+                        shape = RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp),
+                    ),
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            ) {
                 Text(
-                    text = pluralStringResource(R.plurals.search_results_count, count, count),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = stringResource(R.string.search_results_header, query),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
                 )
-                if (filterLabel != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = " · $filterLabel",
+                        text = pluralStringResource(R.plurals.search_results_count, count, count),
                         style = MaterialTheme.typography.labelSmall,
-                        color = BiblionGoldPrimary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (filterLabel != null) {
+                        Text(
+                            text = " · $filterLabel",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = BiblionGoldPrimary,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchVerseResultCard(
+    result: SearchResult,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shadowElevation = 1.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Surface(
+                modifier = Modifier.size(44.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = BiblionGoldSoft.copy(alpha = 0.16f),
+                border = BorderStroke(1.dp, BiblionGoldSoft.copy(alpha = 0.5f)),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.AutoStories,
+                        contentDescription = null,
+                        tint = BiblionGoldPrimary,
+                        modifier = Modifier.size(21.dp),
                     )
                 }
             }
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = result.reference,
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontFamily = FontFamily.Serif,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                    color = BiblionGoldPrimary,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = result.text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -959,7 +1103,7 @@ private fun BookFilterRow(
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(
-                    Icons.Default.MenuBook,
+                    Icons.AutoMirrored.Filled.MenuBook,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
                     tint = BiblionGoldPrimary
@@ -1048,7 +1192,7 @@ private fun RecentSearchesSection(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp)
+            .padding(horizontal = 20.dp, vertical = 4.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -1139,80 +1283,141 @@ private fun RecentSearchesSection(
 
 @Composable
 private fun EmptyStateHint() {
-    Column(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 200.dp)
-            .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .padding(horizontal = 20.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
     ) {
-        Text(
-            text = "📖",
-            style = MaterialTheme.typography.displayMedium
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = stringResource(R.string.search_empty_state_title),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = stringResource(R.string.search_empty_state_subtitle),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Default.AutoStories,
+                contentDescription = null,
+                tint = BiblionGoldPrimary,
+                modifier = Modifier.size(22.dp),
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = stringResource(R.string.search_empty_state_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = stringResource(R.string.search_empty_state_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun ExploreTopicsButton(onClick: () -> Unit) {
-    androidx.compose.material3.OutlinedButton(
-        onClick = onClick,
+private fun SearchDiscoveryCards(
+    onExploreTopics: () -> Unit,
+    onOpenDictionary: () -> Unit,
+) {
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 32.dp, vertical = 8.dp),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+            .padding(horizontal = 20.dp, vertical = 4.dp),
     ) {
-        Icon(
-            Icons.Default.GridView,
-            contentDescription = null,
-            modifier = Modifier.size(18.dp),
-            tint = BiblionGoldPrimary
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = stringResource(R.string.search_explore_topics),
-            color = BiblionGoldPrimary,
-            fontWeight = FontWeight.SemiBold
-        )
+        if (maxWidth < 420.dp) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SearchGatewayCard(
+                    title = stringResource(R.string.search_explore_topics),
+                    subtitle = "Descubre conexiones por temas",
+                    icon = Icons.Default.GridView,
+                    onClick = onExploreTopics,
+                )
+                SearchGatewayCard(
+                    title = stringResource(R.string.drawer_dictionary),
+                    subtitle = "Consulta personas, lugares y conceptos",
+                    icon = Icons.AutoMirrored.Filled.MenuBook,
+                    onClick = onOpenDictionary,
+                )
+            }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                SearchGatewayCard(
+                    title = stringResource(R.string.search_explore_topics),
+                    subtitle = "Descubre conexiones por temas",
+                    icon = Icons.Default.GridView,
+                    onClick = onExploreTopics,
+                    modifier = Modifier.weight(1f),
+                )
+                SearchGatewayCard(
+                    title = stringResource(R.string.drawer_dictionary),
+                    subtitle = "Consulta personas, lugares y conceptos",
+                    icon = Icons.AutoMirrored.Filled.MenuBook,
+                    onClick = onOpenDictionary,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun DictionaryButton(onClick: () -> Unit) {
-    val blueColor = Color(0xFF1976D2)
-    OutlinedButton(
-        onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 32.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(12.dp)
+private fun SearchGatewayCard(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shadowElevation = 1.dp,
     ) {
-        Icon(
-            Icons.Default.MenuBook,
-            contentDescription = null,
-            modifier = Modifier.size(18.dp),
-            tint = blueColor
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = stringResource(R.string.drawer_dictionary),
-            color = blueColor,
-            fontWeight = FontWeight.SemiBold
-        )
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Surface(
+                modifier = Modifier.size(42.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = BiblionGoldSoft.copy(alpha = 0.16f),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = BiblionGoldPrimary,
+                        modifier = Modifier.size(21.dp),
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = BiblionGoldPrimary,
+                modifier = Modifier.size(20.dp),
+            )
+        }
     }
 }
