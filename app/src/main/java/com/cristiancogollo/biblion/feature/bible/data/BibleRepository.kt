@@ -11,7 +11,9 @@ import java.util.Locale
  */
 object BibleRepository {
     private const val DEFAULT_BIBLE_VERSION = "rv1960"
-    private const val OLD_TESTAMENT_LAST_BOOK_INDEX = 39
+    private const val FIRST_BOOK_INDEX = 0
+    private const val OLD_TESTAMENT_LAST_BOOK_INDEX = 38
+    private const val LAST_BOOK_INDEX = 65
 
     /**
      * Conservado por compatibilidad con pruebas/call sites antiguos. La Biblia ya se lee desde SQLite.
@@ -183,8 +185,8 @@ object BibleRepository {
         val versionKey = normalizeVersionKey(getSelectedVersionKey(context))
         val normalizedBook = filter.bookName?.takeIf { it.isNotBlank() }?.normalizeBookName()
         val (minBookIndex, maxBookIndex) = when (filter.testament) {
-            BibleSearchTestament.OLD -> 1 to OLD_TESTAMENT_LAST_BOOK_INDEX
-            BibleSearchTestament.NEW -> (OLD_TESTAMENT_LAST_BOOK_INDEX + 1) to 66
+            BibleSearchTestament.OLD -> FIRST_BOOK_INDEX to OLD_TESTAMENT_LAST_BOOK_INDEX
+            BibleSearchTestament.NEW -> (OLD_TESTAMENT_LAST_BOOK_INDEX + 1) to LAST_BOOK_INDEX
             BibleSearchTestament.ALL -> null to null
         }
         bibleDao(context).searchVersesFiltered(

@@ -1,34 +1,25 @@
 package com.cristiancogollo.biblion.feature.studydocs.ui.editor
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CompareArrows
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -63,11 +54,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.cristiancogollo.biblion.BibleRepository
 import com.cristiancogollo.biblion.BibleVersionOption
-import com.cristiancogollo.biblion.ChapterContent
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
 import com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment
 import com.cristiancogollo.biblion.feature.studydocs.model.DocConfig
@@ -358,161 +346,6 @@ private fun VerticalVerseDivider() {
                 .fillMaxHeight()
                 .background(MaterialTheme.colorScheme.outlineVariant),
         )
-    }
-}
-
-@Composable
-fun VerseContextDialog(
-    block: StudyBlock.Verse,
-    onDismiss: () -> Unit,
-) {
-    val context = LocalContext.current
-    val listState = rememberLazyListState()
-    var selectedVersion by remember(block.id) { mutableStateOf(block.sourceVersion) }
-    var chapter by remember { mutableStateOf<ChapterContent?>(null) }
-    var loading by remember { mutableStateOf(true) }
-
-    LaunchedEffect(selectedVersion, block.id) {
-        loading = true
-        chapter = BibleRepository.getChapter(
-            context = context,
-            bookName = block.bookId,
-            chapterNumber = block.chapter,
-            versionKey = selectedVersion,
-        )
-        loading = false
-        val targetVerse = block.selectedVerseNumbers().firstOrNull() ?: block.verseStart
-        val target = chapter?.verses?.indexOfFirst {
-            it.first.toIntOrNull() == targetVerse
-        } ?: -1
-        if (target >= 0) listState.scrollToItem(target)
-    }
-
-    StudyDialog(onDismiss = onDismiss) {
-        DialogHeader(title = block.referenceLabel(), onDismiss = onDismiss)
-        val displayedVersions = block.displayedVersions()
-        if (displayedVersions.size > 1) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                displayedVersions.forEach { version ->
-                    Surface(
-                        onClick = { selectedVersion = version },
-                        color = if (selectedVersion == version) {
-                            verseAccent().copy(alpha = 0.14f)
-                        } else {
-                            Color.Transparent
-                        },
-                        shape = RoundedCornerShape(4.dp),
-                        border = BorderStroke(
-                            1.dp,
-                            if (selectedVersion == version) {
-                                verseAccent()
-                            } else {
-                                MaterialTheme.colorScheme.outlineVariant
-                            },
-                        ),
-                    ) {
-                        Text(
-                            text = version.uppercase(),
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                        )
-                    }
-                }
-            }
-        }
-        if (loading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
-            ) {
-                items(chapter?.verses.orEmpty(), key = { it.first }) { (number, text) ->
-                    val selected =
-                        (number.toIntOrNull() ?: -1) in block.selectedVerseNumbers()
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = if (selected) {
-                            verseAccent().copy(alpha = 0.12f)
-                        } else {
-                            Color.Transparent
-                        },
-                        shape = RoundedCornerShape(4.dp),
-                    ) {
-                        Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp)) {
-                            Text(
-                                text = number,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = verseAccent(),
-                                modifier = Modifier.width(28.dp),
-                            )
-                            Text(
-                                text = text,
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontFamily = FontFamily.Serif,
-                                    lineHeight = 25.sp,
-                                ),
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun StudyDialog(
-    onDismiss: () -> Unit,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-    ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth(0.9f)
-                .fillMaxHeight(0.88f)
-                .widthIn(max = 760.dp),
-            shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-            tonalElevation = 4.dp,
-        ) {
-            Column(content = content)
-        }
-    }
-}
-
-@Composable
-private fun DialogHeader(title: String, onDismiss: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 24.dp, top = 12.dp, end = 12.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.weight(1f),
-        )
-        IconButton(onClick = onDismiss) {
-            Icon(Icons.Default.Close, contentDescription = "Cerrar")
-        }
     }
 }
 

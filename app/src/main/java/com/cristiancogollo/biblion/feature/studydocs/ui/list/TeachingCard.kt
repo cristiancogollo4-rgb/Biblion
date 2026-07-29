@@ -65,8 +65,7 @@ import java.util.Locale
  * @param onOpen abre el lector del documento
  * @param onEdit abre el editor v2 en modo edicion
  * @param onEditMetadata abre el dialogo para editar titulo y tags
- * @param onShareText comparte el texto plano
- * @param onShareBiblion comparte el documento en formato BiblionShareFormat
+ * @param onShare abre las opciones de exportacion
  * @param onDelete elimina el documento
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -76,8 +75,7 @@ fun TeachingCard(
     onOpen: () -> Unit,
     onEdit: () -> Unit,
     onEditMetadata: () -> Unit,
-    onShareText: () -> Unit,
-    onShareBiblion: () -> Unit,
+    onShare: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -270,19 +268,11 @@ fun TeachingCard(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Compartir texto") },
+                                text = { Text("Compartir") },
                                 leadingIcon = { Icon(Icons.Filled.Share, null) },
                                 onClick = {
                                     menuExpanded = false
-                                    onShareText()
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Compartir Biblion") },
-                                leadingIcon = { Icon(Icons.Filled.Share, null) },
-                                onClick = {
-                                    menuExpanded = false
-                                    onShareBiblion()
+                                    onShare()
                                 }
                             )
                             DropdownMenuItem(
@@ -300,4 +290,3 @@ fun TeachingCard(
         }
     }
 }
-

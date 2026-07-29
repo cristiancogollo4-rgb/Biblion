@@ -10,10 +10,12 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -34,7 +36,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.MenuBook
@@ -43,6 +44,7 @@ import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -69,6 +71,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import com.cristiancogollo.biblion.GuidedTutorialProgress
 import com.cristiancogollo.biblion.GuidedTutorialScreenTarget
 import com.cristiancogollo.biblion.GuidedTutorialOverlay
+import com.cristiancogollo.biblion.feature.achievements.domain.AchievementEvent
+import com.cristiancogollo.biblion.feature.achievements.tracking.AchievementTracker
 import com.cristiancogollo.biblion.currentStep
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -76,6 +80,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -87,6 +92,9 @@ import androidx.navigation.NavController
 import com.cristiancogollo.biblion.R
 import com.cristiancogollo.biblion.BibleSearchTestament
 import com.cristiancogollo.biblion.Screen
+import com.cristiancogollo.biblion.BiblionBottomNavigation
+import com.cristiancogollo.biblion.Testament
+import com.cristiancogollo.biblion.feature.studydocs.ui.Screen as StudyDocScreen
 import com.cristiancogollo.biblion.DailyVerseCard
 import com.cristiancogollo.biblion.BibleRepository
 import com.cristiancogollo.biblion.BibleSearchFilter
@@ -153,6 +161,17 @@ sealed interface SearchUiState {
     data class Error(val message: String) : SearchUiState
 }
 
+internal data class VerseSearchRequest(
+    val query: String = "",
+    val testament: BibleSearchTestament = BibleSearchTestament.ALL,
+    val bookName: String? = null,
+) {
+    fun toFilter() = BibleSearchFilter(
+        testament = testament,
+        bookName = bookName,
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
 @Composable
 fun SearchScreen(
@@ -166,6 +185,7 @@ fun SearchScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val isKeyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
     var searchQuery by remember { mutableStateOf("") }
     var uiState by remember { mutableStateOf<SearchUiState>(SearchUiState.Idle) }
@@ -181,7 +201,7 @@ fun SearchScreen(
     var rotationPool by remember { mutableStateOf<List<PopularTopic>>(emptyList()) }
 
     // Flow para búsqueda en vivo con debounce seguro (collectLatest cancela la corutina anterior).
-    val queryFlow = remember { MutableStateFlow("") }
+    val searchRequestFlow = remember { MutableStateFlow(VerseSearchRequest()) }
 
     val availableBooks = remember(selectedTestament) {
         when (selectedTestament) {
@@ -224,8 +244,8 @@ fun SearchScreen(
             }
     }
 
-    suspend fun executeSearch(query: String) {
-        val trimmed = query.trim()
+    suspend fun executeSearch(request: VerseSearchRequest) {
+        val trimmed = request.query.trim()
         if (trimmed.isBlank()) return
         uiState = SearchUiState.Loading
         SearchHistoryRepository.recordQuery(context, trimmed)
@@ -238,10 +258,7 @@ fun SearchScreen(
                     BibleRepository.searchVerses(
                         context = context,
                         query = trimmed,
-                        filter = BibleSearchFilter(
-                            testament = selectedTestament,
-                            bookName = selectedBook
-                        )
+                        filter = request.toFilter(),
                     )
                 }
                 val topicsDeferred = async {
@@ -261,19 +278,33 @@ fun SearchScreen(
                 results = versesDeferred.await()
                 topicHits = topicsDeferred.await()
             }
-            // Verificar que la query no ha cambiado durante la ejecucion
-            val currentQuery = searchQuery.trim()
-            if (currentQuery == trimmed || currentQuery.isEmpty()) {
+            // No permitir que una respuesta de filtros anteriores reemplace a la vigente.
+            if (
+                searchQuery.trim() == trimmed &&
+                selectedTestament == request.testament &&
+                selectedBook == request.bookName
+            ) {
                 val noTopics = topicHits.isEmpty()
                 val noVerses = results.isEmpty()
                 uiState = when {
                     noTopics && noVerses -> SearchUiState.Empty(trimmed)
                     else -> SearchUiState.Success(topicHits = topicHits, results = results)
                 }
+                AchievementTracker.track(
+                    context,
+                    AchievementEvent.SearchCompleted(
+                        testament = request.testament.name,
+                        resultCount = results.size,
+                        isTutorial = guidedTutorial != null,
+                    ),
+                )
             }
         } catch (e: Exception) {
-            val currentQuery = searchQuery.trim()
-            if (currentQuery == trimmed || currentQuery.isEmpty()) {
+            if (
+                searchQuery.trim() == trimmed &&
+                selectedTestament == request.testament &&
+                selectedBook == request.bookName
+            ) {
                 uiState = SearchUiState.Error(
                     e.message ?: context.getString(R.string.search_error_unexpected)
                 )
@@ -285,22 +316,26 @@ fun SearchScreen(
     }
 
     fun runSearchImmediate(query: String) {
-        queryFlow.value = query
+        searchRequestFlow.value = VerseSearchRequest(
+            query = query,
+            testament = selectedTestament,
+            bookName = selectedBook,
+        )
     }
 
     // Sincronizar el input con el flow cuando el usuario escribe manualmente
     LaunchedEffect(searchQuery) {
-        queryFlow.value = searchQuery
+        runSearchImmediate(searchQuery)
     }
 
     // Búsqueda en vivo con debounce — collectLatest cancela búsquedas anteriores
     LaunchedEffect(Unit) {
-        queryFlow
+        searchRequestFlow
             .debounce(400L)
-            .filter { it.trim().length >= 2 }
+            .filter { it.query.trim().length >= 2 }
             .distinctUntilChanged()
-            .collectLatest { query ->
-                coroutineScope.launch { executeSearch(query) }
+            .collectLatest { request ->
+                executeSearch(request)
             }
     }
 
@@ -359,23 +394,19 @@ fun SearchScreen(
                         fontWeight = FontWeight.Bold
                     )
                 },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStackOrNavigateHome() }) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.cd_back)
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { /* TODO help */ }) {
-                        Icon(
-                            Icons.Default.HelpOutline,
-                            contentDescription = "Help"
-                        )
-                    }
-                }
             )
+        },
+        bottomBar = {
+            if (!isKeyboardVisible) {
+                BiblionBottomNavigation(
+                    currentRoute = navController.currentBackStackEntry?.destination?.route,
+                    onHome = { navController.navigateSingleTop(Screen.Home.route) },
+                    onBible = { navController.navigateSingleTop(Screen.Books.createRoute(Testament.OLD)) },
+                    onSearch = { navController.navigateSingleTop(Screen.Search.createRoute()) },
+                    onStudy = { navController.navigateSingleTop(StudyDocScreen.StudyDocsList.route) },
+                    onProfile = { navController.navigateSingleTop(Screen.Profile.route) }
+                )
+            }
         }
     ) { innerPadding ->
         Column(
@@ -421,18 +452,40 @@ fun SearchScreen(
                 },
                 onClearSearch = {
                     searchQuery = ""
-                    queryFlow.value = ""
+                    searchRequestFlow.value = VerseSearchRequest(
+                        testament = selectedTestament,
+                        bookName = selectedBook,
+                    )
                     uiState = SearchUiState.Idle
                     expandedTopicSlug = null
                 },
+                onRetry = { runSearchImmediate(searchQuery) },
                 onResultClick = { result ->
                     openVerse(result.bookName, result.chapter, result.verse)
                 },
                 onTopicVerseClick = { verse ->
+                    coroutineScope.launch {
+                        AchievementTracker.track(
+                            context,
+                            AchievementEvent.TopicReferenceOpened(
+                                topicSlug = expandedTopicSlug.orEmpty(),
+                                referenceKey = "${verse.book}:${verse.chapter}:${verse.verseStart}",
+                            ),
+                        )
+                    }
                     openVerse(verse.book, verse.chapter, verse.verseStart.toString())
                 },
                 onToggleTopicExpansion = { topic ->
-                    expandedTopicSlug = if (expandedTopicSlug == topic.slug) null else topic.slug
+                    val isExpanding = expandedTopicSlug != topic.slug
+                    expandedTopicSlug = if (isExpanding) topic.slug else null
+                    if (isExpanding && guidedTutorial == null) {
+                        coroutineScope.launch {
+                            AchievementTracker.track(
+                                context,
+                                AchievementEvent.TopicExpanded(topic.slug),
+                            )
+                        }
+                    }
                 },
                 expandedTopicSlug = expandedTopicSlug,
                 selectedTestament = selectedTestament,
@@ -536,9 +589,9 @@ private fun SearchInputCard(
                 unfocusedBorderColor = BiblionGoldSoft,
                 focusedLeadingIconColor = BiblionGoldPrimary,
                 unfocusedLeadingIconColor = BiblionGoldPrimary
-            )
-        )
-    }
+                )
+             )
+     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -556,6 +609,7 @@ private fun SearchContent(
     onClearHistory: () -> Unit,
     onPopularClick: (PopularTopic) -> Unit,
     onClearSearch: () -> Unit,
+    onRetry: () -> Unit,
     onResultClick: (SearchResult) -> Unit,
     onTopicVerseClick: (RelatedVerse) -> Unit = {},
     onToggleTopicExpansion: (TopicHit) -> Unit = {},
@@ -574,7 +628,7 @@ private fun SearchContent(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(vertical = 8.dp)
+        contentPadding = PaddingValues(top = 8.dp, bottom = 112.dp)
     ) {
         item {
             TestamentTabsRow(
@@ -646,7 +700,7 @@ private fun SearchContent(
             }
 
             is SearchUiState.Error -> {
-                item { ErrorState(message = state.message) }
+                item { ErrorState(message = state.message, onRetry = onRetry) }
             }
 
             is SearchUiState.Success -> {
@@ -803,7 +857,7 @@ private fun NoResultsState(query: String, onClear: () -> Unit) {
 }
 
 @Composable
-private fun ErrorState(message: String) {
+private fun ErrorState(message: String, onRetry: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -816,6 +870,10 @@ private fun ErrorState(message: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
+        Spacer(modifier = Modifier.height(12.dp))
+        Button(onClick = onRetry) {
+            Text(stringResource(R.string.action_retry))
+        }
     }
 }
 

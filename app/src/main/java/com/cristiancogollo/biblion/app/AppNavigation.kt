@@ -13,23 +13,38 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import android.net.Uri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.cristiancogollo.biblion.feature.achievements.presentation.ACHIEVEMENTS_ROUTE
+import com.cristiancogollo.biblion.feature.achievements.presentation.AchievementsScreen
+import com.cristiancogollo.biblion.feature.achievements.presentation.AchievementUnlockedHost
+import com.cristiancogollo.biblion.feature.achievements.tracking.AchievementBackfill
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cristiancogollo.biblion.feature.auth.data.GoogleCredentialsAuth
 import com.cristiancogollo.biblion.feature.auth.data.GoogleCredentialsResult
 import com.cristiancogollo.biblion.feature.studydocs.ui.Screen as StudyDocScreen
+import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDatabase
+import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocRepository
+import com.cristiancogollo.biblion.feature.studydocs.data.StudyShareManager
+import com.cristiancogollo.biblion.feature.studydocs.model.DocId
+import com.cristiancogollo.biblion.feature.studydocs.model.StudyProvenance
+import com.cristiancogollo.biblion.ui.theme.BiblionThemeMode
 import kotlinx.coroutines.launch
 
 @Composable
 fun AppNavigation(
     isDarkTheme: Boolean,
-    onToggleDarkTheme: (Boolean) -> Unit
+    onToggleDarkTheme: (Boolean) -> Unit,
+    themeMode: BiblionThemeMode = if (isDarkTheme) BiblionThemeMode.DARK else BiblionThemeMode.LIGHT,
+    onThemeModeChange: (BiblionThemeMode) -> Unit = {},
+    incomingImportUri: Uri? = null,
+    onImportUriConsumed: () -> Unit = {},
 ) {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel()
@@ -41,11 +56,46 @@ fun AppNavigation(
     val googleCredentialsAuth = remember(context) { GoogleCredentialsAuth(context) }
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(Unit) {
+        AchievementBackfill.runOnce(context)
+    }
     val activity = context.findActivity()
     var showAuthDialog by remember { mutableStateOf(false) }
     var authDialogMode by remember { mutableStateOf(AuthDialogMode.LOGIN) }
     var activeGuidedTutorial by remember { mutableStateOf<GuidedTutorialProgress?>(null) }
     val currentUserName = preferredUserName(profileState, authState.currentUser)
+
+    LaunchedEffect(incomingImportUri) {
+        val uri = incomingImportUri ?: return@LaunchedEffect
+        onImportUriConsumed()
+        try {
+            val imported = StudyShareManager.importUri(appContext, uri)
+            require(imported.verifiedHash) { "El archivo Biblion fue alterado o esta incompleto" }
+            val repository = StudyDocRepository(StudyDocDatabase.getInstance(appContext).studyDocDao())
+            val copy = imported.document.copy(
+                id = DocId.generate(),
+                remoteId = null,
+                metadata = imported.document.metadata.copy(
+                    provenance = StudyProvenance(
+                        rootPublicationId = imported.document.metadata.provenance?.rootPublicationId,
+                        rootRevisionId = imported.document.metadata.provenance?.rootRevisionId,
+                        parentPublicationId = imported.document.metadata.provenance?.parentPublicationId,
+                        parentRevisionId = imported.document.metadata.provenance?.parentRevisionId,
+                        importedAt = System.currentTimeMillis(),
+                        sourceFormat = "bib",
+                    ),
+                ),
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis(),
+            )
+            repository.saveDraft(copy, authState.currentUser?.uid)
+            navController.navigate(StudyDocScreen.StudyDocEditor.createRoute(copy.id.value))
+            Toast.makeText(appContext, "Ensenanza importada como borrador", Toast.LENGTH_SHORT).show()
+        } catch (error: Throwable) {
+            Log.w("BIBLION_STUDY_IMPORT", "No se pudo importar el archivo", error)
+            Toast.makeText(appContext, "No se pudo abrir el archivo Biblion", Toast.LENGTH_LONG).show()
+        }
+    }
 
     LaunchedEffect(Unit) {
         val saved = AppPreferencesSyncStore.getActiveGuidedTutorial(appContext)
@@ -200,6 +250,9 @@ fun AppNavigation(
             Log.d("GUIDE_DEBUG", "Completing tutorial ${current.guideId}")
             AppPreferencesSyncStore.completeGuidedTutorial(appContext, current.guideId)
             activeGuidedTutorial = null
+            if (steps.getOrNull(current.stepIndex)?.id == "reading-finish") {
+                navController.navigateTopLevel(Screen.Books.createRoute(Testament.OLD))
+            }
         } else {
             val next = current.copy(stepIndex = nextIndex)
             Log.d("GUIDE_DEBUG", "Advancing to step $nextIndex (${steps.getOrNull(nextIndex)?.id})")
@@ -256,13 +309,21 @@ fun AppNavigation(
         }
     }
 
-    NavHost(navController = navController, startDestination = Screen.Home.route) {
+    NavHost(
+        navController = navController,
+        startDestination = Screen.Home.route,
+    ) {
+        composable(ACHIEVEMENTS_ROUTE) {
+            AchievementsScreen(onBack = { navController.popBackStack() })
+        }
 
         composable(Screen.Home.route) {
             HomeScreen(
                 navController = navController,
                 isDarkTheme = isDarkTheme,
                 onToggleDarkTheme = onToggleDarkTheme,
+                themeMode = themeMode,
+                onThemeModeChange = onThemeModeChange,
                 currentUserName = currentUserName,
                 currentUserEmail = authState.currentUser?.email,
                 isAuthenticated = authState.isAuthenticated,
@@ -314,6 +375,8 @@ fun AppNavigation(
             includeSearch = false,
             isDarkTheme = isDarkTheme,
             onToggleDarkTheme = onToggleDarkTheme,
+            themeMode = themeMode,
+            onThemeModeChange = onThemeModeChange,
             currentUserName = currentUserName,
             currentUserEmail = authState.currentUser?.email,
             isAuthenticated = authState.isAuthenticated,
@@ -353,7 +416,16 @@ fun AppNavigation(
                     onClearProfilePhoto = profileViewModel::clearProfilePhoto,
                     onSave = { profileViewModel.saveProfile() },
                     onClearSaveSuccess = profileViewModel::clearSaveSuccess,
-                    onRestartTutorial = ::restartGuidedTutorial
+                    onSignOut = {
+                        authViewModel.process(AuthIntent.SignOut)
+                        scope.launch {
+                            googleCredentialsAuth.clearCredentialState()
+                        }
+                        navController.navigateTopLevel(Screen.Home.route)
+                    },
+                    onRestartTutorial = ::restartGuidedTutorial,
+                    themeMode = themeMode,
+                    onThemeModeChange = onThemeModeChange
                 )
             }
         }
@@ -501,6 +573,8 @@ fun AppNavigation(
         }
 
     }
+
+    AchievementUnlockedHost()
 
     if (authState.showSignedOutDialog) {
         SignedOutDialog(

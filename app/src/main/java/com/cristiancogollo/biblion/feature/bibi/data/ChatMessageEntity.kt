@@ -37,6 +37,9 @@ data class ChatMessageEntity(
     @ColumnInfo(name = "intent")
     val intent: String? = null,
 
+    @ColumnInfo(name = "context_passages_json")
+    val contextPassagesJson: String? = null,
+
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis()
 )

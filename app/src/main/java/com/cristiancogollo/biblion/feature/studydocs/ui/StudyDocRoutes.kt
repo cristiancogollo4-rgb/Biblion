@@ -13,24 +13,54 @@ import com.cristiancogollo.biblion.feature.studydocs.ui.editor.StudyDocEditorScr
 import com.cristiancogollo.biblion.feature.studydocs.ui.list.StudyDocsListScreen
 import com.cristiancogollo.biblion.feature.studydocs.ui.list.StudyDocsListViewModel
 import com.cristiancogollo.biblion.feature.studydocs.ui.read.StudyDocReadScreen
+import com.cristiancogollo.biblion.feature.studydocs.data.StudyShareManager
+import com.cristiancogollo.biblion.feature.studydocs.data.FirestorePublicTeachingRepository
+import com.cristiancogollo.biblion.feature.studydocs.data.StudyPublicationRequestRepository
+import com.cristiancogollo.biblion.feature.studydocs.ui.repository.PublicTeachingScreen
+import com.cristiancogollo.biblion.feature.studydocs.ui.repository.PublicTeachingViewModel
+import com.cristiancogollo.biblion.ui.theme.BiblionThemeMode
+import com.google.firebase.auth.FirebaseAuth
+import com.cristiancogollo.biblion.FirestoreUserProfileRepository
+import android.widget.Toast
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 @Composable
 fun StudyDocsListRoute(navController: NavController) {
     val context = LocalContext.current
     val repository = remember { StudyDocRepository(StudyDocDatabase.getInstance(context).studyDocDao()) }
+    val publicationRepository = remember { StudyPublicationRequestRepository() }
+    val profileRepository = remember { FirestoreUserProfileRepository() }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val viewModel: StudyDocsListViewModel = viewModel(factory = StudyDocsListViewModel.Factory(repository))
     StudyDocsListScreen(
+        navController = navController,
         viewModel = viewModel,
         onBack = { navController.popBackStack() },
         onOpenDoc = { doc -> navController.navigate(Screen.StudyDocRead.createRoute(doc.remoteId ?: doc.id.value)) },
         onEditDoc = { doc -> navController.navigate(Screen.StudyDocEditor.createRoute(doc.remoteId ?: doc.id.value)) },
         onNewDoc = { navController.navigate(Screen.StudyDocEditor.newRoute()) },
-        onShareText = { doc ->
-            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                putExtra(android.content.Intent.EXTRA_TEXT, doc.plainText())
-                type = "text/plain"
+        onShare = { doc, format -> StudyShareManager.share(context, doc, format) },
+        onRequestPublication = { doc ->
+            val uid = FirebaseAuth.getInstance().currentUser?.uid
+            if (uid == null) {
+                Toast.makeText(context, "Inicia sesion para solicitar publicacion", Toast.LENGTH_LONG).show()
+            } else {
+                scope.launch {
+                    try {
+                        val profile = profileRepository.observeProfile(uid).first()
+                        requireNotNull(profile) { "No se encontro tu perfil" }
+                        publicationRepository.submit(doc, profile)
+                        Toast.makeText(context, "Solicitud enviada para revision", Toast.LENGTH_LONG).show()
+                    } catch (error: Throwable) {
+                        Toast.makeText(
+                            context,
+                            error.message ?: "No se pudo enviar la solicitud",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    }
+                }
             }
-            context.startActivity(android.content.Intent.createChooser(intent, "Compartir"))
         },
     )
 }
@@ -41,6 +71,8 @@ fun StudyDocEditorRoute(
     remoteId: String?,
     isDarkTheme: Boolean = false,
     onToggleDarkTheme: (Boolean) -> Unit = {},
+    themeMode: BiblionThemeMode = if (isDarkTheme) BiblionThemeMode.DARK else BiblionThemeMode.LIGHT,
+    onThemeModeChange: (BiblionThemeMode) -> Unit = {},
 ) {
     val context = LocalContext.current
     val repository = remember { StudyDocRepository(StudyDocDatabase.getInstance(context).studyDocDao()) }
@@ -53,6 +85,28 @@ fun StudyDocEditorRoute(
         navController = navController,
         isDarkTheme = isDarkTheme,
         onToggleDarkTheme = onToggleDarkTheme,
+        themeMode = themeMode,
+        onThemeModeChange = onThemeModeChange,
+    )
+}
+
+@Composable
+fun PublicTeachingRoute(navController: NavController) {
+    val context = LocalContext.current
+    val localRepository = remember {
+        StudyDocRepository(StudyDocDatabase.getInstance(context).studyDocDao())
+    }
+    val publicRepository = remember { FirestorePublicTeachingRepository() }
+    val viewModel: PublicTeachingViewModel = viewModel(
+        factory = PublicTeachingViewModel.Factory(publicRepository, localRepository),
+    )
+    PublicTeachingScreen(
+        viewModel = viewModel,
+        ownerUid = FirebaseAuth.getInstance().currentUser?.uid,
+        onBack = { navController.popBackStack() },
+        onOpenDownloaded = { remoteId ->
+            navController.navigate(Screen.StudyDocEditor.createRoute(remoteId))
+        },
     )
 }
 
@@ -80,7 +134,7 @@ object Screen {
     object StudyDocEditor {
         const val route: String = "study_doc_editor/{remoteId}"
         fun createRoute(remoteId: String): String = "study_doc_editor/$remoteId"
-        fun newRoute(): String = "study_doc_editor/new"
+        fun newRoute(): String = "study_doc_editor_new"
         const val ARG_REMOTE_ID: String = "remoteId"
     }
     object StudyDocRead {

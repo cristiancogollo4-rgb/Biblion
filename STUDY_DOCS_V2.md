@@ -22,7 +22,7 @@ Actualizado el 24 Jul 2026 contra el codigo real. Reemplaza al antiguo sistema `
 - Falta recuperar automaticamente un borrador oculto tras cierre forzado o muerte del proceso.
 - Una ensenanza ya publicada y su copia de trabajo aun comparten registro; falta separar snapshot publicado y draft.
 - `discardDraft()` debe evolucionar a una salida que espere confirmacion de borrado antes de navegar.
-- La sincronizacion Firestore de estudios continua deshabilitada.
+- La sincronizacion Firestore esta activa para ensenanzas publicadas. Los borradores permanecen locales; pull, push, tombstones, propiedad por usuario, migracion legacy y copias de conflicto se coordinan desde `FirestoreSyncManager`.
 - Antes de produccion faltan pruebas instrumentadas de migracion Room 2->3, rotacion, proceso, teclado y matrices amplias de dispositivos.
 
 > Las secciones historicas inferiores conservan decisiones de junio de 2026. Cuando contradigan el resumen anterior o el codigo, prevalecen el codigo y este bloque de estado actual.
@@ -534,7 +534,9 @@ Ejecutar: `.\gradlew.bat :app:testDebugUnitTest --tests "com.cristiancogollo.bib
 - `NavGraphShared.kt` — +3 composable entries + redirecciones legacy
 - `HomeScreen.kt` — "Mis Ensenanzas" → `Screen.StudyDocsList`
 - `ReaderScreen.kt` — eliminado del bloque estudio (stub StudyViewModel)
-- `FirestoreSyncManager.kt` — sync de estudios deshabilitado (pushStudies, applyRemote* eliminados)
+- `FirestoreSyncManager.kt` — sincronizacion incremental de `StudyDocEntity` con Firestore, listener remoto y eliminaciones por tombstone
+- `StudyDocSyncPolicy.kt` — propiedad, resolucion de conflictos y mapeo remoto/local
+- `LegacyStudyDocMigrator.kt` — conversion defensiva de `contentSerialized` al modelo vigente
 - `MainActivity.kt` — importar .biblion usa nuevo `StudyDocJson.decode`
 - `ProfileViewModel.kt` — conteo de estudios usa `StudyDocDatabase`
 - `DatabaseSchemaValidationTest.kt` — arreglado sintaxis de nombre de funcion (`>= 80` → `ge80`)
@@ -567,7 +569,6 @@ Ejecutar: `.\gradlew.bat :app:testDebugUnitTest --tests "com.cristiancogollo.bib
 | Media | Find & replace en el editor | 3-4 dias |
 | Media | Word count + char count visible en status bar | 1-2 dias |
 | Media | Re-integrar Bibi overlay en el nuevo editor | 2-4 dias |
-| Media | Re-habilitar sync a Firestore para `StudyDocEntity` | 1 semana |
 | Baja | Version history con snapshots y diff visual | 1-2 semanas |
 | Baja | Import/Export DOCX y Markdown | 2 semanas |
 | Baja | Internacionalizacion (strings.xml) | 2-3 dias |
@@ -576,3 +577,25 @@ Ejecutar: `.\gradlew.bat :app:testDebugUnitTest --tests "com.cristiancogollo.bib
 | Alta | Agregar pruebas instrumentadas de las migraciones Room 1->2 y 2->3 | 1 dia |
 | Baja | Eliminar 3 tests pre-existentes fallando (dictionary_v2 count, DictionaryEngine) | 1 dia |
 | Baja | Auditoria `BibleBookMapper` | 1 dia |
+
+### 14.2 Repositorio publico Biblion
+
+- `PublicTeachingRepository` observa publicaciones visibles desde `publications` en Firestore.
+- Cada publicacion obtiene su contenido desde `publications/{publicationId}/revisions/{revisionId}`.
+- `PublicTeachingScreen` permite buscar por titulo/autor, filtrar etiquetas y descargar una copia.
+- Las descargas se guardan como borradores locales con `StudyProvenance`.
+- La entrada Biblion del menu ya navega al repositorio.
+- La publicacion, validacion de roles, firma criptografica y reglas Firestore siguen reservadas para backend.
+- “Compartir” permite enviar una solicitud a `publication_requests` cuando el perfil esta completo, aprobado y la ensenanza esta finalizada.
+- La solicitud conserva `contentJson`, hash SHA-256, autor y procedencia para que el backend genere la revision publica.
+
+### 14.1 Compartir y procedencia implementados
+
+- `StudyProvenance` conserva la publicacion y revision de origen de una copia local.
+- `StudyContentHash` calcula SHA-256 para validar futuras publicaciones firmadas.
+- `BibStudyPackage` exporta e importa el formato comprimido `.bib` con `manifest.json` y `document.json`.
+- `StudyPdfExporter` genera PDF A4 con bloques, listas, citas y comparacion en dos columnas.
+- `StudyShareManager` centraliza el envio mediante `FileProvider`.
+- “Mis ensenanzas” usa una sola accion Compartir con opciones PDF y `.bib`.
+- Abrir un `.bib` crea un borrador nuevo, conserva la procedencia y verifica el hash.
+- Sigue pendiente el backend firmante, la moderacion y el despliegue de estas reglas Firebase.

@@ -1,5 +1,10 @@
 package com.cristiancogollo.biblion.feature.bibi.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -46,7 +51,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cristiancogollo.biblion.R
 import com.cristiancogollo.biblion.feature.bibi.model.BibiContext
+import com.cristiancogollo.biblion.feature.bibi.model.BibiPassage
 import com.cristiancogollo.biblion.feature.bibi.model.BibiSuggestion
+import com.cristiancogollo.biblion.core.ui.motion.BiblionMotion
+import com.cristiancogollo.biblion.core.ui.motion.rememberBiblionMotionEnabled
 
 @Composable
 fun BibiChatPanel(
@@ -60,6 +68,8 @@ fun BibiChatPanel(
     placeholder: String,
     onClose: () -> Unit,
     onCompletedExchange: () -> Unit = {},
+    onOpenPassage: ((BibiPassage) -> Unit)? = null,
+    isTutorial: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -69,6 +79,7 @@ fun BibiChatPanel(
         factory = remember(context) { BibiViewModel.Factory(context) },
     )
     val uiState by bibiViewModel.uiState.collectAsState()
+    val motionEnabled = rememberBiblionMotionEnabled()
     var input by remember { mutableStateOf("") }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
@@ -151,17 +162,31 @@ fun BibiChatPanel(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             items(uiState.messages) { message ->
-                BibiUnifiedChatMessage(
-                    message = message,
-                    onSendSuggestion = { suggestion ->
-                        bibiViewModel.sendQuestion(
-                            question = suggestion.query,
-                            bibiContext = bibiContext,
-                            userName = currentUserName,
-                            forceRemote = suggestion.isAi,
-                        )
-                    },
-                )
+                var messageVisible by remember(message.role, message.text) {
+                    mutableStateOf(!motionEnabled)
+                }
+                LaunchedEffect(message.role, message.text, motionEnabled) {
+                    messageVisible = true
+                }
+                AnimatedVisibility(
+                    visible = messageVisible,
+                    enter = fadeIn(tween(BiblionMotion.QUICK_MS)) +
+                        slideInVertically(tween(BiblionMotion.QUICK_MS)) { it / 5 },
+                ) {
+                    BibiUnifiedChatMessage(
+                        message = message,
+                        onOpenPassage = onOpenPassage,
+                        onSendSuggestion = { suggestion ->
+                            bibiViewModel.sendQuestion(
+                                question = suggestion.query,
+                                bibiContext = bibiContext,
+                                userName = currentUserName,
+                                forceRemote = suggestion.isAi,
+                                isTutorial = isTutorial,
+                            )
+                        },
+                    )
+                }
             }
             if (uiState.isLoading) {
                 item {
@@ -197,6 +222,7 @@ fun BibiChatPanel(
                         question = query,
                         bibiContext = bibiContext,
                         userName = currentUserName,
+                        isTutorial = isTutorial,
                     )
                 },
             ) {
@@ -243,12 +269,8 @@ fun BibiChatPanel(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(uiState.sessions, key = { it.id }) { session ->
+                            val isCompatibleMode = session.mode == mode
                             Surface(
-                                onClick = {
-                                    showHistory = false
-                                    input = ""
-                                    bibiViewModel.openChat(session.id)
-                                },
                                 color = if (session.id == uiState.activeSessionId) {
                                     MaterialTheme.colorScheme.secondaryContainer
                                 } else {
@@ -260,7 +282,13 @@ fun BibiChatPanel(
                                     MaterialTheme.colorScheme.onSurfaceVariant
                                 },
                                 shape = MaterialTheme.shapes.medium,
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(enabled = isCompatibleMode) {
+                                        showHistory = false
+                                        input = ""
+                                        bibiViewModel.openChat(session.id, mode)
+                                    },
                             ) {
                                 Column(
                                     modifier = Modifier.padding(12.dp),
@@ -277,9 +305,18 @@ fun BibiChatPanel(
                                         maxLines = 2,
                                     )
                                     Text(
-                                        if (session.mode == "study") "Estudio" else "Lectura",
+                                        when {
+                                            session.mode == mode && session.mode == "study" -> "Estudio"
+                                            session.mode == mode -> "Lectura"
+                                            session.mode == "study" -> "Disponible desde Estudio"
+                                            else -> "Disponible desde Lectura"
+                                        },
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary,
+                                        color = if (isCompatibleMode) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
                                     )
                                 }
                             }
@@ -300,6 +337,7 @@ fun BibiChatPanel(
 private fun BibiUnifiedChatMessage(
     message: BibiChatMessage,
     onSendSuggestion: (BibiSuggestion) -> Unit,
+    onOpenPassage: ((BibiPassage) -> Unit)?,
 ) {
     val isUser = message.role == "user"
     Column(
@@ -319,7 +357,11 @@ private fun BibiUnifiedChatMessage(
                 color = MaterialTheme.colorScheme.secondaryContainer,
                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                 shape = MaterialTheme.shapes.medium,
-                modifier = Modifier.fillMaxWidth(0.94f),
+                modifier = Modifier
+                    .fillMaxWidth(0.94f)
+                    .clickable(enabled = onOpenPassage != null) {
+                        onOpenPassage?.invoke(first)
+                    },
             ) {
                 Column(
                     modifier = Modifier.padding(12.dp),

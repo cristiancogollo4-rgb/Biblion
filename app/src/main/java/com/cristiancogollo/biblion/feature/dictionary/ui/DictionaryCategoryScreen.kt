@@ -354,7 +354,7 @@ private fun DictionaryCategoryResultCard(
                 Text(
                     text = entry.term,
                     style = MaterialTheme.typography.titleMedium,
-                    color = BiblionNavy,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Spacer(modifier = Modifier.size(4.dp))

@@ -49,6 +49,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.cristiancogollo.biblion.core.ui.StudyModeLandscapeLock
 import com.cristiancogollo.biblion.feature.bibi.ui.BibiStudyFloatingWindow
+import com.cristiancogollo.biblion.feature.achievements.domain.AchievementEvent
+import com.cristiancogollo.biblion.feature.achievements.tracking.AchievementTracker
 import com.cristiancogollo.biblion.feature.bibi.ui.StudyBibiController
 import com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel
 import com.cristiancogollo.biblion.feature.studydocs.model.DocConfig
@@ -93,12 +95,16 @@ fun StudyDocEditorScreen(
         ?: remember { mutableStateOf(com.cristiancogollo.biblion.feature.studydocs.domain.StudyEditorUiState()) }
 
     var showSaveDialog by remember { mutableStateOf(false) }
+    var explicitSavePending by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val standaloneZoomState = rememberDocumentZoomState()
     var isFullScreen by remember { mutableStateOf(false) }
     var showDiscardDialog by remember { mutableStateOf(false) }
     val internalBibiController = remember { StudyBibiController() }
     val activeBibiController = bibiController ?: internalBibiController
+    var requestedBibiPassage by remember {
+        mutableStateOf<com.cristiancogollo.biblion.feature.bibi.model.BibiPassage?>(null)
+    }
 
     val onVerseComparisonSelected:
         (com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock.Verse, String?) -> Unit =
@@ -196,6 +202,51 @@ fun StudyDocEditorScreen(
         Log.d("BIBLION_STUDY", "StudyDocEditorScreen state isLoading=${editorState.isLoading} blocks=${editorState.doc.blocks.size} activeBlockId=${editorState.activeBlockId} lastError=${editorState.lastError}")
     }
 
+    LaunchedEffect(editorState.lastSavedAt) {
+        if (explicitSavePending && editorState.lastSavedAt != null && editorState.lastError == null) {
+            val doc = editorState.doc
+            AchievementTracker.track(
+                context,
+                AchievementEvent.StudySavedLocally(
+                    documentId = doc.remoteId ?: doc.id.value,
+                    hasTitle = doc.title.isNotBlank(),
+                    hasContent = doc.blocks.any { it.plainText().isNotBlank() },
+                    isExplicitSave = true,
+                ),
+            )
+            explicitSavePending = false
+        }
+    }
+
+    LaunchedEffect(editorState.doc.blocks) {
+        val doc = editorState.doc
+        val documentId = doc.remoteId ?: doc.id.value
+        val types = doc.blocks.map { it::class.simpleName.orEmpty() }.filter { it.isNotBlank() }.toSet()
+        AchievementTracker.track(
+            context,
+            AchievementEvent.StudyBlockTypesChanged(documentId, types),
+            countAsMeaningfulUse = false,
+        )
+        if (doc.blocks.any { it is com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock.Verse }) {
+            AchievementTracker.track(
+                context,
+                AchievementEvent.VerseBlockInserted(documentId),
+                countAsMeaningfulUse = false,
+            )
+        }
+        val maxVersions = doc.blocks
+            .filterIsInstance<com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock.Verse>()
+            .maxOfOrNull { block -> block.displayedVersions().size }
+            ?: 0
+        if (maxVersions >= 2) {
+            AchievementTracker.track(
+                context,
+                AchievementEvent.VerseVersionCompared(documentId, maxVersions),
+                countAsMeaningfulUse = false,
+            )
+        }
+    }
+
     LaunchedEffect(remoteId) {
         val isNewDocument = remoteId == null || remoteId == "new"
         Log.d(
@@ -214,6 +265,7 @@ fun StudyDocEditorScreen(
             currentTitle = editorState.doc.title,
             currentTags = editorState.doc.metadata.tags,
             onSave = { title, tags ->
+                explicitSavePending = true
                 splitViewModel?.saveNow(title, tags) ?: viewModel?.saveNow(title, tags)
                 showSaveDialog = false
             },
@@ -253,6 +305,8 @@ fun StudyDocEditorScreen(
                                 onToggleDarkTheme = onToggleDarkTheme,
                                 themeMode = themeMode,
                                 onThemeModeChange = onThemeModeChange,
+                                requestedPassage = requestedBibiPassage,
+                                onRequestedPassageConsumed = { requestedBibiPassage = null },
                                 onInsertVerseCitation = { group, version ->
                                     splitViewModel?.insertVerseAsQuote(
                                         book = group.bookName,
@@ -304,6 +358,8 @@ fun StudyDocEditorScreen(
                                 onToggleDarkTheme = onToggleDarkTheme,
                                 themeMode = themeMode,
                                 onThemeModeChange = onThemeModeChange,
+                                requestedPassage = requestedBibiPassage,
+                                onRequestedPassageConsumed = { requestedBibiPassage = null },
                                 onInsertVerseCitation = { group, version ->
                                     splitViewModel?.insertVerseAsQuote(
                                         book = group.bookName,
@@ -549,6 +605,12 @@ fun StudyDocEditorScreen(
             editorState = editorState,
             currentUserName = currentUserName,
             onClose = activeBibiController::close,
+            onOpenPassage = { passage ->
+                requestedBibiPassage = passage
+                isFullScreen = false
+                compactStudyPane = "bible"
+                activeBibiController.close()
+            },
         )
     }
 

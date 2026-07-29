@@ -1,9 +1,12 @@
 package com.cristiancogollo.biblion.feature.bibi.data
 
 import android.content.Context
+import com.cristiancogollo.biblion.feature.bibi.model.BibiPassage
 import com.cristiancogollo.biblion.feature.bibi.model.ChatExchange
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
 
 data class ChatSession(
     val id: Long,
@@ -21,11 +24,13 @@ data class ChatMessage(
     val content: String,
     val resolvedTerm: String?,
     val intent: String?,
+    val contextPassages: List<BibiPassage>,
     val createdAt: Long
 )
 
 object ChatSessionRepository {
     const val MAX_SESSIONS = 5
+    private val json = Json { ignoreUnknownKeys = true }
 
     private suspend fun sessionDao(context: Context) =
         ChatDatabase.getInstance(context).sessionDao()
@@ -90,7 +95,8 @@ object ChatSessionRepository {
         sessionId: Long,
         content: String,
         resolvedTerm: String?,
-        intent: String?
+        intent: String?,
+        contextPassages: List<BibiPassage> = emptyList(),
     ): Long = withContext(Dispatchers.IO) {
         try {
             messageDao(context).insert(
@@ -99,7 +105,10 @@ object ChatSessionRepository {
                     role = "assistant",
                     content = content,
                     resolvedTerm = resolvedTerm,
-                    intent = intent
+                    intent = intent,
+                    contextPassagesJson = contextPassages
+                        .takeIf { it.isNotEmpty() }
+                        ?.let { json.encodeToString(ListSerializer(BibiPassage.serializer()), it) }
                 )
             )
         } catch (e: Exception) {
@@ -202,6 +211,11 @@ object ChatSessionRepository {
         content = content,
         resolvedTerm = resolvedTerm,
         intent = intent,
+        contextPassages = contextPassagesJson?.let { encoded ->
+            runCatching {
+                json.decodeFromString(ListSerializer(BibiPassage.serializer()), encoded)
+            }.getOrDefault(emptyList())
+        }.orEmpty(),
         createdAt = createdAt
     )
 }

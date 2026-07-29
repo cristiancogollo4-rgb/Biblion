@@ -58,6 +58,17 @@ class AuthViewModel @JvmOverloads constructor(
     private val _effects = MutableSharedFlow<AuthEffect>()
     val effects: SharedFlow<AuthEffect> = _effects.asSharedFlow()
 
+    init {
+        viewModelScope.launch {
+            repository.authState.collect { user ->
+                _state.update { current ->
+                    if (current.currentUser?.uid == user?.uid) current
+                    else current.copy(currentUser = user)
+                }
+            }
+        }
+    }
+
     fun process(intent: AuthIntent) {
         when (intent) {
             is AuthIntent.UpdateEmail -> {

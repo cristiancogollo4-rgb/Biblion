@@ -300,19 +300,17 @@ private fun DictionaryResultCard(
                         modifier = Modifier.weight(1f, fill = false),
                     )
                     Spacer(modifier = Modifier.size(8.dp))
-                    AssistChip(
-                        onClick = {},
-                        label = {
-                            Text(
-                                entry.category.displayName,
-                                fontSize = 10.sp,
-                            )
-                        },
-                        colors = AssistChipDefaults.assistChipColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
-                            labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        ),
-                    )
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                    ) {
+                        Text(
+                            entry.category.displayName,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontSize = 10.sp,
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.size(4.dp))
                 Text(
@@ -380,5 +378,4 @@ private fun EmptyState() {
         }
     }
 }
-
 

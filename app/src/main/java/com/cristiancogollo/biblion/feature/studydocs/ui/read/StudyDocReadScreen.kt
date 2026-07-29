@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,12 +39,15 @@ import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
 import com.cristiancogollo.biblion.feature.studydocs.model.VerseBusinessRules
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.UnifiedBlockRenderer
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.ZoomMenu
-import com.cristiancogollo.biblion.feature.studydocs.ui.editor.VerseContextDialog
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.loadVerseRangeText
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.rememberDocumentZoomState
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PaginatedSheet
 import kotlinx.coroutines.launch
+
+private data class BibleDialogRequest(
+    val target: StudyBibleTarget?,
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,15 +64,12 @@ fun StudyDocReadScreen(
     var verseOverrides by remember {
         mutableStateOf<Map<BlockId, StudyBlock.Verse>>(emptyMap())
     }
-    var contextVerseId by remember {
-        mutableStateOf<BlockId?>(null)
+    var bibleDialogRequest by remember {
+        mutableStateOf<BibleDialogRequest?>(null)
     }
     val displayedBlocks = remember(uiState.doc.blocks, verseOverrides) {
         uiState.doc.blocks.map { block -> verseOverrides[block.id] ?: block }
     }
-    val contextVerse = displayedBlocks
-        .firstOrNull { it.id == contextVerseId } as? StudyBlock.Verse
-
     val onVerseComparisonSelected: (StudyBlock.Verse, String?) -> Unit = { block, version ->
         if (version == null) {
             verseOverrides = verseOverrides + (
@@ -84,17 +85,17 @@ fun StudyDocReadScreen(
         }
     }
 
-    if (contextVerse != null) {
-        VerseContextDialog(
-            block = contextVerse,
-            onDismiss = { contextVerseId = null },
+    bibleDialogRequest?.let { request ->
+        StudyBibleDialog(
+            initialTarget = request.target,
+            onDismiss = { bibleDialogRequest = null },
         )
     }
 
     LaunchedEffect(remoteId) {
         Log.d("BIBLION_STUDY", "StudyDocReadScreen LaunchedEffect remoteId=$remoteId")
         verseOverrides = emptyMap()
-        contextVerseId = null
+        bibleDialogRequest = null
     }
 
     LaunchedEffect(uiState.isLoading, uiState.doc.blocks.size) {
@@ -106,7 +107,7 @@ fun StudyDocReadScreen(
     }
 
     Scaffold(
-        modifier = Modifier.blur(if (contextVerse != null) 6.dp else 0.dp),
+        modifier = Modifier.blur(if (bibleDialogRequest != null) 6.dp else 0.dp),
         topBar = {
             TopAppBar(
                 title = {
@@ -118,6 +119,16 @@ fun StudyDocReadScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = {
+                            bibleDialogRequest = BibleDialogRequest(target = null)
+                        },
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.MenuBook,
+                            contentDescription = "Abrir Biblia",
+                        )
+                    }
                     ZoomMenu(zoomState = readZoomState, showStepButtons = true)
                     IconButton(onClick = onEdit) {
                         Icon(Icons.Filled.Edit, contentDescription = "Editar")
@@ -160,7 +171,11 @@ fun StudyDocReadScreen(
                         isActive = false,
                         splitViewModel = null,
                         viewModel = null,
-                        onVerseClick = { contextVerseId = it.id },
+                        onVerseClick = { verse ->
+                            bibleDialogRequest = BibleDialogRequest(
+                                target = verse.toStudyBibleTarget(),
+                            )
+                        },
                         onVerseComparisonSelected = onVerseComparisonSelected,
                         modifier = Modifier.fillMaxWidth(),
                     )

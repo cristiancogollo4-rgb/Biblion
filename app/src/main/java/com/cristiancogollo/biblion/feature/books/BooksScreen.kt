@@ -21,6 +21,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.cristiancogollo.biblion.feature.studydocs.ui.Screen as StudyDocScreen
 import com.cristiancogollo.biblion.feature.bibi.engine.TopicEngine
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
+import com.cristiancogollo.biblion.ui.theme.BiblionThemeMode
+import com.cristiancogollo.biblion.ui.theme.LocalBiblionThemeMode
 import kotlinx.coroutines.launch
 import com.cristiancogollo.biblion.feature.books.BookCategory
 import com.cristiancogollo.biblion.feature.books.BookCategoryColors
@@ -90,30 +92,22 @@ fun BooksScreen(
     var selectedBookForDetail by remember { mutableStateOf<String?>(null) }
     var selectedBookDescription by remember { mutableStateOf<String?>(null) }
     var selectedBookVerseCount by remember { mutableIntStateOf(0) }
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    var selectedVersionKey by remember { mutableStateOf(BibleRepository.getSelectedVersionKey(context)) }
-    var availableVersions by remember { mutableStateOf<List<BibleVersionOption>>(emptyList()) }
-    var showVersionDialog by remember { mutableStateOf(false) }
-    var showAboutDialog by remember { mutableStateOf(false) }
-    var showComingSoonDialog by remember { mutableStateOf(false) }
     var testamentDrag by remember { mutableFloatStateOf(0f) }
+    val usesDarkPalette = LocalBiblionThemeMode.current != BiblionThemeMode.LIGHT
     val guidedStep = guidedTutorial
         ?.currentStep()
         ?.takeIf { it.screenTarget == GuidedTutorialScreenTarget.BOOKS }
+    val isBookDescriptionTutorialStep =
+        guidedStep?.targetKey == GuidedTutorialTargets.BOOKS_LONG_PRESS
     val tutorialTargetBounds = remember { mutableStateMapOf<String, Rect>() }
 
     var currentSelectedTestamentArg by rememberSaveable { mutableStateOf(selectedTestament.toRouteArg()) }
     val currentSelectedTestament = Testament.fromRouteArg(currentSelectedTestamentArg)
-
-    LaunchedEffect(Unit) {
-        availableVersions = BibleRepository.getAvailableVersions(context)
-        selectedVersionKey = BibleRepository.getSelectedVersionKey(context)
-    }
 
     // Optimizacion: Derivamos los datos solo cuando cambia el testamento seleccionado
     val booksToShow = remember(currentSelectedTestament) {
@@ -121,49 +115,25 @@ fun BooksScreen(
     }
     val bookCardMinSize = if (configuration.screenWidthDp >= 600) 140.dp else 92.dp
     
-    val title = stringResource(
-        R.string.books_screen_title,
-        stringResource(currentSelectedTestament.labelRes)
-    )
+    val title = "Selecciona un libro"
 
     Box(modifier = Modifier.fillMaxSize()) {
-        ModalNavigationDrawer(
-            drawerState = drawerState,
-            gesturesEnabled = drawerState.isOpen,
-            drawerContent = {
-                BiblionAppDrawer(
-                    drawerState = drawerState,
-                    isDarkTheme = isDarkTheme,
-                    onToggleDarkTheme = onToggleDarkTheme,
-                    currentUserName = currentUserName,
-                    currentUserEmail = currentUserEmail,
-                    isAuthenticated = isAuthenticated,
-                    onClose = { scope.launch { drawerState.close() } },
-                    onNavigateHome = {
-                        if (currentRoute != Screen.Home.route) {
-                            navController.navigateSingleTop(Screen.Home.route)
-                        }
-                    },
-                    onNavigateToProfile = onNavigateToProfile,
-                    onNavigateToTeachings = {
-                        navController.navigateSingleTop(StudyDocScreen.StudyDocsList.route)
-                    },
-                    onNavigateToStudyMode = {
-                        navController.navigateSingleTop(StudyDocScreen.StudyDocEditor.newRoute())
-                    },
-                    onPickVersion = { showVersionDialog = true },
-                    onShowAbout = { showAboutDialog = true },
-                    onShowComingSoon = { showComingSoonDialog = true },
-                    onAuthActionClick = onAuthActionClick
-                )
-            }
-        ) {
-            Scaffold(
+        Scaffold(
                 topBar = {
                     BiblionTopAppBar(
-                        onNavigationIconClick = { scope.launch { drawerState.open() } },
-                        onSearchIconClick = { navController.navigateSingleTop(Screen.Search.route) },
-                        logoResId = biblionLogoRes(isDarkTheme),
+                        logoResId = biblionLogoRes(usesDarkPalette),
+                        showSearchIcon = false,
+                        showNavigationIcon = false
+                    )
+                },
+                bottomBar = {
+                    BiblionBottomNavigation(
+                        currentRoute = currentRoute,
+                        onHome = { navController.navigateSingleTop(Screen.Home.route) },
+                        onBible = { navController.navigateSingleTop(Screen.Books.createRoute(Testament.OLD)) },
+                        onSearch = { navController.navigateSingleTop(Screen.Search.route) },
+                        onStudy = { navController.navigateSingleTop(StudyDocScreen.StudyDocsList.route) },
+                        onProfile = onNavigateToProfile
                     )
                 }
             ) { innerPadding ->
@@ -238,7 +208,7 @@ fun BooksScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(activeCategories) { category ->
-                        val colors = BookCategoryColors.getColors(category, isDarkTheme)
+                        val colors = BookCategoryColors.getColors(category, usesDarkPalette)
                         SuggestionChip(
                             onClick = {
                                 selectedCategoryForLegend = category
@@ -267,7 +237,7 @@ fun BooksScreen(
 
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = bookCardMinSize),
-                    contentPadding = PaddingValues(16.dp),
+                    contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 112.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize()
@@ -275,7 +245,7 @@ fun BooksScreen(
                     // Optimización: usamos key para que Compose identifique cada item y sea fluido.
                     itemsIndexed(booksToShow, key = { _, bookName -> bookName }) { index, bookName ->
                         val category = bookName.toBookCategory()
-                        val colorSchema = BookCategoryColors.getColors(category, isDarkTheme)
+                        val colorSchema = BookCategoryColors.getColors(category, usesDarkPalette)
                         BookCard(
                             bookName = bookName,
                             colorSchema = colorSchema,
@@ -299,7 +269,6 @@ fun BooksScreen(
                                 )
                             },
                             onLongClick = {
-                                onGuidedTutorialTargetAction(GuidedTutorialTargets.BOOKS_LONG_PRESS)
                                 val slug = bookName.toBookTopicSlug()
                                 selectedBookForDetail = bookName
                                 scope.launch {
@@ -315,7 +284,6 @@ fun BooksScreen(
                 }
             }
         }
-        }
 
         GuidedTutorialOverlay(
             step = guidedStep,
@@ -328,7 +296,7 @@ fun BooksScreen(
 
         if (showCategoryLegendSheet && selectedCategoryForLegend != null) {
             val category = selectedCategoryForLegend!!
-            val colors = BookCategoryColors.getColors(category, isDarkTheme)
+            val colors = BookCategoryColors.getColors(category, usesDarkPalette)
             val booksInCategory = remember(category, currentSelectedTestament) {
                 val fullList = if (currentSelectedTestament == Testament.OLD) oldTestamentBooks else newTestamentBooks
                 fullList.filter { it.toBookCategory() == category }
@@ -429,13 +397,18 @@ fun BooksScreen(
         if (showBookDetailSheet && selectedBookForDetail != null) {
             val bookName = selectedBookForDetail!!
             val category = bookName.toBookCategory()
-            val colors = BookCategoryColors.getColors(category, isDarkTheme)
+            val colors = BookCategoryColors.getColors(category, usesDarkPalette)
             val description = selectedBookDescription
             val verseCount = selectedBookVerseCount
 
             @OptIn(ExperimentalMaterial3Api::class)
             ModalBottomSheet(
-                onDismissRequest = { showBookDetailSheet = false },
+                onDismissRequest = {
+                    showBookDetailSheet = false
+                    if (isBookDescriptionTutorialStep) {
+                        onGuidedTutorialTargetAction(GuidedTutorialTargets.BOOKS_LONG_PRESS)
+                    }
+                },
                 sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
                 containerColor = MaterialTheme.colorScheme.surface
             ) {
@@ -507,9 +480,16 @@ fun BooksScreen(
                     Surface(
                         onClick = {
                             showBookDetailSheet = false
-                            navController.navigateSingleTop(
-                                Screen.Reader.createRoute(bookName = bookName, studyMode = openInStudyMode)
-                            )
+                            if (isBookDescriptionTutorialStep) {
+                                onGuidedTutorialTargetAction(GuidedTutorialTargets.BOOKS_LONG_PRESS)
+                            } else {
+                                navController.navigateSingleTop(
+                                    Screen.Reader.createRoute(
+                                        bookName = bookName,
+                                        studyMode = openInStudyMode
+                                    )
+                                )
+                            }
                         },
                         shape = RoundedCornerShape(12.dp),
                         color = colors.bg,
@@ -517,7 +497,11 @@ fun BooksScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = "Leer $bookName",
+                            text = if (isBookDescriptionTutorialStep) {
+                                stringResource(R.string.guide_close_book_description)
+                            } else {
+                                "Leer $bookName"
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 12.dp),
@@ -531,28 +515,6 @@ fun BooksScreen(
                 }
             }
         }
-    }
-
-    if (showVersionDialog) {
-        BibleVersionDialog(
-            versions = availableVersions,
-            selectedVersionKey = selectedVersionKey,
-            onVersionSelected = { selected ->
-                BibleRepository.setSelectedVersionKey(context, selected.key)
-                selectedVersionKey = selected.key
-                showVersionDialog = false
-                scope.launch { drawerState.close() }
-            },
-            onDismiss = { showVersionDialog = false }
-        )
-    }
-
-    if (showAboutDialog) {
-        AboutBiblionDialog(onDismiss = { showAboutDialog = false })
-    }
-
-    if (showComingSoonDialog) {
-        BiblionComingSoonDialog(onDismiss = { showComingSoonDialog = false })
     }
 
 }

@@ -6,6 +6,8 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +28,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -43,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -53,6 +57,8 @@ import com.cristiancogollo.biblion.R
 import com.cristiancogollo.biblion.feature.bibi.model.RelatedVerse
 import com.cristiancogollo.biblion.feature.bibi.engine.TopicEngine
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
+import com.cristiancogollo.biblion.core.ui.motion.BiblionMotion
+import com.cristiancogollo.biblion.core.ui.motion.rememberBiblionMotionEnabled
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -83,13 +89,21 @@ fun ExpandableTopicCard(
     topicColor: Color
 ) {
     val context = LocalContext.current
+    val motionEnabled = rememberBiblionMotionEnabled()
+    val arrowRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = tween(if (motionEnabled) BiblionMotion.STANDARD_MS else 0),
+        label = "topicArrowRotation",
+    )
     val currentTopic by rememberUpdatedState(topic)
     var showAllVerses by remember(currentTopic.slug) { mutableStateOf(false) }
+    var retryGeneration by remember(currentTopic.slug) { mutableStateOf(0) }
 
     val versesState by produceState<VersesState>(
         initialValue = VersesState.Idle,
         key1 = currentTopic.slug,
-        key2 = expanded
+        key2 = expanded,
+        key3 = retryGeneration,
     ) {
         if (expanded) {
             value = VersesState.Loading
@@ -126,12 +140,14 @@ fun ExpandableTopicCard(
             // Cabecera siempre visible
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    imageVector = Icons.Default.ExpandMore,
                     contentDescription = stringResource(
                         if (expanded) R.string.search_topics_collapse else R.string.search_topics_expand
                     ),
                     tint = topicColor,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier
+                        .size(20.dp)
+                        .graphicsLayer { rotationZ = arrowRotation }
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Surface(
@@ -222,12 +238,17 @@ fun ExpandableTopicCard(
                             )
                         }
                         is VersesState.Error -> {
-                            Text(
-                                text = state.message,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(vertical = 8.dp)
-                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = state.message,
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                                )
+                                TextButton(onClick = { retryGeneration++ }) {
+                                    Text(stringResource(R.string.action_retry))
+                                }
+                            }
                         }
                         is VersesState.Loaded -> {
                             val total = state.verses.size

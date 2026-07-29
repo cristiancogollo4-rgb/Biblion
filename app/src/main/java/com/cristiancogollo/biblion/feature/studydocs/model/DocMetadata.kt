@@ -8,11 +8,26 @@ data class DocMetadata(
     val notebook: String? = null,
     val authorUid: String? = null,
     val globalVersion: Int = 0,
+    val provenance: StudyProvenance? = null,
 ) {
     companion object {
         val Empty: DocMetadata = DocMetadata()
     }
 }
+
+/**
+ * Immutable origin information carried by local copies of shared teachings.
+ * Publication ids are intentionally opaque and optional for legacy documents.
+ */
+@Serializable
+data class StudyProvenance(
+    val rootPublicationId: String? = null,
+    val rootRevisionId: String? = null,
+    val parentPublicationId: String? = null,
+    val parentRevisionId: String? = null,
+    val importedAt: Long? = null,
+    val sourceFormat: String? = null,
+)
 
 object DocTagGroups {
     const val PURPOSE = "purpose"

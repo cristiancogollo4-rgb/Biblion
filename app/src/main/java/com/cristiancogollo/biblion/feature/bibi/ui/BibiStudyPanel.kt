@@ -15,6 +15,7 @@ fun BibiStudyPanel(
     editorState: StudyEditorUiState,
     currentUserName: String?,
     onClose: () -> Unit,
+    onOpenPassage: (BibiPassage) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     BibiChatPanel(
@@ -31,6 +32,7 @@ fun BibiStudyPanel(
         subtitle = "Asistente bíblico · Solo consulta",
         placeholder = "Pregunta a Bibi...",
         onClose = onClose,
+        onOpenPassage = onOpenPassage,
         modifier = modifier,
     )
 }

@@ -24,11 +24,13 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -50,6 +52,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.cristiancogollo.biblion.R
+import com.cristiancogollo.biblion.feature.achievements.domain.AchievementEvent
+import com.cristiancogollo.biblion.feature.achievements.tracking.AchievementTracker
 import com.cristiancogollo.biblion.feature.dictionary.data.DictionaryCategory
 import com.cristiancogollo.biblion.feature.dictionary.data.DictionaryEntry
 import com.cristiancogollo.biblion.feature.dictionary.data.DictionaryRepository
@@ -88,13 +92,18 @@ class DictionaryEntryDetailViewModel(
     fun load() {
         _state.value = DictionaryEntryDetailUiState.Loading
         viewModelScope.launch {
-            val entry = runCatching {
+            try {
+                val entry =
                 DictionaryRepository.getEntryById(appContext, entryId)
-            }.getOrNull()
-            _state.value = if (entry != null) {
-                DictionaryEntryDetailUiState.Success(entry)
-            } else {
-                DictionaryEntryDetailUiState.NotFound
+                _state.value = if (entry != null) {
+                    DictionaryEntryDetailUiState.Success(entry)
+                } else {
+                    DictionaryEntryDetailUiState.NotFound
+                }
+            } catch (error: Exception) {
+                _state.value = DictionaryEntryDetailUiState.Error(
+                    error.message ?: "No se pudo cargar la entrada"
+                )
             }
         }
     }
@@ -123,6 +132,17 @@ fun DictionaryEntryDetailScreen(
     )
     val state by viewModel.state.collectAsState()
 
+    LaunchedEffect(state) {
+        val entry = (state as? DictionaryEntryDetailUiState.Success)?.entry ?: return@LaunchedEffect
+        AchievementTracker.track(
+            appContext,
+            AchievementEvent.DictionaryEntryOpened(
+                entryId = entry.id,
+                category = entry.category.name,
+            ),
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -130,7 +150,7 @@ fun DictionaryEntryDetailScreen(
                     Text(
                         text = (state as? DictionaryEntryDetailUiState.Success)?.entry?.term
                             ?: stringResource(R.string.search_section_dictionary_title),
-                        color = BiblionNavy,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold,
                     )
                 },
@@ -139,7 +159,7 @@ fun DictionaryEntryDetailScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.cd_back),
-                            tint = BiblionNavy,
+                            tint = MaterialTheme.colorScheme.onSurface,
                         )
                     }
                 },
@@ -154,7 +174,10 @@ fun DictionaryEntryDetailScreen(
         ) {
             when (val current = state) {
                 DictionaryEntryDetailUiState.Loading -> LoadingState()
-                is DictionaryEntryDetailUiState.Error -> ErrorState(current.message)
+                is DictionaryEntryDetailUiState.Error -> ErrorState(
+                    message = current.message,
+                    onRetry = viewModel::load,
+                )
                 DictionaryEntryDetailUiState.NotFound -> NotFoundState()
                 is DictionaryEntryDetailUiState.Success -> EntryDetail(
                     entry = current.entry,
@@ -183,12 +206,17 @@ private fun LoadingState() {
 }
 
 @Composable
-private fun ErrorState(message: String) {
-    Box(
+private fun ErrorState(message: String, onRetry: () -> Unit) {
+    Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
-        contentAlignment = Alignment.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
         Text(message, color = MaterialTheme.colorScheme.error)
+        Spacer(modifier = Modifier.height(12.dp))
+        Button(onClick = onRetry) {
+            Text(stringResource(R.string.action_retry))
+        }
     }
 }
 
@@ -217,18 +245,20 @@ private fun EntryDetail(
         Text(
             text = entry.term,
             style = MaterialTheme.typography.headlineMedium,
-            color = BiblionNavy,
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.Bold,
         )
         Spacer(modifier = Modifier.height(8.dp))
-        AssistChip(
-            onClick = {},
-            label = { Text(entry.category.displayName) },
-            colors = AssistChipDefaults.assistChipColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            ),
-        )
+        Surface(
+            shape = MaterialTheme.shapes.small,
+            color = MaterialTheme.colorScheme.primaryContainer,
+        ) {
+            Text(
+                entry.category.displayName,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
         Text(
@@ -246,7 +276,7 @@ private fun EntryDetail(
             Text(
                 text = "Referencias",
                 style = MaterialTheme.typography.titleMedium,
-                color = BiblionNavy,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(modifier = Modifier.height(8.dp))

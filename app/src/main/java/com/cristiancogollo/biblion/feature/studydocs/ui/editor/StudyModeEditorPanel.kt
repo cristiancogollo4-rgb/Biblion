@@ -45,6 +45,8 @@ import com.cristiancogollo.biblion.AuthDialogMode
 import com.cristiancogollo.biblion.AuthViewModel
 import com.cristiancogollo.biblion.AuthIntent
 import com.cristiancogollo.biblion.feature.auth.data.GoogleCredentialsAuth
+import com.cristiancogollo.biblion.feature.auth.data.GoogleCredentialsResult
+import com.cristiancogollo.biblion.findActivity
 import com.cristiancogollo.biblion.ProfileScreen
 import com.cristiancogollo.biblion.ProfileViewModel
 import com.cristiancogollo.biblion.Screen
@@ -59,6 +61,8 @@ import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PaginatedSheet
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.SheetViewMode
 import com.cristiancogollo.biblion.ui.theme.BiblionThemeMode
+import com.cristiancogollo.biblion.feature.achievements.presentation.ACHIEVEMENTS_ROUTE
+import com.cristiancogollo.biblion.feature.achievements.presentation.AchievementsScreen
 import kotlinx.coroutines.launch
 
 private val textColorPalette = listOf(
@@ -521,6 +525,8 @@ internal fun BibleReaderPane(
     themeMode: BiblionThemeMode = if (isDarkTheme) BiblionThemeMode.DARK else BiblionThemeMode.LIGHT,
     onThemeModeChange: (BiblionThemeMode) -> Unit = {},
     onInsertVerseCitation: ((com.cristiancogollo.biblion.CitationVerseGroup, String) -> Unit)? = null,
+    requestedPassage: com.cristiancogollo.biblion.feature.bibi.model.BibiPassage? = null,
+    onRequestedPassageConsumed: () -> Unit = {},
 ) {
     val localNavController = rememberNavController()
     val context = LocalContext.current
@@ -531,9 +537,46 @@ internal fun BibleReaderPane(
     val profileViewModel: ProfileViewModel = viewModel()
     val authState by authViewModel.state.collectAsState()
     val profileState by profileViewModel.state.collectAsState()
+    val startGoogleSignIn: () -> Unit = {
+        val activity = context.findActivity()
+        if (activity == null) {
+            authViewModel.onGoogleSignInUnavailable()
+        } else {
+            authViewModel.beginGoogleSignIn()
+            scope.launch {
+                when (val result = googleCredentialsAuth.requestIdToken(activity)) {
+                    is GoogleCredentialsResult.Success ->
+                        authViewModel.signInWithGoogleIdToken(result.idToken)
+                    GoogleCredentialsResult.Cancelled ->
+                        authViewModel.onGoogleSignInCancelled()
+                    is GoogleCredentialsResult.Failure -> {
+                        Log.e("BIBLION_STUDY", "Embedded Google sign-in failed", result.throwable)
+                        authViewModel.onGoogleSignInConfigurationError()
+                    }
+                }
+            }
+        }
+        Unit
+    }
 
     LaunchedEffect(authState.currentUser?.uid) {
         profileViewModel.setCurrentUser(authState.currentUser)
+    }
+
+    LaunchedEffect(requestedPassage) {
+        requestedPassage?.let { passage ->
+            localNavController.navigate(
+                Screen.Reader.createRoute(
+                    bookName = passage.book,
+                    chapter = passage.chapter,
+                    verse = passage.verse.toString(),
+                    studyMode = true,
+                )
+            ) {
+                launchSingleTop = true
+            }
+            onRequestedPassageConsumed()
+        }
     }
 
     val onNavigateToProfile = {
@@ -558,6 +601,9 @@ internal fun BibleReaderPane(
         startDestination = "home",
         modifier = modifier,
     ) {
+        composable(ACHIEVEMENTS_ROUTE) {
+            AchievementsScreen(onBack = { localNavController.popBackStack() })
+        }
         addSharedPrimaryDestinations(
             navController = localNavController,
             isDarkTheme = isDarkTheme,
@@ -590,7 +636,7 @@ internal fun BibleReaderPane(
                 mode = AuthDialogMode.LOGIN,
                 uiState = authState,
                 onIntent = { authViewModel.process(it) },
-                onGoogleSignIn = { /* TODO: disparar intent de Google en este scope */ },
+                onGoogleSignIn = startGoogleSignIn,
                 onModeChange = { /* mismo dialog */ },
                 onDismiss = { localNavController.popBackStack() },
             )

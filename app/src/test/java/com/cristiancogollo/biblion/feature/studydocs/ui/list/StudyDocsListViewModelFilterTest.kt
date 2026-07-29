@@ -169,8 +169,8 @@ private class FakeDao(
     override fun search(query: String): Flow<List<StudyDocEntity>> = flowOf(emptyList())
     override suspend fun getById(id: Long): StudyDocEntity? = docs.find { it.id == id }
     override suspend fun getByRemoteId(remoteId: String): StudyDocEntity? = docs.find { it.remoteId == remoteId }
-    override suspend fun getDirtyForSync(): List<StudyDocEntity> = emptyList()
-    override suspend fun getDeletedForSync(): List<StudyDocEntity> = emptyList()
+    override suspend fun getDirtyForSync(ownerUid: String): List<StudyDocEntity> = emptyList()
+    override suspend fun getDeletedForSync(ownerUid: String): List<StudyDocEntity> = emptyList()
     override suspend fun insert(entity: StudyDocEntity): Long {
         docs.add(entity.copy(id = (docs.size + 1).toLong()))
         return docs.size.toLong()
@@ -188,6 +188,12 @@ private class FakeDao(
     override suspend fun hardDeleteByRemoteId(remoteId: String) {
         docs.removeAll { it.remoteId == remoteId }
     }
-    override suspend fun markSynced(id: Long, syncedAt: Long) {}
+    override suspend fun markSyncedIfUnchanged(
+        id: Long,
+        expectedUpdatedAt: Long,
+        syncedAt: Long,
+        syncVersion: Long,
+        ownerUid: String,
+    ): Int = 1
     override suspend fun countActive(): Int = docs.size
 }

@@ -83,6 +83,24 @@ class AuthViewModelTest {
     }
 
     @Test
+    fun repository_auth_changes_are_synchronized_across_view_models() = runTest {
+        val fakeRepository = FakeAuthRepository(
+            initialUser = AuthUser(
+                uid = "uid-reader",
+                email = "reader@biblion.app"
+            )
+        )
+        val viewModel = buildViewModel(fakeRepository)
+
+        advanceUntilIdle()
+        fakeRepository.updateCurrentUser(null)
+        advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.isAuthenticated)
+        assertEquals(null, viewModel.state.value.currentUser)
+    }
+
+    @Test
     fun google_sign_in_success_updates_authenticated_user() = runTest {
         val fakeRepository = FakeAuthRepository()
         val viewModel = buildViewModel(fakeRepository)
@@ -144,5 +162,9 @@ private class FakeAuthRepository(
 
     override fun signOut() {
         authStateFlow.value = null
+    }
+
+    fun updateCurrentUser(user: AuthUser?) {
+        authStateFlow.value = user
     }
 }

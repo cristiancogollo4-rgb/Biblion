@@ -13,7 +13,9 @@ import com.cristiancogollo.biblion.feature.search.ui.SearchScreen
 import com.cristiancogollo.biblion.feature.studydocs.ui.StudyDocEditorRoute
 import com.cristiancogollo.biblion.feature.studydocs.ui.StudyDocReadRoute
 import com.cristiancogollo.biblion.feature.studydocs.ui.StudyDocsListRoute
+import com.cristiancogollo.biblion.feature.studydocs.ui.PublicTeachingRoute
 import com.cristiancogollo.biblion.feature.studydocs.ui.Screen as StudyDocScreen
+import com.cristiancogollo.biblion.ui.theme.BiblionThemeMode
 
 /**
  * Destinos compartidos entre navegación principal y navegación interna de modo estudio.
@@ -26,6 +28,8 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
     includeSearch: Boolean = true,
     isDarkTheme: Boolean = false,
     onToggleDarkTheme: (Boolean) -> Unit = {},
+    themeMode: BiblionThemeMode = if (isDarkTheme) BiblionThemeMode.DARK else BiblionThemeMode.LIGHT,
+    onThemeModeChange: (BiblionThemeMode) -> Unit = {},
     currentUserName: String? = null,
     currentUserEmail: String? = null,
     isAuthenticated: Boolean = false,
@@ -120,6 +124,21 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
         StudyDocsListRoute(navController = navController)
     }
 
+    composable(Screen.BiblionRepository.route) {
+        PublicTeachingRoute(navController = navController)
+    }
+
+    composable(StudyDocScreen.StudyDocEditor.newRoute()) {
+        StudyDocEditorRoute(
+            navController = navController,
+            remoteId = null,
+            isDarkTheme = isDarkTheme,
+            onToggleDarkTheme = onToggleDarkTheme,
+            themeMode = themeMode,
+            onThemeModeChange = onThemeModeChange,
+        )
+    }
+
     composable(
         route = StudyDocScreen.StudyDocEditor.route,
         arguments = listOf(navArgument(StudyDocScreen.StudyDocEditor.ARG_REMOTE_ID) { type = NavType.StringType })
@@ -127,9 +146,11 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
         val remoteId = backStackEntry.arguments?.getString(StudyDocScreen.StudyDocEditor.ARG_REMOTE_ID)
         StudyDocEditorRoute(
             navController = navController,
-            remoteId = if (remoteId == "new") null else remoteId,
+            remoteId = remoteId,
             isDarkTheme = isDarkTheme,
             onToggleDarkTheme = onToggleDarkTheme,
+            themeMode = themeMode,
+            onThemeModeChange = onThemeModeChange,
         )
     }
 

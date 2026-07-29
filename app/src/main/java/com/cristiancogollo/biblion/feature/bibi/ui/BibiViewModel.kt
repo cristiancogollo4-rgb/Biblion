@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.cristiancogollo.biblion.feature.bibi.data.ChatSessionRepository
+import com.cristiancogollo.biblion.feature.achievements.domain.AchievementEvent
+import com.cristiancogollo.biblion.feature.achievements.tracking.AchievementTracker
 import com.cristiancogollo.biblion.feature.bibi.data.ChatSession
 import com.cristiancogollo.biblion.feature.bibi.domain.BibiOrchestrator
 import com.cristiancogollo.biblion.feature.bibi.domain.BibiReferenceContextResolver
@@ -76,7 +78,11 @@ class BibiViewModel(
             chatHistory = restored.history
             lastQueries = chatHistory.map { it.question }.takeLast(5)
             val restoredMessages = restored.messages.map {
-                BibiChatMessage(role = it.role, text = it.content)
+                BibiChatMessage(
+                    role = it.role,
+                    text = it.content,
+                    contextPassages = it.contextPassages,
+                )
             }
             _uiState.value = _uiState.value.copy(
                 messages = restoredMessages.ifEmpty {
@@ -101,8 +107,10 @@ class BibiViewModel(
         resetConversation()
     }
 
-    fun openChat(sessionId: Long) {
+    fun openChat(sessionId: Long, mode: String) {
         if (_uiState.value.isLoading || sessionId == currentSessionId) return
+        val session = _uiState.value.sessions.firstOrNull { it.id == sessionId } ?: return
+        if (session.mode != mode) return
         viewModelScope.launch {
             val restored = withContext(Dispatchers.IO) {
                 val messages = ChatSessionRepository.getSessionMessages(appContext, sessionId)
@@ -113,7 +121,11 @@ class BibiViewModel(
             lastQueries = chatHistory.map { it.question }.takeLast(5)
             _uiState.value = _uiState.value.copy(
                 messages = restored.first.map {
-                    BibiChatMessage(role = it.role, text = it.content)
+                    BibiChatMessage(
+                        role = it.role,
+                        text = it.content,
+                        contextPassages = it.contextPassages,
+                    )
                 },
                 activeSessionId = sessionId,
                 completedExchanges = 0,
@@ -156,6 +168,7 @@ class BibiViewModel(
         bibiContext: BibiContext,
         userName: String?,
         forceRemote: Boolean = false,
+        isTutorial: Boolean = false,
     ) {
         val query = question.trim()
         if (query.isEmpty() || _uiState.value.isLoading) return
@@ -209,10 +222,21 @@ class BibiViewModel(
                 resolvedTerm = result.resolvedTerm,
                 intent = result.intent,
                 mode = if (bibiContext is BibiContext.Reader) "reader" else "study",
+                contextPassages = resolvedContext.explicitPassages,
                 title = when (bibiContext) {
                     is BibiContext.Reader -> bibiContext.book.ifBlank { "Lector" }
                     is BibiContext.Study -> bibiContext.title.ifBlank { "Estudio" }
                 },
+            )
+            AchievementTracker.track(
+                appContext,
+                AchievementEvent.BibiAnswerCompleted(
+                    intent = result.intent,
+                    isTutorial = isTutorial,
+                    wasSuccessful = displayAnswer.isNotBlank() &&
+                        result.confidence != Confidence.LOW &&
+                        resolvedContext.error == null,
+                ),
             )
             _uiState.value = _uiState.value.copy(
                 messages = _uiState.value.messages + BibiChatMessage(
@@ -234,6 +258,7 @@ class BibiViewModel(
         resolvedTerm: String?,
         intent: String,
         mode: String,
+        contextPassages: List<BibiPassage>,
         title: String,
     ) = withContext(Dispatchers.IO) {
         var sessionId = currentSessionId
@@ -254,6 +279,7 @@ class BibiViewModel(
                 content = answer,
                 resolvedTerm = resolvedTerm,
                 intent = intent,
+                contextPassages = contextPassages,
             )
             ChatSessionRepository.updateSessionTimestamp(appContext, sessionId)
             val sessions = ChatSessionRepository.getAllSessions(appContext)

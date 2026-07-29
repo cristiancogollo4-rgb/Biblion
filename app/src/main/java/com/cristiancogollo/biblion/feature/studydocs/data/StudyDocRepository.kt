@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion.feature.studydocs.data
 
+import com.cristiancogollo.biblion.FirestoreSyncManager
 import com.cristiancogollo.biblion.feature.studydocs.model.DocId
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
 import com.cristiancogollo.biblion.feature.studydocs.model.hasPersistableTitle
@@ -20,7 +21,11 @@ class StudyDocRepository(
 
     suspend fun getById(id: Long): StudyDoc? = dao.getById(id)?.toDoc()
     suspend fun getByRemoteId(remoteId: String): StudyDoc? = dao.getByRemoteId(remoteId)?.toDoc()
-    suspend fun getDirtyForSync(): List<StudyDocEntity> = dao.getDirtyForSync()
+    suspend fun getEntityByRemoteId(remoteId: String): StudyDocEntity? = dao.getByRemoteId(remoteId)
+    suspend fun getDirtyForSync(ownerUid: String): List<StudyDocEntity> =
+        dao.getDirtyForSync(ownerUid)
+    suspend fun getDeletedForSync(ownerUid: String): List<StudyDocEntity> =
+        dao.getDeletedForSync(ownerUid)
 
     suspend fun save(doc: StudyDoc, ownerUid: String? = null) {
         check(doc.hasPersistableTitle()) {
@@ -55,14 +60,28 @@ class StudyDocRepository(
             createdAt = existing?.createdAt ?: now,
             updatedAt = now,
             ownerUid = ownerUid ?: existing?.ownerUid,
+            lastSyncedAt = existing?.lastSyncedAt,
+            syncVersion = existing?.syncVersion ?: 0L,
             isDirty = true,
             isPublished = isPublished,
         )
         if (existing == null) dao.insert(entity) else dao.update(entity.copy(id = existing.id))
+        FirestoreSyncManager.requestStudiesSync()
     }
 
     suspend fun softDelete(localId: Long, deletedAt: Long) = dao.softDelete(localId, deletedAt)
     suspend fun hardDelete(docId: DocId) = dao.hardDeleteByRemoteId(docId.value)
+
+    suspend fun delete(doc: StudyDoc) {
+        val remoteId = doc.remoteId ?: doc.id.value
+        val existing = dao.getByRemoteId(remoteId) ?: return
+        if (!existing.isPublished) {
+            dao.hardDelete(existing.id)
+            return
+        }
+        dao.softDelete(existing.id, clock())
+        FirestoreSyncManager.requestStudiesSync()
+    }
 
     suspend fun discardDraft(remoteId: String) {
         val existing = dao.getByRemoteId(remoteId)
@@ -71,7 +90,30 @@ class StudyDocRepository(
         }
     }
 
-    suspend fun markSynced(localId: Long, syncVersion: Long) = dao.markSynced(localId, syncVersion)
+    suspend fun upsertRemote(entity: StudyDocEntity) {
+        val existing = dao.getByRemoteId(entity.remoteId)
+        if (existing == null) {
+            dao.insert(entity.copy(id = 0L))
+        } else {
+            dao.update(entity.copy(id = existing.id))
+        }
+    }
+
+    suspend fun markSyncedIfUnchanged(
+        localId: Long,
+        expectedUpdatedAt: Long,
+        syncedAt: Long,
+        syncVersion: Long,
+        ownerUid: String,
+    ): Boolean = dao.markSyncedIfUnchanged(
+        id = localId,
+        expectedUpdatedAt = expectedUpdatedAt,
+        syncedAt = syncedAt,
+        syncVersion = syncVersion,
+        ownerUid = ownerUid,
+    ) > 0
+
+    suspend fun hardDeleteByRemoteId(remoteId: String) = dao.hardDeleteByRemoteId(remoteId)
     suspend fun countActive(): Int = dao.countActive()
 }
 

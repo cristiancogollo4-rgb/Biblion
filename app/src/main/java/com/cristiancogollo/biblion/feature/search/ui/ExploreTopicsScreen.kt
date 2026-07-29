@@ -38,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +54,9 @@ import com.cristiancogollo.biblion.Screen
 import com.cristiancogollo.biblion.feature.bibi.data.TopicDatabase
 import com.cristiancogollo.biblion.feature.search.components.CategoryLabels
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
+import com.cristiancogollo.biblion.feature.achievements.domain.AchievementEvent
+import com.cristiancogollo.biblion.feature.achievements.tracking.AchievementTracker
+import kotlinx.coroutines.launch
 
 /**
  * Pantalla que muestra las categorias de temas canonicos con versiculos
@@ -65,6 +69,7 @@ import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 @Composable
 fun ExploreTopicsScreen(navController: NavController) {
     val context = LocalContext.current
+    val achievementScope = rememberCoroutineScope()
     var categories by remember { mutableStateOf<List<CategoryInfo>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
@@ -144,6 +149,12 @@ fun ExploreTopicsScreen(navController: NavController) {
                             CategoryCard(
                                 category = category.copy(color = CategoryLabels.color(category.category)),
                                 onClick = {
+                                    achievementScope.launch {
+                                        AchievementTracker.track(
+                                            context,
+                                            AchievementEvent.TopicCategoryOpened(category.category),
+                                        )
+                                    }
                                     navController.navigate(
                                         Screen.ExploreCategory.createRoute(category.category)
                                     )

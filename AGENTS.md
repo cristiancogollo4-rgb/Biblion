@@ -198,7 +198,7 @@ El modo estudio v2 se compone de `StudyDocEditorScreen`, `StudyDocViewModel`, `S
 
 - **`StudyViewModelStub.kt`**: `StudyViewModel` + `StudyIntent` + `StudyUiState` stubs para que `ReaderScreen` compile mientras se termina de migrar.
 - **`ReaderAssistantOverlay`**: stub vacio del Bibi overlay en el lector.
-- **Sync deshabilitado**: `FirestoreSyncManager.pushStudies`, `applyRemoteStudies`, `applyRemoteNotebooks`, `createMissingNotebook`, `buildRemoteCitations` eliminados. `requestStudiesSync()` es no-op. El listener de notebooks redirige a coleccion `notebooks_legacy_disabled`.
+- **Sync remoto activo**: `FirestoreSyncManager` sincroniza exclusivamente ensenanzas publicadas bajo `users/{uid}/studies/{remoteId}`. Hace pull antes del push inicial, escucha cambios en tiempo real, usa tombstones para eliminaciones, filtra por propietario y conserva copias locales ante conflictos. Los borradores `isPublished=false` permanecen solo en Room. `LegacyStudyDocMigrator` convierte payloads `contentSerialized` del editor anterior al modelo `StudyDoc`.
 
 ### Bibi
 

@@ -10,14 +10,18 @@ import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.decodeFromString
+import com.cristiancogollo.biblion.feature.studydocs.data.RemoteStudyRecord
+import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDatabase
+import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocRepository
+import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocSyncPolicy
+import com.cristiancogollo.biblion.feature.studydocs.data.StudySyncResolution
 
 private data class RemoteUserDocument(
     val uid: String = "",
@@ -48,38 +52,6 @@ private data class RemoteAppPreferences(
     val updatedAt: Long = 0
 )
 
-private data class RemoteNotebookDocument(
-    val remoteId: String = "",
-    val title: String = "",
-    val createdAt: Long = 0,
-    val updatedAt: Long = 0,
-    val ownerUid: String? = null,
-    val deletedAt: Long? = null,
-    val syncVersion: Long = 0
-)
-
-private data class RemoteCitationDocument(
-    val book: String = "",
-    val chapter: Int = 0,
-    val verseStart: Int = 0,
-    val verseEnd: Int = 0,
-    val version: String = "rv1960",
-    val positionMetadata: String = "inline"
-)
-
-private data class RemoteStudyDocument(
-    val remoteId: String = "",
-    val notebookRemoteId: String = "",
-    val title: String = "",
-    val contentSerialized: String = "",
-    val createdAt: Long = 0,
-    val updatedAt: Long = 0,
-    val ownerUid: String? = null,
-    val deletedAt: Long? = null,
-    val syncVersion: Long = 0,
-    val citations: List<RemoteCitationDocument> = emptyList()
-)
-
 private data class RemoteHighlightChapter(
     val book: String = "",
     val chapter: Int = 0,
@@ -94,12 +66,12 @@ object FirestoreSyncManager {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val syncMutex = Mutex()
-    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; classDiscriminator = "nodeType" }
     private val _syncErrors = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
     private var appContext: Context? = null
     private var currentUser: AuthUser? = null
     private var listeners: List<ListenerRegistration> = emptyList()
+    private var studiesSyncJob: Job? = null
     private var lastErrorNotificationAt: Long = 0L
 
     private val firestore: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
@@ -152,7 +124,9 @@ object FirestoreSyncManager {
                     ensureUserDocument(user)
                     Log.d(TAG, "Pushing preferences")
                     pushPreferences(context)
-                    Log.d(TAG, "Pushing studies and notebooks")
+                    Log.d(TAG, "Pulling remote studies")
+                    pullStudies(context, user.uid)
+                    Log.d(TAG, "Pushing local studies")
                     pushStudies(context, user.uid)
                     Log.d(TAG, "Pushing highlights")
                     pushAllHighlights(context)
@@ -173,6 +147,8 @@ object FirestoreSyncManager {
         }
         listeners.forEach { it.remove() }
         listeners = emptyList()
+        studiesSyncJob?.cancel()
+        studiesSyncJob = null
         currentUser = null
     }
 
@@ -184,6 +160,7 @@ object FirestoreSyncManager {
                 syncMutex.withLock {
                     ensureUserDocument(user)
                     pushPreferences(context)
+                    pullStudies(context, user.uid)
                     pushStudies(context, user.uid)
                     pushAllHighlights(context, user.uid)
                 }
@@ -211,9 +188,21 @@ object FirestoreSyncManager {
     }
 
     fun requestStudiesSync() {
-        // Sync de ensenanzas deshabilitado tras migracion a StudyDoc (v2).
-        // El DAO legacy `StudyDatabase` ya no existe; la nueva DB es `study_docs.db`.
-        // Se reimplementara en una iteracion futura del proyecto.
+        val context = appContext ?: return
+        val user = currentUser ?: return
+        studiesSyncJob?.cancel()
+        studiesSyncJob = scope.launch {
+            delay(750L)
+            val success = withRetry(maxRetries = 3, initialDelayMs = 1_000L) {
+                syncMutex.withLock {
+                    pushStudies(context, user.uid)
+                }
+            }
+            if (!success) {
+                Log.w(TAG, "Failed to push studies after retries")
+                notifySyncError()
+            }
+        }
     }
 
     fun requestHighlightsSync(book: String, chapter: Int, verses: Map<String, Int>) {
@@ -327,10 +316,75 @@ object FirestoreSyncManager {
         Log.d(TAG, "Wrote users/${user.uid}/preferences/app")
     }
 
-    @Suppress("UNUSED_PARAMETER")
     private suspend fun pushStudies(context: Context, userUid: String = currentUser?.uid.orEmpty()) {
-        // Sync de ensenanzas deshabilitado tras migracion a StudyDoc (v2).
-        // El DAO legacy `StudyDatabase` ya no existe; la nueva DB es `study_docs.db`.
+        if (userUid.isBlank()) return
+        val repository = studyRepository(context)
+        val dirty = repository.getDirtyForSync(userUid)
+        val deleted = repository.getDeletedForSync(userUid)
+        Log.d(TAG, "Found ${dirty.size} studies and ${deleted.size} deletions to sync")
+
+        dirty.forEach { entity ->
+            val syncVersion = StudyDocSyncPolicy.nextSyncVersion(entity)
+            val payload = mapOf(
+                "schemaVersion" to SCHEMA_VERSION,
+                "remoteId" to entity.remoteId,
+                "title" to entity.title,
+                "notebookRemoteId" to entity.notebookRemoteId,
+                "tagsCsv" to entity.tagsCsv,
+                "blockCount" to entity.blockCount,
+                "docVersion" to entity.version,
+                "docJson" to entity.docJson,
+                "createdAt" to entity.createdAt,
+                "updatedAt" to entity.updatedAt,
+                "ownerUid" to userUid,
+                "deletedAt" to null,
+                "syncVersion" to syncVersion,
+                "isPublished" to true,
+            )
+            studyDocument(userUid, entity.remoteId)
+                .set(payload, SetOptions.merge())
+                .awaitCompletion()
+            val marked = repository.markSyncedIfUnchanged(
+                localId = entity.id,
+                expectedUpdatedAt = entity.updatedAt,
+                syncedAt = System.currentTimeMillis(),
+                syncVersion = syncVersion,
+                ownerUid = userUid,
+            )
+            Log.d(
+                TAG,
+                "Pushed study=${entity.remoteId} markedSynced=$marked version=$syncVersion",
+            )
+        }
+
+        deleted.forEach { entity ->
+            val deletedAt = entity.deletedAt ?: entity.updatedAt
+            val syncVersion = StudyDocSyncPolicy.nextSyncVersion(entity)
+            studyDocument(userUid, entity.remoteId)
+                .set(
+                    mapOf(
+                        "schemaVersion" to SCHEMA_VERSION,
+                        "remoteId" to entity.remoteId,
+                        "ownerUid" to userUid,
+                        "updatedAt" to deletedAt,
+                        "deletedAt" to deletedAt,
+                        "syncVersion" to syncVersion,
+                        "isPublished" to true,
+                    ),
+                    SetOptions.merge(),
+                )
+                .awaitCompletion()
+            repository.hardDeleteByRemoteId(entity.remoteId)
+            Log.d(TAG, "Pushed study deletion=${entity.remoteId}")
+        }
+    }
+
+    private suspend fun pullStudies(context: Context, userUid: String) {
+        if (userUid.isBlank()) return
+        val snapshot = withTimeout(15_000L) {
+            studiesCollection(userUid).get().awaitResult()
+        }
+        applyRemoteStudies(context, snapshot, userUid)
     }
 
     private suspend fun pushAllHighlights(context: Context, userUid: String = currentUser?.uid.orEmpty()) {
@@ -373,8 +427,6 @@ object FirestoreSyncManager {
     }
 
     private suspend fun attachListeners(context: Context, userUid: String) {
-        // Listeners de notebooks/studies removidos tras migracion a StudyDoc (v2).
-        // Solo preferences y highlights siguen sincronizandose.
         listeners = listOf(
             preferencesDocument(userUid).addSnapshotListener { snapshot, error ->
                 if (error != null) {
@@ -393,6 +445,25 @@ object FirestoreSyncManager {
                 }
                 if (snapshot == null) return@addSnapshotListener
                 scope.launch { applyRemoteHighlights(context, snapshot) }
+            },
+            studiesCollection(userUid).addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.w(TAG, "Studies listener failed", error)
+                    notifySyncError()
+                    return@addSnapshotListener
+                }
+                if (snapshot == null) return@addSnapshotListener
+                scope.launch {
+                    runCatching {
+                        syncMutex.withLock {
+                            applyRemoteStudies(context, snapshot, userUid)
+                            pushStudies(context, userUid)
+                        }
+                    }.onFailure {
+                        Log.w(TAG, "Failed to apply remote studies", it)
+                        notifySyncError()
+                    }
+                }
             }
         )
     }
@@ -441,14 +512,78 @@ object FirestoreSyncManager {
         }
     }
 
-    @Suppress("UNUSED_PARAMETER")
-    private suspend fun applyRemoteNotebooks(context: Context, snapshot: QuerySnapshot) {
-        // Sync de notebooks deshabilitado tras migracion a StudyDoc (v2).
-    }
-
-    @Suppress("UNUSED_PARAMETER")
-    private suspend fun applyRemoteStudies(context: Context, snapshot: QuerySnapshot) {
-        // Sync de studies deshabilitado tras migracion a StudyDoc (v2).
+    private suspend fun applyRemoteStudies(
+        context: Context,
+        snapshot: QuerySnapshot,
+        userUid: String,
+    ) {
+        val repository = studyRepository(context)
+        val syncedAt = System.currentTimeMillis()
+        snapshot.documents.forEach { document ->
+            val remote = document.data.orEmpty().toRemoteStudyRecord(document.id)
+            val local = repository.getEntityByRemoteId(remote.remoteId)
+            when (StudyDocSyncPolicy.resolve(local, remote, userUid)) {
+                StudySyncResolution.APPLY_REMOTE -> {
+                    val entity = StudyDocSyncPolicy.toLocalEntity(
+                        remote = remote,
+                        activeOwnerUid = userUid,
+                        syncedAt = syncedAt,
+                    )
+                    if (entity != null) {
+                        repository.upsertRemote(entity)
+                        Log.d(TAG, "Applied remote study=${remote.remoteId}")
+                    } else {
+                        Log.w(TAG, "Ignored undecodable study=${remote.remoteId}")
+                    }
+                }
+                StudySyncResolution.PRESERVE_LOCAL_CONFLICT_AND_APPLY_REMOTE -> {
+                    val remoteEntity = if (remote.deletedAt == null) {
+                        StudyDocSyncPolicy.toLocalEntity(
+                            remote = remote,
+                            activeOwnerUid = userUid,
+                            syncedAt = syncedAt,
+                        )
+                    } else {
+                        null
+                    }
+                    if (remote.deletedAt == null && remoteEntity == null) {
+                        Log.w(TAG, "Ignored undecodable conflicting study=${remote.remoteId}")
+                        return@forEach
+                    }
+                    val conflict = local?.let {
+                        StudyDocSyncPolicy.createConflictCopy(
+                            local = it,
+                            activeOwnerUid = userUid,
+                            now = syncedAt,
+                        )
+                    }
+                    if (conflict != null) {
+                        repository.upsertRemote(conflict)
+                        Log.w(
+                            TAG,
+                            "Preserved local conflict=${conflict.remoteId} " +
+                                "before applying remote=${remote.remoteId}",
+                        )
+                    }
+                    if (remote.deletedAt != null) {
+                        repository.hardDeleteByRemoteId(remote.remoteId)
+                    } else if (remoteEntity != null) {
+                        repository.upsertRemote(remoteEntity)
+                    }
+                }
+                StudySyncResolution.DELETE_LOCAL -> {
+                    repository.hardDeleteByRemoteId(remote.remoteId)
+                    Log.d(TAG, "Applied remote deletion=${remote.remoteId}")
+                }
+                StudySyncResolution.KEEP_LOCAL -> Unit
+                StudySyncResolution.IGNORE_FOREIGN_OWNER -> {
+                    Log.w(TAG, "Ignored foreign study=${remote.remoteId}")
+                }
+                StudySyncResolution.IGNORE_INVALID_REMOTE -> {
+                    Log.w(TAG, "Ignored invalid study=${remote.remoteId}")
+                }
+            }
+        }
     }
 
     private suspend fun applyRemoteHighlights(context: Context, snapshot: QuerySnapshot) {
@@ -469,4 +604,29 @@ object FirestoreSyncManager {
     private fun preferencesDocument(uid: String) = userRoot(uid).collection("preferences").document("app")
     private fun highlightsCollection(uid: String) = userRoot(uid).collection("chapter_highlights")
     private fun highlightDocument(uid: String, documentId: String) = highlightsCollection(uid).document(documentId)
+    private fun studiesCollection(uid: String) = userRoot(uid).collection("studies")
+    private fun studyDocument(uid: String, remoteId: String) =
+        studiesCollection(uid).document(remoteId)
+
+    private fun studyRepository(context: Context): StudyDocRepository =
+        StudyDocRepository(StudyDocDatabase.getInstance(context).studyDocDao())
+
+    private fun Map<String, Any>.toRemoteStudyRecord(documentId: String): RemoteStudyRecord =
+        RemoteStudyRecord(
+            remoteId = (this["remoteId"] as? String).orEmpty().ifBlank { documentId },
+            title = this["title"] as? String ?: "",
+            notebookRemoteId = (this["notebookRemoteId"] as? String)?.takeIf { it.isNotBlank() },
+            tagsCsv = this["tagsCsv"] as? String ?: "",
+            blockCount = (this["blockCount"] as? Number)?.toInt() ?: 0,
+            docVersion = (this["docVersion"] as? Number)?.toInt() ?: 0,
+            docJson = (this["docJson"] as? String)?.takeIf { it.isNotBlank() }
+                ?: (this["contentSerialized"] as? String)
+                ?: "",
+            createdAt = (this["createdAt"] as? Number)?.toLong() ?: 0L,
+            updatedAt = (this["updatedAt"] as? Number)?.toLong() ?: 0L,
+            ownerUid = this["ownerUid"] as? String,
+            deletedAt = (this["deletedAt"] as? Number)?.toLong(),
+            syncVersion = (this["syncVersion"] as? Number)?.toLong() ?: 0L,
+            isPublished = this["isPublished"] as? Boolean ?: true,
+        )
 }

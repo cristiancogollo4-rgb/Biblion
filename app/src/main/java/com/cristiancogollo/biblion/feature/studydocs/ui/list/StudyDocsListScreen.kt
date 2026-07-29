@@ -41,8 +41,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
 import androidx.compose.foundation.text.KeyboardOptions
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
+import com.cristiancogollo.biblion.feature.studydocs.data.StudyShareFormat
+import com.cristiancogollo.biblion.BiblionBottomNavigation
+import com.cristiancogollo.biblion.Screen
+import com.cristiancogollo.biblion.Testament
+import com.cristiancogollo.biblion.navigateSingleTop
+import com.cristiancogollo.biblion.feature.studydocs.ui.Screen as StudyDocScreen
 import kotlinx.coroutines.launch
 
 /**
@@ -57,17 +64,19 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StudyDocsListScreen(
+    navController: NavController,
     viewModel: StudyDocsListViewModel,
     onBack: () -> Unit,
     onOpenDoc: (StudyDoc) -> Unit,
     onEditDoc: (StudyDoc) -> Unit,
     onNewDoc: () -> Unit,
-    onShareText: (StudyDoc) -> Unit = {},
-    onShareBiblion: (StudyDoc) -> Unit = {},
+    onShare: (StudyDoc, StudyShareFormat) -> Unit = { _, _ -> },
+    onRequestPublication: (StudyDoc) -> Unit = {},
     onEditMetadata: (StudyDoc) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     var pendingDelete by remember { mutableStateOf<StudyDoc?>(null) }
+    var pendingShare by remember { mutableStateOf<StudyDoc?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -75,17 +84,27 @@ fun StudyDocsListScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Mis ensenanzas", fontWeight = FontWeight.SemiBold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
-                    }
-                },
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onNewDoc) {
+            FloatingActionButton(
+                onClick = onNewDoc,
+                modifier = Modifier.padding(bottom = 104.dp),
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ) {
                 Icon(Icons.Filled.Add, contentDescription = "Nueva ensenanza")
             }
+        },
+        bottomBar = {
+            BiblionBottomNavigation(
+                currentRoute = StudyDocScreen.StudyDocsList.route,
+                onHome = { navController.navigateSingleTop(Screen.Home.route) },
+                onBible = { navController.navigateSingleTop(Screen.Books.createRoute(Testament.OLD)) },
+                onSearch = { navController.navigateSingleTop(Screen.Search.createRoute()) },
+                onStudy = { },
+                onProfile = { navController.navigateSingleTop(Screen.Profile.route) }
+            )
         },
     ) { padding ->
         Column(
@@ -154,7 +173,7 @@ fun StudyDocsListScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 16.dp),
-                    contentPadding = PaddingValues(vertical = 8.dp),
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 112.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(visible, key = { it.id.value }) { doc ->
@@ -163,8 +182,7 @@ fun StudyDocsListScreen(
                             onOpen = { onOpenDoc(doc) },
                             onEdit = { onEditDoc(doc) },
                             onEditMetadata = { onEditMetadata(doc) },
-                            onShareText = { onShareText(doc) },
-                            onShareBiblion = { onShareBiblion(doc) },
+                            onShare = { pendingShare = doc },
                             onDelete = { pendingDelete = doc },
                         )
                     }
@@ -190,6 +208,36 @@ fun StudyDocsListScreen(
                 TextButton(onClick = { pendingDelete = null }) {
                     Text("Cancelar")
                 }
+            },
+        )
+    }
+
+    pendingShare?.let { doc ->
+        AlertDialog(
+            onDismissRequest = { pendingShare = null },
+            title = { Text("Compartir ensenanza") },
+            text = {
+                Column {
+                    Text("Elige el formato que deseas compartir.")
+                    TextButton(onClick = {
+                        pendingShare = null
+                        onRequestPublication(doc)
+                    }) {
+                        Text("Solicitar publicacion")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingShare = null
+                    onShare(doc, StudyShareFormat.PDF)
+                }) { Text("PDF") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    pendingShare = null
+                    onShare(doc, StudyShareFormat.BIB)
+                }) { Text("Archivo .bib") }
             },
         )
     }

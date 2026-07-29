@@ -48,6 +48,14 @@
                     android:host="*"
                     android:pathPattern=".*\\.biblion"
                     android:scheme="file" />
+                <data
+                    android:host="*"
+                    android:pathPattern=".*\\.bib"
+                    android:scheme="content" />
+                <data
+                    android:host="*"
+                    android:pathPattern=".*\\.bib"
+                    android:scheme="file" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />

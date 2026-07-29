@@ -83,6 +83,8 @@ import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 import com.cristiancogollo.biblion.feature.bibi.ui.BibiReaderOverlay
+import com.cristiancogollo.biblion.feature.achievements.domain.AchievementEvent
+import com.cristiancogollo.biblion.feature.achievements.tracking.AchievementTracker
 import com.cristiancogollo.biblion.feature.bibi.ui.StudyBibiController
 import com.cristiancogollo.biblion.feature.studydocs.ui.Screen as StudyDocScreen
 
@@ -587,6 +589,15 @@ fun ReaderContent(
             chapter = selectedChapter,
             verses = result.updatedChapterHighlights
         )
+        scope.launch {
+            AchievementTracker.track(
+                context,
+                AchievementEvent.HighlightCreated(
+                    verseKey = verseKey(verseNumber),
+                    colorKey = "highlight_$colorIndex",
+                ),
+            )
+        }
     }
 
     fun loadChapter(book: String, chapter: Int) {
@@ -644,6 +655,32 @@ fun ReaderContent(
 
     LaunchedEffect(bookName, selectedChapter) {
         bookName?.let { AppPreferencesSyncStore.setLastReading(context, it, selectedChapter, pendingTargetVerse) }
+    }
+
+    LaunchedEffect(bookName, selectedChapter, verses.size) {
+        if (bookName.isNullOrBlank() || verses.isEmpty()) return@LaunchedEffect
+        snapshotFlow {
+            lazyListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+        }.collect { lastVisibleIndex ->
+            val threshold = ((verses.size - 1) * 0.7f).toInt()
+            if (lastVisibleIndex >= threshold) {
+                val newTestamentBooks = setOf(
+                    "mateo", "marcos", "lucas", "juan", "hechos", "romanos",
+                    "1 corintios", "2 corintios", "galatas", "efesios", "filipenses",
+                    "colosenses", "1 tesalonicenses", "2 tesalonicenses", "1 timoteo",
+                    "2 timoteo", "tito", "filemon", "hebreos", "santiago", "1 pedro",
+                    "2 pedro", "1 juan", "2 juan", "3 juan", "judas", "apocalipsis",
+                )
+                AchievementTracker.track(
+                    context,
+                    AchievementEvent.ChapterRead(
+                        book = bookName,
+                        chapter = selectedChapter,
+                        testament = if (bookName.lowercase() in newTestamentBooks) "NEW" else "OLD",
+                    ),
+                )
+            }
+        }
     }
 
     LaunchedEffect(selectedVersionKey) {
@@ -945,6 +982,17 @@ fun ReaderContent(
                     onTutorialEvent = onTutorialEvent,
                     forceOpenForTutorial = guidedStep?.targetKey ==
                         GuidedTutorialTargets.READER_BIBI_CHAT_PANEL,
+                    onOpenPassage = { passage ->
+                        navController.navigate(
+                            Screen.Reader.createRoute(
+                                bookName = passage.book,
+                                chapter = passage.chapter,
+                                verse = passage.verse.toString(),
+                            )
+                        ) {
+                            launchSingleTop = true
+                        }
+                    },
                     modifier = Modifier.align(Alignment.BottomEnd),
                 )
             }

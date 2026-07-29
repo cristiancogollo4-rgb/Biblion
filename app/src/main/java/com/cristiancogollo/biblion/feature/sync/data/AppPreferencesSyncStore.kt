@@ -23,6 +23,12 @@ data class HighlightChapterSnapshot(
     val updatedAt: Long
 )
 
+data class LastReading(
+    val book: String,
+    val chapter: Int,
+    val verse: String?
+)
+
 object AppPreferencesSyncStore {
     const val PREFS_NAME = "BiblionAppPrefs"
     const val KEY_DARK_MODE_ENABLED = "darkModeEnabled"
@@ -36,6 +42,9 @@ object AppPreferencesSyncStore {
     const val KEY_HAS_COMPLETED_READING_GUIDE = "onboarding.hasCompletedReadingGuide"
     const val KEY_HAS_COMPLETED_STUDY_GUIDE = "onboarding.hasCompletedStudyGuide"
     const val KEY_HAS_COMPLETED_EXPLORE_GUIDE = "onboarding.hasCompletedExploreGuide"
+    const val KEY_LAST_READING_BOOK = "reading.lastBook"
+    const val KEY_LAST_READING_CHAPTER = "reading.lastChapter"
+    const val KEY_LAST_READING_VERSE = "reading.lastVerse"
 
     private const val KEY_DARK_MODE_UPDATED_AT = "sync.darkMode.updatedAt"
     private const val KEY_SELECTED_VERSION_UPDATED_AT = "sync.selectedBibleVersion.updatedAt"
@@ -91,6 +100,25 @@ object AppPreferencesSyncStore {
 
     fun getReaderFontSizeSp(context: Context): Int {
         return prefs(context).getInt(KEY_FONT_SIZE, DEFAULT_FONT_SIZE_SP)
+    }
+
+    fun getLastReading(context: Context): LastReading? {
+        val preferences = prefs(context)
+        val book = preferences.getString(KEY_LAST_READING_BOOK, null)?.trim().orEmpty()
+        if (book.isBlank()) return null
+        return LastReading(
+            book = book,
+            chapter = preferences.getInt(KEY_LAST_READING_CHAPTER, 1).coerceAtLeast(1),
+            verse = preferences.getString(KEY_LAST_READING_VERSE, null)?.takeIf { it.isNotBlank() },
+        )
+    }
+
+    fun setLastReading(context: Context, book: String, chapter: Int, verse: String? = null) {
+        prefs(context).edit {
+            putString(KEY_LAST_READING_BOOK, book)
+            putInt(KEY_LAST_READING_CHAPTER, chapter.coerceAtLeast(1))
+            putString(KEY_LAST_READING_VERSE, verse)
+        }
     }
 
     fun setReaderFontSizeSp(

@@ -188,7 +188,7 @@ fun DictionaryScreen(navController: NavController) {
                         .padding(32.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = BiblionBluePrimary)
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
             } else {
                 LazyColumn(
@@ -283,7 +283,7 @@ private fun DictionarySearchBar(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = BiblionBluePrimary,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
             ),
         )
@@ -455,7 +455,7 @@ private fun DictionaryResultCard(
             Icon(
                 imageVector = Icons.Filled.MenuBook,
                 contentDescription = null,
-                tint = BiblionBluePrimary,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(24.dp),
             )
             Spacer(modifier = Modifier.size(12.dp))
@@ -464,20 +464,22 @@ private fun DictionaryResultCard(
                     Text(
                         text = entry.term,
                         style = MaterialTheme.typography.titleMedium,
-                        color = BiblionNavy,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.weight(1f, fill = false),
                     )
                     Spacer(modifier = Modifier.size(8.dp))
-                    AssistChip(
-                        onClick = {},
-                        label = {
-                            Text(
-                                entry.category.displayName,
-                                fontSize = 10.sp,
-                            )
-                        },
-                    )
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                    ) {
+                        Text(
+                            entry.category.displayName,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontSize = 10.sp,
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.size(4.dp))
                 Text(

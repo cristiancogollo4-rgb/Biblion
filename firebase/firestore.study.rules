@@ -1,0 +1,52 @@
+// Merge these matches into the project's main Firestore rules before deploy.
+// They intentionally do not replace rules for existing Biblion collections.
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isModerator() {
+      return signedIn() && profile().rol in ['MODERADOR', 'ADMIN'];
+    }
+
+    function isApprovedPublisher() {
+      return signedIn()
+        && profile().rol in ['PUBLICADOR', 'MODERADOR', 'ADMIN']
+        && profile().estadoPublicador == 'APROBADO';
+    }
+
+    match /publications/{publicationId} {
+      allow read: if resource.data.status == 'PUBLISHED';
+      allow create, update, delete: if false;
+
+      match /revisions/{revisionId} {
+        allow read: if get(
+          /databases/$(database)/documents/publications/$(publicationId)
+        ).data.status == 'PUBLISHED';
+        allow create, update, delete: if false;
+      }
+    }
+
+    match /publication_requests/{requestId} {
+      allow create: if isApprovedPublisher()
+        && request.resource.data.status == 'PENDING'
+        && request.resource.data.author.uid == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.contentHash is string
+        && request.resource.data.contentJson is string;
+
+      allow read: if signedIn()
+        && (resource.data.author.uid == request.auth.uid || isModerator());
+      allow update: if isModerator();
+      allow delete: if false;
+    }
+  }
+}

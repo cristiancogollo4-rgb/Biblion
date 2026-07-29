@@ -1,0 +1,11 @@
+// Merge these matches into the project's main Storage rules before deploy.
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /publications/{publicationId}/{fileName} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}

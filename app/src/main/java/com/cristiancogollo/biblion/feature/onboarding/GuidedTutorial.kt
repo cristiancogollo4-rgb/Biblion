@@ -34,8 +34,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
@@ -52,9 +56,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 enum class GuidedTutorialId(val routeArg: String) {
@@ -81,6 +85,8 @@ enum class GuidedTutorialSecondaryAction {
     RESTART
 }
 
+internal fun shouldShowGuidedTutorialSecondaryAction(isRestart: Boolean): Boolean = isRestart
+
 data class GuidedTutorialProgress(
     val guideId: GuidedTutorialId,
     val stepIndex: Int,
@@ -104,9 +110,10 @@ data class GuidedTutorialStep(
 }
 
 object GuidedTutorialTargets {
-    const val HOME_TESTAMENT_SELECTOR = "home_testament_selector"
+    const val NAV_BIBLE = "navigation_bible"
+    const val NAV_SEARCH = "navigation_search"
+    const val NAV_STUDY = "navigation_study"
     const val HOME_DAILY_VERSE = "home_daily_verse"
-    const val HOME_STUDY_ENTRY = "home_study_entry"
     const val BOOKS_FIRST_BOOK = "books_first_book"
     const val BOOKS_LONG_PRESS = "books_long_press"
     const val READER_CHAPTER_SELECTOR = "reader_chapter_selector"
@@ -115,7 +122,6 @@ object GuidedTutorialTargets {
     const val READER_VERSION_SELECTOR = "reader_version_selector"
     const val READER_BIBI_BUTTON = "reader_bibi_button"
     const val READER_BIBI_CHAT_PANEL = "reader_bibi_chat_panel"
-    const val READER_SEARCH_ICON = "reader_search_icon"
 }
 
 fun GuidedTutorialProgress.currentStep(): GuidedTutorialStep? {
@@ -137,7 +143,7 @@ fun guidedTutorialSteps(guideId: GuidedTutorialId): List<GuidedTutorialStep> {
             id = "reading-testament",
             titleRes = R.string.guide_reading_testament_title,
             descriptionRes = R.string.guide_reading_testament_body,
-            targetKey = GuidedTutorialTargets.HOME_TESTAMENT_SELECTOR,
+            targetKey = GuidedTutorialTargets.NAV_BIBLE,
             actionRequired = true,
             screenTarget = GuidedTutorialScreenTarget.HOME
         ),
@@ -221,7 +227,7 @@ fun guidedTutorialSteps(guideId: GuidedTutorialId): List<GuidedTutorialStep> {
             id = "reader-dictionary",
             titleRes = R.string.guide_dictionary_title,
             descriptionRes = R.string.guide_dictionary_body,
-            targetKey = GuidedTutorialTargets.READER_SEARCH_ICON,
+            targetKey = GuidedTutorialTargets.NAV_SEARCH,
             actionRequired = true,
             screenTarget = GuidedTutorialScreenTarget.READER
         ),
@@ -251,7 +257,7 @@ fun guidedTutorialSteps(guideId: GuidedTutorialId): List<GuidedTutorialStep> {
             id = "study-entry",
             titleRes = R.string.guide_study_entry_title,
             descriptionRes = R.string.guide_study_entry_body,
-            targetKey = GuidedTutorialTargets.HOME_STUDY_ENTRY,
+            targetKey = GuidedTutorialTargets.NAV_STUDY,
             actionRequired = true,
             screenTarget = GuidedTutorialScreenTarget.HOME
         )
@@ -261,7 +267,7 @@ fun guidedTutorialSteps(guideId: GuidedTutorialId): List<GuidedTutorialStep> {
             id = "explore-reading",
             titleRes = R.string.guide_explore_reading_title,
             descriptionRes = R.string.guide_explore_reading_body,
-            targetKey = GuidedTutorialTargets.HOME_TESTAMENT_SELECTOR,
+            targetKey = GuidedTutorialTargets.NAV_BIBLE,
             actionRequired = false,
             screenTarget = GuidedTutorialScreenTarget.HOME
         ),
@@ -277,7 +283,7 @@ fun guidedTutorialSteps(guideId: GuidedTutorialId): List<GuidedTutorialStep> {
             id = "explore-study",
             titleRes = R.string.guide_explore_study_title,
             descriptionRes = R.string.guide_explore_study_body,
-            targetKey = GuidedTutorialTargets.HOME_STUDY_ENTRY,
+            targetKey = GuidedTutorialTargets.NAV_STUDY,
             actionRequired = false,
             screenTarget = GuidedTutorialScreenTarget.HOME
         )
@@ -299,6 +305,31 @@ fun Modifier.guidedTutorialTarget(
     }
 }
 
+internal fun guidedNavigationTargetRect(
+    targetKey: String?,
+    screenWidthPx: Float,
+    screenHeightPx: Float,
+    density: Float,
+): Rect? {
+    val itemIndex = when (targetKey) {
+        GuidedTutorialTargets.NAV_BIBLE -> 1
+        GuidedTutorialTargets.NAV_SEARCH -> 2
+        GuidedTutorialTargets.NAV_STUDY -> 3
+        else -> return null
+    }
+    val horizontalMarginPx = 16f * density
+    val navigationWidthPx = (screenWidthPx - horizontalMarginPx * 2f)
+        .coerceAtMost(680f * density)
+    val itemWidthPx = navigationWidthPx / 5f
+    val navigationLeftPx = (screenWidthPx - navigationWidthPx) / 2f
+    return Rect(
+        left = navigationLeftPx + itemWidthPx * itemIndex,
+        top = screenHeightPx - 96f * density,
+        right = navigationLeftPx + itemWidthPx * (itemIndex + 1),
+        bottom = screenHeightPx - 12f * density,
+    )
+}
+
 @Composable
 fun GuidedTutorialOverlay(
     step: GuidedTutorialStep?,
@@ -310,11 +341,17 @@ fun GuidedTutorialOverlay(
     modifier: Modifier = Modifier
 ) {
     if (step == null) return
-    val target = step.targetKey?.let { targetBounds[it] }
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
     val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
     val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
+    val target = step.targetKey?.let { targetBounds[it] }
+        ?: guidedNavigationTargetRect(
+            targetKey = step.targetKey,
+            screenWidthPx = screenWidthPx,
+            screenHeightPx = screenHeightPx,
+            density = density.density,
+        )
     val pulseTransition = rememberInfiniteTransition(label = "guide-pulse")
     val pulseAlpha by pulseTransition.animateFloat(
         initialValue = 0.45f,
@@ -325,6 +362,15 @@ fun GuidedTutorialOverlay(
         ),
         label = "guide-pulse-alpha"
     )
+    var showTargetFallback by remember(step.id) { mutableStateOf(false) }
+
+    LaunchedEffect(step.id, target) {
+        showTargetFallback = false
+        if (step.actionRequired && step.targetKey != null && target == null) {
+            delay(1_200)
+            showTargetFallback = true
+        }
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         if (target == null) {
@@ -334,6 +380,11 @@ fun GuidedTutorialOverlay(
                     .background(Color.Black.copy(alpha = 0.48f))
             )
         } else {
+            val isNavigationTarget = step.targetKey in setOf(
+                GuidedTutorialTargets.NAV_BIBLE,
+                GuidedTutorialTargets.NAV_SEARCH,
+                GuidedTutorialTargets.NAV_STUDY,
+            )
             val basePaddingPx = with(density) { 10.dp.toPx() }
             val isVerseHighlightStep = step.targetKey == GuidedTutorialTargets.READER_FIRST_VERSE
             val paddingPx = if (isVerseHighlightStep) {
@@ -360,25 +411,30 @@ fun GuidedTutorialOverlay(
                 screenWidthPx = screenWidthPx,
                 screenHeightPx = screenHeightPx
             )
-            Box(
-                modifier = Modifier
-                    .offset {
-                        IntOffset(
-                            x = highlightLeft.roundToInt(),
-                            y = highlightTop.roundToInt()
+            if (!isNavigationTarget) {
+                Box(
+                    modifier = Modifier
+                        .offset {
+                            IntOffset(
+                                x = highlightLeft.roundToInt(),
+                                y = highlightTop.roundToInt()
+                            )
+                        }
+                        .size(
+                            width = with(density) { (highlightRight - highlightLeft).toDp() },
+                            height = with(density) { (highlightBottom - highlightTop).toDp() }
                         )
-                    }
-                    .size(
-                        width = with(density) { (highlightRight - highlightLeft).toDp() },
-                        height = with(density) { (highlightBottom - highlightTop).toDp() }
-                    )
-                    .border(
-                        width = 3.dp,
-                        color = BiblionGoldPrimary.copy(alpha = pulseAlpha),
-                        shape = RoundedCornerShape(16.dp)
-                    )
-                    .background(BiblionGoldPrimary.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
-            )
+                        .border(
+                            width = 3.dp,
+                            color = BiblionGoldPrimary.copy(alpha = pulseAlpha),
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                        .background(
+                            BiblionGoldPrimary.copy(alpha = 0.12f),
+                            RoundedCornerShape(16.dp)
+                        )
+                )
+            }
         }
 
         GuideBubble(
@@ -388,6 +444,7 @@ fun GuidedTutorialOverlay(
             onNext = onNext,
             onSecondary = if (step.restartsGuide) onRestart else onSkip,
             isRestart = isRestart,
+            showTargetFallback = showTargetFallback,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(18.dp)
@@ -442,17 +499,14 @@ private fun GuideBubble(
     onNext: () -> Unit,
     onSecondary: () -> Unit,
     isRestart: Boolean = false,
+    showTargetFallback: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
     val screenWidthDp = with(density) { configuration.screenWidthDp.dp }
     val placeAboveTarget = target != null && target.center.y > screenHeightPx * 0.58f
-    val verticalOffset = if (placeAboveTarget) {
-        with(density) { (-190).dp }
-    } else {
-        0.dp
-    }
+    val verticalOffset = if (placeAboveTarget) (-190).dp else (-96).dp
     
     val isSmallScreen = screenWidthDp < 360.dp
     val bubblePadding = if (isSmallScreen) 12.dp else 16.dp
@@ -469,9 +523,9 @@ private fun GuideBubble(
             .offset(y = verticalOffset)
     ) {
         Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = Color(0xFF10263B),
-            border = BorderStroke(1.dp, BiblionGoldSoft.copy(alpha = 0.6f)),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             tonalElevation = 8.dp,
             modifier = Modifier
                 .widthIn(min = 280.dp, max = maxBubbleWidth)
@@ -480,77 +534,98 @@ private fun GuideBubble(
         ) {
             Column(
                 modifier = Modifier
-                    .padding(bubblePadding)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(if (isSmallScreen) 10.dp else 12.dp)
+                    .padding(bubblePadding),
+                verticalArrangement = Arrangement.spacedBy(if (isSmallScreen) 8.dp else 10.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(if (isSmallScreen) 8.dp else 10.dp)
+                Column(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(
+                        if (isSmallScreen) 10.dp else 12.dp
+                    )
                 ) {
-                    Surface(
-                        modifier = Modifier.size(logoSize),
-                        shape = RoundedCornerShape(8.dp),
-                        color = BiblionBluePrimary,
-                        border = BorderStroke(1.dp, BiblionGoldSoft.copy(alpha = 0.6f))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(
+                            if (isSmallScreen) 8.dp else 10.dp
+                        )
                     ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.bibi_logo),
-                            contentDescription = stringResource(R.string.auth_logo_cd),
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(4.dp),
-                            contentScale = ContentScale.Fit
+                        Surface(
+                            modifier = Modifier.size(logoSize),
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            border = BorderStroke(
+                                1.dp,
+                                MaterialTheme.colorScheme.outlineVariant,
+                            )
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.bibi_logo),
+                                contentDescription = stringResource(R.string.auth_logo_cd),
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(4.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
+                        Text(
+                            text = stringResource(step.titleRes),
+                            style = titleStyle.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 5,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                     Text(
-                        text = stringResource(step.titleRes),
-                        style = titleStyle.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White,
-                        maxLines = 5,
+                        text = stringResource(step.descriptionRes),
+                        style = bodyStyle,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (step.actionRequired) {
+                        Text(
+                            text = stringResource(R.string.guide_action_required),
+                            style = labelStyle.copy(fontWeight = FontWeight.Bold),
+                            color = BiblionGoldSoft
+                        )
+                    }
                 }
-                Text(
-                    text = stringResource(step.descriptionRes),
-                    style = bodyStyle,
-                    color = Color.White.copy(alpha = 0.9f),
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (step.actionRequired) {
-                    Text(
-                        text = stringResource(R.string.guide_action_required),
-                        style = labelStyle.copy(fontWeight = FontWeight.Bold),
-                        color = BiblionGoldSoft
-                    )
-                }
-                Spacer(modifier = Modifier.height(if (isSmallScreen) 4.dp else 6.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (isRestart) {
+                    if (shouldShowGuidedTutorialSecondaryAction(isRestart)) {
                         TextButton(onClick = onSecondary) {
                             Text(
                                 text = stringResource(step.secondaryLabelRes),
-                                color = Color.White.copy(alpha = 0.85f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = labelStyle
                             )
                         }
                     }
-                    if (!step.actionRequired && step.advanceOnEvent == null) {
+                    if (
+                        (!step.actionRequired && step.advanceOnEvent == null) ||
+                        showTargetFallback
+                    ) {
                         Button(
                             onClick = onNext,
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = BiblionGoldPrimary,
-                                contentColor = BiblionBluePrimary
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
                             ),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.height(buttonHeight)
                         ) {
                             Text(
-                                text = stringResource(step.primaryLabelRes),
+                                text = stringResource(
+                                    if (showTargetFallback) {
+                                        R.string.guide_continue
+                                    } else {
+                                        step.primaryLabelRes
+                                    }
+                                ),
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center,
                                 style = labelStyle

@@ -1,5 +1,7 @@
 package com.cristiancogollo.biblion.feature.bibi.model
 
+import kotlinx.serialization.Serializable
+
 sealed interface BibiContext {
     val bibleVersion: String
 
@@ -22,6 +24,7 @@ sealed interface BibiContext {
     ) : BibiContext
 }
 
+@Serializable
 data class BibiPassage(
     val book: String,
     val chapter: Int,

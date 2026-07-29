@@ -3,9 +3,22 @@ main = "src/index.js"
 compatibility_date = "2026-06-03"
 
 [vars]
-BIBI_PROVIDER = "openai-compatible"
-BIBI_MODEL = "qwen3-8b"
+BIBI_PROVIDER = "cloudflare-workers-ai"
+BIBI_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8"
+BIBI_FALLBACK_MODEL = "qwen3-8b"
 OPENAI_COMPATIBLE_BASE_URL = "https://ws-jtyu5n7ae7krw2qu.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"
+
+[ai]
+binding = "AI"
+remote = true
 
 [observability]
 enabled = true
+
+[[ratelimits]]
+name = "BIBI_RATE_LIMITER"
+namespace_id = "1001"
+
+[ratelimits.simple]
+limit = 20
+period = 60

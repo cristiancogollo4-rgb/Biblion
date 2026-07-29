@@ -71,7 +71,7 @@ class StudyDocsListViewModel(
 
     fun delete(doc: StudyDoc) {
         viewModelScope.launch {
-            repository.hardDelete(doc.id)
+            repository.delete(doc)
         }
     }
 

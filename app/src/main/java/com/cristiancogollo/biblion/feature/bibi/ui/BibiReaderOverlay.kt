@@ -38,6 +38,7 @@ fun BibiReaderOverlay(
     onGuidedTutorialTargetAction: (String) -> Unit = {},
     onTutorialEvent: (String) -> Unit = {},
     forceOpenForTutorial: Boolean = false,
+    onOpenPassage: (BibiPassage) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -77,6 +78,11 @@ fun BibiReaderOverlay(
                 placeholder = "Pregunta a Bibi...",
                 onClose = { isOpen = false },
                 onCompletedExchange = { onTutorialEvent("chat_exchange_completed") },
+                isTutorial = forceOpenForTutorial,
+                onOpenPassage = {
+                    isOpen = false
+                    onOpenPassage(it)
+                },
                 modifier = modifier.guidedTutorialTarget(
                     GuidedTutorialTargets.READER_BIBI_CHAT_PANEL,
                     tutorialTargetBounds,
