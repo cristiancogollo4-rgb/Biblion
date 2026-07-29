@@ -33,7 +33,6 @@ fun BibiReaderOverlay(
     passages: List<BibiPassage>,
     bibleVersion: String,
     currentUserName: String?,
-    isReaderScrolling: Boolean,
     tutorialTargetBounds: MutableMap<String, Rect>,
     onGuidedTutorialTargetAction: (String) -> Unit = {},
     onTutorialEvent: (String) -> Unit = {},
@@ -91,7 +90,6 @@ fun BibiReaderOverlay(
         }
     } else {
         BibiReaderLauncher(
-            isReaderScrolling = isReaderScrolling,
             tutorialTargetBounds = tutorialTargetBounds,
             onClick = {
                 isOpen = true
@@ -104,19 +102,16 @@ fun BibiReaderOverlay(
 
 @Composable
 private fun BibiReaderLauncher(
-    isReaderScrolling: Boolean,
     tutorialTargetBounds: MutableMap<String, Rect>,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (isReaderScrolling) return
-
     FloatingActionButton(
         onClick = onClick,
         containerColor = BiblionBluePrimary,
         contentColor = Color.White,
         modifier = modifier
-            .padding(end = 20.dp, bottom = 90.dp)
+            .padding(end = 20.dp, bottom = 128.dp)
             .size(56.dp)
             .guidedTutorialTarget(
                 GuidedTutorialTargets.READER_BIBI_BUTTON,

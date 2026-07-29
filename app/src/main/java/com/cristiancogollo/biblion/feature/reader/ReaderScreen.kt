@@ -447,6 +447,44 @@ internal fun verseSelectionRangePosition(
 
 private fun formatCitationVerseText(number: Int, text: String): String = "$number ${text.trim()}"
 
+private fun formatBibleVersionForCopy(versionKey: String): String =
+    when (versionKey.trim().lowercase()) {
+        "rv1960", "rvr1960" -> "RVR1960"
+        else -> versionKey.trim().uppercase()
+    }
+
+internal fun buildVerseCopyText(
+    bookName: String,
+    chapter: Int,
+    selections: Collection<VerseAction>,
+    bibleVersion: String,
+): String {
+    val sortedSelections = selections
+        .mapNotNull { selection ->
+            val number = selection.number.toIntOrNull() ?: return@mapNotNull null
+            number to selection.text.trim()
+        }
+        .distinctBy { it.first }
+        .sortedBy { it.first }
+    if (sortedSelections.isEmpty()) return ""
+
+    val reference = "$bookName $chapter:" +
+        com.cristiancogollo.biblion.feature.studydocs.model.formatVerseNumberRanges(
+            sortedSelections.map { it.first }
+        )
+    val referenceWithVersion = "$reference · ${formatBibleVersionForCopy(bibleVersion)}"
+
+    return if (sortedSelections.size == 1) {
+        val verseText = sortedSelections.single().second
+        "“$verseText”\n\n$referenceWithVersion\nCompartido desde BIBLION"
+    } else {
+        val versesText = sortedSelections.joinToString("\n") { (number, text) ->
+            "$number $text"
+        }
+        "$referenceWithVersion\n\n$versesText\n\nCompartido desde BIBLION"
+    }
+}
+
 internal fun buildCitationVerseGroups(
     bookName: String,
     chapter: Int,
@@ -778,6 +816,7 @@ fun ReaderContent(
             topBar = {
                 BiblionReaderTopAppBar(
                     bookName = bookName ?: "",
+                    chapter = selectedChapter,
                     fontSize = fontSize,
                     onNavigationIconClick = {
                         val popped = navController.popBackStackOrNavigateHome()
@@ -976,7 +1015,6 @@ fun ReaderContent(
                     passages = bibiPassages,
                     bibleVersion = selectedVersionKey,
                     currentUserName = currentUserName,
-                    isReaderScrolling = lazyListState.isScrollInProgress,
                     tutorialTargetBounds = tutorialTargetBounds,
                     onGuidedTutorialTargetAction = onGuidedTutorialTargetAction,
                     onTutorialEvent = onTutorialEvent,
@@ -1007,14 +1045,16 @@ fun ReaderContent(
                 onDismiss = { selectedVerseActions = emptyMap() },
                 onClearSelection = { selectedVerseActions = emptyMap() },
                 onCopy = {
-                    val selectedContent = selectedVerseActions.values
-                        .sortedBy { it.number.toIntOrNull() ?: Int.MAX_VALUE }
-                        .joinToString("\n\n") { selected ->
-                            val reference = "${bookName ?: ""} $selectedChapter:${selected.number}"
-                            "$reference\n${selected.text}"
-                        }
+                    val selectedContent = buildVerseCopyText(
+                        bookName = bookName.orEmpty(),
+                        chapter = selectedChapter,
+                        selections = selectedVerseActions.values,
+                        bibleVersion = selectedVersionKey,
+                    )
                     scope.launch {
-                        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Biblion", selectedContent)))
+                        clipboard.setClipEntry(
+                            ClipEntry(ClipData.newPlainText("BIBLION", selectedContent))
+                        )
                     }
                     selectedVerseActions = emptyMap()
                 },

@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.FormatUnderlined
 import androidx.compose.material.icons.filled.HighlightOff
 import androidx.compose.material.icons.filled.HorizontalRule
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
@@ -545,6 +546,7 @@ fun BiblionSelectionDialog(
 @Composable
 fun BiblionReaderTopAppBar(
     bookName: String,
+    chapter: Int,
     fontSize: TextUnit,
     onNavigationIconClick: () -> Unit,
     selectedVersionName: String,
@@ -564,15 +566,31 @@ fun BiblionReaderTopAppBar(
     ) {
         CenterAlignedTopAppBar(
             title = {
-                Text(
-                    text = bookName,
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontFamily = FontFamily.Serif,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = bookTitleModifier.clickable(onClick = onBookTitleClick)
-                )
+                Row(
+                    modifier = bookTitleModifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(onClick = onBookTitleClick)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        text = "$bookName $chapter",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Seleccionar capítulo",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             },
             navigationIcon = {
                 IconButton(onClick = onNavigationIconClick) {

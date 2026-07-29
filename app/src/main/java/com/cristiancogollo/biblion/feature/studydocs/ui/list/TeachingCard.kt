@@ -38,21 +38,28 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.cristiancogollo.biblion.feature.studydocs.model.PageDimensions
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
+import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PaginationEngine
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Tarjeta de ensenanza con el visual de v1 (EnsenanzaCard):
@@ -100,6 +107,33 @@ fun TeachingCard(
         .filter { it.isNotBlank() }
         .joinToString(" ")
         .take(220)
+    val density = LocalDensity.current
+    val textMeasurer = rememberTextMeasurer()
+    val pageCount by produceState(
+        initialValue = 1,
+        key1 = doc.blocks,
+        key2 = density,
+    ) {
+        val pageWidthPx = with(density) {
+            (PageDimensions.LETTER_WIDTH - PageDimensions.PAGE_MARGIN * 2).toPx()
+        }
+        val pageHeightPx = with(density) {
+            (
+                PageDimensions.LETTER_HEIGHT -
+                    PageDimensions.PAGE_MARGIN * 2 -
+                    PageDimensions.FOOTER_HEIGHT
+                ).toPx()
+        }
+        value = withContext(Dispatchers.Default) {
+            PaginationEngine.paginate(
+                blocks = doc.blocks,
+                pageWidthPx = pageWidthPx,
+                pageHeightPx = pageHeightPx,
+                textMeasurer = textMeasurer,
+                density = density,
+            ).size
+        }
+    }
 
     Surface(
         modifier = modifier
@@ -316,7 +350,7 @@ fun TeachingCard(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = "${doc.blocks.size} bloques · ${doc.wordCount()} palabras",
+                            text = if (pageCount == 1) "1 página" else "$pageCount páginas",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

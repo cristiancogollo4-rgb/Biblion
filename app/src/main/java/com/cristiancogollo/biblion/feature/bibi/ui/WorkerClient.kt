@@ -3,6 +3,7 @@ package com.cristiancogollo.biblion.feature.bibi.ui
 import android.util.Log
 import com.cristiancogollo.biblion.BuildConfig
 import com.cristiancogollo.biblion.feature.bibi.model.BibiContext
+import com.cristiancogollo.biblion.feature.bibi.model.BibiMessageText
 import com.cristiancogollo.biblion.feature.bibi.model.ChatExchange
 import com.google.firebase.auth.FirebaseAuth
 import java.io.OutputStreamWriter
@@ -183,13 +184,17 @@ object WorkerClient {
                 return@withContext null
             }
             val parsed = json.decodeFromString(WorkerResponse.serializer(), responseBody)
-            parsed.answer.trim().takeIf { it.isNotEmpty() }?.let { answer ->
+            BibiMessageText.normalize(parsed.answer).takeIf { it.isNotEmpty() }?.let { answer ->
                 RichWorkerResponse(
                     answer = answer,
                     references = parsed.references,
-                    suggestedBlocks = parsed.suggestedBlocks,
+                    suggestedBlocks = parsed.suggestedBlocks
+                        .map(BibiMessageText::normalize)
+                        .filter(String::isNotBlank),
                     confidence = parsed.confidence,
-                    disclaimer = parsed.disclaimer,
+                    disclaimer = parsed.disclaimer
+                        ?.let(BibiMessageText::normalize)
+                        ?.takeIf(String::isNotBlank),
                     intentDetected = parsed.intentDetected,
                 )
             }

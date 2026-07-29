@@ -75,6 +75,24 @@ class StudyDocsListViewModel(
         }
     }
 
+    fun updateTags(
+        doc: StudyDoc,
+        tags: List<String>,
+        onComplete: (Throwable?) -> Unit = {},
+    ) {
+        viewModelScope.launch {
+            val result = runCatching {
+                repository.save(
+                    doc.copy(
+                        metadata = doc.metadata.copy(tags = tags.distinct()),
+                        updatedAt = System.currentTimeMillis(),
+                    )
+                )
+            }
+            onComplete(result.exceptionOrNull())
+        }
+    }
+
     class Factory(private val repository: StudyDocRepository) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T = StudyDocsListViewModel(repository) as T

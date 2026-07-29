@@ -11,6 +11,7 @@ import com.cristiancogollo.biblion.feature.bibi.data.ChatSession
 import com.cristiancogollo.biblion.feature.bibi.domain.BibiOrchestrator
 import com.cristiancogollo.biblion.feature.bibi.domain.BibiReferenceContextResolver
 import com.cristiancogollo.biblion.feature.bibi.model.BibiContext
+import com.cristiancogollo.biblion.feature.bibi.model.BibiMessageText
 import com.cristiancogollo.biblion.feature.bibi.model.BibiPassage
 import com.cristiancogollo.biblion.feature.bibi.model.BibiQueryResult
 import com.cristiancogollo.biblion.feature.bibi.model.BibiSuggestion
@@ -80,7 +81,11 @@ class BibiViewModel(
             val restoredMessages = restored.messages.map {
                 BibiChatMessage(
                     role = it.role,
-                    text = it.content,
+                    text = if (it.role == "assistant") {
+                        BibiMessageText.normalize(it.content)
+                    } else {
+                        it.content
+                    },
                     contextPassages = it.contextPassages,
                 )
             }
@@ -123,7 +128,11 @@ class BibiViewModel(
                 messages = restored.first.map {
                     BibiChatMessage(
                         role = it.role,
-                        text = it.content,
+                        text = if (it.role == "assistant") {
+                            BibiMessageText.normalize(it.content)
+                        } else {
+                            it.content
+                        },
                         contextPassages = it.contextPassages,
                     )
                 },
@@ -202,10 +211,10 @@ class BibiViewModel(
                 }
             }
             val displayAnswer = buildString {
-                append(result.answer)
+                append(BibiMessageText.normalize(result.answer))
                 result.disclaimer?.takeIf { it.isNotBlank() }?.let {
                     append("\n\nNota: ")
-                    append(it)
+                    append(BibiMessageText.normalize(it))
                 }
             }
             val exchange = ChatExchange(

@@ -1,9 +1,5 @@
 package com.cristiancogollo.biblion.feature.bibi.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,9 +10,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
@@ -29,6 +28,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -46,15 +46,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cristiancogollo.biblion.R
 import com.cristiancogollo.biblion.feature.bibi.model.BibiContext
 import com.cristiancogollo.biblion.feature.bibi.model.BibiPassage
 import com.cristiancogollo.biblion.feature.bibi.model.BibiSuggestion
-import com.cristiancogollo.biblion.core.ui.motion.BiblionMotion
-import com.cristiancogollo.biblion.core.ui.motion.rememberBiblionMotionEnabled
 
 @Composable
 fun BibiChatPanel(
@@ -79,7 +84,6 @@ fun BibiChatPanel(
         factory = remember(context) { BibiViewModel.Factory(context) },
     )
     val uiState by bibiViewModel.uiState.collectAsState()
-    val motionEnabled = rememberBiblionMotionEnabled()
     var input by remember { mutableStateOf("") }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
@@ -91,7 +95,11 @@ fun BibiChatPanel(
             suggestions = initialSuggestions,
         )
     }
-    LaunchedEffect(uiState.messages.size) {
+    LaunchedEffect(
+        uiState.messages.size,
+        uiState.messages.lastOrNull()?.text,
+        uiState.isLoading,
+    ) {
         if (uiState.messages.isNotEmpty()) {
             listState.animateScrollToItem(uiState.messages.lastIndex)
         }
@@ -161,32 +169,25 @@ fun BibiChatPanel(
                 .padding(horizontal = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            items(uiState.messages) { message ->
-                var messageVisible by remember(message.role, message.text) {
-                    mutableStateOf(!motionEnabled)
-                }
-                LaunchedEffect(message.role, message.text, motionEnabled) {
-                    messageVisible = true
-                }
-                AnimatedVisibility(
-                    visible = messageVisible,
-                    enter = fadeIn(tween(BiblionMotion.QUICK_MS)) +
-                        slideInVertically(tween(BiblionMotion.QUICK_MS)) { it / 5 },
-                ) {
-                    BibiUnifiedChatMessage(
-                        message = message,
-                        onOpenPassage = onOpenPassage,
-                        onSendSuggestion = { suggestion ->
-                            bibiViewModel.sendQuestion(
-                                question = suggestion.query,
-                                bibiContext = bibiContext,
-                                userName = currentUserName,
-                                forceRemote = suggestion.isAi,
-                                isTutorial = isTutorial,
-                            )
-                        },
-                    )
-                }
+            itemsIndexed(
+                items = uiState.messages,
+                key = { index, message ->
+                    "${message.role}:${message.text.hashCode()}:$index"
+                },
+            ) { _, message ->
+                BibiUnifiedChatMessage(
+                    message = message,
+                    onOpenPassage = onOpenPassage,
+                    onSendSuggestion = { suggestion ->
+                        bibiViewModel.sendQuestion(
+                            question = suggestion.query,
+                            bibiContext = bibiContext,
+                            userName = currentUserName,
+                            forceRemote = suggestion.isAi,
+                            isTutorial = isTutorial,
+                        )
+                    },
+                )
             }
             if (uiState.isLoading) {
                 item {
@@ -393,8 +394,24 @@ private fun BibiUnifiedChatMessage(
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
             shape = MaterialTheme.shapes.large,
+            tonalElevation = if (isUser) 0.dp else 1.dp,
+            modifier = Modifier.widthIn(max = 560.dp),
         ) {
-            Text(message.text, modifier = Modifier.padding(12.dp))
+            if (isUser) {
+                SelectionContainer {
+                    Text(
+                        text = message.text,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                        style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 21.sp),
+                        softWrap = true,
+                    )
+                }
+            } else {
+                BibiAssistantMessageContent(
+                    text = message.text,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                )
+            }
         }
         message.suggestions.forEach {
             OutlinedButton(onClick = { onSendSuggestion(it) }) {
@@ -421,5 +438,134 @@ private fun BibiUnifiedChatMessage(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun BibiAssistantMessageContent(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    val blocks = remember(text) { BibiMessageFormatter.parse(text) }
+    val contentColor = LocalContentColor.current
+    val accentColor = MaterialTheme.colorScheme.primary
+    val codeBackground = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)
+
+    SelectionContainer {
+        Column(
+            modifier = modifier,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            blocks.forEach { block ->
+                val annotated = remember(block.text, contentColor, codeBackground) {
+                    buildBibiInlineText(
+                        text = block.text,
+                        contentColor = contentColor,
+                        codeBackground = codeBackground,
+                    )
+                }
+                when (block.kind) {
+                    BibiMessageBlockKind.HEADING -> Text(
+                        text = annotated,
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            lineHeight = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                        ),
+                    )
+                    BibiMessageBlockKind.SECTION -> Text(
+                        text = annotated,
+                        color = accentColor,
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            lineHeight = 20.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        ),
+                    )
+                    BibiMessageBlockKind.BULLET,
+                    BibiMessageBlockKind.NUMBERED -> Row(
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        Text(
+                            text = block.marker,
+                            color = accentColor,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                lineHeight = 21.sp,
+                                fontWeight = FontWeight.Bold,
+                            ),
+                            modifier = Modifier.widthIn(min = 24.dp),
+                        )
+                        Text(
+                            text = annotated,
+                            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 21.sp),
+                            softWrap = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    BibiMessageBlockKind.QUOTE -> Surface(
+                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.48f),
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        shape = MaterialTheme.shapes.small,
+                    ) {
+                        Text(
+                            text = annotated,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                lineHeight = 21.sp,
+                                fontStyle = FontStyle.Italic,
+                            ),
+                            softWrap = true,
+                        )
+                    }
+                    BibiMessageBlockKind.PARAGRAPH -> Text(
+                        text = annotated,
+                        style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 21.sp),
+                        softWrap = true,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun buildBibiInlineText(
+    text: String,
+    contentColor: Color,
+    codeBackground: Color,
+): AnnotatedString = buildAnnotatedString {
+    var index = 0
+    while (index < text.length) {
+        val token = when {
+            text.startsWith("**", index) -> "**"
+            text[index] == '`' -> "`"
+            text[index] == '*' -> "*"
+            text[index] == '_' -> "_"
+            else -> null
+        }
+        if (token == null) {
+            append(text[index])
+            index++
+            continue
+        }
+
+        val contentStart = index + token.length
+        val closingIndex = text.indexOf(token, contentStart)
+        if (closingIndex <= contentStart) {
+            append(token)
+            index += token.length
+            continue
+        }
+
+        val style = when (token) {
+            "**" -> SpanStyle(fontWeight = FontWeight.Bold)
+            "`" -> SpanStyle(
+                color = contentColor,
+                background = codeBackground,
+                fontFamily = FontFamily.Monospace,
+            )
+            else -> SpanStyle(fontStyle = FontStyle.Italic)
+        }
+        pushStyle(style)
+        append(text.substring(contentStart, closingIndex))
+        pop()
+        index = closingIndex + token.length
     }
 }

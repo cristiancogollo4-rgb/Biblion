@@ -56,4 +56,68 @@ class ReaderCitationGroupingTest {
         assertEquals(VerseSelectionRangePosition.None, verseSelectionRangePosition("4", selected))
         assertEquals(VerseSelectionRangePosition.None, verseSelectionRangePosition("intro", selected))
     }
+
+    @Test
+    fun single_verse_copy_uses_quote_reference_version_and_biblion_signature() {
+        val copiedText = buildVerseCopyText(
+            bookName = "Juan",
+            chapter = 3,
+            selections = listOf(
+                VerseAction(
+                    number = "16",
+                    text = "Porque de tal manera amó Dios al mundo.",
+                )
+            ),
+            bibleVersion = "rv1960",
+        )
+
+        assertEquals(
+            "“Porque de tal manera amó Dios al mundo.”\n\n" +
+                "Juan 3:16 · RVR1960\n" +
+                "Compartido desde BIBLION",
+            copiedText,
+        )
+    }
+
+    @Test
+    fun multiple_verse_copy_groups_contiguous_numbers_and_keeps_one_verse_per_line() {
+        val copiedText = buildVerseCopyText(
+            bookName = "Juan",
+            chapter = 3,
+            selections = listOf(
+                VerseAction(number = "17", text = "Texto diecisiete."),
+                VerseAction(number = "16", text = "Texto dieciséis."),
+            ),
+            bibleVersion = "nvi",
+        )
+
+        assertEquals(
+            "Juan 3:16-17 · NVI\n\n" +
+                "16 Texto dieciséis.\n" +
+                "17 Texto diecisiete.\n\n" +
+                "Compartido desde BIBLION",
+            copiedText,
+        )
+    }
+
+    @Test
+    fun non_contiguous_verse_copy_uses_a_compact_reference() {
+        val copiedText = buildVerseCopyText(
+            bookName = "Salmos",
+            chapter = 23,
+            selections = listOf(
+                VerseAction(number = "1", text = "El Señor es mi pastor."),
+                VerseAction(number = "3", text = "Confortará mi alma."),
+            ),
+            bibleVersion = "dhh",
+        )
+
+        assertEquals(
+            "Salmos 23:1,3 · DHH\n\n" +
+                "1 El Señor es mi pastor.\n" +
+                "3 Confortará mi alma.\n\n" +
+                "Compartido desde BIBLION",
+            copiedText,
+        )
+    }
 }

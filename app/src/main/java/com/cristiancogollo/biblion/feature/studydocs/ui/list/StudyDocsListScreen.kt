@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -20,8 +21,10 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoStories
@@ -31,6 +34,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -57,6 +61,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.verticalScroll
 import androidx.navigation.NavController
 import androidx.compose.foundation.text.KeyboardOptions
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
@@ -68,6 +73,9 @@ import com.cristiancogollo.biblion.Testament
 import com.cristiancogollo.biblion.biblionLogoResForCurrentTheme
 import com.cristiancogollo.biblion.navigateSingleTop
 import com.cristiancogollo.biblion.feature.studydocs.ui.Screen as StudyDocScreen
+import com.cristiancogollo.biblion.feature.studydocs.ui.editor.StudyTagSelector
+import com.cristiancogollo.biblion.feature.studydocs.ui.editor.parseStudyTags
+import com.cristiancogollo.biblion.feature.studydocs.ui.editor.validateRequiredStudyTags
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 
@@ -91,11 +99,13 @@ fun StudyDocsListScreen(
     onNewDoc: () -> Unit,
     onShare: (StudyDoc, StudyShareFormat) -> Unit = { _, _ -> },
     onRequestPublication: (StudyDoc) -> Unit = {},
-    onEditMetadata: (StudyDoc) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     var pendingDelete by remember { mutableStateOf<StudyDoc?>(null) }
     var pendingShare by remember { mutableStateOf<StudyDoc?>(null) }
+    var pendingTagEdit by remember { mutableStateOf<StudyDoc?>(null) }
+    var isSavingTags by remember { mutableStateOf(false) }
+    var tagEditError by remember { mutableStateOf<String?>(null) }
     val isKeyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
     Scaffold(
@@ -183,7 +193,10 @@ fun StudyDocsListScreen(
                                 doc = doc,
                                 onOpen = { onOpenDoc(doc) },
                                 onEdit = { onEditDoc(doc) },
-                                onEditMetadata = { onEditMetadata(doc) },
+                                onEditMetadata = {
+                                    tagEditError = null
+                                    pendingTagEdit = doc
+                                },
                                 onShare = { pendingShare = doc },
                                 onDelete = { pendingDelete = doc },
                             )
@@ -240,6 +253,164 @@ fun StudyDocsListScreen(
                     onRequestPublication(doc)
                 },
             )
+        }
+    }
+
+    pendingTagEdit?.let { doc ->
+        ModalBottomSheet(
+            onDismissRequest = {
+                if (!isSavingTags) {
+                    pendingTagEdit = null
+                    tagEditError = null
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+        ) {
+            EditTeachingTagsSheet(
+                doc = doc,
+                isSaving = isSavingTags,
+                errorMessage = tagEditError,
+                onDismiss = {
+                    pendingTagEdit = null
+                    tagEditError = null
+                },
+                onSave = { tags ->
+                    isSavingTags = true
+                    tagEditError = null
+                    viewModel.updateTags(doc, tags) { error ->
+                        isSavingTags = false
+                        if (error == null) {
+                            pendingTagEdit = null
+                        } else {
+                            tagEditError = error.message ?: "No se pudieron guardar las etiquetas."
+                        }
+                    }
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun EditTeachingTagsSheet(
+    doc: StudyDoc,
+    isSaving: Boolean,
+    errorMessage: String?,
+    onDismiss: () -> Unit,
+    onSave: (List<String>) -> Unit,
+) {
+    var tagsInput by remember(doc.id.value) {
+        mutableStateOf(doc.metadata.tags.joinToString(", "))
+    }
+    var validationError by remember(doc.id.value) { mutableStateOf<String?>(null) }
+    val visibleError = errorMessage ?: validationError
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Surface(
+                modifier = Modifier.size(44.dp),
+                shape = RoundedCornerShape(13.dp),
+                color = BiblionGoldSoft.copy(alpha = 0.16f),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Label,
+                        contentDescription = null,
+                        tint = BiblionGoldPrimary,
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Editar etiquetas",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontFamily = FontFamily.Serif,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                )
+                Text(
+                    text = doc.title.ifBlank { "Sin título" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        Text(
+            text = "Organiza la enseñanza por propósito, audiencia, tema y estado.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        StudyTagSelector(
+            value = tagsInput,
+            onValueChange = {
+                tagsInput = it
+                validationError = null
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        if (visibleError != null) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.errorContainer,
+            ) {
+                Text(
+                    text = visibleError,
+                    modifier = Modifier.padding(12.dp),
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isSaving,
+            ) {
+                Text("Cancelar")
+            }
+            Button(
+                onClick = {
+                    val tags = parseStudyTags(tagsInput)
+                    val error = validateRequiredStudyTags(tags)
+                    if (error == null) {
+                        onSave(tags)
+                    } else {
+                        validationError = error
+                    }
+                },
+                enabled = !isSaving,
+                shape = RoundedCornerShape(14.dp),
+            ) {
+                if (isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Text(if (isSaving) "Guardando..." else "Guardar etiquetas")
+            }
         }
     }
 }

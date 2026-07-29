@@ -7,7 +7,11 @@ import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocRepository
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -155,6 +159,37 @@ class StudyDocsListViewModelFilterTest {
         )
         assertEquals(1, state.visibleDocs.size)
         assertEquals("FE PARA JOVENES", state.visibleDocs[0].title)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `updateTags persists the new teaching tags`() = runTest {
+        val dao = FakeDao()
+        val repository = StudyDocRepository(dao)
+        val doc = StudyDoc(
+            id = com.cristiancogollo.biblion.feature.studydocs.model.DocId("doc-tags"),
+            title = "Enseñanza con etiquetas",
+            metadata = com.cristiancogollo.biblion.feature.studydocs.model.DocMetadata(
+                tags = listOf("predicacion", "jovenes"),
+            ),
+        )
+        repository.save(doc)
+        val viewModel = StudyDocsListViewModel(repository)
+        var callbackError: Throwable? = IllegalStateException("Callback pendiente")
+
+        viewModel.updateTags(
+            doc = doc,
+            tags = listOf("devocional", "adultos", "fe", "borrador"),
+        ) { error ->
+            callbackError = error
+        }
+        advanceUntilIdle()
+
+        assertNull(callbackError)
+        assertEquals(
+            "devocional,adultos,fe,borrador",
+            dao.getByRemoteId("doc-tags")?.tagsCsv,
+        )
     }
 }
 
