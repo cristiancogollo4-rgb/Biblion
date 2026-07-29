@@ -28,15 +28,20 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.Badge
@@ -46,7 +51,6 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -74,8 +78,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
@@ -96,7 +98,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -173,22 +174,7 @@ fun ProfileScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Perfil", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
-                navigationIcon = {},
-                actions = {
-                    IconButton(onClick = { showSettings = true }) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Configuración",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            )
+            ProfileBrandTopBar(onSettingsClick = { showSettings = true })
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
@@ -209,10 +195,12 @@ fun ProfileScreen(
                 .padding(innerPadding)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(start = 24.dp, top = 24.dp, end = 24.dp, bottom = 136.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
+                .padding(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 136.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            ProfilePageIntro()
+
             if (uiState.isLoading && uiState.profile == null) {
                 Box(
                     modifier = Modifier.fillMaxWidth().height(260.dp),
@@ -224,25 +212,21 @@ fun ProfileScreen(
                 val isWide = !forceCompactLayout && LocalConfiguration.current.screenWidthDp >= 800
                 if (isWide) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().widthIn(max = 1280.dp),
-                        horizontalArrangement = Arrangement.spacedBy(24.dp),
+                        modifier = Modifier.fillMaxWidth().widthIn(max = 1120.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
                         verticalAlignment = Alignment.Top
                     ) {
                         Column(
-                            modifier = Modifier.weight(1.4f),
-                            verticalArrangement = Arrangement.spacedBy(24.dp)
+                            modifier = Modifier.weight(1.15f),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             ProfileIdentityPanel(
                                 uiState = uiState,
-                                onAvatarColorChange = onAvatarColorChange,
                                 onProfilePhotoSelected = onProfilePhotoSelected,
-                                onClearProfilePhoto = onClearProfilePhoto,
                                 onEditClick = { showEditDialog = true },
                                 onSignOut = onSignOut,
-                                onRestartTutorial = onRestartTutorial
+                                compactLayout = false,
                             )
-
-                            ProfileNetworkPanel(uiState = uiState)
 
                             ProfileActivityAndMetricsPanel(
                                 profile = uiState.profile,
@@ -252,7 +236,7 @@ fun ProfileScreen(
 
                         Column(
                             modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(24.dp)
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             ProfileCompletionCard(uiState = uiState, onCompleteNow = { showEditDialog = true })
 
@@ -264,27 +248,23 @@ fun ProfileScreen(
                 } else {
                     Column(
                         modifier = Modifier.fillMaxWidth().widthIn(max = 640.dp),
-                        verticalArrangement = Arrangement.spacedBy(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         ProfileIdentityPanel(
                             uiState = uiState,
-                            onAvatarColorChange = onAvatarColorChange,
                             onProfilePhotoSelected = onProfilePhotoSelected,
-                            onClearProfilePhoto = onClearProfilePhoto,
                             onEditClick = { showEditDialog = true },
                             onSignOut = onSignOut,
-                            onRestartTutorial = onRestartTutorial
+                            compactLayout = true,
                         )
-
-                        ProfileCompletionCard(uiState = uiState, onCompleteNow = { showEditDialog = true })
-
-                        ProfileNetworkPanel(uiState = uiState)
 
                         ProfileActivityAndMetricsPanel(
                             profile = uiState.profile,
                             totalLocalEnsenanzas = uiState.totalLocalEnsenanzas
                         )
+
+                        ProfileCompletionCard(uiState = uiState, onCompleteNow = { showEditDialog = true })
 
                         ProfileLogrosCard(
                             onSeeAll = { navController.navigateSingleTop(ACHIEVEMENTS_ROUTE) }
@@ -292,16 +272,9 @@ fun ProfileScreen(
                     }
                 }
 
-                Text(
-                    text = "Conoce más sobre BIBLION",
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { showAboutBiblion = true }
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.labelLarge,
-                    textDecoration = TextDecoration.Underline,
-                    textAlign = TextAlign.Center
+                ProfileAboutLink(
+                    onClick = { showAboutBiblion = true },
+                    modifier = Modifier.fillMaxWidth().widthIn(max = 1120.dp),
                 )
             }
         }
@@ -349,12 +322,121 @@ fun ProfileScreen(
                 selectedVersionKey = selected.key
             },
             onFontSizeChange = { value -> AppPreferencesSyncStore.setReaderFontSizeSp(context, value.toInt()) },
-            onThemeModeChange = onThemeModeChange
+            onThemeModeChange = onThemeModeChange,
+            onRestartTutorial = {
+                showSettings = false
+                onRestartTutorial()
+            },
         )
     }
 
     if (showAboutBiblion) {
         AboutBiblionDialog(onDismiss = { showAboutBiblion = false })
+    }
+}
+
+@Composable
+private fun ProfileBrandTopBar(onSettingsClick: () -> Unit) {
+    Box(modifier = Modifier.fillMaxWidth()) {
+        BiblionTopAppBar(
+            logoResId = biblionLogoResForCurrentTheme(),
+            showNavigationIcon = false,
+            showSearchIcon = false,
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .height(76.dp),
+        ) {
+            IconButton(
+                onClick = onSettingsClick,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 12.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Configuración",
+                    tint = BiblionGoldPrimary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfilePageIntro() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .widthIn(max = 1120.dp),
+    ) {
+        Text(
+            text = "Perfil",
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontFamily = FontFamily.Serif,
+                fontWeight = FontWeight.Bold,
+            ),
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Text(
+            text = "Tu recorrido dentro de BIBLION",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun ProfileAboutLink(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = BiblionGoldSoft.copy(alpha = 0.16f),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.Explore,
+                        contentDescription = null,
+                        tint = BiblionGoldPrimary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Conoce más sobre BIBLION",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = "Nuestra historia, propósito y creadores",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = BiblionGoldPrimary,
+            )
+        }
     }
 }
 
@@ -368,13 +450,17 @@ private fun ProfileSettingsSheet(
     onDismiss: () -> Unit,
     onVersionSelected: (BibleVersionOption) -> Unit,
     onFontSizeChange: (Float) -> Unit,
-    onThemeModeChange: (BiblionThemeMode) -> Unit
+    onThemeModeChange: (BiblionThemeMode) -> Unit,
+    onRestartTutorial: () -> Unit,
 ) {
     var showVersionDialog by remember { mutableStateOf(false) }
     var sliderValue by remember(fontSizeSp) { mutableStateOf(fontSizeSp.coerceIn(12f, 35f)) }
     val selectedVersion = availableVersions.firstOrNull { it.key == selectedVersionKey }
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -382,10 +468,21 @@ private fun ProfileSettingsSheet(
                 .navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("Configuración", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(
+                "Configuración",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontFamily = FontFamily.Serif,
+                    fontWeight = FontWeight.Bold,
+                ),
+            )
+            Text(
+                "Personaliza tu experiencia de lectura.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
             ProfileSettingRow(
-                icon = Icons.Default.MenuBook,
+                icon = Icons.AutoMirrored.Filled.MenuBook,
                 title = "Versión de la Biblia",
                 value = selectedVersion?.label ?: selectedVersionKey.uppercase(),
                 onClick = {
@@ -413,10 +510,14 @@ private fun ProfileSettingsSheet(
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Tema de la aplicación", fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     BiblionThemeMode.entries.forEach { mode ->
                         OutlinedButton(
                             onClick = { onThemeModeChange(mode) },
+                            modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.outlinedButtonColors(
                                 containerColor = if (themeMode == mode) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent
                             ),
@@ -431,6 +532,13 @@ private fun ProfileSettingsSheet(
                     }
                 }
             }
+
+            ProfileSettingRow(
+                icon = Icons.Default.Refresh,
+                title = "Tutorial de lectura",
+                value = "Volver a realizar el recorrido guiado",
+                onClick = onRestartTutorial,
+            )
             Spacer(Modifier.height(12.dp))
         }
     }
@@ -472,7 +580,11 @@ private fun ProfileSettingRow(
             Text(title, fontWeight = FontWeight.SemiBold)
             Text(value, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Text(">", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 20.sp)
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 }
@@ -486,125 +598,144 @@ private fun BiblionThemeMode.displayName(): String = when (this) {
 @Composable
 private fun ProfileIdentityPanel(
     uiState: ProfileUiState,
-    onAvatarColorChange: (Long) -> Unit,
     onProfilePhotoSelected: (Uri) -> Unit,
-    onClearProfilePhoto: () -> Unit,
     onEditClick: () -> Unit,
     onSignOut: () -> Unit,
-    onRestartTutorial: () -> Unit,
+    compactLayout: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val isCompact = LocalConfiguration.current.screenWidthDp < 600
+    val isCompact = compactLayout
     val fullName = listOf(uiState.nombres, uiState.apellidos)
         .map { it.trim() }
         .filter { it.isNotBlank() }
         .joinToString(" ")
-        .ifBlank { uiState.alias.ifBlank { "Cristian Cogollo" } }
-
-    val identityGradient = Brush.linearGradient(
-        colors = listOf(Color(0xFF0F2A4A), Color(0xFF1E40AF))
-    )
+        .ifBlank { uiState.alias.ifBlank { "Usuario BIBLION" } }
 
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) onProfilePhotoSelected(uri)
     }
 
-    Box(
+    Surface(
         modifier = modifier
-            .fillMaxWidth()
-            .background(brush = identityGradient, shape = RoundedCornerShape(16.dp))
-            .clip(RoundedCornerShape(16.dp))
+            .fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shadowElevation = 3.dp,
     ) {
-        Row(
-            modifier = Modifier.padding(
-                start = if (isCompact) 16.dp else 24.dp,
-                top = if (isCompact) 18.dp else 24.dp,
-                end = if (isCompact) 16.dp else 24.dp,
-                bottom = 36.dp
-            ),
-            horizontalArrangement = Arrangement.spacedBy(if (isCompact) 12.dp else 24.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(contentAlignment = Alignment.BottomEnd) {
-                ProfileAvatar(
-                    photoUrl = uiState.profile?.fotoPerfil,
-                    avatarColor = Color(uiState.avatarColor.toInt()),
-                    isUploading = uiState.isUploadingAvatar
-                )
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surface,
-                    shadowElevation = 2.dp,
-                    modifier = Modifier.size(32.dp).clickable { photoPicker.launch("image/*") }
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(5.dp)
+                    .background(BiblionGoldPrimary),
+            )
+            Row(
+                modifier = Modifier.padding(
+                    horizontal = if (isCompact) 16.dp else 22.dp,
+                    vertical = if (isCompact) 18.dp else 22.dp,
+                ),
+                horizontalArrangement = Arrangement.spacedBy(if (isCompact) 14.dp else 20.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Box(contentAlignment = Alignment.BottomEnd) {
+                    ProfileAvatar(
+                        photoUrl = uiState.profile?.fotoPerfil,
+                        avatarColor = Color(uiState.avatarColor.toInt()),
+                        isUploading = uiState.isUploadingAvatar
+                    )
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        shadowElevation = 2.dp,
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clickable { photoPicker.launch("image/*") },
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.AddAPhoto,
+                                contentDescription = "Cambiar foto",
+                                tint = BiblionGoldPrimary,
+                                modifier = Modifier.size(17.dp),
+                            )
+                        }
+                    }
+                }
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = fullName,
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Bold,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = "@${uiState.alias.ifBlank { "usuario_biblion" }}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = BiblionGoldPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
                         Icon(
-                            imageVector = Icons.Default.AddAPhoto,
-                            contentDescription = "Cambiar Foto",
+                            Icons.Default.LocationOn,
+                            contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Text(
+                            text = "Bucaramanga, Colombia",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
+
+                    Text(
+                        text = uiState.biografia.ifBlank {
+                            "Agrega una breve biografía para completar tu perfil."
+                        },
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 18.sp,
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    ProfileIdentityActions(
+                        isCompact = isCompact,
+                        onEditClick = onEditClick,
+                        onSignOut = onSignOut,
+                    )
                 }
             }
 
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(
-                    text = fullName,
-                    fontSize = if (isCompact) 20.sp else 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = "@${uiState.alias.ifBlank { "cristian_cogollo" }}",
-                    fontSize = 14.sp,
-                    color = Color(0xFF93C5FD),
-                    fontWeight = FontWeight.Medium
-                )
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(14.dp))
-                    Text(text = "Bucaramanga, Colombia", fontSize = 13.sp, color = Color(0xFF94A3B8))
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = uiState.biografia.ifBlank { "Apasionado por la Palabra de Dios y el discipulado. Me dedico al estudio biblico y la ensenanza." },
-                    fontSize = 13.sp,
-                    color = Color.White.copy(alpha = 0.85f),
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                    lineHeight = 18.sp
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                ProfileIdentityActions(
-                    isCompact = isCompact,
-                    onEditClick = onEditClick,
-                    onSignOut = onSignOut
-                )
-            } 
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant,
+            )
+            ProfileNetworkPanel(
+                uiState = uiState,
+                compactLayout = isCompact,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
+            )
         }
-
-        Text(
-            text = "Reiniciar tutorial de lectura",
-            fontSize = 12.sp,
-            color = BiblionGoldSoft,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = 12.dp, end = 16.dp)
-                .clickable { onRestartTutorial() }
-        )
     }
 }
 
@@ -622,12 +753,10 @@ private fun ProfileIdentityActions(
 
     @Composable
     fun EditButton() {
-        OutlinedButton(
+        Button(
             onClick = onEditClick,
             modifier = actionModifier,
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.4f)),
-            shape = RoundedCornerShape(8.dp),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+            shape = RoundedCornerShape(12.dp),
             contentPadding = contentPadding
         ) {
             Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
@@ -646,9 +775,11 @@ private fun ProfileIdentityActions(
         OutlinedButton(
             onClick = onSignOut,
             modifier = actionModifier,
-            border = BorderStroke(1.dp, BiblionGoldSoft.copy(alpha = 0.8f)),
-            shape = RoundedCornerShape(8.dp),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = BiblionGoldSoft),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ),
             contentPadding = contentPadding
         ) {
             Icon(
@@ -685,126 +816,90 @@ private fun ProfileIdentityActions(
 @Composable
 private fun ProfileNetworkPanel(
     uiState: ProfileUiState,
+    compactLayout: Boolean,
     modifier: Modifier = Modifier
 ) {
     val profile = uiState.profile
     val role = profile?.rol ?: "Lector"
     val plan = profile?.plan ?: "Free"
-    val isWide = LocalConfiguration.current.screenWidthDp >= 800
-
-    Surface(
+    Row(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (isWide) {
-            Row(
-                modifier = Modifier.padding(20.dp).fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Surface(shape = CircleShape, color = Color(0xFFEFF6FF), modifier = Modifier.size(40.dp)) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Badge, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                    Column {
-                        Text("Rol", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
-                        Text(role.toDisplayStatus(), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                        Text("Explora y estudia la Biblia", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
+        ProfileStatusItem(
+            icon = Icons.Default.Badge,
+            label = "Rol",
+            value = role.toDisplayStatus(),
+            modifier = Modifier.weight(1f),
+        )
+        ProfileStatusDivider()
+        ProfileStatusItem(
+            icon = Icons.Default.Star,
+            label = "Plan",
+            value = plan.uppercase(),
+            modifier = Modifier.weight(1f),
+        )
+        ProfileStatusDivider()
+        ProfileStatusItem(
+            icon = Icons.Default.Explore,
+            label = if (compactLayout) "Visibilidad" else "Perfil",
+            value = "Privado",
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
 
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Surface(shape = CircleShape, color = Color(0xFFFFFBEB), modifier = Modifier.size(40.dp)) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFD97706))
-                        }
-                    }
-                    Column {
-                        Text("Plan", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
-                        Text(plan, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                        Text("Plan gratuito", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Surface(shape = CircleShape, color = Color(0xFFF1F5F9), modifier = Modifier.size(40.dp)) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Explore, contentDescription = null, tint = Color(0xFF475569))
-                        }
-                    }
-                    Column {
-                        Text("Perfil publico", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
-                        Text("Privado", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                        Text("Solo tu puedes ver tu perfil", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
-        } else {
-            Column(
-                modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Surface(shape = CircleShape, color = Color(0xFFEFF6FF), modifier = Modifier.size(40.dp)) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Badge, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                    Column {
-                        Text("Rol", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
-                        Text(role.toDisplayStatus(), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                        Text("Explora y estudia la Biblia", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Surface(shape = CircleShape, color = Color(0xFFFFFBEB), modifier = Modifier.size(40.dp)) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFD97706))
-                        }
-                    }
-                    Column {
-                        Text("Plan", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
-                        Text(plan, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                        Text("Plan gratuito", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Surface(shape = CircleShape, color = Color(0xFFF1F5F9), modifier = Modifier.size(40.dp)) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Explore, contentDescription = null, tint = Color(0xFF475569))
-                        }
-                    }
-                    Column {
-                        Text("Perfil publico", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
-                        Text("Privado", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                        Text("Solo tu puedes ver tu perfil", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
+@Composable
+private fun ProfileStatusItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.padding(horizontal = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Surface(
+            modifier = Modifier.size(34.dp),
+            shape = RoundedCornerShape(10.dp),
+            color = BiblionGoldSoft.copy(alpha = 0.14f),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = BiblionGoldPrimary,
+                    modifier = Modifier.size(18.dp),
+                )
             }
         }
+        Text(
+            text = label,
+            fontSize = 10.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
+        Text(
+            text = value,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
+}
+
+@Composable
+private fun ProfileStatusDivider() {
+    Box(
+        modifier = Modifier
+            .width(1.dp)
+            .height(58.dp)
+            .background(MaterialTheme.colorScheme.outlineVariant),
+    )
 }
 
 @Composable
@@ -813,106 +908,109 @@ private fun ProfileActivityAndMetricsPanel(
     totalLocalEnsenanzas: Int,
     modifier: Modifier = Modifier
 ) {
+    val metricList = if (profile != null) {
+        val role = profile.rol.uppercase()
+        val approved = profile.estadoPublicador.uppercase() == "APROBADO"
+        val createdCount = maxOf(profile.totalEnsenanzasCreadas, totalLocalEnsenanzas)
+        if (role == "PUBLICADOR" || role == "ADMIN" || approved) {
+            listOf(
+                Triple(createdCount, "Creadas", Icons.Default.Edit),
+                Triple(profile.totalEnsenanzasPublicadas, "Publicadas", Icons.Default.Star),
+                Triple(profile.totalDescargas, "Descargas", Icons.Default.Explore),
+            )
+        } else {
+            listOf(
+                Triple(createdCount, "Enseñanzas", Icons.Default.Edit),
+                Triple(profile.totalGuardados, "Guardadas", Icons.Default.Star),
+                Triple(profile.totalComentarios, "Comentarios", Icons.Default.AccountCircle),
+            )
+        }
+    } else {
+        listOf(
+            Triple(totalLocalEnsenanzas, "Enseñanzas", Icons.Default.Edit),
+            Triple(0, "Guardadas", Icons.Default.Star),
+            Triple(0, "Comentarios", Icons.Default.AccountCircle),
+        )
+    }
+
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
-        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-            Text("Tu actividad", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-
-            val metricList = if (profile != null) {
-                val role = profile.rol.uppercase()
-                val approved = profile.estadoPublicador.uppercase() == "APROBADO"
-                val creadasCount = maxOf(profile.totalEnsenanzasCreadas, totalLocalEnsenanzas)
-                if (role == "PUBLICADOR" || role == "ADMIN" || approved) {
-                    listOf(
-                        Triple(creadasCount, "Creadas", Color(0xFFEFF6FF)),
-                        Triple(profile.totalEnsenanzasPublicadas, "Publicadas", Color(0xFFF0FDF4)),
-                        Triple(profile.totalDescargas, "Descargas", Color(0xFFF5F3FF)),
-                        Triple(profile.totalLikes, "Likes", Color(0xFFFFF7ED)),
-                        Triple(profile.totalComentarios, "Comentarios", Color(0xFFECFDF5)),
-                        Triple(profile.totalSeguidores, "Seguidores", Color(0xFFFDF2F8))
-                    )
-                } else {
-                    listOf(
-                        Triple(creadasCount, "Creadas", Color(0xFFEFF6FF)),
-                        Triple(profile.totalGuardados, "Guardados", Color(0xFFF0FDF4)),
-                        Triple(profile.totalComentarios, "Comentarios", Color(0xFFF5F3FF)),
-                        Triple(profile.totalSiguiendo, "Siguiendo", Color(0xFFFFF7ED)),
-                        Triple(profile.totalDescargas, "Descargas", Color(0xFFECFDF5)),
-                        Triple(profile.totalSeguidores, "Seguidores", Color(0xFFFDF2F8))
-                    )
-                }
-            } else {
-                listOf(
-                    Triple(totalLocalEnsenanzas, "Creadas", Color(0xFFEFF6FF)),
-                    Triple(0, "Guardados", Color(0xFFF0FDF4)),
-                    Triple(0, "Comentarios", Color(0xFFF5F3FF)),
-                    Triple(0, "Siguiendo", Color(0xFFFFF7ED)),
-                    Triple(0, "Descargas", Color(0xFFECFDF5)),
-                    Triple(0, "Seguidores", Color(0xFFFDF2F8))
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Column {
+                Text(
+                    "Tu actividad",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontFamily = FontFamily.Serif,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    "Un vistazo a tu recorrido de estudio.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-
-            val columns = 2
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                metricList.chunked(columns).forEach { rowMetrics ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        rowMetrics.forEach { (value, label, bgColor) ->
-                            Surface(
-                                modifier = Modifier.weight(1f).height(64.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                color = MaterialTheme.colorScheme.surface,
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(bgColor),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        val emoji = when (label.lowercase()) {
-                                            "creadas" -> "✍️"
-                                            "publicadas" -> "📢"
-                                            "descargas" -> "📥"
-                                            "likes" -> "❤️"
-                                            "comentarios" -> "💬"
-                                            "seguidores" -> "👥"
-                                            "guardados" -> "💾"
-                                            "siguiendo" -> "👤"
-                                            else -> "📊"
-                                        }
-                                        Text(text = emoji, fontSize = 16.sp)
-                                    }
-                                    Column {
-                                        Text(text = value.toString(), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                                        Text(
-                                            text = label,
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            fontWeight = FontWeight.Medium,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        repeat(columns - rowMetrics.size) {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
-                    }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                metricList.forEach { (value, label, icon) ->
+                    ProfileMetric(
+                        value = value,
+                        label = label,
+                        icon = icon,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
+        }
+    }
+}
 
+@Composable
+private fun ProfileMetric(
+    value: Int,
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = BiblionGoldPrimary,
+                modifier = Modifier.size(20.dp),
+            )
+            Text(
+                text = value.toString(),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = label,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -929,68 +1027,86 @@ private fun ProfileCompletionCard(uiState: ProfileUiState, onCompleteNow: () -> 
     val completedCount = completed.count { it }
     val percent = (completedCount * 100) / 5
     val remainingSteps = 5 - completedCount
+    val fieldLabels = listOf("nombres", "apellidos", "alias", "biografía", "foto de perfil")
+    val nextMissingField = fieldLabels.zip(completed)
+        .firstOrNull { (_, isComplete) -> !isComplete }
+        ?.first
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Row(
-            modifier = Modifier.padding(20.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(64.dp)) {
-                CircularProgressIndicator(
-                    progress = { percent / 100f },
-                    modifier = Modifier.fillMaxSize(),
-                    color = Color(0xFFB45309),
-                    strokeWidth = 6.dp,
-                    trackColor = Color(0xFFFEF3C7)
-                )
-                Text("$percent%", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Completa tu perfil", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                Text(
-                    if (remainingSteps > 0) "Te faltan $remainingSteps pasos para completar tu perfil y desbloquear todas las funciones."
-                    else "!Perfil completo! Disfruta de todas las funciones.",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 4.dp)) {
-                    val steps = listOf(
-                        "Nombres" to completed[0],
-                        "Apellidos" to completed[1],
-                        "Alias" to completed[2],
-                        "Biografia" to completed[3],
-                        "Foto de perfil" to completed[4]
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Completa tu perfil",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Bold,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
-                    steps.forEach { (label, done) ->
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Icon(
-                                imageVector = if (done) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                                contentDescription = null,
-                                tint = if (done) Color(0xFF16A34A) else MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Text(label, fontSize = 12.sp, color = if (done) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
+                    Text(
+                        if (remainingSteps > 0) {
+                            "Te ${if (remainingSteps == 1) "falta" else "faltan"} $remainingSteps " +
+                                "${if (remainingSteps == 1) "paso" else "pasos"}."
+                        } else {
+                            "Tu identidad en BIBLION está completa."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
-
-                if (remainingSteps > 0) {
-                    Button(
-                        onClick = onCompleteNow,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFEF3C7), contentColor = Color(0xFFB45309)),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
-                        Text("Completar ahora", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = BiblionGoldSoft.copy(alpha = 0.16f),
+                ) {
+                    Text(
+                        text = "$percent%",
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                        color = BiblionGoldPrimary,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+            LinearProgressIndicator(
+                progress = { percent / 100f },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(8.dp)),
+                color = BiblionGoldPrimary,
+                trackColor = BiblionGoldSoft.copy(alpha = 0.18f),
+            )
+            if (nextMissingField != null) {
+                Text(
+                    text = "Siguiente paso: agrega tu $nextMissingField.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (remainingSteps > 0) {
+                Button(
+                    onClick = onCompleteNow,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.align(Alignment.End),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(modifier = Modifier.width(7.dp))
+                    Text("Completar ahora", fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -1012,15 +1128,35 @@ private fun ProfileLogrosCard(onSeeAll: () -> Unit) {
     val unlockedCount = achievements.count { it.isUnlocked }
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Column(
+            modifier = Modifier.padding(vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Column {
-                    Text("Logros", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                    Text("$unlockedCount de 24", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "Logros recientes",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Bold,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        "$unlockedCount de 24 desbloqueados",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 Text(
                     "Ver todos",
@@ -1031,16 +1167,69 @@ private fun ProfileLogrosCard(onSeeAll: () -> Unit) {
                 )
             }
 
-            featured.forEach { progress ->
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(progress.definition.icon, fontSize = 24.sp)
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(progress.definition.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                        Text(
-                            if (progress.isUnlocked) "Desbloqueado" else "${progress.currentValue} de ${progress.definition.target}",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+            if (featured.isEmpty()) {
+                Text(
+                    text = "Tus logros aparecerán aquí a medida que uses BIBLION.",
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(horizontal = 18.dp),
+                ) {
+                    items(featured) { progress ->
+                        Surface(
+                            modifier = Modifier.width(176.dp),
+                            shape = RoundedCornerShape(18.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                            border = BorderStroke(
+                                1.dp,
+                                if (progress.isUnlocked) {
+                                    BiblionGoldSoft.copy(alpha = 0.65f)
+                                } else {
+                                    MaterialTheme.colorScheme.outlineVariant
+                                },
+                            ),
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(7.dp),
+                            ) {
+                                Surface(
+                                    modifier = Modifier.size(42.dp),
+                                    shape = RoundedCornerShape(13.dp),
+                                    color = BiblionGoldSoft.copy(alpha = 0.14f),
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(progress.definition.icon, fontSize = 22.sp)
+                                    }
+                                }
+                                Text(
+                                    progress.definition.title,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    if (progress.isUnlocked) {
+                                        "Desbloqueado"
+                                    } else {
+                                        "${progress.currentValue} de ${progress.definition.target}"
+                                    },
+                                    fontSize = 11.sp,
+                                    color = if (progress.isUnlocked) {
+                                        BiblionGoldPrimary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                    fontWeight = FontWeight.Medium,
+                                )
+                            }
+                        }
                     }
                 }
             }
