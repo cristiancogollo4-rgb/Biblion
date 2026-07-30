@@ -84,6 +84,19 @@ fun NavController.popBackStackOrNavigateHome(): Boolean {
 }
 
 fun NavController.navigateTopLevel(route: String) {
+    if (route == Screen.Home.route) {
+        val returnedToHome = popBackStack(Screen.Home.route, inclusive = false)
+        if (!returnedToHome && currentDestination?.route != Screen.Home.route) {
+            navigate(Screen.Home.route) {
+                popUpTo(graph.startDestinationId) {
+                    inclusive = false
+                }
+                launchSingleTop = true
+            }
+        }
+        return
+    }
+
     navigate(route) {
         popUpTo(graph.startDestinationId) {
             saveState = true
