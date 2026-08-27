@@ -1,12 +1,132 @@
 # Biblion
 
-**Biblion** es una aplicacion movil Android construida con **Kotlin + Jetpack Compose + Material 3**. Su objetivo es ofrecer una experiencia clara para lectura biblica, busqueda de versiculos y preparacion de ensenanzas desde un solo lugar.
+**Biblion** es la empresa y el ecosistema proyectado de soluciones digitales para el estudio de la Biblia. **Biblion App** es su primer producto: una aplicacion movil Android construida con **Kotlin + Jetpack Compose + Material 3** para leer, consultar, estudiar y preparar ensenanzas desde un solo lugar.
 
-El proyecto esta en desarrollo activo. La experiencia visual, los flujos de estudio y la sincronizacion siguen evolucionando.
+El nombre Biblion se inspira en el griego *biblion*, relacionado con un libro o rollo. La idea central de la marca es que todas las personas puedan tener acceso a ese rollo y a las herramientas necesarias para comprenderlo, estudiarlo y compartir lo aprendido.
+
+El proyecto esta en desarrollo activo. Biblion App se concibe como un producto **tablet-first**, especialmente en su modo estudio, sin dejar de ofrecer las funciones generales de la fase 1 en telefonos Android convencionales.
+
+## Identidad y fases del producto
+
+- **Biblion:** empresa y ecosistema futuro de aplicaciones y servicios para el estudio biblico.
+- **Biblion App:** primer producto del ecosistema y MVP actualmente en desarrollo.
+- **Fase 1:** lectura, consulta, estudio y asistencia biblica con prioridad local/offline, incluyendo el guardado local de borradores y la sincronizacion de ensenanzas publicadas mediante Firebase/Firestore.
+- **Fase 2:** repositorio virtual de ensenanzas, donde usuarios autorizados podran compartir contenidos y las personas con cuenta o permiso podran consultarlos, leerlos y descargarlos.
+
+El repositorio de la fase 2 se proyecta de forma semejante a un repositorio de GitHub, pero orientado a estudios, ensenanzas y materiales biblicos.
+
+## Mapa de la aplicacion
+
+Estas son las secciones principales de Biblion App y su funcion dentro del producto:
+
+- **Inicio:** punto de entrada para seleccionar el testamento, continuar la experiencia de lectura y acceder a los recorridos principales.
+- **Libros:** muestra los libros del Antiguo y Nuevo Testamento; un toque abre el lector y una pulsacion prolongada permite consultar la descripcion del libro.
+- **Lector:** permite leer por capitulo, cambiar de version, deslizarse entre capitulos, seleccionar versiculos, crear citas y resaltarlos.
+- **Buscar:** busca versiculos, temas y palabras con filtros; tambien muestra busquedas recientes y temas populares.
+- **Diccionario:** permite explorar definiciones y metadata de personas, lugares, conceptos, objetos, practicas, eventos, libros y terminos generales.
+- **Explorar temas:** organiza temas biblicos por categorias y permite abrir sus referencias directamente en el lector.
+- **Modo estudio / Biblion Docs:** combina el lector con un editor estructurado para crear ensenanzas, bosquejos, devocionales y clases. Esta experiencia prioriza tablets Android.
+- **Mis ensenanzas:** administra borradores y documentos publicados, con filtros por titulo o etiquetas y acceso al modo lectura o edicion.
+- **Bibi:** asistente biblico disponible en el lector y en el modo estudio; responde primero con recursos locales y usa IA remota solo para profundizar.
+- **Perfil:** administra identidad, preferencias, foto o avatar, metricas y el reinicio del tutorial de lectura.
+
+Las funciones de lectura, busqueda, diccionario, temas, perfil y Bibi se adaptan a telefonos Android. El modo estudio conserva un layout compacto en celular, pero esta optimizado principalmente para tablets por su editor paginado, lectura dividida y herramientas de organizacion.
+
+## Funcionamiento detallado por seccion
+
+Esta seccion resume como se utiliza cada parte de Biblion App desde la perspectiva del usuario.
+
+### Inicio
+
+Inicio es el punto de entrada de la aplicacion. Desde aqui el usuario puede seleccionar el Antiguo o el Nuevo Testamento, continuar hacia la lista de libros y acceder a los recorridos principales. En la primera instalacion, Bibi presenta un tutorial guiado que acompana al usuario desde la seleccion del testamento hasta la lectura y el resaltado de un versiculo.
+
+### Libros
+
+La pantalla Libros muestra los libros agrupados por testamento. Al tocar un libro se abre el lector en el primer capitulo o en el ultimo punto disponible. Una pulsacion prolongada abre una ficha con la descripcion del libro, el conteo de versiculos y un boton para iniciar la lectura. El cambio entre testamentos se puede realizar mediante deslizamiento.
+
+### Lector biblico
+
+El lector muestra el contenido del capitulo seleccionado y permite:
+
+1. Cambiar de capitulo deslizando la pantalla o usando el selector superior.
+2. Cambiar la version biblica desde el selector correspondiente.
+3. Seleccionar uno o varios versiculos.
+4. Agrupar versiculos contiguos como una sola cita.
+5. Resaltar versiculos con diferentes colores.
+6. Insertar una cita directamente en una ensenanza.
+7. Abrir Bibi para preguntar por el pasaje, una palabra o un tema.
+
+La lectura biblica principal funciona con contenido local incluido en la aplicacion. Los resaltados, preferencias y datos asociados se guardan localmente y pueden sincronizarse cuando el usuario tiene su cuenta configurada.
+
+### Buscar
+
+Buscar permite localizar versiculos por palabra o frase dentro de la version seleccionada. El usuario puede filtrar por testamento y libro, revisar busquedas recientes y seleccionar versiculos populares como punto de partida. Los resultados llevan directamente al capitulo correspondiente y pueden convertirse en una cita o abrirse en el lector.
+
+La misma pantalla integra la busqueda de temas. El sistema intenta encontrar coincidencias por slug, nombre, palabra completa, alias y prefijo. Cuando un tema tiene referencias disponibles, el usuario puede expandirlo y abrir cada versiculo en el lector.
+
+### Explorar temas
+
+Explorar temas organiza los temas biblicos por categorias. Cada categoria presenta sus temas disponibles y cada tema puede expandirse para mostrar sus referencias. Al tocar una referencia, Biblion abre el lector en el libro, capitulo y versiculo correspondiente.
+
+### Diccionario
+
+El Diccionario permite consultar informacion biblica organizada por categorias: personas, lugares, conceptos, objetos, practicas, eventos, libros y terminos generales. El usuario puede buscar en vivo, abrir una entrada y revisar su definicion y metadata disponible, como aliases, fechas, genero, coordenadas o tipo de lugar.
+
+El diccionario se encuentra almacenado localmente. Sus entradas tambien sirven como base para las respuestas locales de Bibi.
+
+### Bibi
+
+Bibi aparece tanto en el lector como en el modo estudio.
+
+- En el lector ayuda a comprender un pasaje, una palabra, una persona, un lugar o una referencia.
+- En el modo estudio ayuda a preparar ensenanzas, devocionales, predicaciones, clases y materiales de discipulado.
+- Primero analiza la pregunta con los motores locales y consulta el diccionario, temas y referencias disponibles.
+- Si la respuesta local no es suficiente y la consulta requiere profundizar, utiliza el Worker de inteligencia artificial.
+- Mantiene historial de conversaciones, reconoce referencias cortas como “y que mas?” y ofrece sugerencias para comparar o ampliar un tema.
+
+Bibi esta limitada al dominio biblico y cristiano. Las consultas ajenas a ese dominio reciben una redireccion hacia el estudio de las Escrituras.
+
+### Modo estudio / Biblion Docs
+
+El modo estudio permite transformar la lectura en una ensenanza estructurada. El flujo general es:
+
+1. Crear un documento nuevo desde el modo estudio.
+2. Escribir un titulo y agregar bloques de contenido.
+3. Insertar parrafos, encabezados, listas, citas, versiculos y texto con formato.
+4. Seleccionar etiquetas de proposito, audiencia, tema y estado.
+5. Guardar automaticamente como borrador mientras se trabaja.
+6. Guardar manualmente para publicar la ensenanza cuando tenga titulo.
+7. Abrirla posteriormente desde Mis ensenanzas para editarla o leerla.
+
+El editor esta optimizado primero para tablets Android, donde aprovecha el espacio para mostrar la Biblia y el documento, la hoja paginada, el zoom y las herramientas de edicion. En telefonos Android se utiliza un layout compacto; las funciones generales siguen disponibles, aunque el espacio de trabajo es menor.
+
+### Mis ensenanzas
+
+Mis ensenanzas administra los documentos del usuario. Los borradores se conservan localmente y no aparecen como publicaciones publicas. Las ensenanzas publicadas pueden abrirse en modo lectura, editarse, filtrarse por titulo o etiquetas y eliminarse.
+
+Las ensenanzas publicadas se sincronizan con Firestore cuando corresponde. La fase 2 ampliara este flujo para permitir un repositorio virtual donde usuarios autorizados compartan materiales con otras personas.
+
+### Perfil
+
+Perfil permite administrar la identidad del usuario y sus preferencias. Incluye nombres, apellidos, alias, biografia, correo, rol, foto o avatar de color. Tambien muestra metricas iniciales relacionadas con ensenanzas, publicaciones, descargas, guardados y comentarios.
+
+Desde Perfil se pueden cambiar la version biblica preferida, el tamano de fuente, el tema claro u oscuro y reiniciar el tutorial de lectura. La informacion de cuenta se sincroniza con Firebase cuando el usuario esta autenticado.
+
+### Sincronizacion y uso offline
+
+Biblion App prioriza el funcionamiento local. El contenido biblico, diccionario, temas, historial de busqueda, historial de Bibi, borradores y parte de las preferencias pueden utilizarse sin conexion. Firebase y Firestore se utilizan para autenticacion, perfiles, preferencias sincronizables, resaltados y ensenanzas publicadas.
+
+Los borradores permanecen locales hasta que el usuario publica una ensenanza. La aplicacion descarga cambios remotos antes de subir informacion, conserva copias ante conflictos y utiliza listeners para detectar actualizaciones cuando hay conexion.
+
+## Repositorio del proyecto
+
+El codigo fuente de Biblion se encuentra en GitHub:
+
+**https://github.com/cristiancogollo4-rgb/Biblion**
 
 ---
 
-## Estado actual (v0.9.0 - Jun 2026)
+## Estado actual
 
 Biblion ya cuenta con:
 
@@ -36,7 +156,7 @@ Biblion ya cuenta con:
 - **Diccionario biblico local unificado** (6,346 entradas Easton's + Theographic) con metadata (género, fechas, coordenadas GPS, aliases). Pantalla dedicada `DictionaryScreen` con 8 categorias. `DictionaryCategoryScreen` con busqueda en vivo. Libros en orden canonico biblical.
 - **Descripcion de libros en BooksScreen**: long press en un libro muestra bottom sheet con descripcion (desde `topics.db`), conteo de versiculos y boton "Leer".
 - **Bibi mejorada** con respuestas estructuradas, templates por categoría, anáforas, memoria conversacional e historial de chats persistido.
-- **Bibi local primero**: la búsqueda en Biblia es local, Bibi usa IA solo cuando profundiza.
+- **Bibi local primero**: las consultas disponibles se resuelven localmente; Bibi usa IA remota solo cuando la pregunta requiere profundizar.
 - **Tutorial guiado interactivo** con Bibi (auto-inicio en primera instalacion, logo de Bibi, scroll en textos largos).
 
 ---
@@ -355,9 +475,9 @@ El Worker tiene respaldos para respuestas de identidad, versiones, dominio no bi
 
 ## Modo estudio
 
-El modo estudio combina el lector biblico con un editor para preparar ensenanzas, bosquejos, devocionales o clases.
+El modo estudio combina el lector biblico con un editor para preparar ensenanzas, bosquejos, devocionales o clases. Es la parte de Biblion App que mas se beneficia de una experiencia **tablet-first**: el diseno prioriza tablets Android para aprovechar el espacio de trabajo, la lectura dividida, la hoja paginada y las herramientas del editor. En telefonos Android el modo estudio se adapta a un layout mas compacto, mientras que las demas funciones de la fase 1 siguen funcionando normalmente.
 
-### Estado actual (25 Jul 2026)
+### Estado actual (rama de desarrollo)
 
 La implementacion vigente vive en `feature/studydocs/`. El editor usa hojas carta fijas de 850 x 1100 dp, paginacion por fragmentos editables, zoom pinch 0.75x-2.0x, undo/redo, modo oscuro y formato enriquecido. Los bloques vigentes son parrafo, encabezado, lista con vinetas, lista numerada, versiculo y cita.
 
@@ -966,6 +1086,9 @@ Pruebas relevantes del modo estudio:
 
 Ideas pendientes o en evolucion:
 
+- **Fase 2 - Repositorio virtual de ensenanzas**: permitir que usuarios autorizados publiquen estudios y que las personas con cuenta o permiso puedan consultarlos, leerlos y descargarlos.
+- **Versiones y colaboracion del repositorio**: organizar materiales por autor, temas, etiquetas, permisos y revisiones, con una experiencia inspirada en repositorios como GitHub.
+
 - **Plantillas de estudio**: predicacion expositiva, devocional, estudio biblico, clase. Prellenado de estructura.
 - **Reordenar bloques**: agarre y arrastre para reorganizar secciones en el editor.
 - **Contador de palabras**: para conciencia de extension en predicaciones.
@@ -973,6 +1096,16 @@ Ideas pendientes o en evolucion:
 - **Busqueda avanzada dentro de ensenanzas**.
 - **Mejoras de accesibilidad**.
 - Mayor cobertura de pruebas UI.
+
+## Ramas del repositorio
+
+El repositorio mantiene una estructura reducida para evitar duplicar fuentes de verdad:
+
+- **`main`:** linea base estable y referencia para versiones de produccion.
+- **`test`:** rama principal de integracion y validacion del desarrollo actual.
+- **`feat/modo-estudio`:** rama de trabajo especializada que conserva cambios del modo estudio aun no integrados en `test`.
+
+Las ramas historicas de funcionalidades, correcciones y tareas automatizadas que ya estaban integradas en `test` fueron eliminadas. Los cambios nuevos deben desarrollarse desde `test` mediante ramas de trabajo breves y fusionarse despues de validar pruebas y comportamiento.
 - Mejoras visuales para pantallas grandes.
 - Gestion avanzada de cuadernos.
 - Sincronizacion mas robusta ante conflictos.
