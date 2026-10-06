@@ -348,6 +348,16 @@
     <string name="reader_parallel_app_bar_title">Lectura paralela</string>
     <string name="reader_parallel_pane">Lectura %1$d</string>
     <string name="reader_parallel_load_error">No se pudo cargar este pasaje.</string>
+    <string name="reader_parallel_passage_button">Cambiar pasaje: %1$s</string>
+    <string name="reader_parallel_version_button">Elegir versión: %1$s</string>
+    <string name="reader_parallel_choose_book">Elige un libro</string>
+    <string name="reader_parallel_search_books">Buscar libros</string>
+    <string name="reader_parallel_no_books">No hay libros que coincidan con la búsqueda.</string>
+    <string name="reader_parallel_chapters_of">Capítulos de %1$s</string>
+    <string name="reader_parallel_change_book">Cambiar libro</string>
+    <string name="reader_parallel_choose_chapter">Elige un capítulo</string>
+    <string name="reader_parallel_chapters_error">No se pudieron cargar los capítulos de este libro.</string>
+    <string name="reader_parallel_choose_version">Elige una versión</string>
     <string name="reader_previous_chapter">Capítulo anterior</string>
     <string name="reader_next_chapter">Capítulo siguiente</string>
     <string name="reader_chapter_short">Cap. %1$d</string>

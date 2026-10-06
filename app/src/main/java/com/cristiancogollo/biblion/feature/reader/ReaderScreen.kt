@@ -1381,9 +1381,40 @@ fun ReaderContent(
                                 }
                             }
                         } else {
+                            val currentStartIndex = if (
+                                effectiveReaderPreferences.continuousScrolling &&
+                                continuousPreviousChapterContent != null
+                            ) {
+                                previousContinuousBodyItemCount + 2
+                            } else {
+                                0
+                            }
+                            val visibleVerse = firstVerseAtBodyIndex(
+                                index = (lazyListState.firstVisibleItemIndex - currentStartIndex)
+                                    .coerceAtLeast(0),
+                                verses = verses,
+                                titlesByVerse = chapterTitles,
+                                textLayout = effectiveReaderPreferences.textLayout,
+                            )?.first?.toIntOrNull()
+                                ?: pendingTargetVerse?.toIntOrNull()
+                                ?: verses.firstOrNull()?.first?.toIntOrNull()
                             parallelPrimaryBook = bookName.orEmpty()
                             parallelPrimaryChapter = selectedChapter
                             parallelPrimaryVersion = selectedVersionKey
+                            parallelPrimaryTargetVerse = visibleVerse
+                            parallelPrimaryTargetRequest++
+                            parallelSecondaryBook = bookName.orEmpty()
+                            parallelSecondaryChapter = selectedChapter
+                            secondaryVersionKey = selectedVersionKey
+                            parallelSecondaryTargetVerse = visibleVerse
+                            parallelSecondaryTargetRequest++
+                            val updatedPreferences = readerPreferences.copy(
+                                secondaryBookName = bookName.orEmpty(),
+                                secondaryChapter = selectedChapter,
+                                secondaryVersionKey = selectedVersionKey,
+                            )
+                            readerPreferences = updatedPreferences
+                            ReaderPreferencesStore.save(context, updatedPreferences)
                             isParallelReading = true
                         }
                     },
@@ -1450,13 +1481,15 @@ fun ReaderContent(
                         parallelPrimaryBook = selection.bookName
                         parallelPrimaryChapter = selection.chapter
                         parallelPrimaryVersion = selection.versionKey
-                        parallelPrimaryTargetVerse = null
+                        parallelPrimaryTargetVerse = selection.targetVerse
+                        parallelPrimaryTargetRequest = selection.targetRequest
                     },
                     onSecondarySelectionChange = { selection ->
                         parallelSecondaryBook = selection.bookName
                         parallelSecondaryChapter = selection.chapter
                         secondaryVersionKey = selection.versionKey
-                        parallelSecondaryTargetVerse = null
+                        parallelSecondaryTargetVerse = selection.targetVerse
+                        parallelSecondaryTargetRequest = selection.targetRequest
                         val updatedPreferences = readerPreferences.copy(
                             secondaryBookName = selection.bookName,
                             secondaryChapter = selection.chapter,

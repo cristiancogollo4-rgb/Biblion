@@ -1,24 +1,13 @@
 package com.cristiancogollo.biblion.feature.reader.ui
 
 import android.content.ClipData
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
@@ -36,7 +25,6 @@ import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -382,7 +370,26 @@ private fun IndependentBiblePane(
             selection = selection,
             chapterCount = content.chapterCount,
             versions = versions,
-            onSelectionChange = onSelectionChange,
+            onSelectionChange = { next ->
+                val changingOnlyVersion = next.bookName == selection.bookName &&
+                    next.chapter == selection.chapter &&
+                    next.versionKey != selection.versionKey
+                val visibleVerse = if (changingOnlyVersion) {
+                    if (preferences.textLayout == ReaderTextLayout.FLOWING) {
+                        textSections.getOrNull(listState.firstVisibleItemIndex)?.firstVerseNumber
+                    } else {
+                        content.verses.getOrNull(listState.firstVisibleItemIndex)?.first
+                    }?.toIntOrNull()
+                } else {
+                    null
+                }
+                onSelectionChange(
+                    next.copy(
+                        targetVerse = visibleVerse,
+                        targetRequest = selection.targetRequest + 1,
+                    )
+                )
+            },
         )
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
@@ -491,155 +498,6 @@ private fun IndependentBiblePane(
                         )
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PaneNavigationControls(
-    paneNumber: Int,
-    selection: BiblePaneSelection,
-    chapterCount: Int,
-    versions: List<BibleVersionOption>,
-    onSelectionChange: (BiblePaneSelection) -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text(
-            text = stringResource(R.string.reader_parallel_pane, paneNumber),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            CompactSelectionMenu(
-                label = selection.bookName,
-                options = readerCanonicalBooks,
-                selected = selection.bookName,
-                onSelected = { book ->
-                    onSelectionChange(selection.copy(bookName = book, chapter = 1))
-                },
-                modifier = Modifier.weight(1f),
-            )
-            IconButton(
-                onClick = {
-                    onSelectionChange(selection.copy(chapter = selection.chapter - 1))
-                },
-                enabled = selection.chapter > 1,
-                modifier = Modifier.size(48.dp),
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.reader_previous_chapter),
-                )
-            }
-            CompactSelectionMenu(
-                label = stringResource(R.string.reader_chapter_short, selection.chapter),
-                options = (1..chapterCount.coerceAtLeast(1)).map(Int::toString),
-                selected = selection.chapter.toString(),
-                onSelected = { chapter ->
-                    onSelectionChange(selection.copy(chapter = chapter.toInt()))
-                },
-                modifier = Modifier.weight(0.72f),
-            )
-            IconButton(
-                onClick = {
-                    onSelectionChange(selection.copy(chapter = selection.chapter + 1))
-                },
-                enabled = selection.chapter < chapterCount,
-                modifier = Modifier.size(48.dp),
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = stringResource(R.string.reader_next_chapter),
-                )
-            }
-        }
-        CompactSelectionMenu(
-            label = versions.firstOrNull { it.key == selection.versionKey }?.label
-                ?: selection.versionKey.uppercase(),
-            options = versions.map { it.key },
-            optionLabel = { key ->
-                versions.firstOrNull { it.key == key }?.label ?: key.uppercase()
-            },
-            selected = selection.versionKey,
-            onSelected = { version ->
-                onSelectionChange(selection.copy(versionKey = version))
-            },
-            enabled = versions.isNotEmpty(),
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
-}
-
-@Composable
-private fun <T> CompactSelectionMenu(
-    label: String,
-    options: List<T>,
-    selected: T,
-    onSelected: (T) -> Unit,
-    modifier: Modifier = Modifier,
-    optionLabel: (T) -> String = { it.toString() },
-    enabled: Boolean = true,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val accessibilityLabel = stringResource(R.string.reader_change_selection, label)
-
-    Box(modifier = modifier) {
-        Surface(
-            onClick = { expanded = true },
-            enabled = enabled,
-            modifier = Modifier
-                .fillMaxWidth()
-                .semantics { contentDescription = accessibilityLabel },
-            shape = RoundedCornerShape(10.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        ) {
-            Row(
-                modifier = Modifier.padding(start = 10.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelLarge,
-                    maxLines = 1,
-                    modifier = Modifier.weight(1f),
-                )
-                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-            }
-        }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.heightIn(max = 360.dp),
-        ) {
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = optionLabel(option),
-                            fontWeight = if (option == selected) {
-                                FontWeight.Bold
-                            } else {
-                                FontWeight.Normal
-                            },
-                        )
-                    },
-                    onClick = {
-                        expanded = false
-                        onSelected(option)
-                    },
-                )
             }
         }
     }
