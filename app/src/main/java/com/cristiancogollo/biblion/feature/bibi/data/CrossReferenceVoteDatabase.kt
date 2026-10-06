@@ -56,6 +56,21 @@ data class CrossReferenceVoteEntity(
 @Dao
 interface CrossReferenceVoteDao {
 
+    @Query(
+        """
+        SELECT DISTINCT source_verse FROM cross_reference_votes
+        WHERE source_normalized_book = :normalizedBook
+            AND source_chapter = :chapter
+            AND votes >= :minVotes
+        ORDER BY source_verse
+        """
+    )
+    suspend fun getSourceVersesForChapter(
+        normalizedBook: String,
+        chapter: Int,
+        minVotes: Int,
+    ): List<Int>
+
     /**
      * Obtiene las referencias para un versiculo, filtradas por voto minimo.
      * Ordenadas por voto descendente.

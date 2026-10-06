@@ -150,6 +150,26 @@ class CrossReferenceVoteEngineTest {
     }
 
     @Test
+    fun `chapter availability includes only verses above the quality threshold`() = runBlocking {
+        val db = openAssetDb("databases/cross_references_votes.db")
+        try {
+            val cursor = db.rawQuery(
+                """SELECT DISTINCT source_verse FROM cross_reference_votes
+                   WHERE source_normalized_book='juan' AND source_chapter=3 AND votes>=10
+                   ORDER BY source_verse""",
+                null,
+            )
+            val verses = mutableListOf<Int>()
+            while (cursor.moveToNext()) verses.add(cursor.getInt(0))
+            cursor.close()
+            assertTrue("Juan 3:16 should show a reference indicator", 16 in verses)
+            assertEquals(verses.distinct().sorted(), verses)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
     fun `xref votes column exists and has values`() = runBlocking {
         val db = openAssetDb("databases/cross_references_votes.db")
         try {

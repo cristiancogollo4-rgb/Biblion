@@ -112,6 +112,14 @@ class KnowledgeEngineTest {
     }
 
     @Test
+    fun `referencias cruzadas es RELATED`() {
+        assertEquals(
+            KnowledgeEngine.BibiIntent.RELATED,
+            KnowledgeEngine.detectIntent("Dame las referencias cruzadas de este versículo"),
+        )
+    }
+
+    @Test
     fun `hebreo es ORIGINAL_LANG`() {
         assertEquals(KnowledgeEngine.BibiIntent.ORIGINAL_LANG, KnowledgeEngine.detectIntent("¿qué dice en hebreo?"))
     }

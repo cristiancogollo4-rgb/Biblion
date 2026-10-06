@@ -5,6 +5,7 @@ import android.util.Log
 import com.cristiancogollo.biblion.BibleRepository
 import com.cristiancogollo.biblion.DailyVerse
 import com.cristiancogollo.biblion.feature.bibi.engine.BibleBookMapper
+import kotlinx.coroutines.CancellationException
 import java.util.regex.Pattern
 
 private const val TAG = "BiblicalCrossRef"
@@ -50,7 +51,8 @@ object BiblicalCrossReference {
     suspend fun resolve(
         context: Context,
         reference: String,
-        maxVerses: Int = 5
+        maxVerses: Int = 5,
+        versionKey: String? = null,
     ): ResolvedVerse? {
         val cleanRef = reference.trim()
         if (cleanRef.isEmpty()) return null
@@ -61,7 +63,7 @@ object BiblicalCrossReference {
             val book = BibleBookMapper.toSpanish(osisMatch.group(1) ?: return null)
             val chapter = osisMatch.group(2)?.toIntOrNull() ?: return null
             val verse = osisMatch.group(3)?.toIntOrNull() ?: return null
-            return resolveSingle(context, book, chapter, verse)
+            return resolveSingle(context, book, chapter, verse, versionKey)
         }
 
         // Formato standard: "Libro Cap:Vers" o "Libro Cap:Vers-VersFin"
@@ -82,11 +84,11 @@ object BiblicalCrossReference {
 
         // Versiculo unico
         if (verseStart == verseEnd) {
-            return resolveSingle(context, spanishBook, chapter, verseStart)
+            return resolveSingle(context, spanishBook, chapter, verseStart, versionKey)
         }
 
         // Rango de versiculos
-        return resolveRange(context, spanishBook, chapter, verseStart, verseEnd, maxVerses)
+        return resolveRange(context, spanishBook, chapter, verseStart, verseEnd, maxVerses, versionKey)
     }
 
     /**
@@ -96,13 +98,14 @@ object BiblicalCrossReference {
         context: Context,
         book: String,
         chapter: Int,
-        verse: Int
+        verse: Int,
+        versionKey: String?,
     ): ResolvedVerse? {
         return try {
-            val versionKey = BibleRepository.getSelectedVersionKey(context)
+            val selectedVersionKey = versionKey ?: BibleRepository.getSelectedVersionKey(context)
             val result = BibleRepository.getVerseText(
                 context = context,
-                versionKey = versionKey,
+                versionKey = selectedVersionKey,
                 bookName = book,
                 chapter = chapter.toString(),
                 verse = verse.toString()
@@ -117,6 +120,8 @@ object BiblicalCrossReference {
                     text = result.text
                 )
             } else null
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (e: Exception) {
             Log.e(TAG, "Error resolviendo $book $chapter:$verse - ${e.message}")
             null
@@ -132,17 +137,18 @@ object BiblicalCrossReference {
         chapter: Int,
         verseStart: Int,
         verseEnd: Int,
-        maxVerses: Int
+        maxVerses: Int,
+        versionKey: String?,
     ): ResolvedVerse? {
         val safeEnd = minOf(verseEnd, verseStart + maxVerses - 1)
         val verseTexts = mutableListOf<String>()
+        val selectedVersionKey = versionKey ?: BibleRepository.getSelectedVersionKey(context)
 
         for (v in verseStart..safeEnd) {
             try {
-                val versionKey = BibleRepository.getSelectedVersionKey(context)
                 val result = BibleRepository.getVerseText(
                     context = context,
-                    versionKey = versionKey,
+                    versionKey = selectedVersionKey,
                     bookName = book,
                     chapter = chapter.toString(),
                     verse = v.toString()
@@ -150,6 +156,8 @@ object BiblicalCrossReference {
                 if (result.text.isNotEmpty()) {
                     verseTexts.add("${v} ${result.text}")
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (e: Exception) {
                 Log.w(TAG, "Versiculo no encontrado: $book $chapter:$v")
             }

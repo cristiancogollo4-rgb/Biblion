@@ -24,7 +24,11 @@ object BibiReferenceContextResolver {
             reader = VerseResolver.ReaderSnapshot(
                 bookName = reader.book.takeIf { it.isNotBlank() },
                 chapter = reader.chapter,
-                selectedVerses = reader.passages.map { it.verse }.toSet(),
+                selectedVerses = if (reader.hasExplicitSelection) {
+                    reader.passages.map { it.verse }.toSet()
+                } else {
+                    emptySet()
+                },
             ),
             question = question,
         )
@@ -71,6 +75,7 @@ object BibiReferenceContextResolver {
                 book = resolution.book,
                 chapter = resolution.chapter,
                 passages = passages,
+                hasExplicitSelection = true,
             )
             is BibiContext.Study -> originalContext.copy(passages = passages)
         }

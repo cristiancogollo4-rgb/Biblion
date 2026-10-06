@@ -15,6 +15,7 @@ class BibiReferenceContextResolverTest {
         chapter = 1,
         passages = listOf(BibiPassage("Genesis", 1, 1, "En el principio")),
         bibleVersion = "rv1960",
+        hasExplicitSelection = false,
     )
 
     @Test
@@ -35,6 +36,7 @@ class BibiReferenceContextResolverTest {
         assertEquals("Juan", reader.book)
         assertEquals(3, reader.chapter)
         assertEquals("Juan 3:16", reader.passages.single().reference)
+        assertTrue(reader.hasExplicitSelection)
         assertTrue(result.error == null)
     }
 

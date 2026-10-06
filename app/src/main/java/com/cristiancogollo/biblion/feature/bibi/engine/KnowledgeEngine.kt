@@ -142,6 +142,7 @@ object KnowledgeEngine {
             q.contains("nació en") || q.contains("situado en") ||
             q.contains("localizado en") -> BibiIntent.WHERE
 
+            q.contains("referencia cruzada") || q.contains("referencias cruzadas") ||
             q.contains("relacionad") || q.contains("similar") ||
             q.contains("parecid") || q.contains("otro pasaje") ||
             q.contains("otros pasajes") || q.contains("donde mas") ||
@@ -589,7 +590,8 @@ object KnowledgeEngine {
             chapter = resolution.chapter,
             verse = resolution.verse!!,
             minVotes = CrossReferenceVoteEngine.DEFAULT_MIN_VOTES,
-            maxTotal = 6
+            maxTotal = 6,
+            versionKey = userContext.bibleVersion,
         )
 
         if (related.isEmpty()) {

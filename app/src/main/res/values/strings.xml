@@ -358,6 +358,17 @@
     <string name="reader_settings_accessibility">Accesibilidad</string>
     <string name="reader_show_headings">Mostrar títulos de sección</string>
     <string name="reader_show_verse_numbers">Mostrar números de versículo</string>
+    <string name="reader_show_cross_references">Show cross-references</string>
+    <string name="reader_cross_reference_icon">View cross-references for %1$s</string>
+    <string name="reader_cross_references_title">References for %1$s</string>
+    <string name="reader_cross_references_loading">Finding related passages…</string>
+    <string name="reader_cross_references_empty">No references are available for this verse.</string>
+    <string name="reader_cross_references_error">Could not load references.</string>
+    <string name="reader_cross_references_text_unavailable">Text unavailable in this version.</string>
+    <string name="reader_cross_references_open">Read passage</string>
+    <string name="reader_cross_references_ask_bibi">Ask Bibi about this verse</string>
+    <string name="reader_ask_bibi_selection">Ask Bibi about the selection</string>
+    <string name="bibi_context_verse">Passage in context: %1$s</string>
     <string name="reader_high_contrast">Contraste reforzado</string>
     <string name="reader_high_contrast_description">Evita colores de texto con contraste bajo.</string>
     <string name="reader_reduce_motion">Reducir animaciones</string>

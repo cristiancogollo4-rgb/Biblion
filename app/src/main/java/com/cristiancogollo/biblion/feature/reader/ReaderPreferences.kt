@@ -55,6 +55,7 @@ data class ReaderPreferences(
     val continuousScrolling: Boolean = false,
     val showSectionHeadings: Boolean = true,
     val showVerseNumbers: Boolean = true,
+    val showCrossReferences: Boolean = true,
     val highContrast: Boolean = false,
     val reduceMotion: Boolean = false,
     val secondaryVersionKey: String = "",
@@ -86,6 +87,7 @@ object ReaderPreferencesStore {
     private const val KEY_CONTINUOUS_SCROLLING = "continuous_scrolling"
     private const val KEY_SHOW_SECTION_HEADINGS = "show_section_headings"
     private const val KEY_SHOW_VERSE_NUMBERS = "show_verse_numbers"
+    private const val KEY_SHOW_CROSS_REFERENCES = "show_cross_references"
     private const val KEY_HIGH_CONTRAST = "high_contrast"
     private const val KEY_REDUCE_MOTION = "reduce_motion"
     private const val KEY_SECONDARY_VERSION = "secondary_version"
@@ -126,6 +128,7 @@ object ReaderPreferencesStore {
             continuousScrolling = prefs.getBoolean(KEY_CONTINUOUS_SCROLLING, false),
             showSectionHeadings = prefs.getBoolean(KEY_SHOW_SECTION_HEADINGS, true),
             showVerseNumbers = prefs.getBoolean(KEY_SHOW_VERSE_NUMBERS, true),
+            showCrossReferences = prefs.getBoolean(KEY_SHOW_CROSS_REFERENCES, true),
             highContrast = prefs.getBoolean(KEY_HIGH_CONTRAST, false),
             reduceMotion = prefs.getBoolean(KEY_REDUCE_MOTION, false),
             secondaryVersionKey = prefs.getString(KEY_SECONDARY_VERSION, "").orEmpty(),
@@ -145,6 +148,7 @@ object ReaderPreferencesStore {
             .putBoolean(KEY_CONTINUOUS_SCROLLING, normalized.continuousScrolling)
             .putBoolean(KEY_SHOW_SECTION_HEADINGS, normalized.showSectionHeadings)
             .putBoolean(KEY_SHOW_VERSE_NUMBERS, normalized.showVerseNumbers)
+            .putBoolean(KEY_SHOW_CROSS_REFERENCES, normalized.showCrossReferences)
             .putBoolean(KEY_HIGH_CONTRAST, normalized.highContrast)
             .putBoolean(KEY_REDUCE_MOTION, normalized.reduceMotion)
             .putString(KEY_SECONDARY_VERSION, normalized.secondaryVersionKey)

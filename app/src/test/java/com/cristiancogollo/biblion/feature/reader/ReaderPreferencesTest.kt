@@ -17,6 +17,7 @@ class ReaderPreferencesTest {
         assertEquals(ReaderTextLayout.VERSE_BLOCKS, preferences.textLayout)
         assertTrue(preferences.showSectionHeadings)
         assertTrue(preferences.showVerseNumbers)
+        assertTrue(preferences.showCrossReferences)
         assertFalse(preferences.continuousScrolling)
         assertEquals("Salmos", preferences.secondaryBookName)
     }

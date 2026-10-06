@@ -10,6 +10,7 @@ sealed interface BibiContext {
         val chapter: Int,
         val passages: List<BibiPassage> = emptyList(),
         override val bibleVersion: String = "rv1960",
+        val hasExplicitSelection: Boolean = true,
     ) : BibiContext
 
     data class Study(

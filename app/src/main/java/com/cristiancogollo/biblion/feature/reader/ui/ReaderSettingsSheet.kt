@@ -174,6 +174,11 @@ fun ReaderSettingsSheet(
                         onCheckedChange = { draft = draft.copy(showVerseNumbers = it) },
                     )
                     SettingsSwitch(
+                        title = stringResource(R.string.reader_show_cross_references),
+                        checked = draft.showCrossReferences,
+                        onCheckedChange = { draft = draft.copy(showCrossReferences = it) },
+                    )
+                    SettingsSwitch(
                         title = stringResource(R.string.reader_high_contrast),
                         description = stringResource(R.string.reader_high_contrast_description),
                         checked = draft.highContrast,

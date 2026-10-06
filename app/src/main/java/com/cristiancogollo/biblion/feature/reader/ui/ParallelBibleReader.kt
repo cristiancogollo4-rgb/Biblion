@@ -55,6 +55,7 @@ import com.cristiancogollo.biblion.VerseItem
 import com.cristiancogollo.biblion.buildCitationVerseGroups
 import com.cristiancogollo.biblion.buildVerseCopyText
 import com.cristiancogollo.biblion.feature.reader.HighlightsCache
+import com.cristiancogollo.biblion.feature.bibi.engine.CrossReferenceVoteEngine
 import com.cristiancogollo.biblion.feature.reader.ReaderPreferences
 import com.cristiancogollo.biblion.feature.reader.ReaderTextLayout
 import com.cristiancogollo.biblion.feature.reader.buildBibleTextSections
@@ -70,6 +71,8 @@ data class BiblePaneSelection(
     val bookName: String,
     val chapter: Int,
     val versionKey: String,
+    val targetVerse: Int? = null,
+    val targetRequest: Int = 0,
 )
 
 internal val readerCanonicalBooks = listOf(
@@ -94,6 +97,7 @@ fun ParallelBibleReader(
     onPrimarySelectionChange: (BiblePaneSelection) -> Unit,
     onSecondarySelectionChange: (BiblePaneSelection) -> Unit,
     onInsertVerseCitation: ((CitationVerseGroup, String) -> Unit)? = null,
+    onOpenCrossReferences: (ReaderVerseReference) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -170,6 +174,11 @@ fun ParallelBibleReader(
                 selectedActions = if (activePane == 1) selectedActions else emptyMap(),
                 onHighlightsLoaded = { primaryHighlights = it },
                 onVerseClick = { number, text -> toggleSelection(1, number, text) },
+                onOpenCrossReferences = {
+                    activePane = null
+                    selectedActions = emptyMap()
+                    onOpenCrossReferences(it.copy(pane = 1))
+                },
                 onSelectionChange = onPrimarySelectionChange,
                 modifier = Modifier.weight(1f).fillMaxHeight(),
             )
@@ -185,6 +194,11 @@ fun ParallelBibleReader(
                 selectedActions = if (activePane == 2) selectedActions else emptyMap(),
                 onHighlightsLoaded = { secondaryHighlights = it },
                 onVerseClick = { number, text -> toggleSelection(2, number, text) },
+                onOpenCrossReferences = {
+                    activePane = null
+                    selectedActions = emptyMap()
+                    onOpenCrossReferences(it.copy(pane = 2))
+                },
                 onSelectionChange = onSecondarySelectionChange,
                 modifier = Modifier.weight(1f).fillMaxHeight(),
             )
@@ -252,6 +266,7 @@ private fun IndependentBiblePane(
     selectedActions: Map<String, VerseAction>,
     onHighlightsLoaded: (Map<String, Int>) -> Unit,
     onVerseClick: (String, String) -> Unit,
+    onOpenCrossReferences: (ReaderVerseReference) -> Unit,
     onSelectionChange: (BiblePaneSelection) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -268,6 +283,25 @@ private fun IndependentBiblePane(
     }
     var loading by remember { mutableStateOf(true) }
     var loadFailed by remember { mutableStateOf(false) }
+    var referenceVerses by remember(selection.bookName, selection.chapter) {
+        mutableStateOf<Set<Int>>(emptySet())
+    }
+
+    LaunchedEffect(selection.bookName, selection.chapter, preferences.showCrossReferences) {
+        referenceVerses = emptySet()
+        if (!preferences.showCrossReferences) return@LaunchedEffect
+        try {
+            referenceVerses = CrossReferenceVoteEngine.getSourceVersesForChapter(
+                context = context,
+                book = selection.bookName,
+                chapter = selection.chapter,
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            referenceVerses = emptySet()
+        }
+    }
 
     LaunchedEffect(selection) {
         loading = true
@@ -316,6 +350,18 @@ private fun IndependentBiblePane(
             loading = false
             loadFailed = true
         }
+    }
+
+    LaunchedEffect(selection, loading, loadFailed, content.verses, preferences.textLayout) {
+        val target = selection.targetVerse?.toString() ?: return@LaunchedEffect
+        if (loading || loadFailed || content.verses.isEmpty()) return@LaunchedEffect
+        val targetIndex = if (preferences.textLayout == ReaderTextLayout.FLOWING) {
+            buildBibleTextSections(content.verses, content.titlesByVerse)
+                .indexOfFirst { section -> section.verses.any { it.first == target } }
+        } else {
+            content.verses.indexOfFirst { it.first == target }
+        }
+        if (targetIndex >= 0) listState.scrollToItem(targetIndex)
     }
 
     val selectedVerseNumbers = remember(selectedActions) {
@@ -393,6 +439,17 @@ private fun IndependentBiblePane(
                         },
                         contentType = { _, _ -> "parallel_bible_verse" },
                     ) { _, (verseNumber, verseText) ->
+                        val crossReference = verseNumber.toIntOrNull()
+                            ?.takeIf { it in referenceVerses }
+                            ?.let { verse ->
+                                ReaderVerseReference(
+                                    book = selection.bookName,
+                                    chapter = selection.chapter,
+                                    verse = verse,
+                                    text = verseText,
+                                    versionKey = selection.versionKey,
+                                )
+                            }
                         val title = content.titlesByVerse[verseNumber]
                         if (preferences.showSectionHeadings && !title.isNullOrBlank()) {
                             Text(
@@ -414,6 +471,8 @@ private fun IndependentBiblePane(
                         VerseItem(
                             verseNumber = verseNumber,
                             verseText = verseText,
+                            crossReference = crossReference,
+                            onOpenCrossReferences = onOpenCrossReferences,
                             fontSize = fontSize,
                             fontFamily = preferences.fontFamily.asComposeFontFamily(),
                             fontWeight = preferences.fontFamily.bodyWeight(),

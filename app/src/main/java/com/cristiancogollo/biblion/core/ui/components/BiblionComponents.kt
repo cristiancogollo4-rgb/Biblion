@@ -702,6 +702,7 @@ fun VerseActionsFloatingMenu(
     onAddCitation: (() -> Unit)?,
     onHighlight: (Int) -> Unit,
     onInsertAsQuote: (() -> Unit)? = null,
+    onAskBibi: (() -> Unit)? = null,
 ) {
     val popupOffset = if (anchorOffset == IntOffset.Zero) IntOffset(0, -32) else anchorOffset
 
@@ -765,6 +766,18 @@ fun VerseActionsFloatingMenu(
                                 contentDescription = "Limpiar",
                                 tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
                             )
+                        }
+                    }
+
+                    if (onAskBibi != null) {
+                        TextButton(onClick = onAskBibi) {
+                            Icon(
+                                painter = painterResource(R.drawable.bibi_logo),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.reader_ask_bibi_selection))
                         }
                     }
 

@@ -161,6 +161,23 @@ fun BibiChatPanel(
             }
         }
         HorizontalDivider()
+        val selectedReader = (bibiContext as? BibiContext.Reader)
+            ?.takeIf { it.hasExplicitSelection && it.passages.isNotEmpty() }
+        if (selectedReader != null) {
+            val first = selectedReader.passages.first()
+            val last = selectedReader.passages.last()
+            val reference = if (first.verse == last.verse) {
+                first.reference
+            } else {
+                "${first.book} ${first.chapter}:${first.verse}-${last.verse}"
+            }
+            Text(
+                text = androidx.compose.ui.res.stringResource(R.string.bibi_context_verse, reference),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
         LazyColumn(
             state = listState,
             modifier = Modifier

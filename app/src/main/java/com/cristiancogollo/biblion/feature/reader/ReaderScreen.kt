@@ -104,12 +104,18 @@ import com.cristiancogollo.biblion.feature.reader.ui.BiblePaneSelection
 import com.cristiancogollo.biblion.feature.reader.ui.FlowingBibleSection
 import com.cristiancogollo.biblion.feature.reader.ui.ParallelBibleReader
 import com.cristiancogollo.biblion.feature.reader.ui.ReaderSettingsSheet
+import com.cristiancogollo.biblion.feature.reader.ui.ReaderCrossReferenceIcon
+import com.cristiancogollo.biblion.feature.reader.ui.ReaderCrossReferencesSheet
+import com.cristiancogollo.biblion.feature.reader.ui.ReaderVerseReference
+import com.cristiancogollo.biblion.feature.bibi.engine.CrossReferenceVoteEngine
 import com.cristiancogollo.biblion.core.ui.StudyModeLandscapeLock
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 import com.cristiancogollo.biblion.feature.bibi.ui.BibiReaderOverlay
+import com.cristiancogollo.biblion.feature.bibi.model.BibiContext
+import com.cristiancogollo.biblion.feature.bibi.model.BibiPassage
 import com.cristiancogollo.biblion.feature.achievements.domain.AchievementEvent
 import com.cristiancogollo.biblion.feature.achievements.tracking.AchievementTracker
 import com.cristiancogollo.biblion.feature.bibi.ui.StudyBibiController
@@ -669,14 +675,25 @@ fun ReaderContent(
     var parallelPrimaryVersion by rememberSaveable {
         mutableStateOf(selectedVersionKey)
     }
+    var parallelPrimaryTargetVerse by remember { mutableStateOf<Int?>(null) }
+    var parallelPrimaryTargetRequest by remember { mutableIntStateOf(0) }
     var parallelSecondaryBook by rememberSaveable {
         mutableStateOf(readerPreferences.secondaryBookName)
     }
     var parallelSecondaryChapter by rememberSaveable {
         mutableIntStateOf(readerPreferences.secondaryChapter)
     }
+    var parallelSecondaryTargetVerse by remember { mutableStateOf<Int?>(null) }
+    var parallelSecondaryTargetRequest by remember { mutableIntStateOf(0) }
     var availableVersions by remember { mutableStateOf<List<BibleVersionOption>>(emptyList()) }
     var selectedVerseActions by remember { mutableStateOf<Map<String, VerseAction>>(emptyMap()) }
+    var showVerseActionsMenu by remember { mutableStateOf(false) }
+    var requestedBibiContext by remember { mutableStateOf<BibiContext.Reader?>(null) }
+    var bibiOpenRequest by remember { mutableIntStateOf(0) }
+    var referenceVersesByChapter by remember(bookName) {
+        mutableStateOf<Map<Int, Set<Int>>>(emptyMap())
+    }
+    var openCrossReference by remember { mutableStateOf<ReaderVerseReference?>(null) }
     var horizontalDrag by remember { mutableFloatStateOf(0f) }
     var pendingTargetVerse by remember(bookName, targetVerse) { mutableStateOf(targetVerse) }
     val lazyListState = rememberLazyListState()
@@ -704,6 +721,62 @@ fun ReaderContent(
             selectedVerseActions - verseNumber
         } else {
             selectedVerseActions + (verseNumber to VerseAction(verseNumber, verseText))
+        }
+        showVerseActionsMenu = selectedVerseActions.isNotEmpty()
+    }
+
+    fun referenceForVerse(chapter: Int, verseNumber: String, verseText: String): ReaderVerseReference? {
+        val number = verseNumber.toIntOrNull() ?: return null
+        if (number !in referenceVersesByChapter[chapter].orEmpty()) return null
+        return ReaderVerseReference(
+            book = bookName.orEmpty(),
+            chapter = chapter,
+            verse = number,
+            text = verseText,
+            versionKey = selectedVersionKey,
+        )
+    }
+
+    LaunchedEffect(
+        bookName,
+        selectedChapter,
+        continuousPreviousChapterContent,
+        continuousNextChapterContent,
+        effectiveReaderPreferences.showCrossReferences,
+        effectiveReaderPreferences.continuousScrolling,
+        isParallelReading,
+    ) {
+        if (
+            bookName.isNullOrBlank() ||
+            !effectiveReaderPreferences.showCrossReferences ||
+            isParallelReading
+        ) {
+            referenceVersesByChapter = emptyMap()
+            return@LaunchedEffect
+        }
+        val chapters = buildList {
+            add(selectedChapter)
+            if (effectiveReaderPreferences.continuousScrolling) {
+                if (continuousPreviousChapterContent != null) add(selectedChapter - 1)
+                if (continuousNextChapterContent != null) add(selectedChapter + 1)
+            }
+        }
+        referenceVersesByChapter = referenceVersesByChapter.filterKeys { it in chapters }
+        for (chapter in chapters) {
+            if (chapter in referenceVersesByChapter) continue
+            try {
+                val versesWithReferences = CrossReferenceVoteEngine.getSourceVersesForChapter(
+                    context = context,
+                    book = bookName,
+                    chapter = chapter,
+                )
+                referenceVersesByChapter = referenceVersesByChapter +
+                    (chapter to versesWithReferences)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Log.w("ReaderScreen", "No se cargaron referencias de $bookName $chapter", error)
+            }
         }
     }
 
@@ -1360,11 +1433,15 @@ fun ReaderContent(
                         bookName = parallelPrimaryBook,
                         chapter = parallelPrimaryChapter,
                         versionKey = parallelPrimaryVersion,
+                        targetVerse = parallelPrimaryTargetVerse,
+                        targetRequest = parallelPrimaryTargetRequest,
                     ),
                     secondarySelection = BiblePaneSelection(
                         bookName = parallelSecondaryBook,
                         chapter = parallelSecondaryChapter,
                         versionKey = secondaryVersionKey,
+                        targetVerse = parallelSecondaryTargetVerse,
+                        targetRequest = parallelSecondaryTargetRequest,
                     ),
                     versions = availableVersions,
                     fontSize = fontSize,
@@ -1373,11 +1450,13 @@ fun ReaderContent(
                         parallelPrimaryBook = selection.bookName
                         parallelPrimaryChapter = selection.chapter
                         parallelPrimaryVersion = selection.versionKey
+                        parallelPrimaryTargetVerse = null
                     },
                     onSecondarySelectionChange = { selection ->
                         parallelSecondaryBook = selection.bookName
                         parallelSecondaryChapter = selection.chapter
                         secondaryVersionKey = selection.versionKey
+                        parallelSecondaryTargetVerse = null
                         val updatedPreferences = readerPreferences.copy(
                             secondaryBookName = selection.bookName,
                             secondaryChapter = selection.chapter,
@@ -1387,6 +1466,7 @@ fun ReaderContent(
                         ReaderPreferencesStore.save(context, updatedPreferences)
                     },
                     onInsertVerseCitation = onInsertVerseCitation,
+                    onOpenCrossReferences = { openCrossReference = it },
                 )
             } else {
             Row(modifier = Modifier.fillMaxSize()) {
@@ -1547,6 +1627,13 @@ fun ReaderContent(
                             ReadOnlyVerseItem(
                                 verseNumber = verseNumber,
                                 verseText = verseText,
+                                crossReference = referenceForVerse(
+                                    selectedChapter - 1, verseNumber, verseText,
+                                ),
+                                onOpenCrossReferences = {
+                                    selectedVerseActions = emptyMap()
+                                    openCrossReference = it
+                                },
                                 highlightColor = readerHighlightPalette.getOrElse(
                                     highlightsByChapter[selectedChapter - 1]
                                         ?.get(verseNumber) ?: 0
@@ -1661,6 +1748,13 @@ fun ReaderContent(
                             VerseItem(
                                 verseNumber = verseNumber,
                                 verseText = verseText,
+                                crossReference = referenceForVerse(
+                                    selectedChapter, verseNumber, verseText,
+                                ),
+                                onOpenCrossReferences = {
+                                    selectedVerseActions = emptyMap()
+                                    openCrossReference = it
+                                },
                                 fontSize = fontSize,
                                 fontFamily = effectiveReaderPreferences.fontFamily.asComposeFontFamily(),
                                 fontWeight = effectiveReaderPreferences.fontFamily.bodyWeight(),
@@ -1777,6 +1871,13 @@ fun ReaderContent(
                             ReadOnlyVerseItem(
                                 verseNumber = verseNumber,
                                 verseText = verseText,
+                                crossReference = referenceForVerse(
+                                    selectedChapter + 1, verseNumber, verseText,
+                                ),
+                                onOpenCrossReferences = {
+                                    selectedVerseActions = emptyMap()
+                                    openCrossReference = it
+                                },
                                 highlightColor = readerHighlightPalette.getOrElse(
                                     highlightsByChapter[selectedChapter + 1]
                                         ?.get(verseNumber) ?: 0
@@ -1889,7 +1990,10 @@ fun ReaderContent(
                     bookName = bookName,
                     chapter = selectedChapter,
                     passages = bibiPassages,
+                    hasExplicitSelection = selectedVerseActions.isNotEmpty(),
                     bibleVersion = selectedVersionKey,
+                    openRequest = bibiOpenRequest,
+                    requestedContext = requestedBibiContext,
                     currentUserName = currentUserName,
                     tutorialTargetBounds = tutorialTargetBounds,
                     onGuidedTutorialTargetAction = onGuidedTutorialTargetAction,
@@ -1914,6 +2018,7 @@ fun ReaderContent(
 
         if (
             selectedVerseActions.isNotEmpty() &&
+            showVerseActionsMenu &&
             !isParallelReading
         ) {
             VerseActionsFloatingMenu(
@@ -1921,7 +2026,7 @@ fun ReaderContent(
                 anchorOffset = IntOffset.Zero,
                 showHighlightOptions = true,
                 highlightPalette = readerHighlightPalette,
-                onDismiss = { selectedVerseActions = emptyMap() },
+                onDismiss = { showVerseActionsMenu = false },
                 onClearSelection = { selectedVerseActions = emptyMap() },
                 onCopy = {
                     val selectedContent = buildVerseCopyText(
@@ -1978,6 +2083,99 @@ fun ReaderContent(
                             selectedVerseActions = emptyMap()
                         }
                     }
+                },
+                onAskBibi = if (showBibi) {
+                    {
+                        val selectedPassages = selectedVerseActions.values
+                            .sortedBy { it.number.toIntOrNull() ?: Int.MAX_VALUE }
+                            .mapNotNull { selected ->
+                                selected.number.toIntOrNull()?.let { verse ->
+                                    BibiPassage(
+                                        book = bookName.orEmpty(),
+                                        chapter = selectedChapter,
+                                        verse = verse,
+                                        text = selected.text,
+                                    )
+                                }
+                            }
+                        if (selectedPassages.isNotEmpty()) {
+                            requestedBibiContext = BibiContext.Reader(
+                                book = bookName.orEmpty(),
+                                chapter = selectedChapter,
+                                passages = selectedPassages,
+                                bibleVersion = selectedVersionKey,
+                            )
+                            bibiOpenRequest++
+                        }
+                        selectedVerseActions = emptyMap()
+                        showVerseActionsMenu = false
+                    }
+                } else {
+                    null
+                },
+            )
+        }
+
+        openCrossReference?.let { source ->
+            ReaderCrossReferencesSheet(
+                source = source,
+                onDismiss = { openCrossReference = null },
+                onOpenPassage = { target ->
+                    openCrossReference = null
+                    selectedVerseActions = emptyMap()
+                    when (source.pane) {
+                        1 -> {
+                            parallelPrimaryBook = target.book
+                            parallelPrimaryChapter = target.chapter
+                            parallelPrimaryTargetVerse = target.verseStart
+                            parallelPrimaryTargetRequest++
+                        }
+                        2 -> {
+                            parallelSecondaryBook = target.book
+                            parallelSecondaryChapter = target.chapter
+                            parallelSecondaryTargetVerse = target.verseStart
+                            parallelSecondaryTargetRequest++
+                            val updatedPreferences = readerPreferences.copy(
+                                secondaryBookName = target.book,
+                                secondaryChapter = target.chapter,
+                            )
+                            readerPreferences = updatedPreferences
+                            ReaderPreferencesStore.save(context, updatedPreferences)
+                        }
+                        else -> {
+                            BibleRepository.setSelectedVersionKey(context, source.versionKey)
+                            navController.navigate(
+                                Screen.Reader.createRoute(
+                                    bookName = target.book,
+                                    chapter = target.chapter,
+                                    verse = target.verseStart.toString(),
+                                )
+                            ) {
+                                launchSingleTop = true
+                            }
+                        }
+                    }
+                },
+                onAskBibi = if (showBibi && !isParallelReading) {
+                    {
+                        openCrossReference = null
+                        requestedBibiContext = BibiContext.Reader(
+                            book = source.book,
+                            chapter = source.chapter,
+                            passages = listOf(
+                                BibiPassage(
+                                    book = source.book,
+                                    chapter = source.chapter,
+                                    verse = source.verse,
+                                    text = source.text,
+                                )
+                            ),
+                            bibleVersion = source.versionKey,
+                        )
+                        bibiOpenRequest++
+                    }
+                } else {
+                    null
                 },
             )
         }
@@ -2045,6 +2243,8 @@ internal fun ReadOnlyVerseItem(
     fontWeight: FontWeight,
     lineSpacingMultiplier: Float,
     showVerseNumber: Boolean,
+    crossReference: ReaderVerseReference? = null,
+    onOpenCrossReferences: ((ReaderVerseReference) -> Unit)? = null,
 ) {
     val verseTextColor = readerVerseForeground(
         highlightColor = highlightColor,
@@ -2084,26 +2284,36 @@ internal fun ReadOnlyVerseItem(
         }
     }
 
-    Text(
-        text = annotatedVerse,
-        style = MaterialTheme.typography.bodyLarge.merge(
-            TextStyle(
-                fontFamily = fontFamily,
-                fontWeight = fontWeight,
-                fontSize = fontSize,
-                lineHeight = (fontSize.value * lineSpacingMultiplier).sp,
-                color = verseTextColor,
-            )
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(highlightColor, RoundedCornerShape(8.dp))
-            .semantics(mergeDescendants = true) {
-                contentDescription = accessibilityDescription
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = annotatedVerse,
+            style = MaterialTheme.typography.bodyLarge.merge(
+                TextStyle(
+                    fontFamily = fontFamily,
+                    fontWeight = fontWeight,
+                    fontSize = fontSize,
+                    lineHeight = (fontSize.value * lineSpacingMultiplier).sp,
+                    color = verseTextColor,
+                )
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(end = if (crossReference != null) 48.dp else 0.dp)
+                .background(highlightColor, RoundedCornerShape(8.dp))
+                .semantics(mergeDescendants = true) {
+                    contentDescription = accessibilityDescription
+                }
+                .padding(horizontal = 8.dp, vertical = 8.dp)
+                .padding(bottom = 12.dp),
+        )
+        if (crossReference != null && onOpenCrossReferences != null) {
+            Box(modifier = Modifier.align(Alignment.TopEnd)) {
+                ReaderCrossReferenceIcon(crossReference) {
+                    onOpenCrossReferences(crossReference)
+                }
             }
-            .padding(horizontal = 8.dp, vertical = 8.dp)
-            .padding(bottom = 12.dp),
-    )
+        }
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -2136,7 +2346,9 @@ fun VerseItem(
     modifier: Modifier = Modifier,
     onShowActions: () -> Unit,
     onToggleSelection: () -> Unit,
-    anchorSpan: IntRange? = null
+    anchorSpan: IntRange? = null,
+    crossReference: ReaderVerseReference? = null,
+    onOpenCrossReferences: ((ReaderVerseReference) -> Unit)? = null,
 ) {
     val isRangeSelected = isSelected && selectionRangePosition != VerseSelectionRangePosition.None
     val selectedShape = when (selectionRangePosition) {
@@ -2252,6 +2464,7 @@ fun VerseItem(
         Text(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(end = if (crossReference != null) 48.dp else 0.dp)
                 .padding(bottom = bottomPadding)
                 .background(
                     color = containerColor,
@@ -2302,6 +2515,12 @@ fun VerseItem(
             text = annotatedVerse,
             style = verseTextStyle,
         )
-
+        if (crossReference != null && onOpenCrossReferences != null) {
+            Box(modifier = Modifier.align(Alignment.TopEnd)) {
+                ReaderCrossReferenceIcon(crossReference) {
+                    onOpenCrossReferences(crossReference)
+                }
+            }
+        }
     }
 }

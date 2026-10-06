@@ -120,7 +120,11 @@ private fun BibiContext.toKnowledgeContext(
         book = reader.book,
         chapter = reader.chapter,
         verse = primary?.verse ?: 0,
-        selectedVerses = reader.passages.map { it.verse }.toSet(),
+        selectedVerses = if (reader.hasExplicitSelection) {
+            reader.passages.map { it.verse }.toSet()
+        } else {
+            emptySet()
+        },
         userName = userName,
         verseText = reader.passages.joinToString("\n") { it.asPromptText() },
         verseRef = primary?.reference.orEmpty(),

@@ -11,6 +11,11 @@ import kotlinx.coroutines.withContext
 
 private const val TAG = "CrossRefVoteEngine"
 
+data class CrossReferenceTarget(
+    val reference: String,
+    val passage: RelatedVerse?,
+)
+
 /**
  * Motor de referencias cruzadas basado en openbible.info (con voto crowdsourced).
  *
@@ -26,6 +31,52 @@ object CrossReferenceVoteEngine {
 
     /** Umbral minimo de votos por defecto. ~13% del dataset. */
     const val DEFAULT_MIN_VOTES = 10
+
+    suspend fun getSourceVersesForChapter(
+        context: Context,
+        book: String,
+        chapter: Int,
+        minVotes: Int = DEFAULT_MIN_VOTES,
+    ): Set<Int> = withContext(Dispatchers.IO) {
+        CrossReferenceVoteDatabase.getInstance(context)
+            .crossReferenceVoteDao()
+            .getSourceVersesForChapter(
+                BibleBookMapper.normalizeForDb(book),
+                chapter,
+                minVotes,
+            )
+            .toSet()
+    }
+
+    suspend fun getReferenceTargets(
+        context: Context,
+        book: String,
+        chapter: Int,
+        verse: Int,
+        versionKey: String,
+        minVotes: Int = DEFAULT_MIN_VOTES,
+        maxTotal: Int = 6,
+    ): List<CrossReferenceTarget> = withContext(Dispatchers.IO) {
+        val entities = CrossReferenceVoteDatabase.getInstance(context)
+            .crossReferenceVoteDao()
+            .getBySource(
+                normalizedBook = BibleBookMapper.normalizeForDb(book),
+                chapter = chapter,
+                verse = verse,
+                minVotes = minVotes,
+                limit = maxTotal,
+            )
+        entities.map { entity ->
+            CrossReferenceTarget(
+                reference = entity.targetReferences,
+                passage = BiblicalCrossReference.resolve(
+                    context = context,
+                    reference = entity.targetReferences,
+                    versionKey = versionKey,
+                )?.toRelatedVerse(),
+            )
+        }
+    }
 
     /**
      * Obtiene versiculos relacionados al versiculo origen.
@@ -45,7 +96,8 @@ object CrossReferenceVoteEngine {
         chapter: Int,
         verse: Int,
         minVotes: Int = DEFAULT_MIN_VOTES,
-        maxTotal: Int = 6
+        maxTotal: Int = 6,
+        versionKey: String? = null,
     ): List<RelatedVerse> {
         val normalizedBook = BibleBookMapper.normalizeForDb(book)
         val dao = CrossReferenceVoteDatabase.getInstance(context).crossReferenceVoteDao()
@@ -72,7 +124,8 @@ object CrossReferenceVoteEngine {
             if (results.size >= maxTotal) break
             val resolved = BiblicalCrossReference.resolve(
                 context = context,
-                reference = entity.targetReferences
+                reference = entity.targetReferences,
+                versionKey = versionKey,
             )
             if (resolved != null) {
                 results.add(resolved.toRelatedVerse())
