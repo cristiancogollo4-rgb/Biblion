@@ -103,4 +103,26 @@ class HighlightsCacheTest {
         assertEquals(1, snapshot.size)
         assertEquals(10, snapshot["RVR1960"])
     }
+
+    @Test
+    fun savesMultipleHighlightsInOneChapterMutation() {
+        val cache = cache()
+
+        val result = cache.saveHighlights(
+            versionKey = "RVR1960",
+            rawHighlights = "{}",
+            bookName = "Juan",
+            chapter = 3,
+            verseNumbers = listOf("16", "17", "18"),
+            colorIndex = 2,
+            verseKeyProvider = { verse -> "Juan|3|$verse" },
+            currentChapterHighlights = emptyMap(),
+        )
+
+        assertEquals(mapOf("16" to 2, "17" to 2, "18" to 2), result.updatedChapterHighlights)
+        assertTrue(result.updatedRaw.contains("\"Juan|3|16\":2"))
+        assertTrue(result.updatedRaw.contains("\"Juan|3|17\":2"))
+        assertTrue(result.updatedRaw.contains("\"Juan|3|18\":2"))
+        assertEquals(1, cache.debugSnapshot()["RVR1960"])
+    }
 }

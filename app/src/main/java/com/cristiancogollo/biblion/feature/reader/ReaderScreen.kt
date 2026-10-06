@@ -24,8 +24,10 @@ import androidx.compose.foundation.focusable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
@@ -47,6 +49,12 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -75,8 +83,27 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.cristiancogollo.biblion.feature.reader.HighlightsCache
+import com.cristiancogollo.biblion.feature.reader.ReaderPreferences
+import com.cristiancogollo.biblion.feature.reader.ReaderPreferencesStore
+import com.cristiancogollo.biblion.feature.reader.ReaderTextLayout
+import com.cristiancogollo.biblion.feature.reader.buildBibleTextSections
+import com.cristiancogollo.biblion.feature.reader.chapterBodyIndexForVerse
+import com.cristiancogollo.biblion.feature.reader.firstVerseAtBodyIndex
+import com.cristiancogollo.biblion.feature.reader.continuousChapterDirection
+import com.cristiancogollo.biblion.feature.reader.ContinuousChapterWindow
+import com.cristiancogollo.biblion.feature.reader.readerVerseForeground
+import com.cristiancogollo.biblion.feature.reader.ui.BiblePaneSelection
+import com.cristiancogollo.biblion.feature.reader.ui.FlowingBibleSection
+import com.cristiancogollo.biblion.feature.reader.ui.ParallelBibleReader
+import com.cristiancogollo.biblion.feature.reader.ui.ReaderSettingsSheet
 import com.cristiancogollo.biblion.core.ui.StudyModeLandscapeLock
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
@@ -88,13 +115,33 @@ import com.cristiancogollo.biblion.feature.achievements.tracking.AchievementTrac
 import com.cristiancogollo.biblion.feature.bibi.ui.StudyBibiController
 import com.cristiancogollo.biblion.feature.studydocs.ui.Screen as StudyDocScreen
 
-private val highlightPalette = listOf(
+internal val readerHighlightPalette = listOf(
     Color(0x00000000),
     Color(0xFFFFF2A8),
     Color(0xFFC8F7C5),
     Color(0xFFFFD0D0),
     Color(0xFFD8E8FF)
 )
+
+private val newTestamentBookNames = setOf(
+    "mateo", "marcos", "lucas", "juan", "hechos", "romanos",
+    "1 corintios", "2 corintios", "galatas", "efesios", "filipenses",
+    "colosenses", "1 tesalonicenses", "2 tesalonicenses", "1 timoteo",
+    "2 timoteo", "tito", "filemon", "hebreos", "santiago", "1 pedro",
+    "2 pedro", "1 juan", "2 juan", "3 juan", "judas", "apocalipsis",
+)
+
+private class ReaderJobs {
+    var chapterLoad: Job? = null
+    var highlightLoad: Job? = null
+    var adjacentPrefetch: Job? = null
+
+    fun cancelAll() {
+        chapterLoad?.cancel()
+        highlightLoad?.cancel()
+        adjacentPrefetch?.cancel()
+    }
+}
 
 /**
  * Utility para obtener el [Activity] desde un [Context] de Compose.
@@ -182,7 +229,8 @@ fun ReaderScreen(
         val context = LocalContext.current
         val repository = remember {
             com.cristiancogollo.biblion.feature.studydocs.data.StudyDocRepository(
-                com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDatabase.getInstance(context).studyDocDao()
+                com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDatabase.getInstance(context).studyDocDao(),
+                ownerUidProvider = { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid },
             )
         }
         val splitViewModel: com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocSplitViewModel = viewModel(
@@ -389,7 +437,8 @@ private fun StudyDocEditorSplitContent(
     val context = LocalContext.current
     val repository = remember {
         com.cristiancogollo.biblion.feature.studydocs.data.StudyDocRepository(
-            com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDatabase.getInstance(context).studyDocDao()
+            com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDatabase.getInstance(context).studyDocDao(),
+            ownerUidProvider = { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid },
         )
     }
     val viewModel: com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel = viewModel(
@@ -553,17 +602,79 @@ fun ReaderContent(
         mutableFloatStateOf(AppPreferencesSyncStore.getReaderFontSizeSp(context).toFloat())
     }
     val fontSize = fontSizeValue.sp
+    var readerPreferences by remember {
+        mutableStateOf(ReaderPreferencesStore.load(context))
+    }
+    var showReaderSettings by remember { mutableStateOf(false) }
+    val readerConfiguration = LocalConfiguration.current
+    val parallelReadingAvailable =
+        readerConfiguration.screenWidthDp >= 600 && !bookName.isNullOrBlank()
+    var isParallelReading by rememberSaveable { mutableStateOf(false) }
+    val effectiveReaderPreferences = readerPreferences
 
-    var chapterCount by remember { mutableIntStateOf(0) }
+    LaunchedEffect(parallelReadingAvailable) {
+        if (!parallelReadingAvailable) isParallelReading = false
+    }
+
     var selectedChapter by remember(bookName) { mutableIntStateOf(initialChapter.coerceAtLeast(1)) }
-    var verses by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
-    var chapterTitles by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
-    var verseHighlights by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
-    var anchorSpans by remember { mutableStateOf<Map<String, Pair<IntRange, String>>>(emptyMap()) }
-    // anchorSpans queda obsoleto (TSK eliminado). Se mantiene vacio para no romper compilación.
+    var chapterContent by remember(bookName) {
+        mutableStateOf(
+            ChapterContent(
+                chapterCount = 0,
+                verses = emptyList(),
+                titlesByVerse = emptyMap(),
+            )
+        )
+    }
+    var continuousNextChapterContent by remember(bookName) {
+        mutableStateOf<ChapterContent?>(null)
+    }
+    var continuousPreviousChapterContent by remember(bookName) {
+        mutableStateOf<ChapterContent?>(null)
+    }
+    var continuousNextChapterLoadFailed by remember(bookName) { mutableStateOf(false) }
+    var continuousReloadRequest by remember(bookName) { mutableIntStateOf(0) }
+    val chapterCount = chapterContent.chapterCount
+    val verses = chapterContent.verses
+    val chapterTitles = chapterContent.titlesByVerse
+    val currentTextSections = remember(verses, chapterTitles) {
+        buildBibleTextSections(verses, chapterTitles)
+    }
+    val currentBodyItemCount = verses.size
+    val previousContinuousBodyItemCount =
+        continuousPreviousChapterContent?.verses?.size ?: 0
+    var selectedVersionKey by remember {
+        mutableStateOf(BibleRepository.getSelectedVersionKey(context))
+    }
+    var highlightsByChapter by remember(bookName, selectedVersionKey) {
+        mutableStateOf<Map<Int, Map<String, Int>>>(emptyMap())
+    }
+    val verseHighlights = highlightsByChapter[selectedChapter].orEmpty()
+    val currentHighlightColors = remember(verseHighlights) {
+        verseHighlights.mapValues { (_, colorIndex) ->
+            readerHighlightPalette.getOrElse(colorIndex) { Color.Transparent }
+        }
+    }
     var showDialog by remember { mutableStateOf(false) }
     var showVersionDialog by remember { mutableStateOf(false) }
-    var selectedVersionKey by remember { mutableStateOf(BibleRepository.getSelectedVersionKey(context)) }
+    var secondaryVersionKey by rememberSaveable {
+        mutableStateOf(readerPreferences.secondaryVersionKey)
+    }
+    var parallelPrimaryBook by rememberSaveable(bookName) {
+        mutableStateOf(bookName.orEmpty())
+    }
+    var parallelPrimaryChapter by rememberSaveable(bookName) {
+        mutableIntStateOf(initialChapter.coerceAtLeast(1))
+    }
+    var parallelPrimaryVersion by rememberSaveable {
+        mutableStateOf(selectedVersionKey)
+    }
+    var parallelSecondaryBook by rememberSaveable {
+        mutableStateOf(readerPreferences.secondaryBookName)
+    }
+    var parallelSecondaryChapter by rememberSaveable {
+        mutableIntStateOf(readerPreferences.secondaryChapter)
+    }
     var availableVersions by remember { mutableStateOf<List<BibleVersionOption>>(emptyList()) }
     var selectedVerseActions by remember { mutableStateOf<Map<String, VerseAction>>(emptyMap()) }
     var horizontalDrag by remember { mutableFloatStateOf(0f) }
@@ -572,6 +683,7 @@ fun ReaderContent(
     var pendingScrollRestoration by remember { mutableStateOf<Pair<String, Int>?>(null) }
     var pendingScrollToTop by remember { mutableStateOf(false) }
     val chapterSlideOffset = remember { Animatable(0f) }
+    val readerJobs = remember { ReaderJobs() }
     var readerContainerSize by remember { mutableStateOf(IntSize.Zero) }
     val highlightsCache = remember {
         HighlightsCache(
@@ -587,64 +699,172 @@ fun ReaderContent(
 
     fun verseKey(verseNumber: String): String = "${bookName ?: ""}|$selectedChapter|$verseNumber"
 
-    fun rememberCurrentVerseScroll() {
-        val visibleVerse = verses.getOrNull(lazyListState.firstVisibleItemIndex)?.first
-        if (!visibleVerse.isNullOrBlank()) {
-            pendingScrollRestoration = visibleVerse to lazyListState.firstVisibleItemScrollOffset
+    fun toggleVerseSelection(verseNumber: String, verseText: String) {
+        selectedVerseActions = if (selectedVerseActions.containsKey(verseNumber)) {
+            selectedVerseActions - verseNumber
+        } else {
+            selectedVerseActions + (verseNumber to VerseAction(verseNumber, verseText))
         }
     }
 
-    fun loadHighlightsForChapter() {
-        val raw = AppPreferencesSyncStore.getRawHighlights(context)
-        verseHighlights = highlightsCache.loadChapterHighlights(
-            versionKey = selectedVersionKey,
-            rawHighlights = raw,
-            bookName = bookName,
-            chapter = selectedChapter,
+    fun rememberCurrentVerseScroll() {
+        val previousContent = continuousPreviousChapterContent
+        val currentStartIndex = if (
+            effectiveReaderPreferences.continuousScrolling &&
+            previousContent != null
+        ) {
+            previousContinuousBodyItemCount + 2
+        } else {
+            0
+        }
+        val bodyIndex = lazyListState.firstVisibleItemIndex - currentStartIndex
+        val visibleVerse = firstVerseAtBodyIndex(
+            index = bodyIndex.coerceAtLeast(0),
             verses = verses,
-            verseKeyProvider = ::verseKey,
-            validColorIndices = highlightPalette.indices
-        )
+            titlesByVerse = chapterTitles,
+            textLayout = effectiveReaderPreferences.textLayout,
+        )?.first
+        if (!visibleVerse.isNullOrBlank()) {
+            val offset = if (bodyIndex < 0) 0 else lazyListState.firstVisibleItemScrollOffset
+            pendingScrollRestoration = visibleVerse to offset
+        }
     }
 
-    fun saveHighlight(verseNumber: String, colorIndex: Int) {
-        val raw = AppPreferencesSyncStore.getRawHighlights(context)
-        val result = highlightsCache.saveHighlight(
-            versionKey = selectedVersionKey,
-            rawHighlights = raw,
-            bookName = bookName,
-            chapter = selectedChapter,
-            verseNumber = verseNumber,
-            colorIndex = colorIndex,
-            verseKeyProvider = ::verseKey,
-            currentChapterHighlights = verseHighlights
-        )
-        verseHighlights = result.updatedChapterHighlights
+    fun loadVisibleHighlights() {
         val targetBook = bookName ?: return
+        val targetChapter = selectedChapter
+        val targetVersion = selectedVersionKey
+        val targetCurrentContent = chapterContent
+        if (targetCurrentContent.verses.isEmpty()) return
+        val targetPreviousContent = continuousPreviousChapterContent
+        val targetNextContent = continuousNextChapterContent
+        val chapters = buildList {
+            targetPreviousContent?.let { add((targetChapter - 1) to it) }
+            add(targetChapter to targetCurrentContent)
+            targetNextContent?.let { add((targetChapter + 1) to it) }
+        }
+
+        val raw = AppPreferencesSyncStore.getRawHighlights(context)
+        readerJobs.highlightLoad?.cancel()
+        readerJobs.highlightLoad = scope.launch {
+            val loaded = withContext(Dispatchers.Default) {
+                chapters.associate { (chapter, content) ->
+                    chapter to highlightsCache.loadChapterHighlights(
+                        versionKey = targetVersion,
+                        rawHighlights = raw,
+                        bookName = targetBook,
+                        chapter = chapter,
+                        verses = content.verses,
+                        verseKeyProvider = { verse -> "$targetBook|$chapter|$verse" },
+                        validColorIndices = readerHighlightPalette.indices,
+                    )
+                }
+            }
+            if (
+                bookName == targetBook &&
+                selectedVersionKey == targetVersion &&
+                selectedChapter == targetChapter &&
+                chapterContent === targetCurrentContent &&
+                continuousPreviousChapterContent === targetPreviousContent &&
+                continuousNextChapterContent === targetNextContent
+            ) {
+                highlightsByChapter = highlightsByChapter
+                    .filterKeys { it in (targetChapter - 1)..(targetChapter + 1) } + loaded
+            }
+        }
+    }
+
+    fun saveHighlights(verseNumbers: Collection<String>, colorIndex: Int) {
+        if (verseNumbers.isEmpty()) return
+        val targetBook = bookName ?: return
+        val targetChapter = selectedChapter
+        val targetVersion = selectedVersionKey
+        val verseKeyPrefix = "$targetBook|$targetChapter|"
+        readerJobs.highlightLoad?.cancel()
+        val raw = AppPreferencesSyncStore.getRawHighlights(context)
+        val result = highlightsCache.saveHighlights(
+            versionKey = targetVersion,
+            rawHighlights = raw,
+            bookName = targetBook,
+            chapter = targetChapter,
+            verseNumbers = verseNumbers,
+            colorIndex = colorIndex,
+            verseKeyProvider = { verse -> "$verseKeyPrefix$verse" },
+            currentChapterHighlights = verseHighlights,
+        )
+        highlightsByChapter = highlightsByChapter +
+            (targetChapter to result.updatedChapterHighlights)
         AppPreferencesSyncStore.updateHighlightChapter(
             context = context,
             book = targetBook,
-            chapter = selectedChapter,
-            verses = result.updatedChapterHighlights
+            chapter = targetChapter,
+            verses = verseNumbers.associateWith { colorIndex },
         )
         scope.launch {
-            AchievementTracker.track(
-                context,
-                AchievementEvent.HighlightCreated(
-                    verseKey = verseKey(verseNumber),
-                    colorKey = "highlight_$colorIndex",
-                ),
-            )
+            verseNumbers.forEach { verseNumber ->
+                AchievementTracker.track(
+                    context,
+                    AchievementEvent.HighlightCreated(
+                        verseKey = "$verseKeyPrefix$verseNumber",
+                        colorKey = "highlight_$colorIndex",
+                    ),
+                )
+            }
         }
     }
 
-    fun loadChapter(book: String, chapter: Int) {
-        scope.launch {
+    fun saveHighlight(verseNumber: String, colorIndex: Int) {
+        saveHighlights(listOf(verseNumber), colorIndex)
+    }
+
+    fun clearVisibleChapterWhileLoading() {
+        readerJobs.highlightLoad?.cancel()
+        continuousPreviousChapterContent = null
+        continuousNextChapterContent = null
+        continuousNextChapterLoadFailed = false
+        chapterContent = chapterContent.copy(
+            verses = emptyList(),
+            titlesByVerse = emptyMap(),
+        )
+    }
+
+    fun loadChapter(
+        book: String,
+        chapter: Int,
+        versionKey: String = selectedVersionKey,
+    ) {
+        readerJobs.chapterLoad?.cancel()
+        readerJobs.adjacentPrefetch?.cancel()
+        readerJobs.chapterLoad = scope.launch {
             try {
-                val content = BibleRepository.getChapter(context, book, chapter)
-                chapterCount = content.chapterCount
-                verses = content.verses
-                chapterTitles = content.titlesByVerse
+                val content = BibleRepository.getChapter(
+                    context = context,
+                    bookName = book,
+                    chapterNumber = chapter,
+                    versionKey = versionKey,
+                )
+                if (
+                    bookName == book &&
+                    selectedChapter == chapter &&
+                    selectedVersionKey == versionKey
+                ) {
+                    chapterContent = content
+                    readerJobs.adjacentPrefetch = scope.launch {
+                        delay(300)
+                        listOf(chapter - 1, chapter + 1)
+                            .filter { adjacent -> adjacent in 1..content.chapterCount }
+                            .forEach { adjacent ->
+                                BibleRepository.getChapter(
+                                    context = context,
+                                    bookName = book,
+                                    chapterNumber = adjacent,
+                                    versionKey = versionKey,
+                                )
+                            }
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (e: Exception) {
                 Log.e("READER", "Error loading chapter: ${e.message}")
             }
@@ -655,11 +875,16 @@ fun ReaderContent(
         val targetBook = bookName ?: return
         if (targetChapter == selectedChapter) return
         selectedChapter = targetChapter
+        clearVisibleChapterWhileLoading()
         pendingTargetVerse = null
         pendingScrollRestoration = null
         pendingScrollToTop = true
-        loadChapter(targetBook, targetChapter)
+        loadChapter(targetBook, targetChapter, selectedVersionKey)
         scope.launch {
+            if (effectiveReaderPreferences.reduceMotion) {
+                chapterSlideOffset.snapTo(0f)
+                return@launch
+            }
             val availableWidth = readerContainerSize.width
                 .takeIf { it > 0 }
                 ?: with(density) { 120.dp.roundToPx() }
@@ -676,18 +901,171 @@ fun ReaderContent(
             if (pendingTargetVerse.isNullOrBlank()) {
                 pendingScrollToTop = true
             }
-            loadChapter(it, selectedChapter)
+            loadChapter(it, selectedChapter, selectedVersionKey)
         }
     }
 
     LaunchedEffect(Unit) {
         availableVersions = BibleRepository.getAvailableVersions(context)
         selectedVersionKey = BibleRepository.getSelectedVersionKey(context)
+        parallelPrimaryVersion = selectedVersionKey
+        if (secondaryVersionKey.isBlank()) {
+            secondaryVersionKey = (
+                availableVersions.firstOrNull { it.key != selectedVersionKey }
+                    ?: availableVersions.firstOrNull()
+                )?.key.orEmpty()
+            readerPreferences = readerPreferences.copy(
+                secondaryVersionKey = secondaryVersionKey,
+            )
+            ReaderPreferencesStore.save(context, readerPreferences)
+        }
     }
 
-    LaunchedEffect(bookName, selectedChapter, verses) {
+    LaunchedEffect(
+        isParallelReading,
+        bookName,
+        selectedChapter,
+        selectedVersionKey,
+    ) {
+        if (!isParallelReading) {
+            parallelPrimaryBook = bookName.orEmpty()
+            parallelPrimaryChapter = selectedChapter
+            parallelPrimaryVersion = selectedVersionKey
+        }
+    }
+
+    LaunchedEffect(
+        effectiveReaderPreferences.continuousScrolling,
+        bookName,
+        selectedChapter,
+        selectedVersionKey,
+        chapterCount,
+        isParallelReading,
+        continuousReloadRequest,
+    ) {
+        if (
+            !effectiveReaderPreferences.continuousScrolling ||
+            isParallelReading ||
+            bookName.isNullOrBlank() ||
+            chapterCount <= 0
+        ) {
+            continuousPreviousChapterContent = null
+            continuousNextChapterContent = null
+            continuousNextChapterLoadFailed = false
+            return@LaunchedEffect
+        }
+
+        val targetBook = bookName
+        val targetChapter = selectedChapter
+        val targetVersion = selectedVersionKey
+        continuousNextChapterLoadFailed = false
+
+        suspend fun loadAdjacent(chapter: Int): ChapterContent? = try {
+            BibleRepository.getChapter(
+                context = context,
+                bookName = targetBook,
+                chapterNumber = chapter,
+                versionKey = targetVersion,
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            Log.e("READER", "Error loading adjacent chapter $chapter", error)
+            null
+        }
+
+        // Stable item keys retain the visible verse while adjacent chapters are replaced.
+        // Load the next chapter first so forward reading is never held up by the previous one.
+        val next = if (targetChapter < chapterCount) {
+            continuousNextChapterContent ?: loadAdjacent(targetChapter + 1)
+        } else {
+            null
+        }
+        if (
+            selectedChapter != targetChapter ||
+            selectedVersionKey != targetVersion ||
+            bookName != targetBook
+        ) return@LaunchedEffect
+        continuousNextChapterContent = next?.takeIf { it.verses.isNotEmpty() }
+        continuousNextChapterLoadFailed =
+            targetChapter < chapterCount && continuousNextChapterContent == null
+        if (BuildConfig.DEBUG) {
+            Log.d(
+                "READER_CONTINUOUS",
+                "chapter=$targetChapter next=${targetChapter + 1} " +
+                    "loaded=${continuousNextChapterContent != null} failed=$continuousNextChapterLoadFailed",
+            )
+        }
+
+        val previous = if (targetChapter > 1) {
+            continuousPreviousChapterContent ?: loadAdjacent(targetChapter - 1)
+        } else {
+            null
+        }
+        if (
+            selectedChapter != targetChapter ||
+            selectedVersionKey != targetVersion ||
+            bookName != targetBook
+        ) return@LaunchedEffect
+        continuousPreviousChapterContent = previous?.takeIf { it.verses.isNotEmpty() }
+    }
+
+    LaunchedEffect(
+        effectiveReaderPreferences.continuousScrolling,
+        continuousPreviousChapterContent,
+        verses,
+        continuousNextChapterContent,
+        selectedChapter,
+        isParallelReading,
+    ) {
+        if (
+            !effectiveReaderPreferences.continuousScrolling ||
+            isParallelReading
+        ) return@LaunchedEffect
+        snapshotFlow {
+            val firstVisibleIndex = lazyListState.firstVisibleItemIndex
+            lazyListState.layoutInfo.visibleItemsInfo
+                .firstOrNull { it.index == firstVisibleIndex }
+                ?.key
+        }.collect { firstVisibleItemKey ->
+            val direction = continuousChapterDirection(
+                firstVisibleItemKey = firstVisibleItemKey,
+                currentChapter = selectedChapter,
+                hasPreviousChapter = continuousPreviousChapterContent != null,
+                hasNextChapter = continuousNextChapterContent != null,
+            )
+            val shiftedWindow = ContinuousChapterWindow(
+                chapter = selectedChapter,
+                current = chapterContent,
+                previous = continuousPreviousChapterContent,
+                next = continuousNextChapterContent,
+            ).shift(direction ?: return@collect) ?: return@collect
+            readerJobs.highlightLoad?.cancel()
+            selectedVerseActions = emptyMap()
+            pendingScrollRestoration = null
+            pendingTargetVerse = null
+            pendingScrollToTop = false
+            selectedChapter = shiftedWindow.chapter
+            chapterContent = shiftedWindow.current
+            continuousPreviousChapterContent = shiftedWindow.previous
+            continuousNextChapterContent = shiftedWindow.next
+            continuousNextChapterLoadFailed = false
+            if (BuildConfig.DEBUG) {
+                Log.d("READER_CONTINUOUS", "visible chapter=${shiftedWindow.chapter}")
+            }
+        }
+    }
+
+    LaunchedEffect(
+        bookName,
+        selectedVersionKey,
+        selectedChapter,
+        chapterContent,
+        continuousPreviousChapterContent,
+        continuousNextChapterContent,
+    ) {
         if (bookName != null && verses.isNotEmpty()) {
-            loadHighlightsForChapter()
+            loadVisibleHighlights()
         }
     }
 
@@ -695,33 +1073,50 @@ fun ReaderContent(
         bookName?.let { AppPreferencesSyncStore.setLastReading(context, it, selectedChapter, pendingTargetVerse) }
     }
 
-    LaunchedEffect(bookName, selectedChapter, verses.size) {
-        if (bookName.isNullOrBlank() || verses.isEmpty()) return@LaunchedEffect
-        snapshotFlow {
+    LaunchedEffect(
+        bookName,
+        selectedChapter,
+        verses.size,
+        effectiveReaderPreferences.continuousScrolling,
+        continuousPreviousChapterContent,
+        effectiveReaderPreferences.textLayout,
+        isParallelReading,
+    ) {
+        if (
+            isParallelReading ||
+            bookName.isNullOrBlank() ||
+            verses.isEmpty()
+        ) {
+            return@LaunchedEffect
+        }
+        val currentChapterStartIndex = if (
+            effectiveReaderPreferences.continuousScrolling &&
+            continuousPreviousChapterContent != null
+        ) {
+            previousContinuousBodyItemCount + 2
+        } else {
+            0
+        }
+        val lastVisibleIndex = snapshotFlow {
             lazyListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-        }.collect { lastVisibleIndex ->
-            val threshold = ((verses.size - 1) * 0.7f).toInt()
-            if (lastVisibleIndex >= threshold) {
-                val newTestamentBooks = setOf(
-                    "mateo", "marcos", "lucas", "juan", "hechos", "romanos",
-                    "1 corintios", "2 corintios", "galatas", "efesios", "filipenses",
-                    "colosenses", "1 tesalonicenses", "2 tesalonicenses", "1 timoteo",
-                    "2 timoteo", "tito", "filemon", "hebreos", "santiago", "1 pedro",
-                    "2 pedro", "1 juan", "2 juan", "3 juan", "judas", "apocalipsis",
-                )
-                AchievementTracker.track(
-                    context,
-                    AchievementEvent.ChapterRead(
-                        book = bookName,
-                        chapter = selectedChapter,
-                        testament = if (bookName.lowercase() in newTestamentBooks) "NEW" else "OLD",
-                    ),
-                )
-            }
+        }.first { index ->
+            index >= currentChapterStartIndex +
+                ((currentBodyItemCount - 1).coerceAtLeast(0) * 0.7f).toInt()
+        }
+        if (lastVisibleIndex >= 0) {
+            AchievementTracker.track(
+                context,
+                AchievementEvent.ChapterRead(
+                    book = bookName,
+                    chapter = selectedChapter,
+                    testament = if (bookName.lowercase() in newTestamentBookNames) "NEW" else "OLD",
+                ),
+            )
         }
     }
 
     LaunchedEffect(selectedVersionKey) {
+        readerJobs.highlightLoad?.cancel()
         highlightsCache.clearAll()
     }
 
@@ -733,8 +1128,8 @@ fun ReaderContent(
                 }
 
                 AppPreferencesSyncStore.KEY_VERSE_HIGHLIGHTS -> {
-                    if (bookName != null && verses.isNotEmpty()) {
-                        loadHighlightsForChapter()
+                    if (!isParallelReading && bookName != null && verses.isNotEmpty()) {
+                        loadVisibleHighlights()
                     }
                 }
 
@@ -743,7 +1138,10 @@ fun ReaderContent(
                     if (updatedVersion != selectedVersionKey) {
                         rememberCurrentVerseScroll()
                         selectedVersionKey = updatedVersion
-                        bookName?.let { loadChapter(it, selectedChapter) }
+                        clearVisibleChapterWhileLoading()
+                        bookName?.let {
+                            loadChapter(it, selectedChapter, updatedVersion)
+                        }
                     }
                 }
             }
@@ -751,17 +1149,46 @@ fun ReaderContent(
         prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose {
             prefs.unregisterOnSharedPreferenceChangeListener(listener)
+            readerJobs.cancelAll()
             highlightsCache.clearAll()
         }
     }
 
-    LaunchedEffect(verses, selectedChapter, bookName) {
-        if (bookName.isNullOrBlank() || verses.isEmpty()) return@LaunchedEffect
+    LaunchedEffect(
+        verses,
+        selectedChapter,
+        bookName,
+        continuousPreviousChapterContent,
+        effectiveReaderPreferences.continuousScrolling,
+        effectiveReaderPreferences.textLayout,
+        isParallelReading,
+    ) {
+        if (
+            isParallelReading ||
+            bookName.isNullOrBlank() ||
+            verses.isEmpty()
+        ) {
+            return@LaunchedEffect
+        }
+
+        val currentStartIndex = if (
+            effectiveReaderPreferences.continuousScrolling &&
+            continuousPreviousChapterContent != null
+        ) {
+            previousContinuousBodyItemCount + 2
+        } else {
+            0
+        }
 
         pendingScrollRestoration?.let { (verse, offset) ->
-            val index = verses.indexOfFirst { it.first == verse }
+            val index = chapterBodyIndexForVerse(
+                verseNumber = verse,
+                verses = verses,
+                titlesByVerse = chapterTitles,
+                textLayout = effectiveReaderPreferences.textLayout,
+            )
             if (index >= 0) {
-                lazyListState.scrollToItem(index, offset)
+                lazyListState.scrollToItem(currentStartIndex + index, offset)
             }
             pendingScrollRestoration = null
             pendingScrollToTop = false
@@ -770,29 +1197,52 @@ fun ReaderContent(
 
         val target = pendingTargetVerse
         if (!target.isNullOrBlank()) {
-            val index = verses.indexOfFirst { it.first == target }
+            val index = chapterBodyIndexForVerse(
+                verseNumber = target,
+                verses = verses,
+                titlesByVerse = chapterTitles,
+                textLayout = effectiveReaderPreferences.textLayout,
+            )
             if (index >= 0) {
-                lazyListState.animateScrollToItem(index)
+                lazyListState.animateScrollToItem(currentStartIndex + index)
             } else {
-                lazyListState.scrollToItem(0)
+                lazyListState.scrollToItem(currentStartIndex)
             }
             pendingTargetVerse = null
         } else if (pendingScrollToTop) {
-            lazyListState.scrollToItem(0)
+            lazyListState.scrollToItem(currentStartIndex)
             pendingScrollToTop = false
         }
     }
 
     // Auto-scroll to verse 1 when highlight tutorial step becomes active
-    LaunchedEffect(guidedStep?.targetKey, verses) {
+    LaunchedEffect(
+        guidedStep?.targetKey,
+        verses,
+        continuousPreviousChapterContent,
+        effectiveReaderPreferences.textLayout,
+        isParallelReading,
+    ) {
         val isHighlightStep = guidedStep?.targetKey == GuidedTutorialTargets.READER_FIRST_VERSE
-        if (isHighlightStep && verses.isNotEmpty()) {
+        if (!isParallelReading && isHighlightStep && verses.isNotEmpty()) {
             Log.d("GUIDE_DEBUG", "Auto-scrolling to verse 1 for highlight step")
-            lazyListState.animateScrollToItem(0)
+            val currentStartIndex = if (
+                effectiveReaderPreferences.continuousScrolling &&
+                continuousPreviousChapterContent != null
+            ) {
+                previousContinuousBodyItemCount + 2
+            } else {
+                0
+            }
+            lazyListState.animateScrollToItem(currentStartIndex)
         }
     }
 
-    if (showDialog && bookName != null) {
+    if (
+        showDialog &&
+        bookName != null &&
+        !isParallelReading
+    ) {
         BiblionSelectionDialog(
             title = "Capítulo",
             subtitle = bookName,
@@ -817,7 +1267,6 @@ fun ReaderContent(
                 BiblionReaderTopAppBar(
                     bookName = bookName ?: "",
                     chapter = selectedChapter,
-                    fontSize = fontSize,
                     onNavigationIconClick = {
                         val popped = navController.popBackStackOrNavigateHome()
                         if (!popped) {
@@ -825,12 +1274,52 @@ fun ReaderContent(
                         }
                     },
                     selectedVersionName = selectedVersionKey.uppercase(),
-                    onVersionClick = { showVersionDialog = true },
-                    onBookTitleClick = { showDialog = true },
-                    onFontSizeChange = { value ->
-                        fontSizeValue = value
-                        AppPreferencesSyncStore.setReaderFontSizeSp(context, value.toInt())
+                    onVersionClick = {
+                        showVersionDialog = true
                     },
+                    onBookTitleClick = { showDialog = true },
+                    onReadingOptionsClick = { showReaderSettings = true },
+                    parallelReadingAvailable = parallelReadingAvailable,
+                    isParallelReading = isParallelReading,
+                    onParallelReadingClick = {
+                        selectedVerseActions = emptyMap()
+                        showDialog = false
+                        showVersionDialog = false
+                        if (isParallelReading) {
+                            isParallelReading = false
+                            selectedVersionKey = parallelPrimaryVersion
+                            BibleRepository.setSelectedVersionKey(context, parallelPrimaryVersion)
+                            if (parallelPrimaryBook == bookName) {
+                                selectedChapter = parallelPrimaryChapter
+                                clearVisibleChapterWhileLoading()
+                                loadChapter(
+                                    parallelPrimaryBook,
+                                    parallelPrimaryChapter,
+                                    parallelPrimaryVersion,
+                                )
+                            } else {
+                                navController.navigate(
+                                    Screen.Reader.createRoute(
+                                        bookName = parallelPrimaryBook,
+                                        chapter = parallelPrimaryChapter,
+                                    )
+                                ) {
+                                    launchSingleTop = true
+                                }
+                            }
+                        } else {
+                            parallelPrimaryBook = bookName.orEmpty()
+                            parallelPrimaryChapter = selectedChapter
+                            parallelPrimaryVersion = selectedVersionKey
+                            isParallelReading = true
+                        }
+                    },
+                    titleOverride = if (isParallelReading) {
+                        stringResource(R.string.reader_parallel_app_bar_title)
+                    } else {
+                        null
+                    },
+                    showPrimarySelectors = !isParallelReading,
                     versionModifier = Modifier.guidedTutorialTarget(
                         GuidedTutorialTargets.READER_VERSION_SELECTOR,
                         tutorialTargetBounds
@@ -844,11 +1333,11 @@ fun ReaderContent(
             bottomBar = {
                 BiblionBottomNavigation(
                     currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route,
-                    onHome = { navController.navigateSingleTop(Screen.Home.route) },
-                    onBible = { navController.navigateSingleTop(Screen.Books.createRoute(Testament.OLD)) },
-                    onSearch = { navController.navigateSingleTop(Screen.Search.route) },
-                    onStudy = { navController.navigateSingleTop(StudyDocScreen.StudyDocsList.route) },
-                    onProfile = { navController.navigateSingleTop(Screen.Profile.route) },
+                    onHome = { navController.navigateTopLevel(Screen.Home.route) },
+                    onBible = { navController.navigateTopLevel(Screen.Books.createRoute(Testament.OLD)) },
+                    onSearch = { navController.navigateTopLevel(Screen.Search.createRoute()) },
+                    onStudy = { navController.navigateTopLevel(StudyDocScreen.StudyDocsList.route) },
+                    onProfile = { navController.navigateTopLevel(Screen.Profile.route) },
                         onGuidedTutorialTargetAction = onGuidedTutorialTargetAction,
                         activeTutorialTargetKey = guidedStep?.targetKey,
                     )
@@ -865,9 +1354,61 @@ fun ReaderContent(
             val selectedVerseNumbers = remember(selectedVerseActions) {
                 selectedVerseActions.keys.mapNotNull { it.toIntOrNull() }.toSet()
             }
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
+            if (isParallelReading) {
+                ParallelBibleReader(
+                    primarySelection = BiblePaneSelection(
+                        bookName = parallelPrimaryBook,
+                        chapter = parallelPrimaryChapter,
+                        versionKey = parallelPrimaryVersion,
+                    ),
+                    secondarySelection = BiblePaneSelection(
+                        bookName = parallelSecondaryBook,
+                        chapter = parallelSecondaryChapter,
+                        versionKey = secondaryVersionKey,
+                    ),
+                    versions = availableVersions,
+                    fontSize = fontSize,
+                    preferences = effectiveReaderPreferences,
+                    onPrimarySelectionChange = { selection ->
+                        parallelPrimaryBook = selection.bookName
+                        parallelPrimaryChapter = selection.chapter
+                        parallelPrimaryVersion = selection.versionKey
+                    },
+                    onSecondarySelectionChange = { selection ->
+                        parallelSecondaryBook = selection.bookName
+                        parallelSecondaryChapter = selection.chapter
+                        secondaryVersionKey = selection.versionKey
+                        val updatedPreferences = readerPreferences.copy(
+                            secondaryBookName = selection.bookName,
+                            secondaryChapter = selection.chapter,
+                            secondaryVersionKey = selection.versionKey,
+                        )
+                        readerPreferences = updatedPreferences
+                        ReaderPreferencesStore.save(context, updatedPreferences)
+                    },
+                    onInsertVerseCitation = onInsertVerseCitation,
+                )
+            } else {
+            Row(modifier = Modifier.fillMaxSize()) {
+                val readerBottomPadding = if (
+                    effectiveReaderPreferences.continuousScrolling &&
+                    selectedChapter < chapterCount
+                ) {
+                    with(density) { readerContainerSize.height.toDp() }.coerceAtLeast(112.dp)
+                } else {
+                    112.dp
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    contentAlignment = Alignment.TopCenter,
+                ) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .widthIn(max = effectiveReaderPreferences.textWidthDp.dp)
+                        .fillMaxWidth()
                     .guidedTutorialTarget(
                         GuidedTutorialTargets.READER_TEXT,
                         tutorialTargetBounds
@@ -878,7 +1419,15 @@ fun ReaderContent(
                         alpha = 1f - (abs(chapterSlideOffset.value) / width * 0.45f)
                             .coerceIn(0f, 0.35f)
                     }
-                    .pointerInput(bookName, selectedChapter, chapterCount) {
+                    .pointerInput(
+                        bookName,
+                        selectedChapter,
+                        chapterCount,
+                        effectiveReaderPreferences.continuousScrolling,
+                    ) {
+                        if (effectiveReaderPreferences.continuousScrolling) {
+                            return@pointerInput
+                        }
                         detectHorizontalDragGestures(
                             onHorizontalDrag = { _, dragAmount ->
                                 horizontalDrag += dragAmount
@@ -907,108 +1456,435 @@ fun ReaderContent(
                             }
                         )
                     },
-                state = lazyListState,
-                contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 112.dp)
-            ) {
-                itemsIndexed(verses, key = { _, verse -> verse.first }) { index, (verseNumber, verseText) ->
-                    val chapterTitle = chapterTitles[verseNumber]
-                    if (!chapterTitle.isNullOrBlank()) {
-                        Text(
-                            text = chapterTitle,
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = BiblionGoldPrimary,
+                    state = lazyListState,
+                    contentPadding = PaddingValues(
+                        start = if (readerConfiguration.screenWidthDp >= 600) 24.dp else 16.dp,
+                        top = 16.dp,
+                        end = if (readerConfiguration.screenWidthDp >= 600) 24.dp else 16.dp,
+                        bottom = readerBottomPadding,
+                    ),
+                ) {
+                val previousContinuousContent = continuousPreviousChapterContent
+                if (
+                    effectiveReaderPreferences.continuousScrolling &&
+                    previousContinuousContent != null
+                ) {
+                    item(key = "chapter-${selectedChapter - 1}-header") {
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 6.dp, bottom = 10.dp)
+                                .padding(top = 12.dp, bottom = 18.dp)
+                                .semantics { heading() },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text(
+                                text = "${bookName.orEmpty()} ${selectedChapter - 1}",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            androidx.compose.material3.HorizontalDivider(
+                                modifier = Modifier.padding(top = 20.dp),
+                            )
+                        }
+                    }
+                    if (effectiveReaderPreferences.textLayout == ReaderTextLayout.FLOWING) {
+                        val previousSections = buildBibleTextSections(
+                            previousContinuousContent.verses,
+                            previousContinuousContent.titlesByVerse,
                         )
+                        itemsIndexed(
+                            items = previousSections,
+                            key = { _, section ->
+                                "chapter-${selectedChapter - 1}-section-${section.firstVerseNumber}"
+                            },
+                            contentType = { _, _ -> "continuous_bible_section" },
+                        ) { _, section ->
+                            FlowingBibleSection(
+                                section = section,
+                                fontSize = fontSize,
+                                fontFamily = effectiveReaderPreferences.fontFamily.asComposeFontFamily(),
+                                fontWeight = effectiveReaderPreferences.fontFamily.bodyWeight(),
+                                lineSpacingMultiplier = effectiveReaderPreferences.lineSpacingMultiplier,
+                                showVerseNumbers = effectiveReaderPreferences.showVerseNumbers,
+                                showHeading = effectiveReaderPreferences.showSectionHeadings,
+                                highContrast = effectiveReaderPreferences.highContrast,
+                                selectedVerseNumbers = emptySet(),
+                                highlightColors = emptyMap(),
+                                onVerseClick = null,
+                            )
+                        }
+                    } else {
+                        itemsIndexed(
+                            items = previousContinuousContent.verses,
+                            key = { _, verse ->
+                                "chapter-${selectedChapter - 1}-verse-${verse.first}"
+                            },
+                            contentType = { _, _ -> "continuous_bible_verse" },
+                        ) { _, (verseNumber, verseText) ->
+                            val previousTitle =
+                                previousContinuousContent.titlesByVerse[verseNumber]
+                            if (
+                                effectiveReaderPreferences.showSectionHeadings &&
+                                !previousTitle.isNullOrBlank()
+                            ) {
+                                Text(
+                                    text = previousTitle,
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                    ),
+                                    color = if (effectiveReaderPreferences.highContrast) {
+                                        MaterialTheme.colorScheme.onSurface
+                                    } else {
+                                        MaterialTheme.colorScheme.primary
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .semantics { heading() }
+                                        .padding(top = 6.dp, bottom = 10.dp),
+                                )
+                            }
+                            ReadOnlyVerseItem(
+                                verseNumber = verseNumber,
+                                verseText = verseText,
+                                highlightColor = readerHighlightPalette.getOrElse(
+                                    highlightsByChapter[selectedChapter - 1]
+                                        ?.get(verseNumber) ?: 0
+                                ) { Color.Transparent },
+                                fontSize = fontSize,
+                                fontFamily = effectiveReaderPreferences.fontFamily.asComposeFontFamily(),
+                                fontWeight = effectiveReaderPreferences.fontFamily.bodyWeight(),
+                                lineSpacingMultiplier =
+                                    effectiveReaderPreferences.lineSpacingMultiplier,
+                                showVerseNumber = effectiveReaderPreferences.showVerseNumbers,
+                            )
+                        }
                     }
 
-                    Box(
-                        modifier = if (index == 0) {
-                            Modifier
+                    item(key = "chapter-$selectedChapter-header") {
+                        Column(
+                            modifier = Modifier
                                 .fillMaxWidth()
-                                .guidedTutorialTarget(
-                                    GuidedTutorialTargets.READER_FIRST_VERSE,
-                                    tutorialTargetBounds
-                                )
-                        } else {
-                            Modifier.fillMaxWidth()
+                                .padding(top = 28.dp, bottom = 18.dp)
+                                .semantics { heading() },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            androidx.compose.material3.HorizontalDivider(
+                                modifier = Modifier.padding(bottom = 20.dp),
+                            )
+                            Text(
+                                text = "${bookName.orEmpty()} $selectedChapter",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
                         }
-                    ) {
-                        val splitViewModel = com.cristiancogollo.biblion.feature.studydocs.ui.editor.LocalSplitViewModel.current
+                    }
+                }
 
-                        VerseItem(
-                            verseNumber = verseNumber,
-                            verseText = verseText,
+                if (effectiveReaderPreferences.textLayout == ReaderTextLayout.FLOWING) {
+                    itemsIndexed(
+                        items = currentTextSections,
+                        key = { _, section ->
+                            "chapter-$selectedChapter-section-${section.firstVerseNumber}"
+                        },
+                        contentType = { _, _ -> "bible_text_section" },
+                    ) { index, section ->
+                        FlowingBibleSection(
+                            section = section,
                             fontSize = fontSize,
-                            highlightColor = highlightPalette[verseHighlights[verseNumber] ?: 0],
-                            isSelected = selectedVerseActions.containsKey(verseNumber),
-                            selectionRangePosition = verseSelectionRangePosition(
-                                verseNumber = verseNumber,
-                                selectedVerseNumbers = selectedVerseNumbers
-                            ),
-                            isSelectionMode = selectedVerseActions.isNotEmpty(),
-                            modifier = Modifier.fillMaxWidth(),
-                            anchorSpan = null,  // Subrayado de anchor eliminado (TSK reemplazado)
-                            onShowActions = {
-                                val currentStep = guidedTutorial?.currentStep()?.takeIf { it.screenTarget == GuidedTutorialScreenTarget.READER }
-                                val isGuideHighlightStep = currentStep?.targetKey == GuidedTutorialTargets.READER_FIRST_VERSE
-                                val isTargetVerse = index == 0
-                                Log.d("GUIDE_DEBUG", "onShowActions verse=$verseNumber index=$index isGuideStep=$isGuideHighlightStep isTarget=$isTargetVerse step=${currentStep?.id}")
-                                if (isGuideHighlightStep && isTargetVerse) {
-                                    saveHighlight(verseNumber, 1)
-                                    selectedVerseActions = emptyMap()
-                                    onGuidedTutorialTargetAction(GuidedTutorialTargets.READER_FIRST_VERSE)
-                                } else {
-                                    selectedVerseActions = if (selectedVerseActions.containsKey(verseNumber)) {
-                                        selectedVerseActions - verseNumber
-                                    } else {
-                                        selectedVerseActions + (verseNumber to VerseAction(verseNumber, verseText))
-                                    }
-                                }
-                            },
-                            onToggleSelection = {
-                                if (selectedVerseActions.isNotEmpty()) {
-                                    selectedVerseActions = if (selectedVerseActions.containsKey(verseNumber)) {
-                                        selectedVerseActions - verseNumber
-                                    } else {
-                                        selectedVerseActions + (verseNumber to VerseAction(verseNumber, verseText))
-                                    }
-                                }
+                            fontFamily = effectiveReaderPreferences.fontFamily.asComposeFontFamily(),
+                            fontWeight = effectiveReaderPreferences.fontFamily.bodyWeight(),
+                            lineSpacingMultiplier = effectiveReaderPreferences.lineSpacingMultiplier,
+                            showVerseNumbers = effectiveReaderPreferences.showVerseNumbers,
+                            showHeading = effectiveReaderPreferences.showSectionHeadings,
+                            highContrast = effectiveReaderPreferences.highContrast,
+                            selectedVerseNumbers = selectedVerseActions.keys,
+                            highlightColors = currentHighlightColors,
+                            onVerseClick = ::toggleVerseSelection,
+                            modifier = if (index == 0) {
+                                Modifier.guidedTutorialTarget(
+                                    GuidedTutorialTargets.READER_FIRST_VERSE,
+                                    tutorialTargetBounds,
+                                )
+                            } else {
+                                Modifier
                             },
                         )
+                    }
+                } else {
+                    itemsIndexed(
+                        items = verses,
+                        key = { _, verse ->
+                            "chapter-$selectedChapter-verse-${verse.first}"
+                        },
+                        contentType = { _, _ -> "bible_verse" },
+                    ) { index, (verseNumber, verseText) ->
+                        val chapterTitle = chapterTitles[verseNumber]
+                        if (
+                            effectiveReaderPreferences.showSectionHeadings &&
+                            !chapterTitle.isNullOrBlank()
+                        ) {
+                            Text(
+                                text = chapterTitle,
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = if (effectiveReaderPreferences.highContrast) {
+                                    MaterialTheme.colorScheme.onSurface
+                                } else {
+                                    MaterialTheme.colorScheme.primary
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .semantics {
+                                        heading()
+                                        contentDescription = context.getString(
+                                            R.string.reader_section_heading,
+                                            chapterTitle,
+                                        )
+                                    }
+                                    .padding(top = 6.dp, bottom = 10.dp)
+                            )
+                        }
+
+                        Box(
+                            modifier = if (index == 0) {
+                                Modifier
+                                    .fillMaxWidth()
+                                    .guidedTutorialTarget(
+                                        GuidedTutorialTargets.READER_FIRST_VERSE,
+                                        tutorialTargetBounds
+                                    )
+                            } else {
+                                Modifier.fillMaxWidth()
+                            }
+                        ) {
+                            VerseItem(
+                                verseNumber = verseNumber,
+                                verseText = verseText,
+                                fontSize = fontSize,
+                                fontFamily = effectiveReaderPreferences.fontFamily.asComposeFontFamily(),
+                                fontWeight = effectiveReaderPreferences.fontFamily.bodyWeight(),
+                                lineSpacingMultiplier = effectiveReaderPreferences.lineSpacingMultiplier,
+                                showVerseNumber = effectiveReaderPreferences.showVerseNumbers,
+                                highlightColor = readerHighlightPalette[verseHighlights[verseNumber] ?: 0],
+                                isSelected = selectedVerseActions.containsKey(verseNumber),
+                                selectionRangePosition = verseSelectionRangePosition(
+                                    verseNumber = verseNumber,
+                                    selectedVerseNumbers = selectedVerseNumbers
+                                ),
+                                modifier = Modifier.fillMaxWidth(),
+                                anchorSpan = null,
+                                onShowActions = {
+                                    val currentStep = guidedTutorial?.currentStep()?.takeIf { it.screenTarget == GuidedTutorialScreenTarget.READER }
+                                    val isGuideHighlightStep = currentStep?.targetKey == GuidedTutorialTargets.READER_FIRST_VERSE
+                                    val isTargetVerse = index == 0
+                                    Log.d("GUIDE_DEBUG", "onShowActions verse=$verseNumber index=$index isGuideStep=$isGuideHighlightStep isTarget=$isTargetVerse step=${currentStep?.id}")
+                                    if (isGuideHighlightStep && isTargetVerse) {
+                                        saveHighlight(verseNumber, 1)
+                                        selectedVerseActions = emptyMap()
+                                        onGuidedTutorialTargetAction(GuidedTutorialTargets.READER_FIRST_VERSE)
+                                    } else {
+                                        toggleVerseSelection(verseNumber, verseText)
+                                    }
+                                },
+                                onToggleSelection = {
+                                    toggleVerseSelection(verseNumber, verseText)
+                                },
+                            )
+                        }
+                    }
+                }
+
+                val nextContinuousContent = continuousNextChapterContent
+                if (
+                    effectiveReaderPreferences.continuousScrolling &&
+                    nextContinuousContent != null
+                ) {
+                    item(key = "chapter-${selectedChapter + 1}-header") {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 28.dp, bottom = 18.dp)
+                                .semantics { heading() },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            androidx.compose.material3.HorizontalDivider(
+                                modifier = Modifier.padding(bottom = 20.dp),
+                            )
+                            Text(
+                                text = "${bookName.orEmpty()} ${selectedChapter + 1}",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                    if (effectiveReaderPreferences.textLayout == ReaderTextLayout.FLOWING) {
+                        val nextSections = buildBibleTextSections(
+                            nextContinuousContent.verses,
+                            nextContinuousContent.titlesByVerse,
+                        )
+                        itemsIndexed(
+                            items = nextSections,
+                            key = { _, section ->
+                                "chapter-${selectedChapter + 1}-section-${section.firstVerseNumber}"
+                            },
+                            contentType = { _, _ -> "continuous_bible_section" },
+                        ) { _, section ->
+                            FlowingBibleSection(
+                                section = section,
+                                fontSize = fontSize,
+                                fontFamily = effectiveReaderPreferences.fontFamily.asComposeFontFamily(),
+                                fontWeight = effectiveReaderPreferences.fontFamily.bodyWeight(),
+                                lineSpacingMultiplier = effectiveReaderPreferences.lineSpacingMultiplier,
+                                showVerseNumbers = effectiveReaderPreferences.showVerseNumbers,
+                                showHeading = effectiveReaderPreferences.showSectionHeadings,
+                                highContrast = effectiveReaderPreferences.highContrast,
+                                selectedVerseNumbers = emptySet(),
+                                highlightColors = emptyMap(),
+                                onVerseClick = null,
+                            )
+                        }
+                    } else {
+                        itemsIndexed(
+                            items = nextContinuousContent.verses,
+                            key = { _, verse ->
+                                "chapter-${selectedChapter + 1}-verse-${verse.first}"
+                            },
+                            contentType = { _, _ -> "continuous_bible_verse" },
+                        ) { _, (verseNumber, verseText) ->
+                            val nextTitle = nextContinuousContent.titlesByVerse[verseNumber]
+                            if (
+                                effectiveReaderPreferences.showSectionHeadings &&
+                                !nextTitle.isNullOrBlank()
+                            ) {
+                                Text(
+                                    text = nextTitle,
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                    ),
+                                    color = if (effectiveReaderPreferences.highContrast) {
+                                        MaterialTheme.colorScheme.onSurface
+                                    } else {
+                                        MaterialTheme.colorScheme.primary
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .semantics { heading() }
+                                        .padding(top = 6.dp, bottom = 10.dp),
+                                )
+                            }
+                            ReadOnlyVerseItem(
+                                verseNumber = verseNumber,
+                                verseText = verseText,
+                                highlightColor = readerHighlightPalette.getOrElse(
+                                    highlightsByChapter[selectedChapter + 1]
+                                        ?.get(verseNumber) ?: 0
+                                ) { Color.Transparent },
+                                fontSize = fontSize,
+                                fontFamily =
+                                    effectiveReaderPreferences.fontFamily.asComposeFontFamily(),
+                                fontWeight = effectiveReaderPreferences.fontFamily.bodyWeight(),
+                                lineSpacingMultiplier =
+                                    effectiveReaderPreferences.lineSpacingMultiplier,
+                                showVerseNumber = effectiveReaderPreferences.showVerseNumbers,
+                            )
+                        }
+                    }
+                } else if (
+                    effectiveReaderPreferences.continuousScrolling &&
+                    selectedChapter < chapterCount
+                ) {
+                    item(key = "chapter-${selectedChapter + 1}-loading") {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            if (continuousNextChapterLoadFailed) {
+                                Text(stringResource(R.string.reader_next_chapter_load_error))
+                                TextButton(onClick = { continuousReloadRequest += 1 }) {
+                                    Text(stringResource(R.string.action_retry))
+                                }
+                            } else {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                Text(
+                                    text = stringResource(R.string.reader_loading_next_chapter),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(top = 8.dp),
+                                )
+                            }
+                        }
                     }
                 }
             }
 
-            val bibiPassages = selectedVerseActions.values
-                .sortedBy { it.number.toIntOrNull() ?: Int.MAX_VALUE }
-                .mapNotNull { selected ->
-                    selected.number.toIntOrNull()?.let { verse ->
-                        com.cristiancogollo.biblion.feature.bibi.model.BibiPassage(
-                            book = bookName.orEmpty(),
-                            chapter = selectedChapter,
-                            verse = verse,
-                            text = selected.text,
-                        )
-                    }
                 }
-                .ifEmpty {
-                    verses.getOrNull(lazyListState.firstVisibleItemIndex)?.let { visible ->
-                        visible.first.toIntOrNull()?.let { verse ->
-                            listOf(
-                                com.cristiancogollo.biblion.feature.bibi.model.BibiPassage(
-                                    book = bookName.orEmpty(),
-                                    chapter = selectedChapter,
-                                    verse = verse,
-                                    text = visible.second,
-                                )
+            }
+            }
+
+            val firstVisibleVerse by remember(
+                verses,
+                chapterTitles,
+                continuousPreviousChapterContent,
+                effectiveReaderPreferences.continuousScrolling,
+                effectiveReaderPreferences.textLayout,
+                lazyListState,
+            ) {
+                derivedStateOf {
+                    val currentStartIndex = if (
+                        effectiveReaderPreferences.continuousScrolling &&
+                        continuousPreviousChapterContent != null
+                    ) {
+                        previousContinuousBodyItemCount + 2
+                    } else {
+                        0
+                    }
+                    firstVerseAtBodyIndex(
+                        index = (lazyListState.firstVisibleItemIndex - currentStartIndex)
+                            .coerceAtLeast(0),
+                        verses = verses,
+                        titlesByVerse = chapterTitles,
+                        textLayout = effectiveReaderPreferences.textLayout,
+                    )
+                }
+            }
+            val bibiPassages = remember(
+                selectedVerseActions,
+                firstVisibleVerse,
+                bookName,
+                selectedChapter,
+            ) {
+                selectedVerseActions.values
+                    .sortedBy { it.number.toIntOrNull() ?: Int.MAX_VALUE }
+                    .mapNotNull { selected ->
+                        selected.number.toIntOrNull()?.let { verse ->
+                            com.cristiancogollo.biblion.feature.bibi.model.BibiPassage(
+                                book = bookName.orEmpty(),
+                                chapter = selectedChapter,
+                                verse = verse,
+                                text = selected.text,
                             )
                         }
-                    }.orEmpty()
-                }
+                    }
+                    .ifEmpty {
+                        firstVisibleVerse?.let { visible ->
+                            visible.first.toIntOrNull()?.let { verse ->
+                                listOf(
+                                    com.cristiancogollo.biblion.feature.bibi.model.BibiPassage(
+                                        book = bookName.orEmpty(),
+                                        chapter = selectedChapter,
+                                        verse = verse,
+                                        text = visible.second,
+                                    )
+                                )
+                            }
+                        }.orEmpty()
+                    }
+            }
 
-            if (showBibi) {
+            if (showBibi && !isParallelReading) {
                 BibiReaderOverlay(
                     bookName = bookName,
                     chapter = selectedChapter,
@@ -1036,12 +1912,15 @@ fun ReaderContent(
             }
         }
 
-        if (selectedVerseActions.isNotEmpty()) {
+        if (
+            selectedVerseActions.isNotEmpty() &&
+            !isParallelReading
+        ) {
             VerseActionsFloatingMenu(
                 selectedCount = selectedVerseActions.size,
                 anchorOffset = IntOffset.Zero,
                 showHighlightOptions = true,
-                highlightPalette = highlightPalette,
+                highlightPalette = readerHighlightPalette,
                 onDismiss = { selectedVerseActions = emptyMap() },
                 onClearSelection = { selectedVerseActions = emptyMap() },
                 onCopy = {
@@ -1064,9 +1943,7 @@ fun ReaderContent(
                     val isGuideHighlightStep = currentStep?.targetKey == GuidedTutorialTargets.READER_FIRST_VERSE
                     val hasTargetVerse = selectedVerseActions.keys.isNotEmpty()
                     Log.d("GUIDE_DEBUG", "onHighlight isGuideStep=$isGuideHighlightStep hasTarget=$hasTargetVerse step=${currentStep?.id} selectedVerses=${selectedVerseActions.keys.toList()}")
-                    selectedVerseActions.keys.forEach { verseNumber ->
-                        saveHighlight(verseNumber, colorIndex)
-                    }
+                    saveHighlights(selectedVerseActions.keys, colorIndex)
                     if (isGuideHighlightStep && hasTargetVerse) {
                         onGuidedTutorialTargetAction(GuidedTutorialTargets.READER_FIRST_VERSE)
                     }
@@ -1114,22 +1991,119 @@ fun ReaderContent(
             isRestart = guidedTutorial?.isRestart == true
         )
 
+        if (showReaderSettings) {
+            ReaderSettingsSheet(
+                fontSizeSp = fontSizeValue,
+                preferences = effectiveReaderPreferences,
+                onDismiss = { showReaderSettings = false },
+                onApply = { updatedFontSize, updatedPreferences ->
+                    if (readerPreferences.textLayout != updatedPreferences.textLayout) {
+                        rememberCurrentVerseScroll()
+                    }
+                    fontSizeValue = updatedFontSize
+                    readerPreferences = updatedPreferences
+                    ReaderPreferencesStore.save(context, updatedPreferences)
+                    AppPreferencesSyncStore.setReaderFontSizeSp(
+                        context,
+                        updatedFontSize.toInt(),
+                    )
+                    showReaderSettings = false
+                },
+            )
+        }
+
         if (showVersionDialog) {
             BibleVersionDialog(
                 versions = availableVersions,
                 selectedVersionKey = selectedVersionKey,
                 onVersionSelected = { selected ->
                     rememberCurrentVerseScroll()
-                    BibleRepository.setSelectedVersionKey(context, selected.key)
                     selectedVersionKey = selected.key
-                    bookName?.let { loadChapter(it, selectedChapter) }
+                    clearVisibleChapterWhileLoading()
+                    BibleRepository.setSelectedVersionKey(context, selected.key)
+                    bookName?.let {
+                        loadChapter(it, selectedChapter, selected.key)
+                    }
                     showVersionDialog = false
                 },
-                onDismiss = { showVersionDialog = false }
+                onDismiss = {
+                    showVersionDialog = false
+                }
             )
         }
         }
     }
+}
+
+@Composable
+internal fun ReadOnlyVerseItem(
+    verseNumber: String,
+    verseText: String,
+    highlightColor: Color = Color.Transparent,
+    fontSize: TextUnit,
+    fontFamily: FontFamily,
+    fontWeight: FontWeight,
+    lineSpacingMultiplier: Float,
+    showVerseNumber: Boolean,
+) {
+    val verseTextColor = readerVerseForeground(
+        highlightColor = highlightColor,
+        normalColor = MaterialTheme.colorScheme.onSurface,
+    )
+    val primaryColor = readerVerseForeground(
+        highlightColor = highlightColor,
+        normalColor = MaterialTheme.colorScheme.primary,
+    )
+    val accessibilityDescription = stringResource(
+        R.string.reader_verse_accessibility,
+        verseNumber,
+        verseText,
+    )
+    val annotatedVerse = remember(
+        verseNumber,
+        verseText,
+        fontSize,
+        showVerseNumber,
+        primaryColor,
+    ) {
+        buildAnnotatedString {
+            if (showVerseNumber) {
+                withStyle(
+                    SpanStyle(
+                        fontSize = (fontSize.value * 0.6f).sp,
+                        fontWeight = FontWeight.Bold,
+                        baselineShift = BaselineShift.Superscript,
+                        color = primaryColor,
+                    )
+                ) {
+                    append(verseNumber)
+                }
+                append("  ")
+            }
+            append(verseText)
+        }
+    }
+
+    Text(
+        text = annotatedVerse,
+        style = MaterialTheme.typography.bodyLarge.merge(
+            TextStyle(
+                fontFamily = fontFamily,
+                fontWeight = fontWeight,
+                fontSize = fontSize,
+                lineHeight = (fontSize.value * lineSpacingMultiplier).sp,
+                color = verseTextColor,
+            )
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(highlightColor, RoundedCornerShape(8.dp))
+            .semantics(mergeDescendants = true) {
+                contentDescription = accessibilityDescription
+            }
+            .padding(horizontal = 8.dp, vertical = 8.dp)
+            .padding(bottom = 12.dp),
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -1145,7 +2119,6 @@ fun ReaderContent(
  * @param fontSize tamaño de letra del lector.
  * @param highlightColor color de subrayado persistido del versículo.
  * @param isSelected estado visual de selección múltiple.
- * @param isSelectionMode indica si hay selección activa global.
  * @param onShowActions callback long-press (inicio de selección/acciones).
  * @param onToggleSelection callback de toggle en selección activa.
  */
@@ -1153,10 +2126,13 @@ fun VerseItem(
     verseNumber: String,
     verseText: String,
     fontSize: TextUnit,
+    fontFamily: FontFamily,
+    fontWeight: FontWeight,
+    lineSpacingMultiplier: Float,
+    showVerseNumber: Boolean,
     highlightColor: Color,
     isSelected: Boolean,
     selectionRangePosition: VerseSelectionRangePosition = VerseSelectionRangePosition.None,
-    isSelectionMode: Boolean,
     modifier: Modifier = Modifier,
     onShowActions: () -> Unit,
     onToggleSelection: () -> Unit,
@@ -1189,12 +2165,88 @@ fun VerseItem(
     } else {
         highlightColor
     }
-    val verseTextColor = if (!isRangeSelected && highlightColor.alpha > 0f) {
-        BiblionBluePrimary
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
+    val verseTextColor = readerVerseForeground(
+        highlightColor = highlightColor,
+        normalColor = MaterialTheme.colorScheme.onSurface,
+        isRangeSelected = isRangeSelected,
+    )
     val sideBarColor = BiblionGoldPrimary
+    val primaryColor = readerVerseForeground(
+        highlightColor = highlightColor,
+        normalColor = MaterialTheme.colorScheme.primary,
+        isRangeSelected = isRangeSelected,
+    )
+    val verseAccessibilityDescription = stringResource(
+        R.string.reader_verse_accessibility,
+        verseNumber,
+        verseText,
+    )
+    val selectActionLabel = stringResource(R.string.reader_verse_action_select)
+    val optionsActionLabel = stringResource(R.string.reader_verse_action_options)
+    val verseStateDescription = when {
+        isSelected -> stringResource(R.string.reader_verse_selected)
+        highlightColor.alpha > 0f -> stringResource(R.string.reader_verse_highlighted)
+        else -> null
+    }
+    val annotatedVerse = remember(
+        verseNumber,
+        verseText,
+        fontSize,
+        showVerseNumber,
+        anchorSpan,
+        primaryColor,
+        verseTextColor,
+    ) {
+        buildAnnotatedString {
+            if (showVerseNumber) {
+                withStyle(
+                    style = SpanStyle(
+                        fontSize = (fontSize.value * 0.6).sp,
+                        fontWeight = FontWeight.Bold,
+                        baselineShift = BaselineShift.Superscript,
+                        color = primaryColor,
+                    )
+                ) {
+                    append(verseNumber)
+                }
+            }
+            val textToRender = if (showVerseNumber) "  $verseText" else verseText
+            if (anchorSpan != null && anchorSpan.first >= 0 && anchorSpan.last < textToRender.length) {
+                append(textToRender.substring(0, anchorSpan.first))
+                withStyle(
+                    style = SpanStyle(
+                        background = BiblionGoldPrimary.copy(alpha = 0.25f),
+                        textDecoration = TextDecoration.Underline,
+                        color = verseTextColor,
+                    )
+                ) {
+                    append(textToRender.substring(anchorSpan.first, anchorSpan.last + 1))
+                }
+                append(textToRender.substring(anchorSpan.last + 1))
+            } else {
+                append(textToRender)
+            }
+        }
+    }
+    val bodyLargeStyle = MaterialTheme.typography.bodyLarge
+    val verseTextStyle = remember(
+        bodyLargeStyle,
+        fontSize,
+        fontFamily,
+        fontWeight,
+        lineSpacingMultiplier,
+        verseTextColor,
+    ) {
+        bodyLargeStyle.merge(
+            TextStyle(
+                fontFamily = fontFamily,
+                fontWeight = fontWeight,
+                lineHeight = (fontSize.value * lineSpacingMultiplier).sp,
+                fontSize = fontSize,
+                color = verseTextColor,
+            )
+        )
+    }
 
     Box(modifier = modifier.fillMaxWidth()) {
         Text(
@@ -1216,17 +2268,25 @@ fun VerseItem(
                         )
                     }
                 }
-                .combinedClickable(onClick = onToggleSelection, onLongClick = onShowActions)
+                .semantics(mergeDescendants = true) {
+                    contentDescription = verseAccessibilityDescription
+                    selected = isSelected
+                    if (verseStateDescription != null) {
+                        stateDescription = verseStateDescription
+                    }
+                }
+                .combinedClickable(
+                    onClickLabel = selectActionLabel,
+                    onLongClickLabel = optionsActionLabel,
+                    onClick = onToggleSelection,
+                    onLongClick = onShowActions,
+                )
                 .onPreviewKeyEvent { keyEvent ->
                     if (
                         keyEvent.type == KeyEventType.KeyUp &&
                         (keyEvent.key == Key.Enter || keyEvent.key == Key.Spacebar)
                     ) {
-                        if (isSelectionMode) {
-                            onToggleSelection()
-                        } else {
-                            onShowActions()
-                        }
+                        onToggleSelection()
                         true
                     } else {
                         false
@@ -1239,42 +2299,8 @@ fun VerseItem(
                     end = 8.dp,
                     bottom = 8.dp
                 ),
-            text = buildAnnotatedString {
-                withStyle(
-                    style = SpanStyle(
-                        fontSize = (fontSize.value * 0.6).sp,
-                        fontWeight = FontWeight.Bold,
-                        baselineShift = BaselineShift.Superscript,
-                        color = BiblionGoldPrimary
-                    )
-                ) {
-                    append(verseNumber)
-                }
-                val textToRender = "  $verseText"
-                if (anchorSpan != null && anchorSpan.first >= 0 && anchorSpan.last < textToRender.length) {
-                    append(textToRender.substring(0, anchorSpan.first))
-                    withStyle(
-                        style = SpanStyle(
-                            background = BiblionGoldPrimary.copy(alpha = 0.25f),
-                            textDecoration = TextDecoration.Underline,
-                            color = BiblionBluePrimary
-                        )
-                    ) {
-                        append(textToRender.substring(anchorSpan.first, anchorSpan.last + 1))
-                    }
-                    append(textToRender.substring(anchorSpan.last + 1))
-                } else {
-                    append(textToRender)
-                }
-            },
-            style = MaterialTheme.typography.bodyLarge.merge(
-                TextStyle(
-                    fontFamily = FontFamily.Serif,
-                    lineHeight = (fontSize.value * 1.5).sp,
-                    fontSize = fontSize,
-                    color = verseTextColor,
-                )
-            )
+            text = annotatedVerse,
+            style = verseTextStyle,
         )
 
     }

@@ -44,8 +44,6 @@ import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.TextIncrease
-import androidx.compose.material.icons.filled.TextDecrease
 import androidx.compose.material.icons.filled.Title
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ViewColumn
@@ -71,6 +69,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -80,7 +79,6 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -547,18 +545,24 @@ fun BiblionSelectionDialog(
 fun BiblionReaderTopAppBar(
     bookName: String,
     chapter: Int,
-    fontSize: TextUnit,
     onNavigationIconClick: () -> Unit,
     selectedVersionName: String,
     onVersionClick: () -> Unit,
     onBookTitleClick: () -> Unit,
-    onFontSizeChange: (Float) -> Unit,
+    onReadingOptionsClick: () -> Unit,
+    parallelReadingAvailable: Boolean = false,
+    isParallelReading: Boolean = false,
+    onParallelReadingClick: () -> Unit = {},
     modifier: Modifier = Modifier,
     versionModifier: Modifier = Modifier,
     bookTitleModifier: Modifier = Modifier,
+    titleOverride: String? = null,
+    showPrimarySelectors: Boolean = true,
 ) {
-    var showReadingOptions by remember { mutableStateOf(false) }
-
+    val primaryVersionDescription = stringResource(
+        R.string.reader_primary_version,
+        selectedVersionName,
+    )
     Column(
         modifier = modifier
             .background(MaterialTheme.colorScheme.surface)
@@ -566,16 +570,35 @@ fun BiblionReaderTopAppBar(
     ) {
         CenterAlignedTopAppBar(
             title = {
-                Row(
-                    modifier = bookTitleModifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(onClick = onBookTitleClick)
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
+                if (showPrimarySelectors) {
+                    Row(
+                        modifier = bookTitleModifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable(onClick = onBookTitleClick)
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            text = "$bookName $chapter",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontFamily = FontFamily.Serif,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = stringResource(R.string.cd_select_chapter),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                } else {
                     Text(
-                        text = "$bookName $chapter",
+                        text = titleOverride ?: "$bookName $chapter",
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontFamily = FontFamily.Serif,
                             fontWeight = FontWeight.Bold
@@ -583,12 +606,6 @@ fun BiblionReaderTopAppBar(
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                    )
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Seleccionar capítulo",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp),
                     )
                 }
             },
@@ -602,146 +619,62 @@ fun BiblionReaderTopAppBar(
                 }
             },
             actions = {
-                TextButton(onClick = onVersionClick, modifier = versionModifier) {
-                    Text(
-                        text = selectedVersionName,
-                        style = MaterialTheme.typography.labelLarge.copy(fontFamily = FontFamily.Serif),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                Box {
-                    IconButton(onClick = { showReadingOptions = true }) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = "Opciones de lectura",
-                            tint = MaterialTheme.colorScheme.onSurface
+                if (showPrimarySelectors) {
+                    TextButton(
+                        onClick = onVersionClick,
+                        modifier = versionModifier.semantics {
+                            contentDescription = primaryVersionDescription
+                        },
+                    ) {
+                        Text(
+                            text = selectedVersionName,
+                            style = MaterialTheme.typography.labelLarge.copy(fontFamily = FontFamily.Serif),
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
-                    DropdownMenu(
-                        expanded = showReadingOptions,
-                        onDismissRequest = { showReadingOptions = false },
-                        modifier = Modifier.width(340.dp),
-                        shape = RoundedCornerShape(24.dp),
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 8.dp,
-                        shadowElevation = 16.dp,
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            ) {
-                                Surface(
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.TextIncrease,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(10.dp),
-                                    )
-                                }
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Tamaño de lectura",
-                                        style = MaterialTheme.typography.titleMedium.copy(
-                                            fontFamily = FontFamily.Serif,
-                                            fontWeight = FontWeight.Bold,
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                    )
-                                    Text(
-                                        text = "Ajusta el texto a tu comodidad",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                                Surface(
-                                    shape = RoundedCornerShape(50),
-                                    color = MaterialTheme.colorScheme.primary,
-                                ) {
-                                    Text(
-                                        text = "${fontSize.value.toInt()} sp",
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimary,
-                                    )
-                                }
-                            }
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.TextDecrease,
-                                    contentDescription = "Texto más pequeño",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Slider(
-                                    value = fontSize.value.coerceIn(12f, 35f),
-                                    onValueChange = onFontSizeChange,
-                                    valueRange = 12f..35f,
-                                    steps = 22,
-                                    modifier = Modifier.weight(1f),
-                                    colors = SliderDefaults.colors(
-                                        thumbColor = MaterialTheme.colorScheme.primary,
-                                        activeTrackColor = MaterialTheme.colorScheme.primary,
-                                        inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant,
-                                    ),
-                                )
-                                Icon(
-                                    imageVector = Icons.Default.TextIncrease,
-                                    contentDescription = "Texto más grande",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                listOf(
-                                    "Pequeño" to 16f,
-                                    "Mediano" to 20f,
-                                    "Grande" to 26f,
-                                ).forEach { (label, value) ->
-                                    FilterChip(
-                                        selected = fontSize.value.toInt() == value.toInt(),
-                                        onClick = { onFontSizeChange(value) },
-                                        label = { Text(label) },
-                                        modifier = Modifier.weight(1f),
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
-                                            selectedLabelColor = MaterialTheme.colorScheme.onSurface,
-                                        ),
-                                        border = FilterChipDefaults.filterChipBorder(
-                                            enabled = true,
-                                            selected = fontSize.value.toInt() == value.toInt(),
-                                            borderColor = MaterialTheme.colorScheme.outlineVariant,
-                                            selectedBorderColor = MaterialTheme.colorScheme.primary,
-                                        ),
-                                    )
-                                }
-                            }
-
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                            TextButton(
-                                onClick = { showReadingOptions = false },
-                                modifier = Modifier.align(Alignment.End),
-                            ) {
-                                Text("Listo", fontWeight = FontWeight.Bold)
-                            }
+                }
+                if (parallelReadingAvailable) {
+                    val parallelDescription = stringResource(
+                        if (isParallelReading) {
+                            R.string.cd_disable_parallel_reading
+                        } else {
+                            R.string.cd_enable_parallel_reading
                         }
+                    )
+                    IconButton(
+                        onClick = onParallelReadingClick,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (isParallelReading) {
+                                    BiblionGoldPrimary
+                                } else {
+                                    Color.Transparent
+                                }
+                            )
+                            .semantics {
+                                contentDescription = parallelDescription
+                                selected = isParallelReading
+                            },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ViewColumn,
+                            contentDescription = null,
+                            tint = if (isParallelReading) {
+                                BiblionBluePrimary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                        )
                     }
+                }
+                IconButton(onClick = onReadingOptionsClick) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = stringResource(R.string.cd_reader_settings),
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
                 }
             },
             colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -777,8 +710,8 @@ fun VerseActionsFloatingMenu(
         offset = popupOffset,
         onDismissRequest = onDismiss,
         properties = PopupProperties(
-            focusable = false,
-            dismissOnClickOutside = false
+            focusable = true,
+            dismissOnClickOutside = true
         )
     ) {
         AnimatedVisibility(
@@ -826,7 +759,7 @@ fun VerseActionsFloatingMenu(
                             ActionPill(icon = Icons.Default.Add, label = "Insertar cita", onClick = onInsertAsQuote)
                         }
 
-                        IconButton(onClick = onClearSelection, modifier = Modifier.size(36.dp)) {
+                        IconButton(onClick = onClearSelection, modifier = Modifier.size(48.dp)) {
                             Icon(
                                 imageVector = Icons.Default.HighlightOff,
                                 contentDescription = "Limpiar",
@@ -845,16 +778,38 @@ fun VerseActionsFloatingMenu(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             highlightPalette.forEachIndexed { index, color ->
+                                val highlightDescription = if (index == 0) {
+                                    stringResource(R.string.cd_remove_highlight)
+                                } else {
+                                    stringResource(R.string.cd_highlight_color, index)
+                                }
                                 Box(
                                     modifier = Modifier
-                                        .size(26.dp)
-                                        .background(
-                                            color = if (index == 0) MaterialTheme.colorScheme.surface else color,
-                                            shape = RoundedCornerShape(13.dp)
-                                        )
-                                        .border(1.dp, BiblionGoldSoft.copy(alpha = 0.5f), RoundedCornerShape(13.dp))
-                                        .clickable { onHighlight(index) }
-                                )
+                                        .size(48.dp)
+                                        .semantics {
+                                            contentDescription = highlightDescription
+                                        }
+                                        .clickable { onHighlight(index) },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(26.dp)
+                                            .background(
+                                                color = if (index == 0) {
+                                                    MaterialTheme.colorScheme.surface
+                                                } else {
+                                                    color
+                                                },
+                                                shape = RoundedCornerShape(13.dp)
+                                            )
+                                            .border(
+                                                1.dp,
+                                                BiblionGoldSoft.copy(alpha = 0.5f),
+                                                RoundedCornerShape(13.dp),
+                                            )
+                                    )
+                                }
                             }
                         }
                     }
@@ -919,7 +874,7 @@ private fun LegacyVerseActionsFloatingMenu(
                         ActionPill(icon = Icons.Default.FormatQuote, label = "Citar", onClick = onAddCitation)
                     }
 
-                    IconButton(onClick = onClearSelection, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = onClearSelection, modifier = Modifier.size(48.dp)) {
                         Icon(
                             imageVector = Icons.Default.HighlightOff,
                             contentDescription = "Limpiar",
@@ -986,6 +941,6 @@ private fun ActionPill(icon: ImageVector, label: String, onClick: () -> Unit) {
         colors = AssistChipDefaults.assistChipColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
         ),
-        modifier = Modifier.height(30.dp)
+        modifier = Modifier.heightIn(min = 48.dp)
     )
 }

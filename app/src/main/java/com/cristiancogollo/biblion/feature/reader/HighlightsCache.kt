@@ -40,6 +40,7 @@ class HighlightsCache(
 
     private val versionEntries = LinkedHashMap<String, VersionEntry>(maxVersions, 0.75f, true)
 
+    @Synchronized
     fun loadChapterHighlights(
         versionKey: String,
         rawHighlights: String,
@@ -86,32 +87,63 @@ class HighlightsCache(
         colorIndex: Int,
         verseKeyProvider: (String) -> String,
         currentChapterHighlights: Map<String, Int>
+    ): SaveResult = saveHighlights(
+        versionKey = versionKey,
+        rawHighlights = rawHighlights,
+        bookName = bookName,
+        chapter = chapter,
+        verseNumbers = listOf(verseNumber),
+        colorIndex = colorIndex,
+        verseKeyProvider = verseKeyProvider,
+        currentChapterHighlights = currentChapterHighlights,
+    )
+
+    /**
+     * Actualiza varios versículos de un capítulo en una única mutación de JSON y caché.
+     */
+    @Synchronized
+    fun saveHighlights(
+        versionKey: String,
+        rawHighlights: String,
+        bookName: String?,
+        chapter: Int,
+        verseNumbers: Collection<String>,
+        colorIndex: Int,
+        verseKeyProvider: (String) -> String,
+        currentChapterHighlights: Map<String, Int>
     ): SaveResult {
         val now = nowProvider()
         pruneExpired(now)
         val versionEntry = getOrCreateVersionEntry(versionKey, rawHighlights, now)
-        versionEntry.json.put(verseKeyProvider(verseNumber), colorIndex)
+        verseNumbers.forEach { verseNumber ->
+            versionEntry.json.put(verseKeyProvider(verseNumber), colorIndex)
+        }
         val updatedRaw = versionEntry.json.toString()
         versionEntry.raw = updatedRaw
         versionEntry.lastAccessAt = now
 
         val chapterKey = chapterKey(bookName, chapter)
         val base = versionEntry.chapters[chapterKey]?.highlights ?: currentChapterHighlights
-        val updatedChapter = base + (verseNumber to colorIndex)
+        val updatedChapter = base.toMutableMap().apply {
+            verseNumbers.forEach { verseNumber -> put(verseNumber, colorIndex) }
+        }.toMap()
         versionEntry.chapters[chapterKey] = ChapterEntry(updatedChapter, now)
         trimChapterLru(versionEntry)
 
         return SaveResult(updatedRaw = updatedRaw, updatedChapterHighlights = updatedChapter)
     }
 
+    @Synchronized
     fun clearVersion(versionKey: String) {
         versionEntries.remove(versionKey)
     }
 
+    @Synchronized
     fun clearAll() {
         versionEntries.clear()
     }
 
+    @Synchronized
     internal fun debugSnapshot(): Map<String, Int> {
         return versionEntries.mapValues { (_, value) -> value.chapters.size }
     }
