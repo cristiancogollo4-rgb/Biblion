@@ -53,6 +53,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -1360,6 +1361,12 @@ fun ReaderContent(
     }
 
     BackHandler(enabled = isParallelReading) { exitParallelReading() }
+    BackHandler(
+        enabled = !isParallelReading && selectedVerseActions.isNotEmpty() && showVerseActionsMenu,
+    ) {
+        selectedVerseActions = emptyMap()
+        showVerseActionsMenu = false
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -1805,6 +1812,7 @@ fun ReaderContent(
                                 showVerseNumber = effectiveReaderPreferences.showVerseNumbers,
                                 highlightColor = readerHighlightPalette[verseHighlights[verseNumber] ?: 0],
                                 isSelected = selectedVerseActions.containsKey(verseNumber),
+                                allowTapSelection = selectedVerseActions.isNotEmpty(),
                                 selectionRangePosition = verseSelectionRangePosition(
                                     verseNumber = verseNumber,
                                     selectedVerseNumbers = selectedVerseNumbers
@@ -2372,6 +2380,7 @@ internal fun ReadOnlyVerseItem(
  * @param fontSize tamaño de letra del lector.
  * @param highlightColor color de subrayado persistido del versículo.
  * @param isSelected estado visual de selección múltiple.
+ * @param allowTapSelection permite agregar o quitar versículos con un toque tras iniciar la selección.
  * @param onShowActions callback long-press (inicio de selección/acciones).
  * @param onToggleSelection callback de teclado para selección accesible.
  */
@@ -2385,6 +2394,7 @@ fun VerseItem(
     showVerseNumber: Boolean,
     highlightColor: Color,
     isSelected: Boolean,
+    allowTapSelection: Boolean = false,
     selectionRangePosition: VerseSelectionRangePosition = VerseSelectionRangePosition.None,
     modifier: Modifier = Modifier,
     onShowActions: () -> Unit,
@@ -2438,6 +2448,8 @@ fun VerseItem(
     )
     val selectActionLabel = stringResource(R.string.reader_verse_action_select)
     val currentOnShowActions by rememberUpdatedState(onShowActions)
+    val currentOnToggleSelection by rememberUpdatedState(onToggleSelection)
+    val currentAllowTapSelection by rememberUpdatedState(allowTapSelection)
     val verseStateDescription = when {
         isSelected -> stringResource(R.string.reader_verse_selected)
         highlightColor.alpha > 0f -> stringResource(R.string.reader_verse_highlighted)
@@ -2534,9 +2546,20 @@ fun VerseItem(
                         onShowActions()
                         true
                     }
+                    if (allowTapSelection) {
+                        onClick(label = selectActionLabel) {
+                            onToggleSelection()
+                            true
+                        }
+                    }
                 }
                 .pointerInput(Unit) {
-                    detectTapGestures(onLongPress = { currentOnShowActions() })
+                    detectTapGestures(
+                        onTap = {
+                            if (currentAllowTapSelection) currentOnToggleSelection()
+                        },
+                        onLongPress = { currentOnShowActions() },
+                    )
                 }
                 .onPreviewKeyEvent { keyEvent ->
                     if (

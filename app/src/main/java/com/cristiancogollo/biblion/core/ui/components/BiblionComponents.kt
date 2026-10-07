@@ -713,8 +713,9 @@ fun VerseActionsFloatingMenu(
         offset = popupOffset,
         onDismissRequest = onDismiss,
         properties = PopupProperties(
-            focusable = true,
-            dismissOnClickOutside = true
+            // La selección múltiple necesita recibir toques sobre los versículos detrás del menú.
+            focusable = false,
+            dismissOnClickOutside = false,
         )
     ) {
         AnimatedVisibility(

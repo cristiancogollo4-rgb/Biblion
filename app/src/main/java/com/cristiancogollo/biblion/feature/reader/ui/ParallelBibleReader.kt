@@ -1,6 +1,7 @@
 package com.cristiancogollo.biblion.feature.reader.ui
 
 import android.content.ClipData
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -105,6 +106,12 @@ fun ParallelBibleReader(
     var selectedActions by remember { mutableStateOf<Map<String, VerseAction>>(emptyMap()) }
     var primaryHighlights by remember { mutableStateOf<Map<Int, Map<String, Int>>>(emptyMap()) }
     var secondaryHighlights by remember { mutableStateOf<Map<Int, Map<String, Int>>>(emptyMap()) }
+
+    BackHandler(enabled = activePane != null && selectedActions.isNotEmpty()) {
+        activePane = null
+        activeChapter = null
+        selectedActions = emptyMap()
+    }
 
     LaunchedEffect(
         primarySelection.bookName, primarySelection.versionKey, primarySelection.targetRequest,
@@ -683,6 +690,7 @@ private fun IndependentBiblePane(
                                 showVerseNumber = preferences.showVerseNumbers,
                                 highlightColor = readerHighlightPalette[chapterHighlights[verseNumber] ?: 0],
                                 isSelected = selectedChapter == chapter && selectedActions.containsKey(verseNumber),
+                                allowTapSelection = selectedChapter == chapter && selectedActions.isNotEmpty(),
                                 selectionRangePosition = verseSelectionRangePosition(
                                     verseNumber = verseNumber,
                                     selectedVerseNumbers = if (selectedChapter == chapter) selectedVerseNumbers else emptySet(),
