@@ -13,8 +13,8 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -53,6 +53,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -2372,7 +2373,7 @@ internal fun ReadOnlyVerseItem(
  * @param highlightColor color de subrayado persistido del versículo.
  * @param isSelected estado visual de selección múltiple.
  * @param onShowActions callback long-press (inicio de selección/acciones).
- * @param onToggleSelection callback de toggle en selección activa.
+ * @param onToggleSelection callback de teclado para selección accesible.
  */
 fun VerseItem(
     verseNumber: String,
@@ -2436,7 +2437,7 @@ fun VerseItem(
         verseText,
     )
     val selectActionLabel = stringResource(R.string.reader_verse_action_select)
-    val optionsActionLabel = stringResource(R.string.reader_verse_action_options)
+    val currentOnShowActions by rememberUpdatedState(onShowActions)
     val verseStateDescription = when {
         isSelected -> stringResource(R.string.reader_verse_selected)
         highlightColor.alpha > 0f -> stringResource(R.string.reader_verse_highlighted)
@@ -2529,13 +2530,14 @@ fun VerseItem(
                     if (verseStateDescription != null) {
                         stateDescription = verseStateDescription
                     }
+                    onLongClick(label = selectActionLabel) {
+                        onShowActions()
+                        true
+                    }
                 }
-                .combinedClickable(
-                    onClickLabel = selectActionLabel,
-                    onLongClickLabel = optionsActionLabel,
-                    onClick = onToggleSelection,
-                    onLongClick = onShowActions,
-                )
+                .pointerInput(Unit) {
+                    detectTapGestures(onLongPress = { currentOnShowActions() })
+                }
                 .onPreviewKeyEvent { keyEvent ->
                     if (
                         keyEvent.type == KeyEventType.KeyUp &&
