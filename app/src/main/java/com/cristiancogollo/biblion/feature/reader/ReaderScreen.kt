@@ -8,6 +8,7 @@ import android.content.SharedPreferences
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -1334,6 +1335,31 @@ fun ReaderContent(
         )
     }
 
+    fun exitParallelReading() {
+        selectedVerseActions = emptyMap()
+        showDialog = false
+        showVersionDialog = false
+        isParallelReading = false
+        selectedVersionKey = parallelPrimaryVersion
+        BibleRepository.setSelectedVersionKey(context, parallelPrimaryVersion)
+        if (parallelPrimaryBook == bookName) {
+            selectedChapter = parallelPrimaryChapter
+            clearVisibleChapterWhileLoading()
+            loadChapter(parallelPrimaryBook, parallelPrimaryChapter, parallelPrimaryVersion)
+        } else {
+            navController.navigate(
+                Screen.Reader.createRoute(
+                    bookName = parallelPrimaryBook,
+                    chapter = parallelPrimaryChapter,
+                )
+            ) {
+                launchSingleTop = true
+            }
+        }
+    }
+
+    BackHandler(enabled = isParallelReading) { exitParallelReading() }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             topBar = {
@@ -1359,27 +1385,7 @@ fun ReaderContent(
                         showDialog = false
                         showVersionDialog = false
                         if (isParallelReading) {
-                            isParallelReading = false
-                            selectedVersionKey = parallelPrimaryVersion
-                            BibleRepository.setSelectedVersionKey(context, parallelPrimaryVersion)
-                            if (parallelPrimaryBook == bookName) {
-                                selectedChapter = parallelPrimaryChapter
-                                clearVisibleChapterWhileLoading()
-                                loadChapter(
-                                    parallelPrimaryBook,
-                                    parallelPrimaryChapter,
-                                    parallelPrimaryVersion,
-                                )
-                            } else {
-                                navController.navigate(
-                                    Screen.Reader.createRoute(
-                                        bookName = parallelPrimaryBook,
-                                        chapter = parallelPrimaryChapter,
-                                    )
-                                ) {
-                                    launchSingleTop = true
-                                }
-                            }
+                            exitParallelReading()
                         } else {
                             val currentStartIndex = if (
                                 effectiveReaderPreferences.continuousScrolling &&
@@ -1424,6 +1430,8 @@ fun ReaderContent(
                         null
                     },
                     showPrimarySelectors = !isParallelReading,
+                    showNavigationIcon = !isParallelReading,
+                    showReadingOptions = !isParallelReading,
                     versionModifier = Modifier.guidedTutorialTarget(
                         GuidedTutorialTargets.READER_VERSION_SELECTOR,
                         tutorialTargetBounds
@@ -1498,6 +1506,7 @@ fun ReaderContent(
                         readerPreferences = updatedPreferences
                         ReaderPreferencesStore.save(context, updatedPreferences)
                     },
+                    onReadingOptionsClick = { showReaderSettings = true },
                     onInsertVerseCitation = onInsertVerseCitation,
                     onOpenCrossReferences = { openCrossReference = it },
                 )

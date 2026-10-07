@@ -380,6 +380,8 @@
     <string name="reader_parallel_pane">Lectura %1$d</string>
     <string name="reader_parallel_load_error">No se pudo cargar este pasaje.</string>
     <string name="reader_parallel_passage_button">Change passage: %1$s</string>
+    <string name="reader_parallel_book_button">Choose book: %1$s</string>
+    <string name="reader_parallel_chapter_button">Choose chapter: %1$d</string>
     <string name="reader_parallel_version_button">Choose version: %1$s</string>
     <string name="reader_parallel_choose_book">Choose a book</string>
     <string name="reader_parallel_search_books">Search books</string>

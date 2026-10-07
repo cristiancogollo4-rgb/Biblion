@@ -558,6 +558,8 @@ fun BiblionReaderTopAppBar(
     bookTitleModifier: Modifier = Modifier,
     titleOverride: String? = null,
     showPrimarySelectors: Boolean = true,
+    showNavigationIcon: Boolean = true,
+    showReadingOptions: Boolean = true,
 ) {
     val primaryVersionDescription = stringResource(
         R.string.reader_primary_version,
@@ -610,7 +612,7 @@ fun BiblionReaderTopAppBar(
                 }
             },
             navigationIcon = {
-                IconButton(onClick = onNavigationIconClick) {
+                if (showNavigationIcon) IconButton(onClick = onNavigationIconClick) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = stringResource(R.string.cd_back),
@@ -669,7 +671,7 @@ fun BiblionReaderTopAppBar(
                         )
                     }
                 }
-                IconButton(onClick = onReadingOptionsClick) {
+                if (showReadingOptions) IconButton(onClick = onReadingOptionsClick) {
                     Icon(
                         imageVector = Icons.Default.MoreVert,
                         contentDescription = stringResource(R.string.cd_reader_settings),
