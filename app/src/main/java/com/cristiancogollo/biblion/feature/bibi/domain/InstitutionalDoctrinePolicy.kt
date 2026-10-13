@@ -17,7 +17,7 @@ object InstitutionalDoctrinePolicy {
             "asambleas? de dios)\\b",
     )
     private val namedDenomination = Regex(
-        "\\b(?:ipuc|catolic[oa]s?|bautistas?|adventistas?|pentecostales?|" +
+        "\\b(?:ipuc|catolic[oa]s?|bautistas?|adventistas?|pentecostal(?:es)?|" +
             "luteranos?|metodistas?|presbiterianos?|anglicanos?|ortodoxos?|" +
             "reformados?|mormones?|testigos de jehova|asambleas? de dios)\\b",
     )
@@ -32,14 +32,14 @@ object InstitutionalDoctrinePolicy {
             "necesari[oa]s?|requisito)\\b",
     )
     private val namedAttribution = Regex(
-        "\\b(?:segun|para|que (?:cree|creen|ensena|ensenan)) " +
-            "(?:la|el|los|las) (?!biblia\\b|escrituras\\b|palabra\\b|" +
+        "\\b(?:(?:segun|que (?:cree|creen|ensena|ensenan)) " +
+            "(?:la|el|los|las)|para (?:los|las)) (?!biblia\\b|escrituras\\b|palabra\\b|" +
             "evangelio\\b|jesus\\b|cristo\\b|pablo\\b|juan\\b|pedro\\b|" +
-            "texto\\b|pasaje\\b)[a-z][a-z0-9]+",
-    )
-    private val attributionVerb = Regex(
-        "\\b(?:segun|para|ensena(?:n)?|creen?|afirman?|sostienen?|" +
-            "consideran?|postura|doctrina)\\b",
+            "texto\\b|pasaje\\b|iglesias\\b|denominaciones\\b|" +
+            "congregaciones\\b|tradiciones\\b|cristianos\\b|creyentes\\b|" +
+            "personas\\b|hombres\\b|mujeres\\b|ninos\\b|adultos\\b|" +
+            "discipulos\\b|apostoles\\b|profetas\\b|judios\\b|gentiles\\b|" +
+            "algunas\\b|muchas\\b)[a-z][a-z0-9]+",
     )
 
     /** Nunca se atribuye una postura institucional sin una fuente primaria registrada. */
@@ -52,8 +52,7 @@ object InstitutionalDoctrinePolicy {
     fun containsUnsupportedAttribution(answer: String): Boolean {
         val normalized = normalize(answer)
         return namedDenomination.containsMatchIn(normalized) ||
-            ((institution.containsMatchIn(normalized) || namedAttribution.containsMatchIn(normalized)) &&
-                attributionVerb.containsMatchIn(normalized))
+            namedAttribution.containsMatchIn(normalized)
     }
 
     fun verifiedAnswer(question: String): String? {

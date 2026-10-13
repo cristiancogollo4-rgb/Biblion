@@ -1,10 +1,9 @@
 const IPUC_ARTICLES_URL = "https://distrito1.ipuc.org.co/articulosdefe/";
 const INSTITUTION = /\b(?:ipuc|iglesias?|denominaciones?|congregaciones?|catolic[oa]s?|bautistas?|adventistas?|pentecostales?|luteranos?|metodistas?|presbiterianos?|anglicanos?|ortodoxos?|reformados?|mormones?|testigos de jehova|asambleas? de dios)\b/;
-const NAMED_DENOMINATION = /\b(?:ipuc|catolic[oa]s?|bautistas?|adventistas?|pentecostales?|luteranos?|metodistas?|presbiterianos?|anglicanos?|ortodoxos?|reformados?|mormones?|testigos de jehova|asambleas? de dios)\b/;
+const NAMED_DENOMINATION = /\b(?:ipuc|catolic[oa]s?|bautistas?|adventistas?|pentecostal(?:es)?|luteranos?|metodistas?|presbiterianos?|anglicanos?|ortodoxos?|reformados?|mormones?|testigos de jehova|asambleas? de dios)\b/;
 const POSITION = /\b(?:segun|ensena(?:n)?|creen?|creencia|afirman?|sostienen?|consideran?|postura|doctrina|bautismo|salvacion|trinidad|unicidad|santa cena|eucaristia|predestinacion|dones|ordenacion|necesari[oa]s?|requisito)\b/;
 const DOCTRINAL_TOPIC = /\b(?:bautismo|salvacion|trinidad|unicidad|santa cena|eucaristia|predestinacion|dones|ordenacion|doctrina|fe|pecado|gracia|necesari[oa]s?|requisito)\b/;
-const NAMED_ATTRIBUTION = /\b(?:segun|para|que (?:cree|creen|ensena|ensenan)) (?:la|el|los|las) (?!biblia\b|escrituras\b|palabra\b|evangelio\b|jesus\b|cristo\b|pablo\b|juan\b|pedro\b|texto\b|pasaje\b)[a-z][a-z0-9]+/;
-const ATTRIBUTION_VERB = /\b(?:segun|para|ensena(?:n)?|creen?|afirman?|sostienen?|consideran?|postura|doctrina)\b/;
+const NAMED_ATTRIBUTION = /\b(?:(?:segun|que (?:cree|creen|ensena|ensenan)) (?:la|el|los|las)|para (?:los|las)) (?!biblia\b|escrituras\b|palabra\b|evangelio\b|jesus\b|cristo\b|pablo\b|juan\b|pedro\b|texto\b|pasaje\b|iglesias\b|denominaciones\b|congregaciones\b|tradiciones\b|cristianos\b|creyentes\b|personas\b|hombres\b|mujeres\b|ninos\b|adultos\b|discipulos\b|apostoles\b|profetas\b|judios\b|gentiles\b|algunas\b|muchas\b)[a-z][a-z0-9]+/;
 
 function normalize(text) {
   return String(text || "")
@@ -24,8 +23,7 @@ export function needsOfficialSource(question) {
 export function containsUnsupportedAttribution(answer) {
   const normalized = normalize(answer);
   return NAMED_DENOMINATION.test(normalized) ||
-    ((INSTITUTION.test(normalized) || NAMED_ATTRIBUTION.test(normalized)) &&
-      ATTRIBUTION_VERB.test(normalized));
+    NAMED_ATTRIBUTION.test(normalized);
 }
 
 export function unverifiedInstitutionalAnswer() {

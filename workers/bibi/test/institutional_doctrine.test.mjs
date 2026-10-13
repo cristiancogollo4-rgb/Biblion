@@ -60,6 +60,9 @@ test("unverified institutional questions are answered locally without spending m
   }
   assert.equal(needsOfficialSource("Según la Biblia, ¿qué dice Juan 3:16 sobre la salvación?"), false);
   assert.equal(needsOfficialSource("¿Qué significa el bautismo?"), false);
+  assert.equal(needsOfficialSource("¿Es necesario el bautismo para la salvación?"), false);
+  assert.equal(needsOfficialSource("¿Es necesario el bautismo para salvación?"), false);
+  assert.equal(needsOfficialSource("¿Para los creyentes es necesario bautizarse?"), false);
 });
 
 test("unsourced institutional claims in a model answer are suppressed", async () => {
@@ -69,6 +72,12 @@ test("unsourced institutional claims in a model answer are suppressed", async ()
   assert.equal(containsUnsupportedAttribution(
     "Los bautistas ven el bautismo como testimonio público."
   ), true);
+  assert.equal(containsUnsupportedAttribution(
+    "La Iglesia Pentecostal Unida enseña que el bautismo es necesario."
+  ), true);
+  assert.equal(containsUnsupportedAttribution(
+    "Algunas iglesias sostienen que el bautismo es necesario; otras lo ven como testimonio."
+  ), false);
   const response = await worker.fetch(new Request("https://biblion.test/ask", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -91,4 +100,31 @@ test("unsourced institutional claims in a model answer are suppressed", async ()
     }
   });
   assert.deepEqual(await response.json(), unverifiedInstitutionalAnswer());
+});
+
+test("a general baptism question can receive a balanced answer", async () => {
+  const answer = "Algunas iglesias entienden el bautismo como parte de la respuesta de fe; otras lo ven como testimonio. Conviene leer Hechos 2:38 y Efesios 2:8-9 en su contexto.";
+  let modelCalled = false;
+  const response = await worker.fetch(new Request("https://biblion.test/ask", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      question: "¿Es necesario el bautismo para la salvación?",
+      mode: "reader",
+      intent: "question"
+    })
+  }), {
+    BIBI_REQUIRE_AUTH: "false",
+    AI: {
+      async run() {
+        modelCalled = true;
+        return { choices: [{ message: { content: JSON.stringify({
+          answer, references: [], suggestedBlocks: [], confidence: "medium"
+        }) } }] };
+      }
+    }
+  });
+
+  assert.equal(modelCalled, true);
+  assert.equal((await response.json()).answer, answer);
 });

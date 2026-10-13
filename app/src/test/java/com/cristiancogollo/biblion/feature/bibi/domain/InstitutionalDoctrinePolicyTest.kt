@@ -53,6 +53,15 @@ class InstitutionalDoctrinePolicyTest {
         assertFalse(InstitutionalDoctrinePolicy.needsOfficialSource(
             "¿Qué significa el bautismo?",
         ))
+        assertFalse(InstitutionalDoctrinePolicy.needsOfficialSource(
+            "¿Es necesario el bautismo para la salvación?",
+        ))
+        assertFalse(InstitutionalDoctrinePolicy.needsOfficialSource(
+            "¿Es necesario el bautismo para salvación?",
+        ))
+        assertFalse(InstitutionalDoctrinePolicy.needsOfficialSource(
+            "¿Para los creyentes es necesario bautizarse?",
+        ))
         assertNull(InstitutionalDoctrinePolicy.verifiedAnswer(
             "Compara la IPUC y la Iglesia Católica sobre bautismo y salvación",
         ))
@@ -69,8 +78,14 @@ class InstitutionalDoctrinePolicyTest {
         assertTrue(InstitutionalDoctrinePolicy.containsUnsupportedAttribution(
             "Los bautistas ven el bautismo como testimonio público.",
         ))
+        assertTrue(InstitutionalDoctrinePolicy.containsUnsupportedAttribution(
+            "La Iglesia Pentecostal Unida enseña que el bautismo es necesario.",
+        ))
         assertFalse(InstitutionalDoctrinePolicy.containsUnsupportedAttribution(
             "Según Juan 3:16, Dios amó al mundo.",
+        ))
+        assertFalse(InstitutionalDoctrinePolicy.containsUnsupportedAttribution(
+            "Algunas iglesias sostienen que el bautismo es necesario; otras lo ven como testimonio.",
         ))
     }
 }

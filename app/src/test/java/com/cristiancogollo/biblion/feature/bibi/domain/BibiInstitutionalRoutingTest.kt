@@ -52,4 +52,25 @@ class BibiInstitutionalRoutingTest {
         assertTrue(result.answer.contains("No tengo una declaración oficial verificada"))
         assertFalse(result.answer.contains("Iglesia Bautista"))
     }
+
+    @Test
+    fun `general baptism question keeps a balanced answer`() = runBlocking {
+        val balanced = "Algunas iglesias entienden el bautismo como parte de la respuesta de fe; " +
+            "otras lo ven como testimonio."
+        var remoteCalled = false
+        val orchestrator = BibiOrchestrator(RemoteBibiGateway {
+            remoteCalled = true
+            WorkerClient.RichWorkerResponse(
+                balanced, emptyList(), emptyList(), "medium", null, null,
+            )
+        })
+
+        val result = orchestrator.answer(
+            app, "¿Es necesario el bautismo para la salvación?",
+            reader, null, emptyList(), emptyList(), forceRemote = true,
+        )
+
+        assertTrue(remoteCalled)
+        assertTrue(result.answer == balanced)
+    }
 }
