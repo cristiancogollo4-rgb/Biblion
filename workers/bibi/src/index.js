@@ -1,3 +1,10 @@
+import {
+  containsUnsupportedAttribution,
+  needsOfficialSource,
+  unverifiedInstitutionalAnswer,
+  verifiedInstitutionalAnswer
+} from "./institutional_doctrine.js";
+
 const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
 const OPENAI_COMPATIBLE_BASE_URL = "https://ws-jtyu5n7ae7krw2qu.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1";
 const DEFAULT_BIBI_PROVIDER = "cloudflare-workers-ai";
@@ -200,6 +207,12 @@ export default {
       });
     }
 
+    const verifiedDoctrine = verifiedInstitutionalAnswer(question);
+    if (verifiedDoctrine) return jsonResponse(verifiedDoctrine);
+    if (needsOfficialSource(question)) {
+      return jsonResponse(unverifiedInstitutionalAnswer());
+    }
+
     const identityAnswer = buildIdentityAnswer(question, mode);
     if (identityAnswer) {
       return jsonResponse({
@@ -220,6 +233,9 @@ export default {
     }
     const dictionaryAnswer = buildDictionaryAnswer(question, dictionaryEntries, providedPassages, intent);
     if (dictionaryAnswer) {
+      if (containsUnsupportedAttribution(dictionaryAnswer.answer)) {
+        return jsonResponse(unverifiedInstitutionalAnswer());
+      }
       return jsonResponse(dictionaryAnswer);
     }
 
@@ -252,7 +268,13 @@ export default {
         });
         const content = extractCompletionContent(completion);
         if (content) {
-          return jsonResponse(parseBibiResponse(content));
+          const parsed = parseBibiResponse(content);
+          if ([parsed.answer, parsed.disclaimer, ...parsed.suggestedBlocks,
+            ...parsed.references.map((reference) => reference.reason)]
+            .some(containsUnsupportedAttribution)) {
+            return jsonResponse(unverifiedInstitutionalAnswer());
+          }
+          return jsonResponse(parsed);
         }
         console.warn("Bibi recibio una respuesta vacia del proveedor.", {
           provider: modelConfig.providerLabel,
@@ -267,14 +289,16 @@ export default {
       }
     }
 
-    return jsonResponse(buildTimeoutFallback({
+    const fallback = buildTimeoutFallback({
       question,
       mode,
       intent,
       selectedText: sanitizeText(study.selectedText, 1800),
       providedPassages,
       dictionaryEntries
-    }));
+    });
+    return jsonResponse(containsUnsupportedAttribution(fallback.answer)
+      ? unverifiedInstitutionalAnswer() : fallback);
   }
 };
 
@@ -538,6 +562,7 @@ function buildBibiPrompt({
     "  2. Lo que es interpretación reconocida.",
     "  3. Lo que es aplicación práctica o reflexión.",
     "Nunca presentes interpretaciones debatidas como hechos absolutos.",
+    "Cuando atribuyas una doctrina a una iglesia o denominación, exige una declaración oficial provista en el contexto. Si no hay fuente verificada, reconoce que no puedes confirmar su postura.",
     "",
     "CONFLICTO DE FUENTES",
     "Si los pasajes provistos por Biblion contradicen tu conocimiento general, prioriza siempre los pasajes provistos. Si el texto seleccionado contradice el pasaje completo, señálalo en el campo disclaimer sin inventar resolución.",
@@ -1022,7 +1047,7 @@ function isBibleDomain({
     "evangelio", "iglesia", "discipulado", "devocional", "predicacion", "sermon", "ensenanza",
     "versiculo", "pasaje", "capitulo", "libro", "testamento", "doctrina", "oracion", "fe",
     "gracia", "pecado", "salvacion", "creacion", "pacto", "profeta", "apostol", "discipulo",
-    "bautismo", "santa cena", "adoracion", "santidad", "justicia", "amor", "esperanza",
+    "bautismo", "santa cena", "cena del senor", "comunion", "adoracion", "santidad", "justicia", "amor", "esperanza",
     "genesis", "exodo", "levitico", "numeros", "deuteronomio", "josue", "jueces", "rut",
     "samuel", "reyes", "cronicas", "esdras", "nehemias", "ester", "job", "salmos",
     "proverbios", "eclesiastes", "cantares", "isaias", "jeremias", "lamentaciones",
@@ -1045,6 +1070,7 @@ function isBibleDomain({
     "medicina", "legal", "derecho", "finanzas", "inversion", "clima", "tecnologia"
   ];
   if (nonBibleSignals.some((signal) => normalizedQuestion.includes(signal))) return false;
+  if (needsOfficialSource(question)) return true;
   if (bibleSignals.some((signal) => normalized.includes(signal))) return true;
 
   return mode === "study" && (

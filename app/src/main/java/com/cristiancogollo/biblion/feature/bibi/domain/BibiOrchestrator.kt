@@ -24,6 +24,22 @@ class BibiOrchestrator(
         forceRemote: Boolean = false,
     ): BibiQueryResult {
         val intent = KnowledgeEngine.detectIntent(question, lastQueries)
+        InstitutionalDoctrinePolicy.verifiedAnswer(question)?.let { verifiedAnswer ->
+            return BibiQueryResult(
+                answer = verifiedAnswer,
+                confidence = Confidence.HIGH,
+                source = Source.LOCAL,
+                intent = intent.name,
+            )
+        }
+        if (InstitutionalDoctrinePolicy.needsOfficialSource(question)) {
+            return BibiQueryResult(
+                answer = InstitutionalDoctrinePolicy.UNVERIFIED_ANSWER,
+                confidence = Confidence.LOW,
+                source = Source.LOCAL,
+                intent = intent.name,
+            )
+        }
         val localResponse = if (forceRemote) {
             null
         } else {
@@ -35,8 +51,17 @@ class BibiOrchestrator(
         }
 
         if (localResponse != null && localResponse.confidence != Confidence.LOW) {
+            val localAnswer = localResponse.buildChatText()
+            if (InstitutionalDoctrinePolicy.containsUnsupportedAttribution(localAnswer)) {
+                return BibiQueryResult(
+                    answer = InstitutionalDoctrinePolicy.UNVERIFIED_ANSWER,
+                    confidence = Confidence.LOW,
+                    source = Source.LOCAL,
+                    intent = intent.name,
+                )
+            }
             return BibiQueryResult(
-                answer = localResponse.buildChatText(),
+                answer = localAnswer,
                 suggestions = localResponse.suggestions,
                 confidence = localResponse.confidence,
                 source = Source.LOCAL,
@@ -59,6 +84,18 @@ class BibiOrchestrator(
         )
 
         if (remoteResponse != null) {
+            if (listOf(remoteResponse.answer, remoteResponse.disclaimer.orEmpty())
+                    .plus(remoteResponse.references.map { it.reason })
+                    .plus(remoteResponse.suggestedBlocks)
+                    .any(InstitutionalDoctrinePolicy::containsUnsupportedAttribution)
+            ) {
+                return BibiQueryResult(
+                    answer = InstitutionalDoctrinePolicy.UNVERIFIED_ANSWER,
+                    confidence = Confidence.LOW,
+                    source = Source.LOCAL,
+                    intent = intent.name,
+                )
+            }
             val suggestions = remoteResponse.references.take(3).map {
                 BibiSuggestion(
                     label = "Explorar ${it.reference}",
