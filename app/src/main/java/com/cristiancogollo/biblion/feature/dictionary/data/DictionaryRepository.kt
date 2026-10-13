@@ -2,6 +2,7 @@ package com.cristiancogollo.biblion.feature.dictionary.data
 
 import android.content.Context
 import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
@@ -86,28 +87,32 @@ object DictionaryRepository {
     suspend fun searchEntries(
         context: Context,
         query: String
-    ): List<DictionarySearchResultUi> = withContext(Dispatchers.IO) {
-        if (query.isBlank()) return@withContext emptyList()
-
+    ): List<DictionarySearchResultUi> {
         try {
-            // Normalizar la query quitando acentos para busqueda insensible a tildes
-            // "oracion" o "oración" -> "oracion" -> encuentra "Oración" en normalized_term
-            val normalizedQuery = normalizeTerm(query)
-            val searchQuery = "%${normalizedQuery}%"
-
-            dao(context).searchEntries(searchQuery, SEARCH_LIMIT)
-                .map { result ->
-                    DictionarySearchResultUi(
-                        id = result.id,
-                        term = result.term,
-                        definitionPreview = truncateDefinition(result.definition, 150),
-                        category = parseCategory(result.category),
-                        rank = result.relevanceScore
-                    )
-                }
+            return searchEntriesOrThrow(context, query)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (e: Exception) {
             Log.e(TAG, "Error searching entries: ${e.message}", e)
-            emptyList()
+            return emptyList()
+        }
+    }
+
+    suspend fun searchEntriesOrThrow(
+        context: Context,
+        query: String,
+    ): List<DictionarySearchResultUi> = withContext(Dispatchers.IO) {
+        if (query.isBlank()) return@withContext emptyList()
+        val normalizedQuery = normalizeTerm(query)
+        val searchQuery = "%${normalizedQuery}%"
+        dao(context).searchEntries(searchQuery, SEARCH_LIMIT).map { result ->
+            DictionarySearchResultUi(
+                id = result.id,
+                term = result.term,
+                definitionPreview = truncateDefinition(result.definition, 150),
+                category = parseCategory(result.category),
+                rank = result.relevanceScore,
+            )
         }
     }
 
@@ -166,6 +171,14 @@ object DictionaryRepository {
         dao(context).getEntryByNormalizedTerm(normalized)?.toDomain()
     }
 
+    suspend fun getEntriesByTerm(
+        context: Context,
+        term: String,
+    ): List<DictionaryEntry> = withContext(Dispatchers.IO) {
+        val normalized = normalizeTerm(term)
+        dao(context).getEntriesByNormalizedTerm(normalized).map { it.toDomain() }
+    }
+
     /**
      * Obtiene sugerencias de autocompletado por prefijo.
      */
@@ -203,14 +216,23 @@ object DictionaryRepository {
     suspend fun getEntriesByCategory(
         context: Context,
         category: DictionaryCategory
-    ): List<DictionaryEntry> = withContext(Dispatchers.IO) {
+    ): List<DictionaryEntry> {
         try {
-            dao(context).getEntriesByCategory(category.name.lowercase(), 9999)
-                .map { it.toDomain() }
+            return getEntriesByCategoryOrThrow(context, category)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (e: Exception) {
             Log.e(TAG, "Error getting entries by category: ${e.message}", e)
-            emptyList()
+            return emptyList()
         }
+    }
+
+    suspend fun getEntriesByCategoryOrThrow(
+        context: Context,
+        category: DictionaryCategory,
+    ): List<DictionaryEntry> = withContext(Dispatchers.IO) {
+        dao(context).getEntriesByCategory(category.name.lowercase(), 9999)
+            .map { it.toDomain() }
     }
 
     /**

@@ -32,6 +32,7 @@ import com.cristiancogollo.biblion.feature.studydocs.ui.editor.syncFromStyledTex
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.fromAnnotatedString
 import com.mohamedrejeb.richeditor.model.RichTextState
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -115,35 +116,42 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
     fun loadByRemoteId(remoteId: String) {
         Log.d("BIBLION_STUDY", "StudyDocViewModel.loadByRemoteId start remoteId=$remoteId")
         _autoSaveJob?.cancel()
-        _uiState.update { it.copy(isLoading = true) }
+        _uiState.update { it.copy(isLoading = true, lastError = null) }
         viewModelScope.launch {
-            val doc = repository.getByRemoteId(remoteId)
-            Log.d("BIBLION_STUDY", "StudyDocViewModel.loadByRemoteId repo returned doc=${doc != null} blocks=${doc?.blocks?.size}")
-            if (doc != null) {
-                _remoteId = doc.remoteId
-                blockRichStates.clear()
-                listItemRichStates.clear()
-                lastRichTexts.clear()
-                doc.blocks.forEach { block ->
-                    initializeRichStates(block)
+            try {
+                val doc = repository.getByRemoteId(remoteId)
+                Log.d("BIBLION_STUDY", "StudyDocViewModel.loadByRemoteId repo returned doc=${doc != null} blocks=${doc?.blocks?.size}")
+                if (doc != null) {
+                    _remoteId = doc.remoteId
+                    blockRichStates.clear()
+                    listItemRichStates.clear()
+                    lastRichTexts.clear()
+                    doc.blocks.forEach { block ->
+                        initializeRichStates(block)
+                    }
+                    history.clear()
+                    Log.d("BIBLION_STUDY", "StudyDocViewModel.loadByRemoteId blockRichStates populated size=${blockRichStates.size}")
+                    val firstBlock = doc.blocks.firstOrNull()
+                    val firstId = firstBlock?.id
+                    val firstItemIndex = firstBlock?.let { navigationItemIndex(it, toEnd = false) }
+                    val initialFocusRequest = firstId?.let { nextFocusRequest(EditorTextKey(it, firstItemIndex)) }
+                    _uiState.value = StudyEditorUiState(
+                        doc = doc,
+                        activeBlockId = firstId,
+                        activeListItemIndex = firstItemIndex,
+                        focusRequest = initialFocusRequest,
+                        isLoading = false,
+                    )
+                    _isDocLoaded = true
+                } else {
+                    Log.d("BIBLION_STUDY", "StudyDocViewModel.loadByRemoteId doc NOT FOUND remoteId=$remoteId")
+                    _uiState.update { it.copy(isLoading = false, lastError = "Documento no encontrado") }
                 }
-                history.clear()
-                Log.d("BIBLION_STUDY", "StudyDocViewModel.loadByRemoteId blockRichStates populated size=${blockRichStates.size}")
-                val firstBlock = doc.blocks.firstOrNull()
-                val firstId = firstBlock?.id
-                val firstItemIndex = firstBlock?.let { navigationItemIndex(it, toEnd = false) }
-                val initialFocusRequest = firstId?.let { nextFocusRequest(EditorTextKey(it, firstItemIndex)) }
-                _uiState.value = StudyEditorUiState(
-                    doc = doc,
-                    activeBlockId = firstId,
-                    activeListItemIndex = firstItemIndex,
-                    focusRequest = initialFocusRequest,
-                    isLoading = false,
-                )
-                _isDocLoaded = true
-            } else {
-                Log.d("BIBLION_STUDY", "StudyDocViewModel.loadByRemoteId doc NOT FOUND remoteId=$remoteId")
-                _uiState.update { it.copy(isLoading = false, lastError = "Documento no encontrado") }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Log.e("BIBLION_STUDY", "No se pudo cargar el documento $remoteId", error)
+                _uiState.update { it.copy(isLoading = false, lastError = "No se pudo cargar el documento") }
             }
         }
     }
@@ -306,11 +314,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
                 ?.capabilities()?.supportsInlineFormatting == false
         ) return
         val rs = activeRichState() ?: return
-        if (rs.selection.collapsed) {
-            rs.toggleSpanStyle(SpanStyle(color = Color(argb)))
-        } else {
-            rs.addSpanStyle(SpanStyle(color = Color(argb)))
-        }
+        rs.setInlineColor(InlineColorTarget.TEXT, argb)
         onRichTextChanged(activeId, rs, _uiState.value.activeListItemIndex)
         syncActiveFormat(rs)
     }
@@ -321,37 +325,33 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
                 ?.capabilities()?.supportsInlineFormatting == false
         ) return
         val rs = activeRichState() ?: return
-        if (rs.selection.collapsed) {
-            rs.toggleSpanStyle(SpanStyle(background = Color(argb)))
-        } else {
-            rs.addSpanStyle(SpanStyle(background = Color(argb)))
-        }
+        rs.setInlineColor(InlineColorTarget.BACKGROUND, argb)
         onRichTextChanged(activeId, rs, _uiState.value.activeListItemIndex)
         syncActiveFormat(rs)
     }
 
-    fun clearActiveColor() {
+    fun clearActiveTextColor() = clearActiveColor(InlineColorTarget.TEXT)
+
+    fun clearActiveBackgroundColor() = clearActiveColor(InlineColorTarget.BACKGROUND)
+
+    private fun clearActiveColor(target: InlineColorTarget) {
         val activeId = _uiState.value.activeBlockId ?: return
         if (_uiState.value.doc.blocks.firstOrNull { it.id == activeId }
                 ?.capabilities()?.supportsInlineFormatting == false
         ) return
         val rs = activeRichState() ?: return
-        val sel = rs.selection
+        rs.setInlineColor(target, null)
+        onRichTextChanged(activeId, rs, _uiState.value.activeListItemIndex)
+        syncActiveFormat(rs)
+    }
 
-        if (sel.collapsed) {
-            rs.clearSpanStyles()
-        } else {
-            val keepStyle = SpanStyle(
-                fontWeight = rs.currentSpanStyle.fontWeight,
-                fontStyle = rs.currentSpanStyle.fontStyle,
-                textDecoration = rs.currentSpanStyle.textDecoration,
-                fontSize = rs.currentSpanStyle.fontSize,
-            )
-            rs.clearSpanStyles(sel)
-            if (keepStyle != SpanStyle()) {
-                rs.addSpanStyle(keepStyle, sel)
-            }
-        }
+    fun clearActiveFormatting() {
+        val activeId = _uiState.value.activeBlockId ?: return
+        if (_uiState.value.doc.blocks.firstOrNull { it.id == activeId }
+                ?.capabilities()?.supportsInlineFormatting == false
+        ) return
+        val rs = activeRichState() ?: return
+        if (rs.selection.collapsed) rs.clearSpanStyles() else rs.clearSpanStyles(rs.selection)
         onRichTextChanged(activeId, rs, _uiState.value.activeListItemIndex)
         syncActiveFormat(rs)
     }
@@ -524,49 +524,16 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
     fun stepFontSizeActive(delta: Int) {
         val activeId = _uiState.value.activeBlockId ?: return
         val activeBlock = _uiState.value.doc.blocks.firstOrNull { it.id == activeId } ?: return
-        if (activeBlock is StudyBlock.Verse) {
-            val size = (activeBlock.fontSize + delta)
-                .coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
-            applyOp(StudyOp.UpdateBlock(activeBlock.copy(fontSize = size)))
-            _uiState.update {
-                it.copy(activeFormat = ActiveFormatSnapshot(fontSize = size))
-            }
-            return
+        val rs = activeRichState()
+        val baseSize = when {
+            activeBlock is StudyBlock.Verse -> activeBlock.fontSize
+            rs == null || rs.annotatedString.isEmpty() -> activeBlock.fontSize
+            !rs.selection.collapsed -> detectBaseFontSize(rs, rs.selection)
+            rs.currentSpanStyle.fontSize.type == TextUnitType.Sp ->
+                rs.currentSpanStyle.fontSize.value.toInt()
+            else -> activeBlock.fontSize
         }
-        val rs = activeRichState() ?: return
-        val sel = rs.selection
-
-        if (sel.collapsed) {
-            val idx = _uiState.value.doc.blocks.indexOfFirst { it.id == activeId }
-            if (idx < 0) return
-            val block = _uiState.value.doc.blocks[idx]
-            val newSize = (block.fontSize + delta).coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
-            val updated = when (block) {
-                is StudyBlock.Paragraph -> block.copy(fontSize = newSize)
-                is StudyBlock.Heading -> block.copy(fontSize = newSize)
-                is StudyBlock.BulletList -> block.copy(fontSize = newSize)
-                is StudyBlock.OrderedList -> block.copy(fontSize = newSize)
-                is StudyBlock.Quote -> block.copy(fontSize = newSize)
-                is StudyBlock.Verse -> block.copy(fontSize = newSize)
-            }
-            val before = currentCheckpoint()
-            val newBlocks = _uiState.value.doc.blocks.toMutableList()
-            newBlocks[idx] = updated
-            _uiState.update {
-                it.copy(
-                    doc = it.doc.copy(blocks = newBlocks, updatedAt = System.currentTimeMillis()),
-                    hasUnsavedChanges = true,
-                )
-            }
-        } else {
-            // Con selección: modificar solo el tamaño y conservar color, fondo y énfasis.
-            val baseSize = detectBaseFontSize(rs, sel)
-            val newSize = (baseSize + delta).coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
-            rs.applyFontSizePreservingStyles(sel, newSize.toFloat())
-        }
-        onRichTextChanged(activeId, rs, _uiState.value.activeListItemIndex)
-        syncActiveFormat(rs)
-        if (rs.annotatedString.isEmpty()) scheduleAutoSave()
+        setFontSizeActive(baseSize + delta)
     }
 
     fun setFontSizeActive(fontSize: Int) {
@@ -1037,11 +1004,14 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
     }
 
     fun setActiveFontFamily(family: String) {
+        if (family !in setOf("sans", "serif", "monospace", "default")) return
         val activeId = _uiState.value.activeBlockId ?: return
         val blocks = _uiState.value.doc.blocks
         val idx = blocks.indexOfFirst { it.id == activeId }
         if (idx < 0) return
         val block = blocks[idx]
+        if (block is StudyBlock.Verse || block.fontFamily == family ||
+            (family == "sans" && block.fontFamily in listOf(null, "default"))) return
         val updated = when (block) {
             is StudyBlock.Paragraph -> block.copy(fontFamily = family)
             is StudyBlock.Heading -> block.copy(fontFamily = family)
@@ -1067,8 +1037,8 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
         scheduleAutoSave()
     }
 
-    fun saveNow(title: String, tags: List<String>) {
-        if (title.trim().isEmpty()) return
+    fun saveNow(title: String, tags: List<String>): Boolean {
+        if (_uiState.value.isSaving || title.trim().isEmpty()) return false
         _uiState.update {
             it.copy(
                 doc = it.doc.copy(title = title.trim(), metadata = DocMetadata(tags = tags)),
@@ -1076,9 +1046,11 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
             )
         }
         saveNow()
+        return true
     }
 
     fun saveNow() {
+        if (_uiState.value.isSaving) return
         _autoSaveJob?.cancel()
         if (!_uiState.value.doc.hasPersistableTitle()) return
         val current = _uiState.value.doc.withEditorTexts(currentRichTexts()).copy(
@@ -1091,7 +1063,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
                 repository.save(current)
                 _uiState.update {
                     it.copy(
-                        lastSavedAt = System.currentTimeMillis(),
+                        lastSavedAt = maxOf(System.currentTimeMillis(), (it.lastSavedAt ?: 0L) + 1L),
                         hasUnsavedChanges = false,
                         isSaving = false,
                     )
@@ -1228,13 +1200,12 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
         val key = EditorTextKey(blockId, itemIndex)
         val next = StyledText.fromAnnotatedString(richState.annotatedString)
         val previous = lastRichTexts[key]
-        StudyEditorDebugLog.log(
-            "RICH_SYNC",
+        StudyEditorDebugLog.log("RICH_SYNC") {
             "vm=single block=${blockId.value} item=$itemIndex " +
                 "previousLen=${previous?.length} nextLen=${next.length} " +
                 "nextPreview=${StudyEditorDebugLog.textPreview(next.raw)} " +
-                "doc=${StudyEditorDebugLog.blocksSummary(_uiState.value.doc.blocks)}",
-        )
+                "blockCount=${_uiState.value.doc.blocks.size}"
+        }
         if (previous == null) {
             StudyEditorDebugLog.log("RICH_SYNC_INIT", "vm=single block=${blockId.value} item=$itemIndex")
             lastRichTexts[key] = next
@@ -1260,11 +1231,10 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
                 hasUnsavedChanges = true,
             )
         }
-        StudyEditorDebugLog.log(
-            "RICH_SYNC_APPLIED",
+        StudyEditorDebugLog.log("RICH_SYNC_APPLIED") {
             "vm=single block=${blockId.value} item=$itemIndex " +
-                "doc=${StudyEditorDebugLog.blocksSummary(_uiState.value.doc.blocks)}",
-        )
+                "blockCount=${_uiState.value.doc.blocks.size}"
+        }
         scheduleAutoSave()
     }
 
@@ -1340,6 +1310,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
         val idx = _uiState.value.doc.blocks.indexOfFirst { it.id == blockId }
         if (idx < 0) return
         val block = _uiState.value.doc.blocks[idx]
+        if (block.alignment == alignment) return
         val updated = when (block) {
             is StudyBlock.Paragraph -> block.copy(alignment = alignment)
             is StudyBlock.Heading -> block.copy(alignment = alignment)

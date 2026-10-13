@@ -17,6 +17,11 @@ object StudyEditorDebugLog {
         Log.d(TAG, "#$id t=${SystemClock.uptimeMillis()} $stage | $message")
     }
 
+    inline fun log(stage: String, message: () -> String) {
+        if (!BuildConfig.DEBUG) return
+        log(stage, message())
+    }
+
     fun textPreview(text: String): String = text
         .replace("\n", "\\n")
         .replace("\r", "\\r")

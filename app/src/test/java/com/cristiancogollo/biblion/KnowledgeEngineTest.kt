@@ -256,8 +256,45 @@ class KnowledgeEngineTest {
     }
 
     @Test
-    fun `TOPICS tiene prioridad menor que GREETING`() {
-        assertEquals(KnowledgeEngine.BibiIntent.GREETING, KnowledgeEngine.detectIntent("hola, temas de Genesis"))
+    fun `saludo no oculta la pregunta sobre temas`() {
+        assertEquals(KnowledgeEngine.BibiIntent.TOPICS, KnowledgeEngine.detectIntent("hola, temas de Genesis"))
+    }
+
+    @Test
+    fun `saludo con pregunta por personaje conserva WHO`() {
+        assertEquals(KnowledgeEngine.BibiIntent.WHO, KnowledgeEngine.detectIntent("Hola, ¿quién fue Moisés?"))
+    }
+
+    @Test
+    fun `relacion entre conceptos no busca referencias cruzadas`() {
+        assertEquals(
+            KnowledgeEngine.BibiIntent.COMPARE_CONCEPTS,
+            KnowledgeEngine.detectIntent("¿Qué relación tiene la fe con la gracia?"),
+        )
+    }
+
+    @Test
+    fun `comparar traducciones no se clasifica como referencias cruzadas`() {
+        assertEquals(
+            KnowledgeEngine.BibiIntent.COMPARE_VERSIONS,
+            KnowledgeEngine.detectIntent("Compara con NVI este pasaje"),
+        )
+    }
+
+    @Test
+    fun `pregunta de ubicacion vence a seguimiento ambiguo`() {
+        assertEquals(
+            KnowledgeEngine.BibiIntent.WHERE,
+            KnowledgeEngine.detectIntent("y dónde vivió", listOf("¿Quién fue Abraham?")),
+        )
+    }
+
+    @Test
+    fun `aplicacion a la vida tiene intencion propia`() {
+        assertEquals(
+            KnowledgeEngine.BibiIntent.APPLICATION,
+            KnowledgeEngine.detectIntent("¿Cómo aplico este texto a mi vida?"),
+        )
     }
 
     @Test

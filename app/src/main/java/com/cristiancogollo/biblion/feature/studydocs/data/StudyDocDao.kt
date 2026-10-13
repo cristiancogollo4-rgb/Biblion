@@ -20,6 +20,15 @@ interface StudyDocDao {
     @Query("SELECT * FROM study_docs WHERE deleted_at IS NULL AND is_published = 1 AND owner_uid = :ownerUid ORDER BY updated_at DESC")
     fun observeByOwner(ownerUid: String): Flow<List<StudyDocEntity>>
 
+    @Query(
+        """
+        UPDATE study_docs
+        SET owner_uid = :ownerUid, is_dirty = 1
+        WHERE owner_uid IS NULL
+        """
+    )
+    suspend fun claimUnowned(ownerUid: String)
+
     @Query("SELECT * FROM study_docs WHERE id = :id")
     suspend fun getById(id: Long): StudyDocEntity?
 

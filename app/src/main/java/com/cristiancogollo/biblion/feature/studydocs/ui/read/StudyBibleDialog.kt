@@ -32,6 +32,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -54,6 +56,7 @@ import com.cristiancogollo.biblion.BibleVersionOption
 import com.cristiancogollo.biblion.ChapterContent
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.verseAccent
+import kotlinx.coroutines.CancellationException
 
 internal data class StudyBibleTarget(
     val bookName: String,
@@ -105,6 +108,9 @@ internal fun StudyBibleDialog(
     }
     var chapterContent by remember { mutableStateOf<ChapterContent?>(null) }
     var loading by remember { mutableStateOf(true) }
+    var loadFailed by remember { mutableStateOf(false) }
+    var reloadRequest by remember { mutableIntStateOf(0) }
+    var versionPickerRequest by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
         versions = BibleRepository.getAvailableVersions(context)
@@ -115,35 +121,44 @@ internal fun StudyBibleDialog(
             ?: selectedVersion
     }
 
-    LaunchedEffect(selectedVersion, selectedBook, selectedChapter) {
+    LaunchedEffect(selectedVersion, selectedBook, selectedChapter, reloadRequest) {
         loading = true
-        val loaded = BibleRepository.getChapter(
-            context = context,
-            bookName = selectedBook,
-            chapterNumber = selectedChapter,
-            versionKey = selectedVersion,
-        )
-        val validChapter = selectedChapter.coerceIn(1, loaded.chapterCount.coerceAtLeast(1))
-        if (validChapter != selectedChapter) {
-            selectedChapter = validChapter
-            return@LaunchedEffect
-        }
-        chapterContent = loaded
-        loading = false
+        loadFailed = false
+        chapterContent = null
+        try {
+            val loaded = BibleRepository.getChapter(
+                context = context,
+                bookName = selectedBook,
+                chapterNumber = selectedChapter,
+                versionKey = selectedVersion,
+            )
+            val validChapter = selectedChapter.coerceIn(1, loaded.chapterCount.coerceAtLeast(1))
+            if (validChapter != selectedChapter) {
+                selectedChapter = validChapter
+                return@LaunchedEffect
+            }
+            chapterContent = loaded
+            loading = false
 
-        val targetVerse = initialTarget
-            ?.takeIf { it.matches(selectedBook, selectedChapter) }
-            ?.verseNumbers
-            ?.minOrNull()
-        if (targetVerse != null) {
-            val targetIndex = loaded.verses.indexOfFirst { (number, _) ->
-                number.toIntOrNull() == targetVerse
+            val targetVerse = initialTarget
+                ?.takeIf { it.matches(selectedBook, selectedChapter) }
+                ?.verseNumbers
+                ?.minOrNull()
+            if (targetVerse != null) {
+                val targetIndex = loaded.verses.indexOfFirst { (number, _) ->
+                    number.toIntOrNull() == targetVerse
+                }
+                if (targetIndex >= 0) {
+                    listState.scrollToItem(targetIndex)
+                }
+            } else {
+                listState.scrollToItem(0)
             }
-            if (targetIndex >= 0) {
-                listState.scrollToItem(targetIndex)
-            }
-        } else {
-            listState.scrollToItem(0)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            loading = false
+            loadFailed = true
         }
     }
 
@@ -186,12 +201,40 @@ internal fun StudyBibleDialog(
                     versions = versions,
                     selectedVersion = selectedVersion,
                     onVersionSelected = { selectedVersion = it },
+                    versionPickerRequest = versionPickerRequest,
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 if (loading) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
+                    }
+                } else if (loadFailed) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(stringResource(com.cristiancogollo.biblion.R.string.reader_chapter_load_error))
+                            TextButton(onClick = { reloadRequest += 1 }) {
+                                Text(stringResource(com.cristiancogollo.biblion.R.string.action_retry))
+                            }
+                        }
+                    }
+                } else if (chapterContent?.chapterCount == 0) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text(
+                                stringResource(
+                                    com.cristiancogollo.biblion.R.string.reader_book_unavailable_in_version,
+                                    selectedBook,
+                                    selectedVersion.uppercase(),
+                                ),
+                            )
+                            TextButton(onClick = { versionPickerRequest += 1 }) {
+                                Text(stringResource(com.cristiancogollo.biblion.R.string.reader_choose_another_version))
+                            }
+                        }
                     }
                 } else {
                     LazyColumn(
@@ -273,6 +316,7 @@ private fun BibleNavigationControls(
     versions: List<BibleVersionOption>,
     selectedVersion: String,
     onVersionSelected: (String) -> Unit,
+    versionPickerRequest: Int,
 ) {
     Column(
         modifier = Modifier
@@ -323,6 +367,7 @@ private fun BibleNavigationControls(
             selected = selectedVersion,
             onSelected = onVersionSelected,
             modifier = Modifier.fillMaxWidth(),
+            openRequest = versionPickerRequest,
         )
     }
 }
@@ -335,8 +380,12 @@ private fun SelectionMenu(
     onSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
     optionLabel: (String) -> String = { it },
+    openRequest: Int = 0,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    LaunchedEffect(openRequest) {
+        if (openRequest > 0) expanded = true
+    }
     Box(modifier = modifier) {
         Surface(
             onClick = { expanded = true },

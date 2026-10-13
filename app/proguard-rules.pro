@@ -19,3 +19,20 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+-keepattributes SourceFile,LineNumberTable,Signature,*Annotation*
+-renamesourcefileattribute SourceFile
+
+# The study format is persisted and exchanged through generated serializers.
+-keepclassmembers class com.cristiancogollo.biblion.feature.studydocs.model.** {
+    *** Companion;
+}
+-keepclasseswithmembers,includedescriptorclasses class com.cristiancogollo.biblion.feature.studydocs.model.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}

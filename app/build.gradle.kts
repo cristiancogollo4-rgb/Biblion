@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.google.services)
+    alias(libs.plugins.androidx.baselineprofile)
 }
 
 val keyProperties = Properties()
@@ -21,6 +22,11 @@ if (keyPropertiesFile.exists()) {
 if (localPropertiesFile.exists()) {
     localPropertiesFile.inputStream().use(localProperties::load)
 }
+
+val bibiEndpointUrl = System.getenv("BIBI_ENDPOINT_URL")
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() }
+    ?: localProperties.getProperty("bibiEndpointUrl", "").trim()
 
 val ciKeystorePath = System.getenv("CM_KEYSTORE_PATH")
 val ciKeystorePassword = System.getenv("CM_KEYSTORE_PASSWORD")
@@ -59,7 +65,7 @@ android {
         buildConfigField(
             "String",
             "BIBI_ENDPOINT_URL",
-            "\"${localProperties.getProperty("bibiEndpointUrl", "").trim()}\""
+            "\"$bibiEndpointUrl\""
         )
     }
 
@@ -84,7 +90,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             if (hasCiSigning || hasLocalSigning) {
                 signingConfig = signingConfigs.getByName("release")
             }
@@ -92,6 +99,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        create("benchmark") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+            isDebuggable = false
         }
     }
     compileOptions {
@@ -104,6 +117,27 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
+val validateReleaseConfiguration by tasks.registering {
+    doLast {
+        check(hasCiSigning || hasLocalSigning) {
+            "Release signing is not configured. Provide key.properties or CM_KEYSTORE_* secrets."
+        }
+        check(bibiEndpointUrl.isNotBlank()) {
+            "BIBI_ENDPOINT_URL must be configured for a production release."
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name in setOf("assembleRelease", "bundleRelease", "packageRelease")) {
+        dependsOn(validateReleaseConfiguration)
     }
 }
 
@@ -125,6 +159,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.ui)
     implementation(libs.androidx.runtime)
     implementation(libs.material3)
+    implementation(libs.androidx.profileinstaller)
+    baselineProfile(project(":baselineprofile"))
     ksp(libs.androidx.room.compiler)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.richeditor.compose)

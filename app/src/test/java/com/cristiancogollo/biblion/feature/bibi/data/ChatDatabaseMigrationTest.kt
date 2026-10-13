@@ -24,7 +24,7 @@ class ChatDatabaseMigrationTest {
     }
 
     @Test
-    fun `migration 1 to 2 preserves messages and adds passage context`() = runBlocking {
+    fun `migration 1 to 3 preserves messages and assigns legacy chats to guest`() = runBlocking {
         context.deleteDatabase(databaseName)
         context.openOrCreateDatabase(databaseName, Context.MODE_PRIVATE, null).use { db ->
             db.execSQL(
@@ -64,7 +64,7 @@ class ChatDatabaseMigrationTest {
         }
 
         val migrated = Room.databaseBuilder(context, ChatDatabase::class.java, databaseName)
-            .addMigrations(ChatDatabase.MIGRATION_1_2)
+            .addMigrations(ChatDatabase.MIGRATION_1_2, ChatDatabase.MIGRATION_2_3)
             .allowMainThreadQueries()
             .build()
 
@@ -72,6 +72,9 @@ class ChatDatabaseMigrationTest {
         assertEquals(1, messages.size)
         assertEquals("Respuesta guardada", messages.single().content)
         assertEquals(null, messages.single().contextPassagesJson)
+        val sessions = migrated.sessionDao().getAll(GUEST_CHAT_OWNER)
+        assertEquals(1, sessions.size)
+        assertEquals(GUEST_CHAT_OWNER, sessions.single().ownerUid)
 
         migrated.openHelper.readableDatabase.query("PRAGMA table_info(chat_messages)").use { cursor ->
             val nameIndex = cursor.getColumnIndexOrThrow("name")
@@ -79,6 +82,13 @@ class ChatDatabaseMigrationTest {
                 while (cursor.moveToNext()) add(cursor.getString(nameIndex))
             }
             assertTrue("La migracion debe agregar context_passages_json", "context_passages_json" in columns)
+        }
+        migrated.openHelper.readableDatabase.query("PRAGMA table_info(chat_sessions)").use { cursor ->
+            val nameIndex = cursor.getColumnIndexOrThrow("name")
+            val columns = buildSet {
+                while (cursor.moveToNext()) add(cursor.getString(nameIndex))
+            }
+            assertTrue("La migracion debe agregar owner_uid", "owner_uid" in columns)
         }
         migrated.close()
     }

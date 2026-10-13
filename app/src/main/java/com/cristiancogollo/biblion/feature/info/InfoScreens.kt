@@ -1,11 +1,15 @@
 package com.cristiancogollo.biblion
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.AddAPhoto
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
@@ -14,8 +18,11 @@ import androidx.compose.runtime.CompositionLocal
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -29,6 +36,8 @@ import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 
 @Composable
 fun AboutBiblionDialog(onDismiss: () -> Unit) {
+    val uriHandler = LocalUriHandler.current
+
     AlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.widthIn(max = 560.dp),
@@ -92,6 +101,29 @@ fun AboutBiblionDialog(onDismiss: () -> Unit) {
                 )
 
                 Text(
+                    text = "Encuéntranos",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                SocialLinkRow(
+                    icon = Icons.Default.AddAPhoto,
+                    title = "Instagram",
+                    value = "@biblionoficial",
+                    onClick = {
+                        uriHandler.openUri("https://www.instagram.com/biblionoficial/?hl=es")
+                    }
+                )
+                SocialLinkRow(
+                    icon = Icons.Default.Explore,
+                    title = "Página web",
+                    value = "biblion-web-roan.vercel.app",
+                    onClick = {
+                        uriHandler.openUri("https://biblion-web-roan.vercel.app")
+                    }
+                )
+
+                Text(
                     buildAnnotatedString {
                         withStyle(
                             SpanStyle(
@@ -117,6 +149,59 @@ fun AboutBiblionDialog(onDismiss: () -> Unit) {
         titleContentColor = MaterialTheme.colorScheme.onSurface,
         textContentColor = MaterialTheme.colorScheme.onSurface
     )
+}
+
+@Composable
+private fun SocialLinkRow(
+    icon: ImageVector,
+    title: String,
+    value: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClick = onClick),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(42.dp),
+                color = BiblionGoldPrimary.copy(alpha = 0.14f),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = BiblionGoldPrimary
+                    )
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = value,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = "Abrir $title",
+                tint = BiblionGoldPrimary
+            )
+        }
+    }
 }
 
 @Composable

@@ -5,6 +5,7 @@ import android.net.Uri
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageMetadata
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -58,6 +59,11 @@ class FirestoreUserProfileRepository(
     private val storage: FirebaseStorage = FirebaseStorage.getInstance()
 ) : UserProfileRepository {
 
+    private companion object {
+        const val MAX_PROFILE_PHOTO_BYTES = 5L * 1024L * 1024L
+        const val PROFILE_PHOTO_CACHE_CONTROL = "public,max-age=31536000,immutable"
+    }
+
     override fun observeProfile(uid: String): Flow<BiblionUserProfile?> = callbackFlow {
         val listener = userDocument(uid).addSnapshotListener { snapshot, error ->
             if (error != null) {
@@ -107,21 +113,34 @@ class FirestoreUserProfileRepository(
     }
 
     override suspend fun uploadProfilePhoto(context: Context, uid: String, imageUri: Uri): String {
+        context.contentResolver.openAssetFileDescriptor(imageUri, "r")?.use { descriptor ->
+            require(descriptor.length < 0L || descriptor.length < MAX_PROFILE_PHOTO_BYTES) {
+                "La foto de perfil debe pesar menos de 5 MB."
+            }
+        }
+        val contentType = context.contentResolver.getType(imageUri)
+            ?.takeIf { it.startsWith("image/") }
+            ?: "image/jpeg"
         val stream = context.contentResolver.openInputStream(imageUri)
             ?: error("No se pudo abrir la imagen seleccionada.")
-        val photoRef = storage.reference
-            .child("profile_photos")
-            .child(uid)
-            .child("avatar.jpg")
+        val photoRef = profilePhotoReference(uid)
+        val metadata = StorageMetadata.Builder()
+            .setContentType(contentType)
+            .setCacheControl(PROFILE_PHOTO_CACHE_CONTROL)
+            .build()
         stream.use { input ->
-            photoRef.putStream(input).awaitResult()
+            photoRef.putStream(input, metadata).awaitResult()
         }
-        val downloadUrl = photoRef.downloadUrl.awaitResult().toString()
+        val updatedAt = System.currentTimeMillis()
+        val rawDownloadUrl = photoRef.downloadUrl.awaitResult().toString()
+        val downloadUrl = rawDownloadUrl +
+            (if ('?' in rawDownloadUrl) "&" else "?") +
+            "v=$updatedAt"
         userDocument(uid).set(
             mapOf(
                 "fotoPerfil" to downloadUrl,
                 "foto_perfil" to downloadUrl,
-                "updatedAt" to System.currentTimeMillis()
+                "updatedAt" to updatedAt
             ),
             SetOptions.merge()
         ).awaitCompletion()
@@ -129,6 +148,7 @@ class FirestoreUserProfileRepository(
     }
 
     override suspend fun clearProfilePhoto(uid: String) {
+        runCatching { profilePhotoReference(uid).delete().awaitCompletion() }
         userDocument(uid).set(
             mapOf(
                 "fotoPerfil" to null,
@@ -140,6 +160,11 @@ class FirestoreUserProfileRepository(
     }
 
     private fun userDocument(uid: String) = firestore.collection("users").document(uid)
+
+    private fun profilePhotoReference(uid: String) = storage.reference
+        .child("profile_photos")
+        .child(uid)
+        .child("avatar.jpg")
 }
 
 private fun Map<String, Any>.toUserProfile(uid: String): BiblionUserProfile {

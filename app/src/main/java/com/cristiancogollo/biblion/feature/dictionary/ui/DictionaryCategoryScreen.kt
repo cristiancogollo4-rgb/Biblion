@@ -4,8 +4,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -39,14 +37,15 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,13 +65,8 @@ import com.cristiancogollo.biblion.feature.dictionary.data.DictionaryRepository
 import com.cristiancogollo.biblion.feature.dictionary.data.DictionarySearchResultUi
 import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
-import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 
 private val categoryColors = mapOf(
     DictionaryCategory.PERSON to Color(0xFF8D6E63),
@@ -119,7 +113,7 @@ private val canonicalBookOrder = listOf(
     "Judas", "Apocalipsis"
 )
 
-@OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DictionaryCategoryScreen(
     navController: NavController,
@@ -132,55 +126,51 @@ fun DictionaryCategoryScreen(
     val catColor = categoryColors[catEnum] ?: Color(0xFF607D8B)
     val catLabel = stringResource(categoryLabelRes[catEnum] ?: R.string.dictionary_category_other)
 
-    val queryFlow = remember { MutableStateFlow("") }
     var query by remember { mutableStateOf("") }
     var entries by remember { mutableStateOf<List<DictionarySearchResultUi>>(emptyList()) }
+    var allCategoryEntries by remember(catEnum) {
+        mutableStateOf<List<DictionarySearchResultUi>?>(null)
+    }
     var isLoading by remember { mutableStateOf(true) }
-    val coroutineScope = rememberCoroutineScope()
+    var loadFailed by remember { mutableStateOf(false) }
+    var retryCount by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(Unit) {
-        val allEntries = DictionaryRepository.getEntriesByCategory(context, catEnum)
-        entries = allEntries.map {
-            DictionarySearchResultUi(
-                id = it.id,
-                term = it.term,
-                definitionPreview = it.definition,
-                category = catEnum,
-                rank = 0.0
-            )
-        }.let { list ->
-            if (catEnum == DictionaryCategory.BOOK) {
-                list.sortedBy { entry ->
+    LaunchedEffect(query, catEnum, retryCount) {
+        isLoading = true
+        loadFailed = false
+        if (query.trim().length >= 2) delay(400L)
+        try {
+            val results = if (query.trim().length >= 2) {
+                DictionaryRepository.searchEntriesOrThrow(context, query)
+                    .filter { it.category == catEnum }
+            } else {
+                allCategoryEntries ?: DictionaryRepository
+                    .getEntriesByCategoryOrThrow(context, catEnum)
+                    .map {
+                        DictionarySearchResultUi(
+                            id = it.id,
+                            term = it.term,
+                            definitionPreview = it.definition,
+                            category = catEnum,
+                            rank = 0.0,
+                        )
+                    }.also { allCategoryEntries = it }
+            }
+            entries = if (catEnum == DictionaryCategory.BOOK) {
+                results.sortedBy { entry ->
                     canonicalBookOrder.indexOfFirst {
                         it.normalizeForBookOrder() == entry.term.normalizeForBookOrder()
                     }.let { if (it == -1) Int.MAX_VALUE else it }
                 }
-            } else list
+            } else results
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            entries = emptyList()
+            loadFailed = true
+        } finally {
+            isLoading = false
         }
-        isLoading = false
-    }
-
-    LaunchedEffect(Unit) {
-        queryFlow
-            .debounce(400L)
-            .filter { it.trim().length >= 2 }
-            .distinctUntilChanged()
-            .collectLatest { q ->
-                isLoading = true
-                runCatching {
-                    val results = DictionaryRepository.searchEntries(context, q)
-                    entries = results.filter { it.category == catEnum }.let { list ->
-                        if (catEnum == DictionaryCategory.BOOK) {
-                            list.sortedBy { entry ->
-                                canonicalBookOrder.indexOfFirst {
-                                    it.normalizeForBookOrder() == entry.term.normalizeForBookOrder()
-                                }.let { if (it == -1) Int.MAX_VALUE else it }
-                            }
-                        } else list
-                    }
-                }.onFailure { entries = emptyList() }
-                isLoading = false
-            }
     }
 
     Scaffold(
@@ -218,9 +208,6 @@ fun DictionaryCategoryScreen(
                 value = query,
                 onValueChange = {
                     query = it
-                    if (it.trim().length >= 2) {
-                        queryFlow.value = it
-                    }
                 },
                 placeholder = {
                     Text(
@@ -239,23 +226,8 @@ fun DictionaryCategoryScreen(
                     {
                         IconButton(onClick = {
                             query = ""
-                            queryFlow.value = ""
-                            coroutineScope.launch {
-                                isLoading = true
-                                val allEntries = DictionaryRepository.getEntriesByCategory(context, catEnum)
-                                entries = allEntries.map {
-                                    DictionarySearchResultUi(
-                                        id = it.id,
-                                        term = it.term,
-                                        definitionPreview = it.definition,
-                                        category = catEnum,
-                                        rank = 0.0
-                                    )
-                                }
-                                isLoading = false
-                            }
                         }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Limpiar")
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_clear))
                         }
                     }
                 } else null,
@@ -277,6 +249,19 @@ fun DictionaryCategoryScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     CircularProgressIndicator(color = catColor)
+                }
+            } else if (loadFailed) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(stringResource(R.string.dictionary_search_error))
+                    TextButton(onClick = {
+                        allCategoryEntries = null
+                        retryCount++
+                    }) {
+                        Text(stringResource(R.string.action_retry))
+                    }
                 }
             } else if (entries.isEmpty()) {
                 Box(

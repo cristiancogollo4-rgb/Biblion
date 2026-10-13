@@ -26,6 +26,9 @@ object KnowledgeEngine {
         EXPLAIN_VERSE,
         GREETING,
         DIVE_DEEPER,
+        APPLICATION,
+        COMPARE_CONCEPTS,
+        COMPARE_VERSIONS,
         FALLBACK
     }
 
@@ -49,6 +52,12 @@ object KnowledgeEngine {
     ): BibiResponse? {
         Log.d(TAG, "Pregunta: $question")
 
+        val hasGreetingPrefix = greetingPrefix.containsMatchIn(question)
+        val effectiveQuestion = if (hasGreetingPrefix) {
+            stripLeadingGreeting(question).ifBlank { question }
+        } else {
+            question
+        }
         val intent = detectIntent(question, userContext.lastQueries)
         Log.d(TAG, "Intencion: $intent")
 
@@ -62,27 +71,67 @@ object KnowledgeEngine {
             chatHistory = userContext.chatHistory
         )
 
-        return when (intent) {
-            BibiIntent.DEFINE -> handleDefine(context, question, bibiCtx)
-            BibiIntent.WHO -> handleWho(context, question, bibiCtx)
-            BibiIntent.WHERE -> handleWhere(context, question, bibiCtx)
-            BibiIntent.RELATED -> handleRelated(context, question, userContext)
-            BibiIntent.TOPICS -> handleTopics(context, question, userContext)
-            BibiIntent.ORIGINAL_LANG -> handleOriginalLang(context, question)
-            BibiIntent.EXPLAIN_VERSE -> handleExplainVerse(context, question, userContext, bibiCtx)
+        val response = when (intent) {
+            BibiIntent.DEFINE -> handleDefine(context, effectiveQuestion, bibiCtx)
+            BibiIntent.WHO -> handleWho(context, effectiveQuestion, bibiCtx)
+            BibiIntent.WHERE -> handleWhere(context, effectiveQuestion, bibiCtx)
+            BibiIntent.RELATED -> handleRelated(context, effectiveQuestion, userContext)
+            BibiIntent.TOPICS -> handleTopics(context, effectiveQuestion, userContext)
+            BibiIntent.ORIGINAL_LANG -> handleOriginalLang(context, effectiveQuestion)
+            BibiIntent.EXPLAIN_VERSE -> handleExplainVerse(context, effectiveQuestion, userContext, bibiCtx)
             BibiIntent.GREETING -> handleGreeting(userContext.userName)
-            BibiIntent.DIVE_DEEPER -> handleDiveDeeper(context, question, bibiCtx)
+            BibiIntent.DIVE_DEEPER -> handleDiveDeeper(context, effectiveQuestion, bibiCtx)
+            BibiIntent.APPLICATION,
+            BibiIntent.COMPARE_CONCEPTS,
+            BibiIntent.COMPARE_VERSIONS,
             BibiIntent.FALLBACK -> null
+        }
+        return if (hasGreetingPrefix && effectiveQuestion != question && intent != BibiIntent.GREETING) {
+            response?.copy(greeting = userContext.userName
+                ?.substringBefore(" ")
+                ?.takeIf { it.isNotBlank() }
+                ?.let { "¡Hola $it!" } ?: "¡Hola!")
+        } else {
+            response
         }
     }
 
     private val verseRefRegex = Regex("\\w+\\s+\\d+:\\d+")
 
+    private val greetingPrefix = Regex(
+        """(?iu)^\s*[¡¿]?\s*(?:hola|buenas(?:\s+tardes|\s+noches)?|buenos\s+d[ií]as|hey|saludos|qu[eé]\s+tal|c[oó]mo\s+est[aá]s|hello)\b[\s,!¡?¿.:;-]*"""
+    )
+
+    private fun stripLeadingGreeting(question: String): String =
+        greetingPrefix.replaceFirst(question, "").trim()
+
     fun detectIntent(question: String, lastQueries: List<String> = emptyList()): BibiIntent {
-        val q = removeAccents(question.lowercase().trim())
+        val hasGreetingPrefix = greetingPrefix.containsMatchIn(question)
+        val withoutGreeting = if (hasGreetingPrefix) {
+            stripLeadingGreeting(question)
+        } else {
+            question.trim()
+        }
+        val q = removeAccents(withoutGreeting.lowercase().trim())
+
+        if (q.isBlank() && hasGreetingPrefix) return BibiIntent.GREETING
+
+        val asksComparison = listOf("compar", "diferencia entre", "diferencias entre")
+            .any(q::contains)
+        val mentionsVersion = listOf(
+            "version", "traduccion", "rv1960", "rvr1960", "nvi", "ntv", "tla", "dhh",
+        ).any(q::contains)
+        val asksConceptRelationship = listOf(
+            "que relacion tiene", "relacion entre", "diferencia entre", "diferencias entre",
+        ).any(q::contains) || (asksComparison && q.contains(" con "))
+        val hasVerseReference = verseRefRegex.containsMatchIn(q)
 
         return when {
-            diveDeeperDetect(q, lastQueries) -> BibiIntent.DIVE_DEEPER
+            asksComparison && mentionsVersion -> BibiIntent.COMPARE_VERSIONS
+            asksConceptRelationship && !hasVerseReference &&
+                !q.contains("versiculo") && !q.contains("pasaje") -> BibiIntent.COMPARE_CONCEPTS
+            q.contains("como aplic") || q.contains("aplicar") ||
+                q.contains("aplicacion para") || q.contains("para mi vida") -> BibiIntent.APPLICATION
 
             q.startsWith("hola") || q.startsWith("buenas") ||
             q.startsWith("hey") || q.startsWith("saludos") ||
@@ -205,6 +254,8 @@ object KnowledgeEngine {
             q.contains("de qué se habla") ||
             q.contains("que temas menciona") || q.contains("qué temas menciona") ||
             q.contains("que tema menciona") || q.contains("qué tema menciona") -> BibiIntent.TOPICS
+
+            diveDeeperDetect(q, lastQueries) -> BibiIntent.DIVE_DEEPER
 
             else -> BibiIntent.FALLBACK
         }
@@ -557,6 +608,22 @@ object KnowledgeEngine {
         )
         val resolution = VerseResolver.resolve(readerSnapshot, question)
 
+        if (resolution.source == VerseResolver.Source.SELECTION &&
+            userContext.selectedVerses.size > 1
+        ) {
+            return BibiResponse(
+                title = "Elige un versículo",
+                definition = "Seleccionaste varios versículos. Las referencias cruzadas se consultan para uno a la vez.",
+                followUp = "¿Con cuál quieres empezar?",
+                suggestions = userContext.selectedVerses.sorted().take(3).map { verse ->
+                    BibiSuggestion(
+                        "${resolution.book} ${resolution.chapter}:$verse",
+                        "referencias cruzadas de ${resolution.book} ${resolution.chapter}:$verse",
+                    )
+                },
+            )
+        }
+
         if (resolution.source == VerseResolver.Source.NONE) {
             return BibiResponse(
                 title = "Para buscar pasajes relacionados",
@@ -735,6 +802,22 @@ object KnowledgeEngine {
             selectedVerses = userContext.selectedVerses
         )
         val resolution = VerseResolver.resolve(readerSnapshot, question)
+
+        if (resolution.source == VerseResolver.Source.SELECTION &&
+            userContext.selectedVerses.size > 1
+        ) {
+            return BibiResponse(
+                title = "Elige un versículo",
+                definition = "Seleccionaste varios versículos. Puedo mostrar los temas de uno a la vez.",
+                followUp = "¿Cuál quieres explorar primero?",
+                suggestions = userContext.selectedVerses.sorted().take(3).map { verse ->
+                    BibiSuggestion(
+                        "${resolution.book} ${resolution.chapter}:$verse",
+                        "temas de ${resolution.book} ${resolution.chapter}:$verse",
+                    )
+                },
+            )
+        }
 
         if (resolution.source == VerseResolver.Source.NONE) {
             return BibiResponse(

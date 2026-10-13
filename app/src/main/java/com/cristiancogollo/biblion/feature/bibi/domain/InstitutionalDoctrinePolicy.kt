@@ -55,6 +55,25 @@ object InstitutionalDoctrinePolicy {
             namedAttribution.containsMatchIn(normalized)
     }
 
+    /** Respuesta de respaldo cuando una pregunta general recibe una atribución no verificable. */
+    fun generalQuestionFallback(question: String): String? {
+        if (needsOfficialSource(question)) return null
+        val normalized = normalize(question)
+        val asksAboutBaptism = Regex("\\bbauti(?:smo|zar|zado|zarse)\\b")
+            .containsMatchIn(normalized)
+        val asksAboutSalvation = Regex(
+            "\\b(?:salvacion|salvar(?:se)?|salva|salvos?|necesari[oa]s?|requisito|perdon)\\b",
+        ).containsMatchIn(normalized)
+        if (!asksAboutBaptism || !asksAboutSalvation) return null
+
+        return "La relación entre el bautismo y la salvación se interpreta de distintas maneras. " +
+            "Hechos 2:38 relaciona el arrepentimiento y el bautismo con el perdón; " +
+            "Efesios 2:8-9 destaca la salvación por gracia mediante la fe. " +
+            "Algunos cristianos consideran el bautismo parte necesaria de la respuesta de fe; " +
+            "otros lo entienden como una obediencia posterior, no como la causa de la salvación. " +
+            "Podemos examinar esos pasajes en su contexto o partir de la perspectiva que tú prefieras."
+    }
+
     fun verifiedAnswer(question: String): String? {
         val normalized = normalize(question)
         val mentionsIpuc = Regex("\\bipuc\\b|\\biglesia pentecostal unida de colombia\\b")

@@ -37,6 +37,33 @@ export function unverifiedInstitutionalAnswer() {
   };
 }
 
+export function generalQuestionFallback(question) {
+  if (needsOfficialSource(question)) return null;
+  const normalized = normalize(question);
+  if (!/\bbauti(?:smo|zar|zado|zarse)\b/.test(normalized) ||
+    !/\b(?:salvacion|salvar(?:se)?|salva|salvos?|necesari[oa]s?|requisito|perdon)\b/.test(normalized)) {
+    return null;
+  }
+  return "La relación entre el bautismo y la salvación se interpreta de distintas maneras. " +
+    "Hechos 2:38 relaciona el arrepentimiento y el bautismo con el perdón; " +
+    "Efesios 2:8-9 destaca la salvación por gracia mediante la fe. " +
+    "Algunos cristianos consideran el bautismo parte necesaria de la respuesta de fe; " +
+    "otros lo entienden como una obediencia posterior, no como la causa de la salvación. " +
+    "Podemos examinar esos pasajes en su contexto o partir de la perspectiva que tú prefieras.";
+}
+
+export function attributionFallback(question) {
+  const generalAnswer = generalQuestionFallback(question);
+  return generalAnswer ? {
+    answer: generalAnswer,
+    references: [],
+    suggestedBlocks: [],
+    confidence: "medium",
+    disclaimer: null,
+    intentDetected: "general_doctrinal_answer"
+  } : unverifiedInstitutionalAnswer();
+}
+
 export function verifiedInstitutionalAnswer(question) {
   const normalized = normalize(question);
   const mentionsIpuc = /\bipuc\b|\biglesia pentecostal unida de colombia\b/.test(normalized);

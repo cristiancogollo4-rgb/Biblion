@@ -1,6 +1,7 @@
 package com.cristiancogollo.biblion.feature.studydocs.ui.pagination
 
 import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -42,10 +43,12 @@ object PaginationEngine {
         pageHeightPx: Float,
         textMeasurer: TextMeasurer,
         density: Density = Density(1f),
+        cancellationCheck: () -> Unit = {},
     ): List<Page> {
         if (blocks.isEmpty() || pageWidthPx <= 0f || pageHeightPx <= 0f) {
             return listOf(Page(0, emptyList()))
         }
+        cancellationCheck()
 
         val pages = mutableListOf<MutableList<PageFragment>>()
         var currentFragments = mutableListOf<PageFragment>()
@@ -60,6 +63,7 @@ object PaginationEngine {
         }
 
         for ((index, block) in blocks.withIndex()) {
+            cancellationCheck()
             // KEEP-WITH-NEXT: si es Heading y el heading + el siguiente bloque
             // no caben juntos en la pagina actual, empujamos el heading a la
             // siguiente pagina para evitar encabezados huerfanos.
@@ -103,6 +107,7 @@ object PaginationEngine {
                         density = density,
                         textMeasurer = textMeasurer,
                         style = style,
+                        cancellationCheck = cancellationCheck,
                         onSliceEmitted = { f -> currentFragments.add(f) },
                         onPageFilled = { openPage() },
                     )
@@ -128,12 +133,14 @@ object PaginationEngine {
                         density = density,
                         textMeasurer = textMeasurer,
                         style = style,
+                        cancellationCheck = cancellationCheck,
                         onSliceEmitted = { f -> currentFragments.add(f) },
                         onPageFilled = { openPage() },
                     )
                 }
                 is StudyBlock.BulletList -> {
                     block.items.forEachIndexed { index, item ->
+                        cancellationCheck()
                         var sliceIndex = 0
                         cursorY = placePartible(
                             text = item.toAnnotatedString(),
@@ -157,6 +164,7 @@ object PaginationEngine {
                             density = density,
                             textMeasurer = textMeasurer,
                             style = style,
+                            cancellationCheck = cancellationCheck,
                             onSliceEmitted = { f -> currentFragments.add(f) },
                             onPageFilled = { openPage() },
                         )
@@ -164,6 +172,7 @@ object PaginationEngine {
                 }
                 is StudyBlock.OrderedList -> {
                     block.items.forEachIndexed { index, item ->
+                        cancellationCheck()
                         var sliceIndex = 0
                         cursorY = placePartible(
                             text = item.toAnnotatedString(),
@@ -187,6 +196,7 @@ object PaginationEngine {
                             density = density,
                             textMeasurer = textMeasurer,
                             style = style,
+                            cancellationCheck = cancellationCheck,
                             onSliceEmitted = { f -> currentFragments.add(f) },
                             onPageFilled = { openPage() },
                         )
@@ -201,6 +211,7 @@ object PaginationEngine {
                         density = density,
                         textMeasurer = textMeasurer,
                         style = style,
+                        cancellationCheck = cancellationCheck,
                         onSliceEmitted = { currentFragments.add(it) },
                         onPageFilled = { openPage() },
                     )
@@ -228,6 +239,7 @@ object PaginationEngine {
                         density = density,
                         textMeasurer = textMeasurer,
                         style = style,
+                        cancellationCheck = cancellationCheck,
                         onSliceEmitted = { f -> currentFragments.add(f) },
                         onPageFilled = { openPage() },
                     )
@@ -262,9 +274,11 @@ object PaginationEngine {
         density: Density,
         textMeasurer: TextMeasurer,
         style: TextStyle,
+        cancellationCheck: () -> Unit,
         onSliceEmitted: (PageFragment) -> Unit,
         onPageFilled: () -> Unit,
     ): Float {
+        cancellationCheck()
         if (text.isEmpty()) {
             val emptyLayout = textMeasurer.measure(
                 text = AnnotatedString(" "),
@@ -287,12 +301,11 @@ object PaginationEngine {
             constraints = Constraints(maxWidth = pageWidthPx.toInt()),
             density = density,
         )
-        StudyEditorDebugLog.log(
-            "PAGINATION_TEXT_LAYOUT",
+        StudyEditorDebugLog.log("PAGINATION_TEXT_LAYOUT") {
             "length=${text.length} widthLimit=${pageWidthPx.toInt()} " +
                 "layout=${layout.size.width}x${layout.size.height} lines=${layout.lineCount} " +
-                "fontSize=${style.fontSize} lineHeight=${style.lineHeight} density=$density",
-        )
+                "fontSize=${style.fontSize} lineHeight=${style.lineHeight} density=$density"
+        }
         val total = text.length
         var cursorY = cursorYStart
         var blockOffset = 0
@@ -301,6 +314,7 @@ object PaginationEngine {
         var pageSliceHeight = 0f
         var guard = 0
         while (blockOffset < total) {
+            cancellationCheck()
             val lineIndex = layout.getLineForOffset(blockOffset)
             // The visible end excludes wrapping whitespace. Using it as the
             // next cursor can resolve back to the same line and truncate every
@@ -354,9 +368,11 @@ object PaginationEngine {
         density: Density,
         textMeasurer: TextMeasurer,
         style: TextStyle,
+        cancellationCheck: () -> Unit,
         onSliceEmitted: (PageFragment.VerseSlice) -> Unit,
         onPageFilled: () -> Unit,
     ): Float {
+        cancellationCheck()
         val primaryText = block.contents[block.sourceVersion].orEmpty()
         val comparisonVersion = block.displayedVersions().drop(1).firstOrNull()
         val comparisonText = comparisonVersion?.let { block.contents[it].orEmpty() }.orEmpty()
@@ -383,6 +399,27 @@ object PaginationEngine {
             constraints = Constraints(maxWidth = columnWidth.toInt()),
             density = density,
         ).size.height.toFloat().coerceAtLeast(1f)
+        cancellationCheck()
+        val primaryLayout = measureTextLayout(
+            text = primaryText,
+            widthPx = columnWidth,
+            density = density,
+            textMeasurer = textMeasurer,
+            style = style,
+        )
+        cancellationCheck()
+        val comparisonLayout = if (hasComparison) {
+            measureTextLayout(
+                text = comparisonText,
+                widthPx = columnWidth,
+                density = density,
+                textMeasurer = textMeasurer,
+                style = style,
+            )
+        } else {
+            null
+        }
+        cancellationCheck()
 
         var primaryOffset = 0
         var comparisonOffset = 0
@@ -391,6 +428,7 @@ object PaginationEngine {
         var firstSlice = true
 
         do {
+            cancellationCheck()
             val fixedHeight = (if (firstSlice) headerHeight else 0f) +
                 (if (firstSlice) labelsHeight else 0f)
             if (
@@ -404,23 +442,19 @@ object PaginationEngine {
                 (pageHeightPx - cursorY - fixedHeight - bottomReserve)
                     .coerceAtLeast(minimumLineHeight)
             val primaryFit = fitTextSlice(
-                text = primaryText,
+                textLength = primaryText.length,
+                layout = primaryLayout,
                 start = primaryOffset,
-                widthPx = columnWidth,
                 maxHeightPx = availableBodyHeight,
-                density = density,
-                textMeasurer = textMeasurer,
-                style = style,
+                cancellationCheck = cancellationCheck,
             )
             val comparisonFit = if (hasComparison) {
                 fitTextSlice(
-                    text = comparisonText,
+                    textLength = comparisonText.length,
+                    layout = requireNotNull(comparisonLayout),
                     start = comparisonOffset,
-                    widthPx = columnWidth,
                     maxHeightPx = availableBodyHeight,
-                    density = density,
-                    textMeasurer = textMeasurer,
-                    style = style,
+                    cancellationCheck = cancellationCheck,
                 )
             } else {
                 TextSliceFit(0, 0f)
@@ -465,38 +499,48 @@ object PaginationEngine {
     }
 
     private fun fitTextSlice(
-        text: String,
+        textLength: Int,
+        layout: TextLayoutResult,
         start: Int,
-        widthPx: Float,
         maxHeightPx: Float,
+        cancellationCheck: () -> Unit,
+    ): TextSliceFit {
+        if (start >= textLength) return TextSliceFit(textLength, 0f)
+        var endExclusive = start
+        var height = 0f
+        var line = layout.getLineForOffset(start.coerceAtMost(textLength - 1))
+        while (line < layout.lineCount) {
+            cancellationCheck()
+            val lineHeight = (layout.getLineBottom(line) - layout.getLineTop(line))
+                .coerceAtLeast(1f)
+            if (height + lineHeight > maxHeightPx && endExclusive > start) break
+            height += lineHeight
+            endExclusive = layout.getLineEnd(line, false)
+                .coerceIn((start + 1).coerceAtMost(textLength), textLength)
+            if (height >= maxHeightPx) break
+            line++
+        }
+        if (endExclusive <= start) {
+            val fallbackLine = line.coerceIn(0, layout.lineCount - 1)
+            endExclusive = (start + 1).coerceAtMost(textLength)
+            height = (layout.getLineBottom(fallbackLine) - layout.getLineTop(fallbackLine))
+                .coerceAtLeast(1f)
+        }
+        return TextSliceFit(endExclusive, height)
+    }
+
+    private fun measureTextLayout(
+        text: String,
+        widthPx: Float,
         density: Density,
         textMeasurer: TextMeasurer,
         style: TextStyle,
-    ): TextSliceFit {
-        if (start >= text.length) return TextSliceFit(text.length, 0f)
-        val remaining = text.substring(start)
-        val layout = textMeasurer.measure(
-            text = AnnotatedString(remaining),
-            style = style,
-            constraints = Constraints(maxWidth = widthPx.toInt()),
-            density = density,
-        )
-        var localEnd = 0
-        var height = 0f
-        for (line in 0 until layout.lineCount) {
-            val lineHeight = (layout.getLineBottom(line) - layout.getLineTop(line))
-                .coerceAtLeast(1f)
-            if (height + lineHeight > maxHeightPx && localEnd > 0) break
-            height += lineHeight
-            localEnd = layout.getLineEnd(line, false).coerceAtMost(remaining.length)
-            if (height >= maxHeightPx) break
-        }
-        if (localEnd <= 0) {
-            localEnd = layout.getLineEnd(0, false).coerceAtLeast(1).coerceAtMost(remaining.length)
-            height = (layout.getLineBottom(0) - layout.getLineTop(0)).coerceAtLeast(1f)
-        }
-        return TextSliceFit(start + localEnd, height)
-    }
+    ): TextLayoutResult = textMeasurer.measure(
+        text = AnnotatedString(text),
+        style = style,
+        constraints = Constraints(maxWidth = widthPx.toInt()),
+        density = density,
+    )
 
     private data class TextSliceFit(
         val endExclusive: Int,
@@ -603,20 +647,8 @@ object PaginationEngine {
     }
 
     internal fun textStyleFor(block: StudyBlock, density: Density): TextStyle {
-        val fontSizeSp = when (block) {
-            is StudyBlock.Heading -> when (block.level) {
-                1 -> DocConfig.HEADING1_SIZE
-                2 -> DocConfig.HEADING2_SIZE
-                3 -> DocConfig.HEADING3_SIZE
-                else -> block.fontSize
-            }
-            else -> block.fontSize
-        }.coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
-        val fontFamily = if (block is StudyBlock.Verse || block.fontFamily == "serif") {
-            FontFamily.Serif
-        } else {
-            FontFamily.Default
-        }
+        val fontSizeSp = block.fontSize.coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
+        val fontFamily = block.composeFontFamily()
         val fontWeight = if (block is StudyBlock.Heading) FontWeight.Bold else FontWeight.Normal
         val fontStyle = if (block is StudyBlock.Quote) FontStyle.Italic else FontStyle.Normal
         val lineHeightSp = fontSizeSp * if (block is StudyBlock.Verse) {
@@ -642,6 +674,13 @@ object PaginationEngine {
     private val VERSE_HEADER_HEIGHT = 40.dp
     private val VERSE_VERSION_LABEL_HEIGHT = 24.dp
     private val VERSE_BOTTOM_RESERVE = 2.dp
+}
+
+internal fun StudyBlock.composeFontFamily(): FontFamily = when {
+    this is StudyBlock.Verse || fontFamily == "serif" -> FontFamily.Serif
+    fontFamily == "monospace" -> FontFamily.Monospace
+    fontFamily == "sans" -> FontFamily.SansSerif
+    else -> FontFamily.Default
 }
 
 private fun BlockAlignment.toTextAlign(): TextAlign = when (this) {

@@ -41,11 +41,13 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -68,12 +70,8 @@ import com.cristiancogollo.biblion.feature.dictionary.data.DictionaryRepository
 import com.cristiancogollo.biblion.feature.dictionary.data.DictionarySearchResultUi
 import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
-import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 
 private data class CategoryCardInfo(
     val category: DictionaryCategory,
@@ -214,33 +212,43 @@ fun DictionaryScreen(navController: NavController) {
     }
 }
 
-@OptIn(FlowPreview::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DictionarySearchBar(
     onResultClick: (Long) -> Unit
 ) {
     val context = LocalContext.current
-    val queryFlow = remember { MutableStateFlow("") }
     var query by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf<DictionaryCategory?>(null) }
-    var results by remember { mutableStateOf<List<DictionarySearchResultUi>>(emptyList()) }
+    var allResults by remember { mutableStateOf<List<DictionarySearchResultUi>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
+    var searchFailed by remember { mutableStateOf(false) }
+    var retryCount by remember { mutableIntStateOf(0) }
+    val results = remember(allResults, selectedCategory) {
+        selectedCategory?.let { category -> allResults.filter { it.category == category } }
+            ?: allResults
+    }
 
-    LaunchedEffect(Unit) {
-        queryFlow
-            .debounce(400L)
-            .filter { it.trim().length >= 2 }
-            .distinctUntilChanged()
-            .collectLatest { q ->
-                isLoading = true
-                runCatching {
-                    DictionaryRepository.searchEntries(context, q).let { entries ->
-                        results = if (selectedCategory == null) entries
-                        else entries.filter { it.category == selectedCategory }
-                    }
-                }.onFailure { results = emptyList() }
-                isLoading = false
-            }
+    LaunchedEffect(query, retryCount) {
+        if (query.trim().length < 2) {
+            allResults = emptyList()
+            searchFailed = false
+            isLoading = false
+            return@LaunchedEffect
+        }
+        isLoading = true
+        searchFailed = false
+        delay(400L)
+        try {
+            allResults = DictionaryRepository.searchEntriesOrThrow(context, query)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            allResults = emptyList()
+            searchFailed = true
+        } finally {
+            isLoading = false
+        }
     }
 
     Column(
@@ -252,7 +260,6 @@ private fun DictionarySearchBar(
             value = query,
             onValueChange = {
                 query = it
-                queryFlow.value = it
             },
             placeholder = {
                 Text(
@@ -271,10 +278,8 @@ private fun DictionarySearchBar(
                 {
                     IconButton(onClick = {
                         query = ""
-                        queryFlow.value = ""
-                        results = emptyList()
                     }) {
-                        Icon(Icons.Filled.Close, contentDescription = "Limpiar")
+                        Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_clear))
                     }
                 }
             } else null,
@@ -306,7 +311,6 @@ private fun DictionarySearchBar(
                         selected = selectedCategory == cat,
                         onClick = {
                             selectedCategory = if (selectedCategory == cat) null else cat
-                            queryFlow.value = query
                         },
                         label = { Text(cat.displayName) },
                     )
@@ -322,6 +326,17 @@ private fun DictionarySearchBar(
                         contentAlignment = Alignment.Center,
                     ) {
                         CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                    }
+                }
+                searchFailed -> {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(stringResource(R.string.dictionary_search_error))
+                        TextButton(onClick = { retryCount++ }) {
+                            Text(stringResource(R.string.action_retry))
+                        }
                     }
                 }
                 results.isEmpty() -> {

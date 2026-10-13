@@ -89,6 +89,39 @@ class DictionaryEngineIntegrationTest {
     }
 
     @Test
+    fun `ambiguous exact term asks the user to choose a biblical meaning`() {
+        val response = DictionaryEngine.buildAmbiguousResponse(
+            term = "Madi\u00e1n",
+            entries = listOf(
+                DictionaryEntry(
+                    id = 1,
+                    term = "Madi\u00e1n",
+                    definition = "Hijo de Abraham y Cetura.",
+                    references = emptyList(),
+                    category = DictionaryCategory.PERSON,
+                ),
+                DictionaryEntry(
+                    id = 2,
+                    term = "Madi\u00e1n",
+                    definition = "Territorio al oriente del golfo de Aqaba.",
+                    references = emptyList(),
+                    category = DictionaryCategory.PLACE,
+                ),
+            ),
+            userContext = null,
+        )
+
+        assertEquals(Confidence.MEDIUM, response.confidence)
+        assertTrue(response.suggestions.size >= 2)
+        assertTrue(
+            response.suggestions.any { it.query.startsWith("Quien fue") }
+        )
+        assertTrue(
+            response.suggestions.any { it.query.startsWith("Donde estaba") }
+        )
+    }
+
+    @Test
     fun `dictionary_v2 has entries for gracia concept`() = runBlocking {
         val db = openAssetDb("databases/dictionary_v2.db")
         try {

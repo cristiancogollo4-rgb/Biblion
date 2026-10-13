@@ -8,6 +8,50 @@ import org.junit.Test
 class StyledTextRangeTest {
 
     @Test
+    fun removingTextColorKeepsHighlightAndEmphasis() {
+        val original = StyledText(
+            raw = "abcd",
+            ranges = listOf(StyleRange(0, 4, bold = true, color = 0xFF112233.toInt(), background = 0xFFAAFFAA.toInt())),
+        )
+        val result = original.withColor(1, 3, color = null, background = false)
+
+        assertEquals(3, result.ranges.size)
+        assertEquals(0xFF112233.toInt(), result.ranges[0].color)
+        assertNull(result.ranges[1].color)
+        assertEquals(0xFFAAFFAA.toInt(), result.ranges[1].background)
+        assertTrue(result.ranges[1].bold)
+        assertEquals(0xFF112233.toInt(), result.ranges[2].color)
+    }
+
+    @Test
+    fun removingHighlightKeepsTextColorAndFontSize() {
+        val original = StyledText(
+            raw = "ab",
+            ranges = listOf(StyleRange(0, 2, color = 0xFF123456.toInt(), background = 0xFFFFFF00.toInt(), fontSizeSp = 20f)),
+        )
+        val result = original.withColor(0, 2, color = null, background = true)
+
+        assertEquals(1, result.ranges.size)
+        assertNull(result.ranges.single().background)
+        assertEquals(0xFF123456.toInt(), result.ranges.single().color)
+        assertEquals(20f, result.ranges.single().fontSizeSp)
+    }
+
+    @Test
+    fun replacingTextColorDoesNotStackOrRemoveHighlight() {
+        val original = StyledText(
+            raw = "texto",
+            ranges = listOf(StyleRange(0, 5, italic = true, color = 0xFF000000.toInt(), background = 0xFFFFFF00.toInt())),
+        )
+        val result = original.withColor(1, 4, color = 0xFF0000FF.toInt(), background = false)
+
+        assertEquals(3, result.ranges.size)
+        assertEquals(0xFF0000FF.toInt(), result.ranges[1].color)
+        assertEquals(0xFFFFFF00.toInt(), result.ranges[1].background)
+        assertTrue(result.ranges[1].italic)
+    }
+
+    @Test
     fun withText_same_length_preserves_ranges() {
         val original = StyledText(
             raw = "abcdef",

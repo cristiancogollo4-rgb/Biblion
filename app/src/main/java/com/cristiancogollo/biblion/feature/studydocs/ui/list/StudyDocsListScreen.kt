@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
@@ -30,10 +31,12 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -56,10 +59,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.verticalScroll
 import androidx.navigation.NavController
@@ -67,17 +73,19 @@ import androidx.compose.foundation.text.KeyboardOptions
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
 import com.cristiancogollo.biblion.feature.studydocs.data.StudyShareFormat
 import com.cristiancogollo.biblion.BiblionBottomNavigation
+import com.cristiancogollo.biblion.R
 import com.cristiancogollo.biblion.BiblionTopAppBar
 import com.cristiancogollo.biblion.Screen
 import com.cristiancogollo.biblion.Testament
 import com.cristiancogollo.biblion.biblionLogoResForCurrentTheme
-import com.cristiancogollo.biblion.navigateSingleTop
+import com.cristiancogollo.biblion.navigateTopLevel
 import com.cristiancogollo.biblion.feature.studydocs.ui.Screen as StudyDocScreen
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.StudyTagSelector
-import com.cristiancogollo.biblion.feature.studydocs.ui.editor.parseStudyTags
-import com.cristiancogollo.biblion.feature.studydocs.ui.editor.validateRequiredStudyTags
+import com.cristiancogollo.biblion.feature.studydocs.ui.editor.studyTagsForSave
+import com.cristiancogollo.biblion.feature.studydocs.ui.editor.firstIncompleteStudyTagGroupIndex
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
+import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
 
 /**
  * Pantalla principal de la lista de ensenanzas (visual v1).
@@ -101,11 +109,15 @@ fun StudyDocsListScreen(
     onRequestPublication: (StudyDoc) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
+    val visibleDocs = state.visibleDocs
+    val hasActiveFilters = state.titleFilter.isNotBlank() ||
+        state.selectedTagFilters.isNotEmpty()
     var pendingDelete by remember { mutableStateOf<StudyDoc?>(null) }
     var pendingShare by remember { mutableStateOf<StudyDoc?>(null) }
     var pendingTagEdit by remember { mutableStateOf<StudyDoc?>(null) }
     var isSavingTags by remember { mutableStateOf(false) }
     var tagEditError by remember { mutableStateOf<String?>(null) }
+    val tagSaveFailureText = stringResource(R.string.study_tags_save_failed)
     val isKeyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
     Scaffold(
@@ -120,11 +132,11 @@ fun StudyDocsListScreen(
             if (!isKeyboardVisible) {
                 BiblionBottomNavigation(
                     currentRoute = StudyDocScreen.StudyDocsList.route,
-                    onHome = { navController.navigateSingleTop(Screen.Home.route) },
-                    onBible = { navController.navigateSingleTop(Screen.Books.createRoute(Testament.OLD)) },
-                    onSearch = { navController.navigateSingleTop(Screen.Search.createRoute()) },
+                    onHome = { navController.navigateTopLevel(Screen.Home.route) },
+                    onBible = { navController.navigateTopLevel(Screen.Books.createRoute(Testament.OLD)) },
+                    onSearch = { navController.navigateTopLevel(Screen.Search.createRoute()) },
                     onStudy = { },
-                    onProfile = { navController.navigateSingleTop(Screen.Profile.route) }
+                    onProfile = { navController.navigateTopLevel(Screen.Profile.route) }
                 )
             }
         },
@@ -142,6 +154,8 @@ fun StudyDocsListScreen(
             ) {
                 StudyLibraryHeader(
                     documentCount = state.docs.size,
+                    filteredDocumentCount = visibleDocs.size,
+                    hasActiveFilters = hasActiveFilters,
                     onNewDoc = onNewDoc,
                 )
 
@@ -163,12 +177,10 @@ fun StudyDocsListScreen(
                     )
                 }
 
-                val visible = state.visibleDocs
-                if (visible.isEmpty()) {
+                if (visibleDocs.isEmpty() && !state.isLoading) {
                     StudyLibraryEmptyState(
                         hasDocuments = state.docs.isNotEmpty(),
-                        hasActiveFilters = state.titleFilter.isNotBlank() ||
-                            state.selectedTagFilters.isNotEmpty(),
+                        hasActiveFilters = hasActiveFilters,
                         onNewDoc = onNewDoc,
                         onClearFilters = {
                             viewModel.setTitleFilter("")
@@ -178,7 +190,7 @@ fun StudyDocsListScreen(
                             .fillMaxSize()
                             .padding(horizontal = 20.dp, vertical = 16.dp),
                     )
-                } else {
+                } else if (visibleDocs.isNotEmpty()) {
                     LazyVerticalGrid(
                         columns = GridCells.Adaptive(minSize = 340.dp),
                         modifier = Modifier
@@ -188,9 +200,10 @@ fun StudyDocsListScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        items(visible, key = { it.id.value }) { doc ->
+                        items(visibleDocs, key = { it.id.value }) { doc ->
                             TeachingCard(
                                 doc = doc,
+                                syncStatus = state.syncStatuses[doc.remoteId ?: doc.id.value],
                                 onOpen = { onOpenDoc(doc) },
                                 onEdit = { onEditDoc(doc) },
                                 onEditMetadata = {
@@ -208,13 +221,16 @@ fun StudyDocsListScreen(
     }
 
     pendingDelete?.let { doc ->
+        val untitled = stringResource(R.string.study_library_untitled)
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
-            title = { Text("Eliminar enseñanza") },
+            title = { Text(stringResource(R.string.study_library_delete_title)) },
             text = {
                 Text(
-                    "Vas a eliminar '${doc.title.ifBlank { "Sin título" }}'. " +
-                        "Esta acción no se puede deshacer."
+                    stringResource(
+                        R.string.study_library_delete_message,
+                        doc.title.ifBlank { untitled },
+                    )
                 )
             },
             confirmButton = {
@@ -222,12 +238,12 @@ fun StudyDocsListScreen(
                     viewModel.delete(doc)
                     pendingDelete = null
                 }) {
-                    Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.study_library_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { pendingDelete = null }) {
-                    Text("Cancelar")
+                    Text(stringResource(R.string.action_cancel))
                 }
             },
         )
@@ -282,7 +298,7 @@ fun StudyDocsListScreen(
                         if (error == null) {
                             pendingTagEdit = null
                         } else {
-                            tagEditError = error.message ?: "No se pudieron guardar las etiquetas."
+                            tagEditError = tagSaveFailureText
                         }
                     }
                 },
@@ -302,114 +318,136 @@ private fun EditTeachingTagsSheet(
     var tagsInput by remember(doc.id.value) {
         mutableStateOf(doc.metadata.tags.joinToString(", "))
     }
-    var validationError by remember(doc.id.value) { mutableStateOf<String?>(null) }
-    val visibleError = errorMessage ?: validationError
+    var pendingCustomTag by remember(doc.id.value) { mutableStateOf("") }
+    var validationGroupIndex by remember(doc.id.value) { mutableStateOf<Int?>(null) }
+    val untitledTeaching = stringResource(R.string.study_tags_untitled)
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .navigationBarsPadding()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp)
-            .padding(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .fillMaxHeight(0.88f)
+            .navigationBarsPadding(),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Surface(
-                modifier = Modifier.size(44.dp),
-                shape = RoundedCornerShape(13.dp),
-                color = BiblionGoldSoft.copy(alpha = 0.16f),
+        Surface(color = BiblionBluePrimary) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 10.dp, bottom = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Label,
-                        contentDescription = null,
-                        tint = BiblionGoldPrimary,
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Editar etiquetas",
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontFamily = FontFamily.Serif,
-                        fontWeight = FontWeight.Bold,
-                    ),
-                )
-                Text(
-                    text = doc.title.ifBlank { "Sin título" },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        Text(
-            text = "Organiza la enseñanza por propósito, audiencia, tema y estado.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        StudyTagSelector(
-            value = tagsInput,
-            onValueChange = {
-                tagsInput = it
-                validationError = null
-            },
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        if (visibleError != null) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.errorContainer,
-            ) {
-                Text(
-                    text = visibleError,
-                    modifier = Modifier.padding(12.dp),
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(
-                onClick = onDismiss,
-                enabled = !isSaving,
-            ) {
-                Text("Cancelar")
-            }
-            Button(
-                onClick = {
-                    val tags = parseStudyTags(tagsInput)
-                    val error = validateRequiredStudyTags(tags)
-                    if (error == null) {
-                        onSave(tags)
-                    } else {
-                        validationError = error
+                Surface(
+                    modifier = Modifier.size(44.dp),
+                    shape = RoundedCornerShape(13.dp),
+                    color = BiblionGoldPrimary,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Label,
+                            contentDescription = null,
+                            tint = BiblionBluePrimary,
+                        )
                     }
-                },
-                enabled = !isSaving,
-                shape = RoundedCornerShape(14.dp),
-            ) {
-                if (isSaving) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp,
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
                 }
-                Text(if (isSaving) "Guardando..." else "Guardar etiquetas")
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.study_tags_edit_title),
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Bold,
+                        ),
+                        color = Color.White,
+                    )
+                    Text(
+                        text = doc.title.ifBlank { untitledTeaching },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.8f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                IconButton(onClick = onDismiss, enabled = !isSaving) {
+                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.study_tags_close), tint = Color.White)
+                }
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .widthIn(max = 680.dp)
+                .align(Alignment.CenterHorizontally)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.study_tags_edit_description),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            StudyTagSelector(
+                value = tagsInput,
+                onValueChange = {
+                    tagsInput = it
+                    validationGroupIndex = null
+                },
+                modifier = Modifier.fillMaxWidth(),
+                onPendingCustomTagChange = { pendingCustomTag = it },
+                validationGroupIndex = validationGroupIndex,
+                enabled = !isSaving,
+            )
+        }
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 680.dp)
+                .align(Alignment.CenterHorizontally)
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+        ) {
+            if (errorMessage != null) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                ) {
+                    Text(
+                        text = errorMessage,
+                        modifier = Modifier.padding(12.dp),
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = onDismiss, enabled = !isSaving) {
+                    Text(stringResource(R.string.study_save_cancel))
+                }
+                Button(
+                    onClick = {
+                        val tags = studyTagsForSave(tagsInput, pendingCustomTag)
+                        validationGroupIndex = firstIncompleteStudyTagGroupIndex(tags)
+                        if (validationGroupIndex == null) onSave(tags)
+                    },
+                    enabled = !isSaving,
+                    shape = RoundedCornerShape(13.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = BiblionBluePrimary,
+                        contentColor = Color.White,
+                    ),
+                ) {
+                    if (isSaving) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.White)
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Text(stringResource(if (isSaving) R.string.study_tags_saving else R.string.study_tags_save_action))
+                }
             }
         }
     }
@@ -418,6 +456,8 @@ private fun EditTeachingTagsSheet(
 @Composable
 private fun StudyLibraryHeader(
     documentCount: Int,
+    filteredDocumentCount: Int,
+    hasActiveFilters: Boolean,
     onNewDoc: () -> Unit,
 ) {
     Row(
@@ -437,7 +477,10 @@ private fun StudyLibraryHeader(
                 color = MaterialTheme.colorScheme.onBackground,
             )
             Text(
-                text = if (documentCount == 1) {
+                text = if (hasActiveFilters) {
+                    val documentLabel = if (documentCount == 1) "enseñanza" else "enseñanzas"
+                    "$filteredDocumentCount de $documentCount $documentLabel"
+                } else if (documentCount == 1) {
                     "1 enseñanza guardada"
                 } else {
                     "$documentCount enseñanzas guardadas"
@@ -458,7 +501,7 @@ private fun StudyLibraryHeader(
                 modifier = Modifier.size(18.dp),
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Nueva enseñanza", fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.study_library_new), fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -487,7 +530,7 @@ private fun StudyFilterShelf(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp),
-                placeholder = { Text("Buscar por título") },
+                placeholder = { Text(stringResource(R.string.study_library_search_title)) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Filled.Search,
@@ -498,7 +541,7 @@ private fun StudyFilterShelf(
                 trailingIcon = if (titleFilter.isNotEmpty()) {
                     {
                         IconButton(onClick = { onTitleFilterChange("") }) {
-                            Icon(Icons.Filled.Clear, contentDescription = "Limpiar")
+                            Icon(Icons.Filled.Clear, contentDescription = stringResource(R.string.action_clear))
                         }
                     }
                 } else null,

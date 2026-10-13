@@ -21,4 +21,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "Biblion"
 include(":app")
+include(":baselineprofile")
  

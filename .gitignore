@@ -9,11 +9,15 @@
 /.idea/assetWizardSettings.xml
 .DS_Store
 /build
+/baselineprofile/build/
 /captures
 .externalNativeBuild
 .cxx
 local.properties
 key.properties
+biblion.keystore
+*.keystore
+*.jks
 app/google-services.json
 functions/.env
 functions/.secret.local
@@ -30,3 +34,11 @@ workers/bibi/src/index.built.js
 
 # Local scripts
 inspect.py
+
+# Local tooling and temporary diagnostics
+/.codebase-memory/
+/.codex-temp/
+/.kotlin/
+/.zcode/
+/tmp/
+/opencode.json

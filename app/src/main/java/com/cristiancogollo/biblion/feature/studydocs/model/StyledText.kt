@@ -74,6 +74,52 @@ data class StyledText(
         return copy(ranges = flattened.mergeAdjacentStyles())
     }
 
+    /** Changes only one color channel, leaving emphasis, size and the other color intact. */
+    fun withColor(
+        start: Int,
+        endExclusive: Int,
+        color: Int?,
+        background: Boolean,
+    ): StyledText {
+        val safeStart = start.coerceIn(0, raw.length)
+        val safeEnd = endExclusive.coerceIn(safeStart, raw.length)
+        if (safeStart >= safeEnd) return this
+
+        val validRanges = ranges
+            .filter { it.start in 0 until raw.length && it.endExclusive in 1..raw.length && it.start < it.endExclusive }
+            .sortedWith(compareBy({ it.start }, { it.endExclusive }))
+        val boundaries = buildSet {
+            add(0)
+            add(raw.length)
+            add(safeStart)
+            add(safeEnd)
+            validRanges.forEach {
+                add(it.start)
+                add(it.endExclusive)
+            }
+        }.sorted()
+        val updated = buildList {
+            for (index in 0 until boundaries.lastIndex) {
+                val segmentStart = boundaries[index]
+                val segmentEnd = boundaries[index + 1]
+                val active = validRanges.filter {
+                    it.start <= segmentStart && it.endExclusive >= segmentEnd
+                }
+                val merged = active.reduceOrNull { acc, range -> range.composeWith(acc) }
+                    ?: StyleRange(segmentStart, segmentEnd)
+                val changed = if (segmentStart >= safeStart && segmentEnd <= safeEnd) {
+                    if (background) merged.copy(background = color) else merged.copy(color = color)
+                } else {
+                    merged
+                }
+                if (changed.hasVisualStyle()) {
+                    add(changed.copy(start = segmentStart, endExclusive = segmentEnd))
+                }
+            }
+        }
+        return copy(ranges = updated.mergeAdjacentStyles())
+    }
+
     /**
      * Devuelve un trozo inmutable de este texto acotado a [range] (half-open tipo `until`).
      * Los rangos de estilo que caen total o parcialmente dentro del corte se conservan

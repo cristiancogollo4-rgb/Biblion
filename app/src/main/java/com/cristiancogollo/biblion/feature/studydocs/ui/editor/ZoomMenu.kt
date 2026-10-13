@@ -46,7 +46,8 @@ fun ZoomMenu(
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val currentPercent = (zoomState.zoom * 100).toInt().coerceIn(0, 999)
+    val displayedZoom = if (zoomState.isGesturing) zoomState.gestureZoom else zoomState.zoom
+    val currentPercent = (displayedZoom * 100).toInt().coerceIn(0, 999)
     val zoomCurrentCd = stringResource(R.string.zoom_current, currentPercent)
 
     Row(

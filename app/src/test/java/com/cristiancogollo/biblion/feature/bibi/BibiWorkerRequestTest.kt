@@ -4,6 +4,7 @@ import com.cristiancogollo.biblion.feature.bibi.model.BibiContext
 import com.cristiancogollo.biblion.feature.bibi.model.BibiPassage
 import com.cristiancogollo.biblion.feature.bibi.ui.WorkerClient
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -29,6 +30,29 @@ class BibiWorkerRequestTest {
         assertEquals("nvi", request.bible?.version)
         assertTrue(request.bible?.passages?.single()?.contains("Juan 3:16") == true)
         assertTrue(request.study?.selectedText?.contains("amo Dios") == true)
+        assertNull(request.doctrinalPerspective)
+    }
+
+    @Test
+    fun `visible verse is context but not a user selection`() {
+        val request = WorkerClient.buildRequest(
+            question = "¿Quién fue Moisés?",
+            context = BibiContext.Reader(
+                book = "Juan",
+                chapter = 3,
+                passages = listOf(BibiPassage("Juan", 3, 16, "Porque de tal manera amó Dios")),
+                bibleVersion = "rv1960",
+                hasExplicitSelection = false,
+            ),
+            intent = "define",
+            chatHistory = emptyList(),
+            lastQueries = emptyList(),
+            doctrinalPerspective = "oneness",
+        )
+
+        assertEquals("", request.study?.selectedText)
+        assertEquals("oneness", request.doctrinalPerspective)
+        assertTrue(request.bible?.passages?.single()?.contains("Juan 3:16") == true)
     }
 
     @Test
@@ -48,9 +72,11 @@ class BibiWorkerRequestTest {
             intent = "application",
             chatHistory = emptyList(),
             lastQueries = emptyList(),
+            doctrinalPerspective = "trinitarian",
         )
 
         assertEquals("study", request.mode)
+        assertEquals("trinitarian", request.doctrinalPerspective)
         assertEquals("La gracia", request.study?.title)
         assertEquals(2, request.study?.currentOutline?.size)
         assertEquals("Efesios 2:8 Porque por gracia sois salvos", request.bible?.passages?.single())

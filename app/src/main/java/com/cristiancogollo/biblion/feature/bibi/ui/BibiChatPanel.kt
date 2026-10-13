@@ -46,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -60,6 +61,7 @@ import com.cristiancogollo.biblion.R
 import com.cristiancogollo.biblion.feature.bibi.model.BibiContext
 import com.cristiancogollo.biblion.feature.bibi.model.BibiPassage
 import com.cristiancogollo.biblion.feature.bibi.model.BibiSuggestion
+import com.cristiancogollo.biblion.feature.bibi.model.formatBibiPassageSelection
 
 @Composable
 fun BibiChatPanel(
@@ -87,6 +89,8 @@ fun BibiChatPanel(
     var input by remember { mutableStateOf("") }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
+    var forceScrollToNewest by remember { mutableStateOf(true) }
+    var lastScrolledSessionId by remember { mutableStateOf<Long?>(null) }
 
     LaunchedEffect(mode) {
         bibiViewModel.initialize(
@@ -99,9 +103,20 @@ fun BibiChatPanel(
         uiState.messages.size,
         uiState.messages.lastOrNull()?.text,
         uiState.isLoading,
+        uiState.activeSessionId,
     ) {
         if (uiState.messages.isNotEmpty()) {
-            listState.animateScrollToItem(uiState.messages.lastIndex)
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+            val wasNearBottom = lastVisible >= listState.layoutInfo.totalItemsCount - 2
+            if (
+                forceScrollToNewest ||
+                lastScrolledSessionId != uiState.activeSessionId ||
+                wasNearBottom
+            ) {
+                listState.animateScrollToItem(uiState.messages.lastIndex)
+                forceScrollToNewest = false
+            }
+            lastScrolledSessionId = uiState.activeSessionId
         }
     }
     LaunchedEffect(uiState.completedExchanges) {
@@ -132,7 +147,7 @@ fun BibiChatPanel(
             }
             IconButton(
                 onClick = { showHistory = true },
-                enabled = !uiState.isLoading && uiState.sessions.isNotEmpty(),
+                enabled = uiState.isInitialized && !uiState.isLoading && uiState.sessions.isNotEmpty(),
             ) {
                 Icon(Icons.Default.History, contentDescription = "Historial de chats")
             }
@@ -141,13 +156,13 @@ fun BibiChatPanel(
                     input = ""
                     bibiViewModel.startNewChat()
                 },
-                enabled = !uiState.isLoading,
+                enabled = uiState.isInitialized && !uiState.isLoading,
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Crear nuevo chat")
             }
             IconButton(
                 onClick = { showDeleteConfirmation = true },
-                enabled = !uiState.isLoading &&
+                enabled = uiState.isInitialized && !uiState.isLoading &&
                     uiState.messages.any { it.role == "user" },
             ) {
                 Icon(
@@ -164,13 +179,7 @@ fun BibiChatPanel(
         val selectedReader = (bibiContext as? BibiContext.Reader)
             ?.takeIf { it.hasExplicitSelection && it.passages.isNotEmpty() }
         if (selectedReader != null) {
-            val first = selectedReader.passages.first()
-            val last = selectedReader.passages.last()
-            val reference = if (first.verse == last.verse) {
-                first.reference
-            } else {
-                "${first.book} ${first.chapter}:${first.verse}-${last.verse}"
-            }
+            val reference = formatBibiPassageSelection(selectedReader.passages)
             Text(
                 text = androidx.compose.ui.res.stringResource(R.string.bibi_context_verse, reference),
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -191,11 +200,15 @@ fun BibiChatPanel(
                 key = { index, message ->
                     "${message.role}:${message.text.hashCode()}:$index"
                 },
-            ) { _, message ->
+            ) { index, message ->
                 BibiUnifiedChatMessage(
                     message = message,
+                    showAiDisclaimer = message.role == "assistant" &&
+                        uiState.messages.getOrNull(index - 1)?.role == "user",
+                    canSendSuggestion = uiState.isInitialized && !uiState.isLoading,
                     onOpenPassage = onOpenPassage,
                     onSendSuggestion = { suggestion ->
+                        forceScrollToNewest = true
                         bibiViewModel.sendQuestion(
                             question = suggestion.query,
                             bibiContext = bibiContext,
@@ -206,7 +219,7 @@ fun BibiChatPanel(
                     },
                 )
             }
-            if (uiState.isLoading) {
+            if (!uiState.isInitialized || uiState.isLoading) {
                 item {
                     CircularProgressIndicator(
                         modifier = Modifier
@@ -232,10 +245,11 @@ fun BibiChatPanel(
                 maxLines = 3,
             )
             IconButton(
-                enabled = input.isNotBlank() && !uiState.isLoading,
+                enabled = input.isNotBlank() && uiState.isInitialized && !uiState.isLoading,
                 onClick = {
                     val query = input.trim()
                     input = ""
+                    forceScrollToNewest = true
                     bibiViewModel.sendQuestion(
                         question = query,
                         bibiContext = bibiContext,
@@ -354,6 +368,8 @@ fun BibiChatPanel(
 @Composable
 private fun BibiUnifiedChatMessage(
     message: BibiChatMessage,
+    showAiDisclaimer: Boolean,
+    canSendSuggestion: Boolean,
     onSendSuggestion: (BibiSuggestion) -> Unit,
     onOpenPassage: ((BibiPassage) -> Unit)?,
 ) {
@@ -365,12 +381,7 @@ private fun BibiUnifiedChatMessage(
     ) {
         if (!isUser && message.contextPassages.isNotEmpty()) {
             val first = message.contextPassages.first()
-            val last = message.contextPassages.last()
-            val reference = if (first.verse == last.verse) {
-                first.reference
-            } else {
-                "${first.book} ${first.chapter}:${first.verse}-${last.verse}"
-            }
+            val reference = formatBibiPassageSelection(message.contextPassages)
             Surface(
                 color = MaterialTheme.colorScheme.secondaryContainer,
                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -424,14 +435,26 @@ private fun BibiUnifiedChatMessage(
                     )
                 }
             } else {
-                BibiAssistantMessageContent(
-                    text = message.text,
+                Column(
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                )
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    BibiAssistantMessageContent(text = message.text)
+                    if (showAiDisclaimer) {
+                        Text(
+                            text = stringResource(R.string.bibi_answer_disclaimer),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
         }
         message.suggestions.forEach {
-            OutlinedButton(onClick = { onSendSuggestion(it) }) {
+            OutlinedButton(
+                onClick = { onSendSuggestion(it) },
+                enabled = canSendSuggestion,
+            ) {
                 Text(it.label)
             }
         }

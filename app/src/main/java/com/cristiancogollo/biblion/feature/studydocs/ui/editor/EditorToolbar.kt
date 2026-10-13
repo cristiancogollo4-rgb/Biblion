@@ -12,13 +12,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.FormatAlignLeft
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FormatBold
 import androidx.compose.material.icons.filled.FormatClear
+import androidx.compose.material.icons.filled.FormatColorFill
 import androidx.compose.material.icons.filled.FormatColorText
 import androidx.compose.material.icons.filled.FormatItalic
-import androidx.compose.material.icons.filled.FormatListBulleted
-import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.FormatUnderlined
 import androidx.compose.material.icons.filled.StrikethroughS
 import androidx.compose.material3.DropdownMenu
@@ -38,6 +38,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -54,7 +57,9 @@ fun EditorToolbar(
     onToggleStyle: (TextStyleKind) -> Unit,
     onTextColor: (Int) -> Unit,
     onBackgroundColor: (Int) -> Unit,
-    onClearColor: () -> Unit,
+    onClearTextColor: () -> Unit,
+    onClearBackgroundColor: () -> Unit,
+    onClearFormatting: () -> Unit,
     onStepFontSize: (Int) -> Unit,
     onSetFontSize: (Int) -> Unit,
     onFontFamily: (String) -> Unit,
@@ -125,19 +130,39 @@ fun EditorToolbar(
                     expanded = showTextColor && inlineFormattingEnabled,
                     onDismiss = { showTextColor = false },
                     onColorPicked = { onTextColor(it); showTextColor = false },
-                    onClear = { onClearColor(); showTextColor = false },
+                    onClear = { onClearTextColor(); showTextColor = false },
                 )
             }
 
-            val hasFormat = activeFormat.bold || activeFormat.italic ||
-                    activeFormat.underline || activeFormat.strikethrough ||
-                    activeFormat.color != null || activeFormat.background != null
+            var showHighlightColor by remember { mutableStateOf(false) }
+            Box {
+                IconButton(
+                    onClick = { showHighlightColor = true },
+                    enabled = inlineFormattingEnabled,
+                ) {
+                    Icon(
+                        Icons.Filled.FormatColorFill,
+                        contentDescription = "Color de resaltado",
+                        modifier = Modifier.size(20.dp),
+                        tint = activeFormat.background?.let { Color(it) }
+                            ?: MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                ColorDropdown(
+                    expanded = showHighlightColor && inlineFormattingEnabled,
+                    onDismiss = { showHighlightColor = false },
+                    onColorPicked = { onBackgroundColor(it); showHighlightColor = false },
+                    onClear = { onClearBackgroundColor(); showHighlightColor = false },
+                    highlight = true,
+                )
+            }
+
             FormatToggleButton(
                 icon = Icons.Filled.FormatClear,
                 label = "Limpiar formato",
                 isActive = false,
-                enabled = hasFormat && inlineFormattingEnabled,
-                onClick = { onClearColor() },
+                enabled = inlineFormattingEnabled,
+                onClick = onClearFormatting,
             )
 
             VerticalDivider(dividerModifier)
@@ -154,7 +179,6 @@ fun EditorToolbar(
             val fontLabel = when (currentFontFamily) {
                 "serif" -> "Serif"
                 "monospace" -> "Mono"
-                "default" -> "Defecto"
                 else -> "Sans"
             }
             Box {
@@ -175,7 +199,6 @@ fun EditorToolbar(
                         "sans" to "Sans Serif",
                         "serif" to "Serif",
                         "monospace" to "Monospace",
-                        "default" to "Por defecto",
                     ).forEach { (key, name) ->
                         DropdownMenuItem(
                             text = { Text(name) },
@@ -186,8 +209,8 @@ fun EditorToolbar(
             }
 
             FormatToggleButton(
-                icon = Icons.Filled.FormatListBulleted,
-                label = "Alineacion",
+                icon = Icons.AutoMirrored.Filled.FormatAlignLeft,
+                label = "Cambiar alineación",
                 isActive = false,
                 onClick = { onCycleAlignment() },
             )
@@ -247,8 +270,15 @@ private fun ColorDropdown(
     onDismiss: () -> Unit,
     onColorPicked: (Int) -> Unit,
     onClear: () -> Unit,
+    highlight: Boolean = false,
 ) {
-    val palette = listOf(
+    val palette = if (highlight && MaterialTheme.colorScheme.background.luminance() < 0.5f) listOf(
+        0xFF5D4037.toInt(), 0xFF2E7D32.toInt(), 0xFFC62828.toInt(),
+        0xFF1565C0.toInt(), 0xFF6A1B9A.toInt(), 0xFFE65100.toInt(),
+    ) else if (highlight) listOf(
+        0xFFFFF59D.toInt(), 0xFFFFCC80.toInt(), 0xFFA5D6A7.toInt(),
+        0xFF90CAF9.toInt(), 0xFFCE93D8.toInt(), 0xFFF48FB1.toInt(),
+    ) else listOf(
         0xFF000000.toInt(), 0xFF424242.toInt(), 0xFF9E9E9E.toInt(), 0xFFE53935.toInt(),
         0xFFFB8C00.toInt(), 0xFFFDD835.toInt(), 0xFF43A047.toInt(), 0xFF1E88E5.toInt(),
         0xFF3949AB.toInt(), 0xFF8E24AA.toInt(), 0xFFD81B60.toInt(), 0xFFFFFFFF.toInt(),
@@ -256,12 +286,21 @@ private fun ColorDropdown(
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
         palette.forEach { c ->
             DropdownMenuItem(
-                text = { Box(Modifier.size(20.dp).background(Color(c), RoundedCornerShape(4.dp))) },
+                text = {
+                    Box(
+                        Modifier.size(20.dp)
+                            .background(Color(c), RoundedCornerShape(4.dp))
+                            .semantics {
+                                contentDescription = if (highlight) "Resaltado ${c.toUInt().toString(16)}"
+                                else "Color de texto ${c.toUInt().toString(16)}"
+                            }
+                    )
+                },
                 onClick = { onColorPicked(c) },
             )
         }
         DropdownMenuItem(
-            text = { Text("Quitar color") },
+            text = { Text(if (highlight) "Quitar resaltado" else "Quitar color") },
             onClick = onClear,
         )
     }

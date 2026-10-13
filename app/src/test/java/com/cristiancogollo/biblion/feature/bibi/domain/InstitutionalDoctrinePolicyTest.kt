@@ -88,4 +88,20 @@ class InstitutionalDoctrinePolicyTest {
             "Algunas iglesias sostienen que el bautismo es necesario; otras lo ven como testimonio.",
         ))
     }
+
+    @Test
+    fun `general baptism questions have a safe answer without institutional claims`() {
+        for (question in listOf(
+            "¿Es necesario el bautismo para salvación?",
+            "¿Hay que bautizarse para ser salvo?",
+        )) {
+            val answer = InstitutionalDoctrinePolicy.generalQuestionFallback(question)
+            assertNotNull(answer)
+            assertTrue(answer!!.contains("Hechos 2:38"))
+            assertFalse(answer.contains("No tengo una declaración oficial"))
+        }
+        assertNull(InstitutionalDoctrinePolicy.generalQuestionFallback(
+            "Según los adventistas, ¿es necesario el bautismo para salvación?",
+        ))
+    }
 }

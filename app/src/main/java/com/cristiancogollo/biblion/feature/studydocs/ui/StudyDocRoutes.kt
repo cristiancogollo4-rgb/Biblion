@@ -28,11 +28,20 @@ import kotlinx.coroutines.launch
 @Composable
 fun StudyDocsListRoute(navController: NavController) {
     val context = LocalContext.current
-    val repository = remember { StudyDocRepository(StudyDocDatabase.getInstance(context).studyDocDao()) }
+    val ownerUid = FirebaseAuth.getInstance().currentUser?.uid
+    val repository = remember {
+        StudyDocRepository(
+            StudyDocDatabase.getInstance(context).studyDocDao(),
+            ownerUidProvider = { FirebaseAuth.getInstance().currentUser?.uid },
+        )
+    }
     val publicationRepository = remember { StudyPublicationRequestRepository() }
     val profileRepository = remember { FirestoreUserProfileRepository() }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val viewModel: StudyDocsListViewModel = viewModel(factory = StudyDocsListViewModel.Factory(repository))
+    val viewModel: StudyDocsListViewModel = viewModel(
+        key = "study-list-${ownerUid ?: "guest"}",
+        factory = StudyDocsListViewModel.Factory(repository, ownerUid),
+    )
     StudyDocsListScreen(
         navController = navController,
         viewModel = viewModel,
@@ -75,7 +84,12 @@ fun StudyDocEditorRoute(
     onThemeModeChange: (BiblionThemeMode) -> Unit = {},
 ) {
     val context = LocalContext.current
-    val repository = remember { StudyDocRepository(StudyDocDatabase.getInstance(context).studyDocDao()) }
+    val repository = remember {
+        StudyDocRepository(
+            StudyDocDatabase.getInstance(context).studyDocDao(),
+            ownerUidProvider = { FirebaseAuth.getInstance().currentUser?.uid },
+        )
+    }
     val splitViewModel: StudyDocSplitViewModel = viewModel(factory = StudyDocSplitViewModel.Factory(repository))
     StudyDocEditorScreen(
         splitViewModel = splitViewModel,
@@ -94,7 +108,10 @@ fun StudyDocEditorRoute(
 fun PublicTeachingRoute(navController: NavController) {
     val context = LocalContext.current
     val localRepository = remember {
-        StudyDocRepository(StudyDocDatabase.getInstance(context).studyDocDao())
+        StudyDocRepository(
+            StudyDocDatabase.getInstance(context).studyDocDao(),
+            ownerUidProvider = { FirebaseAuth.getInstance().currentUser?.uid },
+        )
     }
     val publicRepository = remember { FirestorePublicTeachingRepository() }
     val viewModel: PublicTeachingViewModel = viewModel(
@@ -116,7 +133,12 @@ fun StudyDocReadRoute(
     remoteId: String,
 ) {
     val context = LocalContext.current
-    val repository = remember { StudyDocRepository(StudyDocDatabase.getInstance(context).studyDocDao()) }
+    val repository = remember {
+        StudyDocRepository(
+            StudyDocDatabase.getInstance(context).studyDocDao(),
+            ownerUidProvider = { FirebaseAuth.getInstance().currentUser?.uid },
+        )
+    }
     val viewModel: StudyDocViewModel = viewModel(factory = StudyDocViewModel.Factory(repository))
     StudyDocReadScreen(
         viewModel = viewModel,

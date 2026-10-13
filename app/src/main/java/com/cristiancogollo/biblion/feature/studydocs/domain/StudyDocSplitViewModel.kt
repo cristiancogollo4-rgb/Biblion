@@ -606,13 +606,12 @@ class StudyDocSplitViewModel(
         val key = EditorTextKey(blockId, itemIndex)
         val next = StyledText.fromAnnotatedString(richState.annotatedString)
         val previous = lastRichTexts[key]
-        StudyEditorDebugLog.log(
-            "RICH_SYNC",
+        StudyEditorDebugLog.log("RICH_SYNC") {
             "vm=split block=${blockId.value} item=$itemIndex " +
                 "previousLen=${previous?.length} nextLen=${next.length} " +
                 "nextPreview=${StudyEditorDebugLog.textPreview(next.raw)} " +
-                "doc=${StudyEditorDebugLog.blocksSummary(_editorState.value.doc.blocks)}",
-        )
+                "blockCount=${_editorState.value.doc.blocks.size}"
+        }
         if (previous == null) {
             StudyEditorDebugLog.log("RICH_SYNC_INIT", "vm=split block=${blockId.value} item=$itemIndex")
             lastRichTexts[key] = next
@@ -636,11 +635,10 @@ class StudyDocSplitViewModel(
             doc = _editorState.value.doc.withEditorTexts(texts).copy(updatedAt = now),
             hasUnsavedChanges = true,
         )
-        StudyEditorDebugLog.log(
-            "RICH_SYNC_APPLIED",
+        StudyEditorDebugLog.log("RICH_SYNC_APPLIED") {
             "vm=split block=${blockId.value} item=$itemIndex " +
-                "doc=${StudyEditorDebugLog.blocksSummary(_editorState.value.doc.blocks)}",
-        )
+                "blockCount=${_editorState.value.doc.blocks.size}"
+        }
         scheduleAutoSave()
     }
 
@@ -688,9 +686,9 @@ class StudyDocSplitViewModel(
         restoreCheckpoint(next)
     }
 
-    fun saveNow(title: String, tags: List<String>) {
+    fun saveNow(title: String, tags: List<String>): Boolean {
+        if (_editorState.value.isSaving || title.trim().isEmpty()) return false
         _autoSaveJob?.cancel()
-        if (title.trim().isEmpty()) return
         val current = _editorState.value.doc
             .copy(
                 title = title.trim(),
@@ -712,7 +710,7 @@ class StudyDocSplitViewModel(
             try {
                 repository.save(doc)
                 _editorState.value = _editorState.value.copy(
-                    lastSavedAt = System.currentTimeMillis(),
+                    lastSavedAt = maxOf(System.currentTimeMillis(), (_editorState.value.lastSavedAt ?: 0L) + 1L),
                     hasUnsavedChanges = false,
                     isSaving = false,
                 )
@@ -724,6 +722,7 @@ class StudyDocSplitViewModel(
                 )
             }
         }
+        return true
     }
 
     fun discardDraft() {
@@ -1261,11 +1260,7 @@ class StudyDocSplitViewModel(
                 ?.capabilities()?.supportsInlineFormatting == false
         ) return
         val rs = activeRichState() ?: return
-        if (rs.selection.collapsed) {
-            rs.toggleSpanStyle(androidx.compose.ui.text.SpanStyle(color = androidx.compose.ui.graphics.Color(argb)))
-        } else {
-            rs.addSpanStyle(androidx.compose.ui.text.SpanStyle(color = androidx.compose.ui.graphics.Color(argb)))
-        }
+        rs.setInlineColor(InlineColorTarget.TEXT, argb)
         onRichTextChanged(activeId, rs, _editorState.value.activeListItemIndex)
         syncActiveFormat(rs)
     }
@@ -1276,39 +1271,33 @@ class StudyDocSplitViewModel(
                 ?.capabilities()?.supportsInlineFormatting == false
         ) return
         val rs = activeRichState() ?: return
-        if (rs.selection.collapsed) {
-            rs.toggleSpanStyle(androidx.compose.ui.text.SpanStyle(background = androidx.compose.ui.graphics.Color(argb)))
-        } else {
-            rs.addSpanStyle(androidx.compose.ui.text.SpanStyle(background = androidx.compose.ui.graphics.Color(argb)))
-        }
+        rs.setInlineColor(InlineColorTarget.BACKGROUND, argb)
         onRichTextChanged(activeId, rs, _editorState.value.activeListItemIndex)
         syncActiveFormat(rs)
     }
 
-    fun clearActiveColor() {
+    fun clearActiveTextColor() = clearActiveColor(InlineColorTarget.TEXT)
+
+    fun clearActiveBackgroundColor() = clearActiveColor(InlineColorTarget.BACKGROUND)
+
+    private fun clearActiveColor(target: InlineColorTarget) {
         val activeId = _editorState.value.activeBlockId ?: return
         if (_editorState.value.doc.blocks.firstOrNull { it.id == activeId }
                 ?.capabilities()?.supportsInlineFormatting == false
         ) return
         val rs = activeRichState() ?: return
-        val sel = rs.selection
+        rs.setInlineColor(target, null)
+        onRichTextChanged(activeId, rs, _editorState.value.activeListItemIndex)
+        syncActiveFormat(rs)
+    }
 
-        if (sel.collapsed) {
-            // Sin selección: limpiar color pendiente
-            rs.clearSpanStyles()
-        } else {
-            // Con selección: preservar bold/italic/underline/strikethrough, quitar color/background
-            val keepStyle = androidx.compose.ui.text.SpanStyle(
-                fontWeight = rs.currentSpanStyle.fontWeight,
-                fontStyle = rs.currentSpanStyle.fontStyle,
-                textDecoration = rs.currentSpanStyle.textDecoration,
-                fontSize = rs.currentSpanStyle.fontSize,
-            )
-            rs.clearSpanStyles(sel)
-            if (keepStyle != androidx.compose.ui.text.SpanStyle()) {
-                rs.addSpanStyle(keepStyle, sel)
-            }
-        }
+    fun clearActiveFormatting() {
+        val activeId = _editorState.value.activeBlockId ?: return
+        if (_editorState.value.doc.blocks.firstOrNull { it.id == activeId }
+                ?.capabilities()?.supportsInlineFormatting == false
+        ) return
+        val rs = activeRichState() ?: return
+        if (rs.selection.collapsed) rs.clearSpanStyles() else rs.clearSpanStyles(rs.selection)
         onRichTextChanged(activeId, rs, _editorState.value.activeListItemIndex)
         syncActiveFormat(rs)
     }
@@ -1450,11 +1439,14 @@ class StudyDocSplitViewModel(
     }
 
     fun setActiveFontFamily(family: String) {
+        if (family !in setOf("sans", "serif", "monospace", "default")) return
         val activeId = _editorState.value.activeBlockId ?: return
         val blocks = _editorState.value.doc.blocks
         val idx = blocks.indexOfFirst { it.id == activeId }
         if (idx < 0) return
         val block = blocks[idx]
+        if (block is StudyBlock.Verse || block.fontFamily == family ||
+            (family == "sans" && block.fontFamily in listOf(null, "default"))) return
         val updated = when (block) {
             is StudyBlock.Paragraph -> block.copy(fontFamily = family)
             is StudyBlock.Heading -> block.copy(fontFamily = family)
@@ -1513,6 +1505,7 @@ class StudyDocSplitViewModel(
         val idx = _editorState.value.doc.blocks.indexOfFirst { it.id == blockId }
         if (idx < 0) return
         val block = _editorState.value.doc.blocks[idx]
+        if (block.alignment == alignment) return
         val updated = when (block) {
             is StudyBlock.Paragraph -> block.copy(alignment = alignment)
             is StudyBlock.Heading -> block.copy(alignment = alignment)

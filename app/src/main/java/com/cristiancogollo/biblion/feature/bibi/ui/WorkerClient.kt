@@ -10,8 +10,10 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.SerialDescriptor
@@ -47,6 +49,7 @@ object WorkerClient {
         val bible: BiblePayload? = null,
         val chatHistory: List<ChatHistoryEntry> = emptyList(),
         val lastQueries: List<String> = emptyList(),
+        val doctrinalPerspective: String? = null,
     )
 
     @Serializable
@@ -105,6 +108,7 @@ object WorkerClient {
         chatHistory: List<ChatExchange>,
         lastQueries: List<String>,
         localContext: String = "",
+        doctrinalPerspective: String? = null,
     ): WorkerRequest {
         val commonHistory = chatHistory.takeLast(5).map {
             ChatHistoryEntry(
@@ -121,7 +125,11 @@ object WorkerClient {
                 intent = intent,
                 study = StudyPayload(
                     title = "${context.book} ${context.chapter}".trim(),
-                    selectedText = context.passages.joinToString("\n") { it.asPromptText() },
+                    selectedText = if (context.hasExplicitSelection) {
+                        context.passages.joinToString("\n") { it.asPromptText() }
+                    } else {
+                        ""
+                    },
                     notes = listOfNotNull(localContext.takeIf { it.isNotBlank() }),
                 ),
                 bible = BiblePayload(
@@ -130,6 +138,7 @@ object WorkerClient {
                 ),
                 chatHistory = commonHistory,
                 lastQueries = lastQueries.takeLast(5),
+                doctrinalPerspective = doctrinalPerspective,
             )
             is BibiContext.Study -> WorkerRequest(
                 question = question,
@@ -148,6 +157,7 @@ object WorkerClient {
                 ),
                 chatHistory = commonHistory,
                 lastQueries = lastQueries.takeLast(5),
+                doctrinalPerspective = doctrinalPerspective,
             )
         }
     }
@@ -158,7 +168,7 @@ object WorkerClient {
 
         var connection: HttpURLConnection? = null
         try {
-            val token = getFirebaseIdToken()
+            val token = withTimeoutOrNull(8_000) { getFirebaseIdToken() }
             connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json")
@@ -198,6 +208,8 @@ object WorkerClient {
                     intentDetected = parsed.intentDetected,
                 )
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (error: Exception) {
             Log.w(TAG, "Worker request could not be completed: ${error.javaClass.simpleName}")
             null
@@ -213,8 +225,8 @@ object WorkerClient {
             return@suspendCancellableCoroutine
         }
         user.getIdToken(false)
-            .addOnSuccessListener { continuation.resume(it.token) }
-            .addOnFailureListener { continuation.resume(null) }
+            .addOnSuccessListener { if (continuation.isActive) continuation.resume(it.token) }
+            .addOnFailureListener { if (continuation.isActive) continuation.resume(null) }
     }
 }
 

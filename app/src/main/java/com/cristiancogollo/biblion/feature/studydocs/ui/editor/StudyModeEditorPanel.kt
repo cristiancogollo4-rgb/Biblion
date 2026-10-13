@@ -16,11 +16,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.FormatAlignLeft
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +33,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -38,8 +43,11 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cristiancogollo.biblion.addSharedPrimaryDestinations
+import com.cristiancogollo.biblion.R
 import com.cristiancogollo.biblion.AuthDialog
 import com.cristiancogollo.biblion.AuthDialogMode
 import com.cristiancogollo.biblion.AuthViewModel
@@ -50,6 +58,7 @@ import com.cristiancogollo.biblion.findActivity
 import com.cristiancogollo.biblion.ProfileScreen
 import com.cristiancogollo.biblion.ProfileViewModel
 import com.cristiancogollo.biblion.Screen
+import com.cristiancogollo.biblion.decodeArg
 import com.cristiancogollo.biblion.feature.studydocs.domain.TextStyleKind
 import com.cristiancogollo.biblion.feature.studydocs.debug.StudyEditorDebugLog
 import com.cristiancogollo.biblion.feature.studydocs.model.BlockId
@@ -59,6 +68,7 @@ import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
 import com.cristiancogollo.biblion.feature.studydocs.model.capabilities
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PaginatedSheet
+import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PagedEditorUnitKey
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.SheetViewMode
 import com.cristiancogollo.biblion.ui.theme.BiblionThemeMode
 import com.cristiancogollo.biblion.feature.achievements.presentation.ACHIEVEMENTS_ROUTE
@@ -81,8 +91,8 @@ private val highlightPaletteDark = listOf(
     Color(0xFF1565C0), Color(0xFF6A1B9A), Color(0xFFE65100),
 )
 
-private fun currentHighlightPalette(isDarkTheme: Boolean) =
-    if (isDarkTheme) highlightPaletteDark else highlightPaletteLight
+private fun currentHighlightPalette(themeMode: BiblionThemeMode) =
+    if (themeMode == BiblionThemeMode.LIGHT) highlightPaletteLight else highlightPaletteDark
 
 @Composable
 fun StudyModeEditorPanel(
@@ -95,7 +105,8 @@ fun StudyModeEditorPanel(
     isFullScreen: Boolean = false,
     onToggleFullScreen: () -> Unit = {},
     isDarkTheme: Boolean = false,
-    onToggleDarkTheme: (Boolean) -> Unit = {},
+    themeMode: BiblionThemeMode = if (isDarkTheme) BiblionThemeMode.DARK else BiblionThemeMode.LIGHT,
+    onThemeModeChange: (BiblionThemeMode) -> Unit = {},
     navController: androidx.navigation.NavController? = null,
     showFullScreenToggle: Boolean = true,
     isCompactLayout: Boolean = false,
@@ -105,7 +116,9 @@ fun StudyModeEditorPanel(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val editorZoomState = rememberDocumentZoomState()
-    var viewMode by remember { mutableStateOf(SheetViewMode.PAGINATED) }
+    var viewMode by rememberSaveable(isCompactLayout) {
+        mutableStateOf(if (isCompactLayout) SheetViewMode.PAGELESS else SheetViewMode.PAGINATED)
+    }
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     val hardwareKeyboardPresent =
         LocalConfiguration.current.keyboard != Configuration.KEYBOARD_NOKEYS
@@ -138,8 +151,8 @@ fun StudyModeEditorPanel(
         splitViewModel?.deleteBlock(block.id) ?: viewModel?.deleteBlock(block.id)
     }
 
-    LaunchedEffect(isFullScreen) {
-        editorZoomState.set(if (isFullScreen) 1f else DocumentZoomState.MIN_ZOOM)
+    LaunchedEffect(isFullScreen, isCompactLayout) {
+        editorZoomState.set(if (isFullScreen || isCompactLayout) 1f else DocumentZoomState.MIN_ZOOM)
     }
 
     LaunchedEffect(editorState.doc.title) {
@@ -177,18 +190,23 @@ fun StudyModeEditorPanel(
                 onBackClick = onBack,
                 onSaveClick = onSaveClick,
                 showFullScreenToggle = showFullScreenToggle,
+                compact = isCompactLayout,
             )
         }
 
-        val activeCapabilities = editorState.doc.blocks
+        val activeBlock = editorState.doc.blocks
             .firstOrNull { it.id == editorState.activeBlockId }
-            ?.capabilities()
+        val activeCapabilities = activeBlock?.capabilities()
         StudyModeToolbar(
             activeFormat = editorState.activeFormat,
             inlineFormattingEnabled =
-                activeCapabilities?.supportsInlineFormatting != false,
+                activeCapabilities?.supportsInlineFormatting == true,
             blockTypeChangeEnabled =
-                activeCapabilities?.supportsBlockTypeChange != false,
+                activeCapabilities?.supportsBlockTypeChange == true,
+            alignmentEnabled = activeCapabilities?.supportsAlignment == true,
+            isBulletList = activeBlock is com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock.BulletList,
+            isOrderedList = activeBlock is com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock.OrderedList,
+            currentFontFamily = activeBlock?.fontFamily,
             currentFontSize = run {
                 val af = editorState.activeFormat.fontSize
                 val bf = editorState.doc.blocks.firstOrNull { it.id == editorState.activeBlockId }?.fontSize
@@ -219,6 +237,9 @@ fun StudyModeEditorPanel(
             onSetFontSize = { size ->
                 splitViewModel?.setFontSizeActive(size) ?: viewModel?.setFontSizeActive(size)
             },
+            onFontFamily = { family ->
+                splitViewModel?.setActiveFontFamily(family) ?: viewModel?.setActiveFontFamily(family)
+            },
             onSetAlignment = { alignment ->
                 editorState.activeBlockId?.let {
                     splitViewModel?.setBlockAlignment(it, alignment) ?: viewModel?.setBlockAlignment(it, alignment)
@@ -244,11 +265,16 @@ fun StudyModeEditorPanel(
                         ?: viewModel?.changeBlockType(blockId, type)
                 }
             },
-            onClearColor = {
-                splitViewModel?.clearActiveColor() ?: viewModel?.clearActiveColor()
+            onClearTextColor = {
+                splitViewModel?.clearActiveTextColor() ?: viewModel?.clearActiveTextColor()
             },
-            isDarkTheme = isDarkTheme,
-            onToggleDarkTheme = onToggleDarkTheme,
+            onClearBackgroundColor = {
+                splitViewModel?.clearActiveBackgroundColor() ?: viewModel?.clearActiveBackgroundColor()
+            },
+            onClearFormatting = {
+                splitViewModel?.clearActiveFormatting() ?: viewModel?.clearActiveFormatting()
+            },
+            themeMode = themeMode,
             zoomState = editorZoomState,
         )
 
@@ -260,6 +286,9 @@ fun StudyModeEditorPanel(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             zoomState = editorZoomState,
             viewMode = viewMode,
+            activeEditorKey = editorState.activeBlockId?.let {
+                PagedEditorUnitKey(it, editorState.activeListItemIndex)
+            },
             contentFragmentRenderer = { fragment, _ ->
                 EditorSheetFragment(
                     fragment = fragment,
@@ -340,7 +369,7 @@ fun StudyModeEditorPanel(
                 contentColor = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 24.dp, bottom = 96.dp)
+                    .padding(end = 24.dp, bottom = 128.dp)
                     .size(56.dp),
             ) {
                 Icon(
@@ -372,7 +401,9 @@ private fun StudyModeHeader(
     onBackClick: () -> Unit,
     onSaveClick: () -> Unit,
     showFullScreenToggle: Boolean,
+    compact: Boolean,
 ) {
+    var overflowExpanded by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -422,18 +453,20 @@ private fun StudyModeHeader(
         )
 
         // Botón alternar pantalla completa / dividida
-        SaveStatus(
-            isSaving = isSaving,
-            hasUnsavedChanges = hasUnsavedChanges,
-            lastError = lastError,
-        )
-        IconButton(onClick = onUndo, enabled = canUndo) {
-            Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Deshacer")
+        if (!compact) {
+            SaveStatus(
+                isSaving = isSaving,
+                hasUnsavedChanges = hasUnsavedChanges,
+                lastError = lastError,
+            )
+            IconButton(onClick = onUndo, enabled = canUndo) {
+                Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Deshacer")
+            }
+            IconButton(onClick = onRedo, enabled = canRedo) {
+                Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Rehacer")
+            }
         }
-        IconButton(onClick = onRedo, enabled = canRedo) {
-            Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Rehacer")
-        }
-        if (showFullScreenToggle) {
+        if (showFullScreenToggle && !compact) {
             IconButton(onClick = onToggleFullScreen) {
                 Icon(
                     imageVector = if (isFullScreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
@@ -445,7 +478,7 @@ private fun StudyModeHeader(
         }
 
         // Botón alternar modo de vista (PAGINATED <-> PAGELESS)
-        IconButton(onClick = onToggleViewMode) {
+        if (!compact) IconButton(onClick = onToggleViewMode) {
             Icon(
                 imageVector = if (viewMode == SheetViewMode.PAGINATED) {
                     Icons.Default.ViewStream
@@ -464,6 +497,50 @@ private fun StudyModeHeader(
                 tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(24.dp),
             )
+        }
+
+        if (compact) {
+            Box {
+                IconButton(onClick = { overflowExpanded = true }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = androidx.compose.ui.res.stringResource(R.string.study_action_options))
+                }
+                DropdownMenu(
+                    expanded = overflowExpanded,
+                    onDismissRequest = { overflowExpanded = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { SaveStatus(isSaving, hasUnsavedChanges, lastError) },
+                        onClick = { },
+                        enabled = false,
+                    )
+                    DropdownMenuItem(
+                        text = { Text(androidx.compose.ui.res.stringResource(R.string.study_action_undo)) },
+                        onClick = { overflowExpanded = false; onUndo() },
+                        enabled = canUndo,
+                    )
+                    DropdownMenuItem(
+                        text = { Text(androidx.compose.ui.res.stringResource(R.string.study_action_redo)) },
+                        onClick = { overflowExpanded = false; onRedo() },
+                        enabled = canRedo,
+                    )
+                    DropdownMenuItem(
+                        text = { Text(androidx.compose.ui.res.stringResource(
+                            if (viewMode == SheetViewMode.PAGINATED) R.string.view_mode_pageless
+                            else R.string.view_mode_paginated
+                        )) },
+                        onClick = { overflowExpanded = false; onToggleViewMode() },
+                    )
+                    if (showFullScreenToggle) {
+                        DropdownMenuItem(
+                            text = { Text(androidx.compose.ui.res.stringResource(
+                                if (isFullScreen) R.string.study_action_split
+                                else R.string.study_action_fullscreen
+                            )) },
+                            onClick = { overflowExpanded = false; onToggleFullScreen() },
+                        )
+                    }
+                }
+            }
         }
 
         // Botón Guardar
@@ -675,27 +752,37 @@ internal fun BibleReaderPane(
 
         // Rutas del lector (Reader) que addSharedPrimaryDestinations no registra
         composable(
-            route = "reader/{bookName}?studyMode={studyMode}&chapter={chapter}&verse={verse}&studyId={studyId}",
+            route = Screen.ReaderWithBook.route,
             arguments = listOf(
-                androidx.navigation.navArgument("bookName") {
-                    type = androidx.navigation.NavType.StringType
-                },
+                navArgument("bookName") { type = NavType.StringType },
+                navArgument("chapter") { type = NavType.IntType; defaultValue = 1 },
+                navArgument("verse") { type = NavType.StringType; defaultValue = "" },
             ),
         ) { entry ->
-            val bookName = entry.arguments?.getString("bookName")
+            val bookName = decodeStudyReaderBookArg(entry.arguments?.getString("bookName"))
+            val chapter = entry.arguments?.getInt("chapter")?.coerceAtLeast(1) ?: 1
+            val verse = entry.arguments?.getString("verse")?.let(::decodeArg)?.ifBlank { null }
             com.cristiancogollo.biblion.ReaderScreen(
                 navController = localNavController,
                 bookName = bookName,
+                initialChapter = chapter,
+                targetVerse = verse,
                 showBibi = false,
                 onInsertVerseCitation = onInsertVerseCitation,
             )
         }
         composable(
-            route = "reader?studyMode={studyMode}&chapter={chapter}&verse={verse}&studyId={studyId}",
+            route = Screen.ReaderWithoutBook.route,
+            arguments = listOf(
+                navArgument("chapter") { type = NavType.IntType; defaultValue = 1 },
+                navArgument("verse") { type = NavType.StringType; defaultValue = "" },
+            ),
         ) { entry ->
             com.cristiancogollo.biblion.ReaderScreen(
                 navController = localNavController,
                 bookName = null,
+                initialChapter = entry.arguments?.getInt("chapter")?.coerceAtLeast(1) ?: 1,
+                targetVerse = entry.arguments?.getString("verse")?.let(::decodeArg)?.ifBlank { null },
                 showBibi = false,
                 onInsertVerseCitation = onInsertVerseCitation,
             )
@@ -707,11 +794,18 @@ internal fun BibleReaderPane(
     // recompone. Ahora la navegacion a "auth" ocurre dentro del NavHost.
 }
 
+internal fun decodeStudyReaderBookArg(encodedBookName: String?): String? =
+    encodedBookName?.let(::decodeArg)?.ifBlank { null }
+
 @Composable
 private fun StudyModeToolbar(
     activeFormat: com.cristiancogollo.biblion.feature.studydocs.domain.ActiveFormatSnapshot,
     inlineFormattingEnabled: Boolean,
     blockTypeChangeEnabled: Boolean,
+    alignmentEnabled: Boolean,
+    isBulletList: Boolean,
+    isOrderedList: Boolean,
+    currentFontFamily: String?,
     currentFontSize: Int,
     currentAlignment: com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment,
     onToggleStyle: (TextStyleKind) -> Unit,
@@ -719,22 +813,24 @@ private fun StudyModeToolbar(
     onBackgroundColor: (Int) -> Unit,
     onStepFontSize: (Int) -> Unit,
     onSetFontSize: (Int) -> Unit,
+    onFontFamily: (String) -> Unit,
     onSetAlignment: (com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment) -> Unit,
     onInsertBlock: (String) -> Unit,
     onChangeBlockType: (String) -> Unit,
-    onClearColor: () -> Unit,
-    isDarkTheme: Boolean,
-    onToggleDarkTheme: (Boolean) -> Unit,
+    onClearTextColor: () -> Unit,
+    onClearBackgroundColor: () -> Unit,
+    onClearFormatting: () -> Unit,
+    themeMode: BiblionThemeMode,
     zoomState: DocumentZoomState,
 ) {
     val scrollState = rememberScrollState()
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .horizontalScroll(scrollState)
-                .padding(horizontal = 16.dp, vertical = 6.dp),
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .horizontalScroll(scrollState)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -763,6 +859,14 @@ private fun StudyModeToolbar(
             isActive = activeFormat.underline,
             enabled = inlineFormattingEnabled,
             onClick = { onToggleStyle(TextStyleKind.Underline) },
+        )
+
+        ToolbarIcon(
+            icon = Icons.Default.StrikethroughS,
+            contentDescription = "Tachado",
+            isActive = activeFormat.strikethrough,
+            enabled = inlineFormattingEnabled,
+            onClick = { onToggleStyle(TextStyleKind.Strikethrough) },
         )
 
         // Color de texto (A) — menú flotante
@@ -798,6 +902,7 @@ private fun StudyModeToolbar(
                                     onTextColor(color.toArgb())
                                     showTextColorMenu = false
                                 }
+                                .semantics { contentDescription = "Color de texto ${color.toArgb().toUInt().toString(16)}" }
                         )
                     }
                 }
@@ -806,7 +911,7 @@ private fun StudyModeToolbar(
                     text = { Text("Quitar color") },
                     leadingIcon = { Icon(Icons.Default.FormatColorReset, null, modifier = Modifier.size(18.dp)) },
                     onClick = {
-                        onClearColor()
+                        onClearTextColor()
                         showTextColorMenu = false
                     },
                 )
@@ -837,7 +942,7 @@ private fun StudyModeToolbar(
                     modifier = Modifier.padding(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    currentHighlightPalette(isDarkTheme).forEach { color ->
+                    currentHighlightPalette(themeMode).forEach { color ->
                         Box(
                             modifier = Modifier
                                 .size(32.dp)
@@ -846,6 +951,7 @@ private fun StudyModeToolbar(
                                     onBackgroundColor(color.toArgb())
                                     showHighlightMenu = false
                                 }
+                                .semantics { contentDescription = "Resaltado ${color.toArgb().toUInt().toString(16)}" }
                         )
                     }
                 }
@@ -854,40 +960,78 @@ private fun StudyModeToolbar(
                     text = { Text("Quitar resaltado") },
                     leadingIcon = { Icon(Icons.Default.FormatColorReset, null, modifier = Modifier.size(18.dp)) },
                     onClick = {
-                        onClearColor()
+                        onClearBackgroundColor()
                         showHighlightMenu = false
                     },
                 )
             }
         }
 
+        ToolbarIcon(
+            icon = Icons.Default.FormatClear,
+            contentDescription = "Limpiar formato",
+            isActive = false,
+            enabled = inlineFormattingEnabled,
+            onClick = onClearFormatting,
+        )
+
         ToolbarDivider()
 
         // Viñetas
         ToolbarIcon(
-            icon = Icons.Default.FormatListBulleted,
+            icon = Icons.AutoMirrored.Filled.FormatListBulleted,
             contentDescription = "Lista vinetas",
-            isActive = false,
+            isActive = isBulletList,
             enabled = blockTypeChangeEnabled,
-            onClick = { onChangeBlockType("bullet") },
+            onClick = { onChangeBlockType(if (isBulletList) "paragraph" else "bullet") },
         )
 
         // Numerada
         ToolbarIcon(
             icon = Icons.Default.FormatListNumbered,
             contentDescription = "Lista numerada",
-            isActive = false,
+            isActive = isOrderedList,
             enabled = blockTypeChangeEnabled,
-            onClick = { onChangeBlockType("numbered") },
+            onClick = { onChangeBlockType(if (isOrderedList) "paragraph" else "numbered") },
         )
+
+        var showInsertMenu by remember { mutableStateOf(false) }
+        Box {
+            ToolbarIcon(
+                icon = Icons.Default.Add,
+                contentDescription = "Insertar bloque",
+                isActive = false,
+                onClick = { showInsertMenu = true },
+            )
+            DropdownMenu(
+                expanded = showInsertMenu,
+                onDismissRequest = { showInsertMenu = false },
+            ) {
+                listOf(
+                    "paragraph" to "Párrafo",
+                    "heading1" to "Título 1",
+                    "heading2" to "Título 2",
+                    "heading3" to "Título 3",
+                    "bullet" to "Lista con viñetas",
+                    "ordered" to "Lista numerada",
+                    "quote" to "Cita",
+                ).forEach { (type, label) ->
+                    DropdownMenuItem(
+                        text = { Text(label) },
+                        onClick = { onInsertBlock(type); showInsertMenu = false },
+                    )
+                }
+            }
+        }
 
         ToolbarDivider()
 
         // Alineación izquierda
         ToolbarIcon(
-            icon = Icons.Default.FormatAlignLeft,
+            icon = Icons.AutoMirrored.Filled.FormatAlignLeft,
             contentDescription = "Alinear izquierda",
             isActive = currentAlignment == com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment.Start,
+            enabled = alignmentEnabled,
             onClick = { onSetAlignment(com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment.Start) },
         )
 
@@ -896,7 +1040,16 @@ private fun StudyModeToolbar(
             icon = Icons.Default.FormatAlignCenter,
             contentDescription = "Alinear centro",
             isActive = currentAlignment == com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment.Center,
+            enabled = alignmentEnabled,
             onClick = { onSetAlignment(com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment.Center) },
+        )
+
+        ToolbarIcon(
+            icon = Icons.Default.FormatAlignRight,
+            contentDescription = "Alinear derecha",
+            isActive = currentAlignment == com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment.End,
+            enabled = alignmentEnabled,
+            onClick = { onSetAlignment(com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment.End) },
         )
 
         // Justificado
@@ -904,6 +1057,7 @@ private fun StudyModeToolbar(
             icon = Icons.Default.FormatAlignJustify,
             contentDescription = "Alinear justificado",
             isActive = currentAlignment == com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment.Justify,
+            enabled = alignmentEnabled,
             onClick = { onSetAlignment(com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment.Justify) },
         )
 
@@ -916,16 +1070,41 @@ private fun StudyModeToolbar(
             onSetFontSize = onSetFontSize,
         )
 
+        var showFontMenu by remember { mutableStateOf(false) }
+        Box {
+            TextButton(
+                onClick = { showFontMenu = true },
+                enabled = inlineFormattingEnabled,
+            ) {
+                Text(
+                    when (currentFontFamily) {
+                        "serif" -> "Serif"
+                        "monospace" -> "Mono"
+                        else -> "Sans"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+            DropdownMenu(
+                expanded = showFontMenu && inlineFormattingEnabled,
+                onDismissRequest = { showFontMenu = false },
+            ) {
+                listOf(
+                    "sans" to "Sans Serif",
+                    "serif" to "Serif",
+                    "monospace" to "Monospace",
+                ).forEach { (key, label) ->
+                    DropdownMenuItem(
+                        text = { Text(label) },
+                        onClick = { onFontFamily(key); showFontMenu = false },
+                    )
+                }
+            }
+        }
+
         ToolbarDivider()
 
         ZoomMenu(zoomState = zoomState, showStepButtons = false)
-
-        ToolbarIcon(
-            icon = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
-            contentDescription = if (isDarkTheme) "Usar modo claro" else "Usar modo oscuro",
-            isActive = isDarkTheme,
-            onClick = { onToggleDarkTheme(!isDarkTheme) },
-        )
     }
 }
 

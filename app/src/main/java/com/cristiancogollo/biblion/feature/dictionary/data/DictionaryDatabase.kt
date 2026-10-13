@@ -174,6 +174,15 @@ interface DictionaryDao {
     )
     suspend fun getEntryByNormalizedTerm(normalizedTerm: String): DictionaryEntryEntity?
 
+    @Query(
+        """
+        SELECT * FROM dictionary_entries
+        WHERE normalized_term = :normalizedTerm
+        ORDER BY category ASC, id ASC
+        """
+    )
+    suspend fun getEntriesByNormalizedTerm(normalizedTerm: String): List<DictionaryEntryEntity>
+
     /**
      * Busqueda por prefijo del termino (para autocompletado).
      * @param prefix Prefijo del termino (ej: "abr" -> "Abraham", "Abra", etc.)

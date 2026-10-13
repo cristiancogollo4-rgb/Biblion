@@ -3,6 +3,7 @@ package com.cristiancogollo.biblion.feature.studydocs.engine
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
 import com.cristiancogollo.biblion.feature.studydocs.model.StyledText
+import com.cristiancogollo.biblion.feature.studydocs.model.StyleRange
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -37,6 +38,47 @@ class StudyDocEngineListTest {
         assertTrue(status.isSuccess)
         val numbered = result.blocks.single() as StudyBlock.OrderedList
         assertEquals(listOf("uno", "dos"), numbered.items.map { it.raw })
+    }
+
+    @Test
+    fun `convertir lista a parrafo y volver conserva formato e items`() {
+        val list = StudyBlock.OrderedList(
+            items = listOf(
+                StyledText("uno", listOf(StyleRange(0, 3, bold = true, color = 0xFF112233.toInt()))),
+                StyledText("dos", listOf(StyleRange(0, 3, background = 0xFFFFFF00.toInt()))),
+            ),
+        )
+        val (paragraphDoc, paragraphStatus) = StudyDocEngine.apply(
+            StudyDoc(blocks = listOf(list)),
+            StudyOp.ChangeBlockType(list.id, "paragraph"),
+        )
+        assertTrue(paragraphStatus.isSuccess)
+        val paragraph = paragraphDoc.blocks.single() as StudyBlock.Paragraph
+        assertEquals("uno\ndos", paragraph.text.raw)
+        assertEquals(0, paragraph.text.ranges[0].start)
+        assertEquals(4, paragraph.text.ranges[1].start)
+
+        val (numberedDoc, numberedStatus) = StudyDocEngine.apply(
+            paragraphDoc,
+            StudyOp.ChangeBlockType(list.id, "numbered"),
+        )
+        assertTrue(numberedStatus.isSuccess)
+        val restored = numberedDoc.blocks.single() as StudyBlock.OrderedList
+        assertEquals(list.items, restored.items)
+    }
+
+    @Test
+    fun `tipo de bloque desconocido no transforma el contenido`() {
+        val original = StudyBlock.Paragraph(text = StyledText("texto"))
+        val doc = StudyDoc(blocks = listOf(original))
+
+        val (result, status) = StudyDocEngine.apply(
+            doc,
+            StudyOp.ChangeBlockType(original.id, "desconocido"),
+        )
+
+        assertTrue(status is OpResult.Failed)
+        assertEquals(doc, result)
     }
 
     @Test

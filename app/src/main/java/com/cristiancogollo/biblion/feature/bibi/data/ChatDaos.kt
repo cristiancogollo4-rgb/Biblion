@@ -17,26 +17,35 @@ interface ChatSessionDao {
     @Update
     suspend fun update(session: ChatSessionEntity)
 
-    @Query("SELECT * FROM chat_sessions ORDER BY updated_at DESC")
-    suspend fun getAll(): List<ChatSessionEntity>
+    @Query("SELECT * FROM chat_sessions WHERE owner_uid = :ownerUid ORDER BY updated_at DESC")
+    suspend fun getAll(ownerUid: String): List<ChatSessionEntity>
 
-    @Query("SELECT * FROM chat_sessions WHERE id = :id")
-    suspend fun getById(id: Long): ChatSessionEntity?
+    @Query("SELECT * FROM chat_sessions WHERE id = :id AND owner_uid = :ownerUid")
+    suspend fun getById(id: Long, ownerUid: String): ChatSessionEntity?
 
-    @Query("SELECT * FROM chat_sessions ORDER BY updated_at DESC LIMIT 1")
-    suspend fun getMostRecent(): ChatSessionEntity?
+    @Query("SELECT * FROM chat_sessions WHERE owner_uid = :ownerUid ORDER BY updated_at DESC LIMIT 1")
+    suspend fun getMostRecent(ownerUid: String): ChatSessionEntity?
 
-    @Query("SELECT * FROM chat_sessions WHERE mode = :mode ORDER BY updated_at DESC LIMIT 1")
-    suspend fun getMostRecentByMode(mode: String): ChatSessionEntity?
+    @Query(
+        "SELECT * FROM chat_sessions " +
+            "WHERE mode = :mode AND owner_uid = :ownerUid ORDER BY updated_at DESC LIMIT 1"
+    )
+    suspend fun getMostRecentByMode(mode: String, ownerUid: String): ChatSessionEntity?
 
-    @Query("SELECT * FROM chat_sessions WHERE mode = :mode ORDER BY updated_at DESC")
-    suspend fun getByMode(mode: String): List<ChatSessionEntity>
+    @Query(
+        "SELECT * FROM chat_sessions " +
+            "WHERE mode = :mode AND owner_uid = :ownerUid ORDER BY updated_at DESC"
+    )
+    suspend fun getByMode(mode: String, ownerUid: String): List<ChatSessionEntity>
 
     @Delete
     suspend fun delete(session: ChatSessionEntity)
 
-    @Query("DELETE FROM chat_sessions WHERE id = :id")
-    suspend fun deleteById(id: Long)
+    @Query("DELETE FROM chat_sessions WHERE id = :id AND owner_uid = :ownerUid")
+    suspend fun deleteById(id: Long, ownerUid: String)
+
+    @Query("DELETE FROM chat_sessions WHERE owner_uid = :ownerUid")
+    suspend fun deleteAllByOwner(ownerUid: String)
 }
 
 @Dao

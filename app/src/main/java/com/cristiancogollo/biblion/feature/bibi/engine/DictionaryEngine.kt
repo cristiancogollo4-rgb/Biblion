@@ -7,6 +7,7 @@ import com.cristiancogollo.biblion.feature.bibi.model.BibiSuggestion
 import com.cristiancogollo.biblion.feature.bibi.model.BibiUserContext
 import com.cristiancogollo.biblion.feature.bibi.model.BibiVerse
 import com.cristiancogollo.biblion.feature.bibi.model.ChatExchange
+import com.cristiancogollo.biblion.feature.bibi.model.Confidence
 import com.cristiancogollo.biblion.feature.bibi.model.MetadataFact
 import com.cristiancogollo.biblion.feature.dictionary.data.DictionaryCategory
 import com.cristiancogollo.biblion.feature.dictionary.data.DictionaryEntry
@@ -24,7 +25,13 @@ object DictionaryEngine {
         allowedCategories: Set<DictionaryCategory>? = null
     ): BibiResponse? {
         Log.d(TAG, "Definiendo: $term")
-        val entry = DictionaryRepository.getEntryByTerm(context, term)
+        val exactEntries = DictionaryRepository.getEntriesByTerm(context, term)
+            .filter { allowedCategories == null || it.category in allowedCategories }
+        if (exactEntries.map { it.category }.distinct().size > 1) {
+            return buildAmbiguousResponse(term, exactEntries, userContext)
+        }
+        val entry = exactEntries.firstOrNull()
+            ?: DictionaryRepository.getEntryByTerm(context, term)
             ?: DictionaryRepository.searchEntries(context, term).firstOrNull()?.let { result ->
                 DictionaryRepository.getEntryById(context, result.id)
             }
@@ -40,6 +47,48 @@ object DictionaryEngine {
         }
 
         return formatByCategory(context, entry, userContext, chatHistory)
+    }
+
+    internal fun buildAmbiguousResponse(
+        term: String,
+        entries: List<DictionaryEntry>,
+        userContext: BibiUserContext?,
+    ): BibiResponse {
+        val categories = entries.map { it.category }.distinct()
+        return BibiResponse(
+            greeting = userContext?.let(::buildGreeting),
+            title = term.trim(),
+            subtitle = "Este nombre tiene varios sentidos biblicos",
+            definition = "En la Biblia, este termino puede referirse a mas de una entidad.",
+            details = categories.map { category ->
+                val definition = entries.first { it.category == category }.definition
+                val preview = definition.take(180).trimEnd()
+                "${categoryLabel(category)}: $preview${if (definition.length > preview.length) "..." else ""}"
+            },
+            followUp = "Elige a cual significado te refieres para darte una respuesta precisa.",
+            suggestions = categories.take(3).map { category ->
+                BibiSuggestion(
+                    label = "${term.trim()} como ${categoryLabel(category).lowercase()}",
+                    query = when (category) {
+                        DictionaryCategory.PERSON -> "Quien fue ${term.trim()}?"
+                        DictionaryCategory.PLACE -> "Donde estaba ${term.trim()}?"
+                        else -> "Que significa ${term.trim()} como ${categoryLabel(category).lowercase()}?"
+                    },
+                )
+            },
+            confidence = Confidence.MEDIUM,
+        )
+    }
+
+    private fun categoryLabel(category: DictionaryCategory): String = when (category) {
+        DictionaryCategory.PERSON -> "Persona"
+        DictionaryCategory.PLACE -> "Lugar"
+        DictionaryCategory.CONCEPT -> "Concepto"
+        DictionaryCategory.OBJECT -> "Objeto"
+        DictionaryCategory.PRACTICE -> "Practica"
+        DictionaryCategory.EVENT -> "Evento"
+        DictionaryCategory.BOOK -> "Libro"
+        DictionaryCategory.OTHER -> "Termino general"
     }
 
     suspend fun findTermsInVerse(

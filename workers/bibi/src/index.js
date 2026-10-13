@@ -1,4 +1,10 @@
 import {
+  doctrinalFallback,
+  enforceDoctrinalResponse,
+  resolveDoctrinalContext
+} from "./doctrinal_policy.js";
+import {
+  attributionFallback,
   containsUnsupportedAttribution,
   needsOfficialSource,
   unverifiedInstitutionalAnswer,
@@ -146,8 +152,14 @@ export default {
       return jsonResponse({ error: "La solicitud excede el tamano permitido." }, 413);
     }
 
-    const authenticatedUser = await authenticateRequest(request, env);
-    if (env.FIREBASE_WEB_API_KEY && !authenticatedUser) {
+    const requireAuth = env.BIBI_REQUIRE_AUTH !== "false";
+    if (requireAuth && !env.FIREBASE_WEB_API_KEY) {
+      return jsonResponse({ error: "El servicio de autenticacion no esta configurado." }, 503);
+    }
+    const authenticatedUser = requireAuth
+      ? await authenticateRequest(request, env)
+      : null;
+    if (requireAuth && !authenticatedUser) {
       return jsonResponse({ error: "Se requiere una sesion valida de Biblion." }, 401);
     }
     if (env.BIBI_RATE_LIMITER) {
@@ -162,7 +174,11 @@ export default {
 
     let data;
     try {
-      data = await request.json();
+      const rawBody = await request.text();
+      if (new TextEncoder().encode(rawBody).byteLength > 32_000) {
+        return jsonResponse({ error: "La solicitud excede el tamano permitido." }, 413);
+      }
+      data = JSON.parse(rawBody);
     } catch (_) {
       return jsonResponse({ error: "El cuerpo debe ser JSON valido." }, 400);
     }
@@ -175,10 +191,18 @@ export default {
     const study = data?.study || {};
     const bible = data?.bible || {};
     const mode = sanitizeText(data?.mode, 20) === "reader" ? "reader" : "study";
-    const intent = normalizeIntent(data?.intent || inferIntent(question));
+    const requestedIntent = sanitizeText(data?.intent, 40).toLowerCase();
+    const intent = requestedIntent && requestedIntent !== "unknown"
+      ? normalizeIntent(requestedIntent)
+      : inferIntent(question);
     const currentOutline = sanitizeStringArray(study.currentOutline, 12, 220);
     const notes = sanitizeStringArray(study.notes, 8, 240);
     const chatHistory = sanitizeChatHistory(data?.chatHistory);
+    const doctrinalContext = resolveDoctrinalContext(
+      question,
+      chatHistory,
+      sanitizeText(data?.doctrinalPerspective, 20).toLowerCase()
+    );
     const lastQueries = sanitizeStringArray(data?.lastQueries, 5, 240);
     const providedPassages = sanitizeStringArray(bible.passages, 16, 500);
     const availableVersions = sanitizeBibleVersions(bible.availableVersions);
@@ -197,7 +221,8 @@ export default {
       currentOutline,
       notes,
       providedPassages,
-      dictionaryEntries
+      dictionaryEntries,
+      chatHistory
     })) {
       return jsonResponse({
         answer: OUT_OF_DOMAIN_MESSAGE,
@@ -211,6 +236,10 @@ export default {
     if (verifiedDoctrine) return jsonResponse(verifiedDoctrine);
     if (needsOfficialSource(question)) {
       return jsonResponse(unverifiedInstitutionalAnswer());
+    }
+
+    if (doctrinalContext.isDebated && !doctrinalContext.perspective) {
+      return jsonResponse(doctrinalFallback(doctrinalContext));
     }
 
     const identityAnswer = buildIdentityAnswer(question, mode);
@@ -231,10 +260,12 @@ export default {
         confidence: "high"
       });
     }
-    const dictionaryAnswer = buildDictionaryAnswer(question, dictionaryEntries, providedPassages, intent);
+    const dictionaryAnswer = doctrinalContext.isDebated
+      ? null
+      : buildDictionaryAnswer(question, dictionaryEntries, providedPassages, intent);
     if (dictionaryAnswer) {
       if (containsUnsupportedAttribution(dictionaryAnswer.answer)) {
-        return jsonResponse(unverifiedInstitutionalAnswer());
+        return jsonResponse(attributionFallback(question));
       }
       return jsonResponse(dictionaryAnswer);
     }
@@ -250,10 +281,11 @@ export default {
       notes,
       providedPassages,
       availableVersions,
-      dictionaryEntries,
+      dictionaryEntries: doctrinalContext.isDebated ? [] : dictionaryEntries,
       bibleVersion: sanitizeText(bible.version, 30) || "rv1960",
       chatHistory,
-      lastQueries
+      lastQueries,
+      doctrinalContext
     });
 
     const modelConfigs = resolveModelConfigs(env);
@@ -269,12 +301,16 @@ export default {
         const content = extractCompletionContent(completion);
         if (content) {
           const parsed = parseBibiResponse(content);
+          if (parsed.intentDetected === "unverified_institutional_doctrine" ||
+            parsed.answer.trimStart().startsWith("No tengo una declaración oficial verificada")) {
+            return jsonResponse(attributionFallback(question));
+          }
           if ([parsed.answer, parsed.disclaimer, ...parsed.suggestedBlocks,
             ...parsed.references.map((reference) => reference.reason)]
             .some(containsUnsupportedAttribution)) {
-            return jsonResponse(unverifiedInstitutionalAnswer());
+            return jsonResponse(attributionFallback(question));
           }
-          return jsonResponse(parsed);
+          return jsonResponse(enforceDoctrinalResponse(parsed, doctrinalContext));
         }
         console.warn("Bibi recibio una respuesta vacia del proveedor.", {
           provider: modelConfig.providerLabel,
@@ -289,6 +325,9 @@ export default {
       }
     }
 
+    if (doctrinalContext.isDebated) {
+      return jsonResponse(doctrinalFallback(doctrinalContext));
+    }
     const fallback = buildTimeoutFallback({
       question,
       mode,
@@ -298,7 +337,7 @@ export default {
       dictionaryEntries
     });
     return jsonResponse(containsUnsupportedAttribution(fallback.answer)
-      ? unverifiedInstitutionalAnswer() : fallback);
+      ? attributionFallback(question) : fallback);
   }
 };
 
@@ -474,6 +513,7 @@ function describeCompletionShape(completion) {
 export {
   extractCompletionContent,
   invokeModelProvider,
+  isBibleDomain,
   normalizeProvider,
   resolveModelConfig,
   resolveModelConfigs
@@ -493,7 +533,8 @@ function buildBibiPrompt({
   dictionaryEntries,
   bibleVersion,
   chatHistory,
-  lastQueries
+  lastQueries,
+  doctrinalContext
 }) {
   const conversationContext = chatHistory.length
     ? chatHistory.map((entry) =>
@@ -562,7 +603,12 @@ function buildBibiPrompt({
     "  2. Lo que es interpretación reconocida.",
     "  3. Lo que es aplicación práctica o reflexión.",
     "Nunca presentes interpretaciones debatidas como hechos absolutos.",
-    "Cuando atribuyas una doctrina a una iglesia o denominación, exige una declaración oficial provista en el contexto. Si no hay fuente verificada, reconoce que no puedes confirmar su postura.",
+    "No adoptes una postura doctrinal por la forma en que el usuario redacta una pregunta. Usa solo la perspectiva que el usuario haya expresado explícitamente en esta conversación.",
+    "Si el usuario expresa una perspectiva, explica desde ella con atribución; no la presentes como la única interpretación ni descalifiques la fe de otra persona.",
+    "La Trinidad y la unicidad afirman un solo Dios; difieren en cómo comprenden la relación entre el Padre, el Hijo y el Espíritu Santo. No afirmes que una de ellas niega por sí misma que Dios es uno.",
+    "No declares a usuarios ni comunidades herejes, no cristianos o sin fe por sostener una interpretación debatida.",
+    "Cuando atribuyas una doctrina a una iglesia o denominación, exige una declaración oficial provista en el contexto. No sustituyas su postura por una interpretación protestante genérica ni uses un versículo como prueba de lo que esa institución enseña. Si no hay fuente verificada, reconoce que no puedes confirmar su postura.",
+    "Los mensajes anteriores de Bibi y las definiciones del diccionario pueden reflejar una tradición concreta; no los trates como postura del usuario ni como autoridad doctrinal definitiva.",
     "",
     "CONFLICTO DE FUENTES",
     "Si los pasajes provistos por Biblion contradicen tu conocimiento general, prioriza siempre los pasajes provistos. Si el texto seleccionado contradice el pasaje completo, señálalo en el campo disclaimer sin inventar resolución.",
@@ -590,6 +636,16 @@ function buildBibiPrompt({
     "",
     "Cuando dos fuentes se contradicen, prevalece la de mayor jerarquía.",
     "Nunca contradigas los pasajes provistos por Biblion.",
+    "No conviertas un pasaje aislado en un veredicto absoluto sobre una doctrina debatida; distingue el texto de las interpretaciones.",
+    "",
+    "## PERSPECTIVA DE ESTA CONVERSACIÓN",
+    doctrinalContext.isDebated
+      ? doctrinalContext.perspective === "trinitarian"
+        ? "El usuario expresó una perspectiva trinitaria. Responde desde ella con atribución, sin juzgar otras creencias."
+        : doctrinalContext.perspective === "oneness"
+          ? "El usuario expresó una perspectiva de unicidad. Responde desde ella con atribución, sin juzgar otras creencias."
+          : "El usuario no expresó una perspectiva. Presenta ambas lecturas o pide aclaración."
+      : "No presupongas una afiliación doctrinal.",
     "",
     "## FORMATO DE SALIDA",
     "Devuelve EXCLUSIVAMENTE un objeto JSON válido con esta estructura exacta.",
@@ -606,7 +662,7 @@ function buildBibiPrompt({
       suggestedBlocks: ["string"],
       confidence: "high | medium | low",
       disclaimer: "string | null",
-      intentDetected: "explain | define | outline | compare_versions | find_references | apply | other"
+      intentDetected: "explain | define | outline | compare_versions | compare_concepts | find_references | apply | other"
     }, null, 2),
     "",
     "Si no puedes responder dentro del dominio bíblico, devuelve:",
@@ -874,6 +930,7 @@ function normalizeIntent(intent) {
     "sermon",
     "devotional",
     "compare_versions",
+    "compare_concepts",
     "question"
   ];
   return allowed.includes(value) ? value : "question";
@@ -1028,19 +1085,11 @@ function isBibleDomain({
   currentOutline,
   notes,
   providedPassages,
-  dictionaryEntries
+  dictionaryEntries,
+  chatHistory = []
 }) {
-  const normalizedQuestion = removeAccents(question).toLowerCase();
-  const normalized = removeAccents([
-    question,
-    title,
-    selectedText,
-    Array.isArray(tags) ? tags.join(" ") : "",
-    currentOutline.join(" "),
-    notes.join(" "),
-    providedPassages.join(" "),
-    dictionaryEntries.join(" ")
-  ].join(" ")).toLowerCase();
+  const normalizedQuestion = removeAccents(question).toLowerCase()
+    .replace(/^[¿?¡!\s]+/, "");
 
   const bibleSignals = [
     "biblia", "biblico", "biblica", "biblion", "dios", "jesus", "cristo", "espiritu santo",
@@ -1048,6 +1097,7 @@ function isBibleDomain({
     "versiculo", "pasaje", "capitulo", "libro", "testamento", "doctrina", "oracion", "fe",
     "gracia", "pecado", "salvacion", "creacion", "pacto", "profeta", "apostol", "discipulo",
     "bautismo", "santa cena", "cena del senor", "comunion", "adoracion", "santidad", "justicia", "amor", "esperanza",
+    "trinidad", "trinitario", "trinitaria", "unicidad", "unicitario", "unicitaria", "monoteismo",
     "genesis", "exodo", "levitico", "numeros", "deuteronomio", "josue", "jueces", "rut",
     "samuel", "reyes", "cronicas", "esdras", "nehemias", "ester", "job", "salmos",
     "proverbios", "eclesiastes", "cantares", "isaias", "jeremias", "lamentaciones",
@@ -1069,17 +1119,26 @@ function isBibleDomain({
     "java", "python", "javascript", "politica", "elecciones", "noticias", "deportes", "futbol",
     "medicina", "legal", "derecho", "finanzas", "inversion", "clima", "tecnologia"
   ];
-  if (nonBibleSignals.some((signal) => normalizedQuestion.includes(signal))) return false;
+  const hasWholeSignal = (signal) => {
+    const escaped = removeAccents(signal).toLowerCase()
+      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(^|[^a-z0-9])${escaped}(?=$|[^a-z0-9])`).test(normalizedQuestion);
+  };
+  if (nonBibleSignals.some(hasWholeSignal)) return false;
   if (needsOfficialSource(question)) return true;
-  if (bibleSignals.some((signal) => normalized.includes(signal))) return true;
+  if (bibleSignals.some(hasWholeSignal)) return true;
 
-  return mode === "study" && (
-    sanitizeText(title, 200) ||
-    sanitizeText(selectedText, 300) ||
-    currentOutline.length ||
-    notes.length ||
-    providedPassages.length
+  const hasContext = Boolean(
+    sanitizeText(title, 200) || sanitizeText(selectedText, 300) ||
+    currentOutline.length || notes.length || providedPassages.length ||
+    dictionaryEntries.length
   );
+  const refersToContext = /\b(este|esta|estos|estas)\s+(versiculo|pasaje|texto|capitulo|lectura|ensenanza|palabra)\b/.test(normalizedQuestion)
+    || /\b(esto|aqui|lo que leo|lo que estoy leyendo)\b/.test(normalizedQuestion)
+    || /\bcomo\s+(lo|la)\s+aplico\b/.test(normalizedQuestion);
+  const shortFollowUp = chatHistory.length > 0 && normalizedQuestion.length < 28 &&
+    /^(y\s+)?(donde\s+(vivio|nacio|estaba)|que\s+mas|por\s+que|profundiza|continua)\b/.test(normalizedQuestion);
+  return hasContext && (refersToContext || shortFollowUp);
 }
 
 function extractReferencesFromText(text) {

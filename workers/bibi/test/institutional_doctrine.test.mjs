@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import worker from "../src/index.js";
 import {
+  attributionFallback,
   containsUnsupportedAttribution,
+  generalQuestionFallback,
   needsOfficialSource,
   unverifiedInstitutionalAnswer,
   verifiedInstitutionalAnswer
@@ -127,4 +129,58 @@ test("a general baptism question can receive a balanced answer", async () => {
 
   assert.equal(modelCalled, true);
   assert.equal((await response.json()).answer, answer);
+});
+
+test("a general question is not replaced by an institutional source warning", async () => {
+  const question = "¿Es necesario el bautismo para salvación?";
+  assert.match(generalQuestionFallback(question), /Hechos 2:38/);
+  assert.equal(generalQuestionFallback(
+    "Según los adventistas, ¿es necesario el bautismo para salvación?"
+  ), null);
+  assert.equal(attributionFallback(question).intentDetected, "general_doctrinal_answer");
+
+  const response = await worker.fetch(new Request("https://biblion.test/ask", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, mode: "reader", intent: "question" })
+  }), {
+    BIBI_REQUIRE_AUTH: "false",
+    AI: {
+      async run() {
+        return { choices: [{ message: { content: JSON.stringify({
+          answer: "Según la Iglesia Bautista, el bautismo no es necesario para la salvación.",
+          references: [], suggestedBlocks: [], confidence: "high"
+        }) } }] };
+      }
+    }
+  });
+
+  const body = await response.json();
+  assert.equal(body.intentDetected, "general_doctrinal_answer");
+  assert.match(body.answer, /Efesios 2:8-9/);
+  assert.doesNotMatch(body.answer, /Iglesia Bautista|No tengo una declaración oficial/);
+});
+
+test("a model warning without a named denomination also recovers for a general question", async () => {
+  const response = await worker.fetch(new Request("https://biblion.test/ask", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      question: "¿Es necesario el bautismo para salvación?",
+      mode: "reader", intent: "question"
+    })
+  }), {
+    BIBI_REQUIRE_AUTH: "false",
+    AI: {
+      async run() {
+        return { choices: [{ message: { content: JSON.stringify(
+          unverifiedInstitutionalAnswer()
+        ) } }] };
+      }
+    }
+  });
+
+  const body = await response.json();
+  assert.equal(body.intentDetected, "general_doctrinal_answer");
+  assert.match(body.answer, /Hechos 2:38/);
 });

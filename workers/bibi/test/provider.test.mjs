@@ -46,6 +46,7 @@ test("Workers AI receives the expected chat options", async () => {
     choices: [{ message: { content: "{\"answer\":\"respuesta\"}" } }]
   };
   const env = {
+    BIBI_REQUIRE_AUTH: "false",
     AI: {
       async run(model, options) {
         captured = { model, options };
@@ -87,6 +88,7 @@ test("completion content supports Cloudflare response shapes", () => {
 test("the Worker returns a parsed Workers AI response", async () => {
   const request = buildRequest("Analiza el contexto literario de Filipenses 2:5-11.");
   const env = {
+    BIBI_REQUIRE_AUTH: "false",
     AI: {
       async run() {
         return {
@@ -118,6 +120,7 @@ test("the Worker returns a parsed Workers AI response", async () => {
 test("provider failures degrade to a local response instead of HTTP 502", async () => {
   const request = buildRequest("Analiza el contexto literario de Filipenses 2:5-11.");
   const env = {
+    BIBI_REQUIRE_AUTH: "false",
     AI: {
       async run() {
         throw new Error("Workers AI unavailable");
@@ -131,6 +134,17 @@ test("provider failures degrade to a local response instead of HTTP 502", async 
   assert.equal(response.status, 200);
   assert.ok(payload.answer);
   assert.ok(["low", "medium", "high"].includes(payload.confidence));
+});
+
+test("production mode refuses requests when Firebase authentication is not configured", async () => {
+  const response = await worker.fetch(
+    buildRequest("Explica Juan 3:16."),
+    { BIBI_REQUIRE_AUTH: "true" }
+  );
+  const payload = await response.json();
+
+  assert.equal(response.status, 503);
+  assert.match(payload.error, /autenticacion/i);
 });
 
 function buildRequest(question) {

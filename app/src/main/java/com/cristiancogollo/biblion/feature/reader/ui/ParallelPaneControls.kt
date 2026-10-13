@@ -69,12 +69,16 @@ internal fun PaneNavigationControls(
     selection: BiblePaneSelection,
     chapterCount: Int,
     versions: List<BibleVersionOption>,
+    versionPickerRequest: Int = 0,
     onSelectionChange: (BiblePaneSelection) -> Unit,
     onReadingOptionsClick: () -> Unit,
 ) {
     var showPassagePicker by remember { mutableStateOf(false) }
     var passagePickerStartsWithBooks by remember { mutableStateOf(false) }
     var showVersionMenu by remember { mutableStateOf(false) }
+    LaunchedEffect(versionPickerRequest) {
+        if (versionPickerRequest > 0) showVersionMenu = true
+    }
     val accent = if (paneNumber == 1) MaterialTheme.colorScheme.primary else BiblionGoldPrimary
     val versionDescription = stringResource(
         R.string.reader_parallel_version_button, selection.versionKey.uppercase(Locale.ROOT),

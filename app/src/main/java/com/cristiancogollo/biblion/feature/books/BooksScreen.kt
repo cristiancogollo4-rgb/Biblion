@@ -129,10 +129,10 @@ fun BooksScreen(
                 bottomBar = {
                     BiblionBottomNavigation(
                         currentRoute = currentRoute,
-                        onHome = { navController.navigateSingleTop(Screen.Home.route) },
-                        onBible = { navController.navigateSingleTop(Screen.Books.createRoute(Testament.OLD)) },
-                        onSearch = { navController.navigateSingleTop(Screen.Search.route) },
-                        onStudy = { navController.navigateSingleTop(StudyDocScreen.StudyDocsList.route) },
+                        onHome = { navController.navigateTopLevel(Screen.Home.route) },
+                        onBible = { navController.navigateTopLevel(Screen.Books.createRoute(selectedTestament)) },
+                        onSearch = { navController.navigateTopLevel(Screen.Search.createRoute()) },
+                        onStudy = { navController.navigateTopLevel(StudyDocScreen.StudyDocsList.route) },
                         onProfile = onNavigateToProfile
                     )
                 }

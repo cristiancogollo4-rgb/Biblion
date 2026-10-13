@@ -25,6 +25,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.util.concurrent.CancellationException
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
@@ -636,6 +637,36 @@ class PaginationEngineTest {
             PageFragment.HeadingSlice::class, pages[0].fragments[1]::class)
         assertEquals("El tercer fragmento debe ser ParagraphSlice",
             PageFragment.ParagraphSlice::class, pages[0].fragments[2]::class)
+    }
+
+    @Test
+    fun pagination_stops_when_the_active_request_is_cancelled() {
+        var checks = 0
+        var wasCancelled = false
+
+        try {
+            PaginationEngine.paginate(
+                blocks = listOf(
+                    StudyBlock.Paragraph(
+                        id = BlockId("cancelled"),
+                        text = StyledText(raw = longText(lines = 200)),
+                    ),
+                ),
+                pageWidthPx = 658f,
+                pageHeightPx = 200f,
+                textMeasurer = textMeasurer,
+                density = density,
+                cancellationCheck = {
+                    checks += 1
+                    if (checks >= 4) throw CancellationException("obsolete pagination")
+                },
+            )
+        } catch (_: CancellationException) {
+            wasCancelled = true
+        }
+
+        assertTrue("Pagination must propagate cooperative cancellation", wasCancelled)
+        assertEquals(4, checks)
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────

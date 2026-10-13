@@ -95,19 +95,22 @@ object StudyDocEngine {
     private fun changeBlockType(doc: StudyDoc, op: StudyOp.ChangeBlockType): Pair<StudyDoc, OpResult> {
         val idx = doc.blocks.indexOfFirst { it.id == op.blockId }
         if (idx < 0) return doc to OpResult.Failed("Block not found")
+        if (op.newType !in setOf("paragraph", "bullet", "numbered", "heading1", "heading2", "heading3", "quote")) {
+            return doc to OpResult.Failed("Unsupported block type")
+        }
         val block = doc.blocks[idx]
         if (block is StudyBlock.Verse) {
             return doc to OpResult.Failed("Bible citations are protected atomic blocks")
         }
         val text = when (block) {
-            is StudyBlock.BulletList -> StyledText(block.items.joinToString("\n") { it.raw })
-            is StudyBlock.OrderedList -> StyledText(block.items.joinToString("\n") { it.raw })
+            is StudyBlock.BulletList -> joinListItems(block.items)
+            is StudyBlock.OrderedList -> joinListItems(block.items)
             else -> block.toStyledTextList().firstOrNull() ?: StyledText.Empty
         }
         val listItems = when (block) {
             is StudyBlock.BulletList -> block.items
             is StudyBlock.OrderedList -> block.items
-            else -> listOf(text)
+            else -> splitIntoListItems(text)
         }
         val updated: StudyBlock = when (op.newType) {
             "bullet" -> StudyBlock.BulletList(
@@ -142,6 +145,38 @@ object StudyDocEngine {
         val newBlocks = doc.blocks.toMutableList()
         newBlocks[idx] = updated
         return doc.copy(blocks = newBlocks, updatedAt = System.currentTimeMillis()) to OpResult.Success
+    }
+
+    private fun joinListItems(items: List<StyledText>): StyledText {
+        var offset = 0
+        val raw = StringBuilder()
+        val ranges = buildList {
+            items.forEachIndexed { index, item ->
+                if (index > 0) {
+                    raw.append('\n')
+                    offset++
+                }
+                raw.append(item.raw)
+                item.ranges.forEach { range ->
+                    add(range.copy(start = range.start + offset, endExclusive = range.endExclusive + offset))
+                }
+                offset += item.length
+            }
+        }
+        return StyledText(raw.toString(), ranges)
+    }
+
+    private fun splitIntoListItems(text: StyledText): List<StyledText> {
+        val items = mutableListOf<StyledText>()
+        var start = 0
+        text.raw.forEachIndexed { index, char ->
+            if (char == '\n') {
+                items.add(text.slice(start until index))
+                start = index + 1
+            }
+        }
+        items.add(text.slice(start until text.length))
+        return items
     }
 
     private fun splitBlock(doc: StudyDoc, op: StudyOp.SplitBlock): Pair<StudyDoc, OpResult> {

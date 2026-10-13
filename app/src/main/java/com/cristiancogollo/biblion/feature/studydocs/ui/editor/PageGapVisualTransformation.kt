@@ -116,12 +116,11 @@ internal fun calibratePageGapHeights(
         calibrated[index] = gap.copy(
             spacerHeightPx = (gap.spacerHeightPx + correctionPx).coerceAtLeast(1f),
         )
-        StudyEditorDebugLog.log(
-            "PAGE_GAP_CALIBRATED",
+        StudyEditorDebugLog.log("PAGE_GAP_CALIBRATED") {
             "block=${unit.key.blockId.value} item=${unit.key.itemIndex} " +
                 "offset=${gap.offset} expected=$expectedTopPx actual=$actualTopPx " +
-                "correction=$correctionPx spacer=${calibrated[index].spacerHeightPx}",
-        )
+                "correction=$correctionPx spacer=${calibrated[index].spacerHeightPx}"
+        }
     }
     return unit.copy(gaps = calibrated)
 }

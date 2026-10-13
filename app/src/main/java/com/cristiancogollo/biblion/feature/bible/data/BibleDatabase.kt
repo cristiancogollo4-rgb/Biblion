@@ -55,6 +55,12 @@ data class BibleChapterVerseRow(
     val text: String
 )
 
+data class BibleChapterContentRow(
+    val verse: Int,
+    val text: String,
+    val title: String?,
+)
+
 data class BibleSearchRow(
     val bookName: String,
     val chapter: Int,
@@ -128,6 +134,29 @@ interface BibleDao {
         normalizedBookName: String,
         chapter: Int
     ): List<BibleChapterVerseRow>
+
+    @Query(
+        """
+        SELECT verses.verse AS verse,
+               verses.text AS text,
+               titles.title AS title
+        FROM bible_verses AS verses
+        LEFT JOIN bible_titles AS titles
+            ON titles.versionKey = verses.versionKey
+            AND titles.normalizedBookName = verses.normalizedBookName
+            AND titles.chapter = verses.chapter
+            AND titles.verse = verses.verse
+        WHERE verses.versionKey = :versionKey
+            AND verses.normalizedBookName = :normalizedBookName
+            AND verses.chapter = :chapter
+        ORDER BY verses.verse ASC
+        """
+    )
+    suspend fun getChapterContent(
+        versionKey: String,
+        normalizedBookName: String,
+        chapter: Int,
+    ): List<BibleChapterContentRow>
 
     @Query(
         """

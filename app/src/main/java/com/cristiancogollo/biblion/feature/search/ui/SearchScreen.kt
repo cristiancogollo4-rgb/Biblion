@@ -107,12 +107,14 @@ import com.cristiancogollo.biblion.feature.search.components.PopularTopic
 import com.cristiancogollo.biblion.feature.search.components.PopularTopicsData
 import com.cristiancogollo.biblion.feature.search.model.SearchScope
 import com.cristiancogollo.biblion.navigateSingleTop
+import com.cristiancogollo.biblion.navigateTopLevel
 import com.cristiancogollo.biblion.feature.search.components.TopicHit
 import com.cristiancogollo.biblion.feature.search.components.TopicsSection
 import com.cristiancogollo.biblion.feature.search.data.SearchHistoryEntry
 import com.cristiancogollo.biblion.feature.search.data.SearchHistoryRepository
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -121,7 +123,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 
 private val searchOldTestamentBooks = listOf(
@@ -181,6 +182,7 @@ fun SearchScreen(
     onGuidedTutorialTargetAction: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val unexpectedSearchError = stringResource(R.string.search_error_unexpected)
     val coroutineScope = rememberCoroutineScope()
     val isKeyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
@@ -243,7 +245,10 @@ fun SearchScreen(
 
     suspend fun executeSearch(request: VerseSearchRequest) {
         val trimmed = request.query.trim()
-        if (trimmed.isBlank()) return
+        if (trimmed.length < 2) {
+            uiState = SearchUiState.Idle
+            return
+        }
         uiState = SearchUiState.Loading
         SearchHistoryRepository.recordQuery(context, trimmed)
         try {
@@ -296,6 +301,8 @@ fun SearchScreen(
                     ),
                 )
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (e: Exception) {
             if (
                 searchQuery.trim() == trimmed &&
@@ -303,7 +310,7 @@ fun SearchScreen(
                 selectedBook == request.bookName
             ) {
                 uiState = SearchUiState.Error(
-                    e.message ?: context.getString(R.string.search_error_unexpected)
+                    e.message ?: unexpectedSearchError
                 )
             }
         }
@@ -322,6 +329,7 @@ fun SearchScreen(
 
     // Sincronizar el input con el flow cuando el usuario escribe manualmente
     LaunchedEffect(searchQuery) {
+        uiState = if (searchQuery.trim().length < 2) SearchUiState.Idle else SearchUiState.Loading
         runSearchImmediate(searchQuery)
     }
 
@@ -329,7 +337,6 @@ fun SearchScreen(
     LaunchedEffect(Unit) {
         searchRequestFlow
             .debounce(400L)
-            .filter { it.query.trim().length >= 2 }
             .distinctUntilChanged()
             .collectLatest { request ->
                 executeSearch(request)
@@ -394,11 +401,11 @@ fun SearchScreen(
             if (!isKeyboardVisible) {
                 BiblionBottomNavigation(
                     currentRoute = navController.currentBackStackEntry?.destination?.route,
-                    onHome = { navController.navigateSingleTop(Screen.Home.route) },
-                    onBible = { navController.navigateSingleTop(Screen.Books.createRoute(Testament.OLD)) },
-                    onSearch = { navController.navigateSingleTop(Screen.Search.createRoute()) },
-                    onStudy = { navController.navigateSingleTop(StudyDocScreen.StudyDocsList.route) },
-                    onProfile = { navController.navigateSingleTop(Screen.Profile.route) }
+                    onHome = { navController.navigateTopLevel(Screen.Home.route) },
+                    onBible = { navController.navigateTopLevel(Screen.Books.createRoute(Testament.OLD)) },
+                    onSearch = { navController.navigateTopLevel(Screen.Search.createRoute()) },
+                    onStudy = { navController.navigateTopLevel(StudyDocScreen.StudyDocsList.route) },
+                    onProfile = { navController.navigateTopLevel(Screen.Profile.route) }
                 )
             }
         }
@@ -456,7 +463,13 @@ fun SearchScreen(
                         uiState = SearchUiState.Idle
                         expandedTopicSlug = null
                     },
-                    onRetry = { runSearchImmediate(searchQuery) },
+                    onRetry = {
+                        coroutineScope.launch {
+                            executeSearch(
+                                VerseSearchRequest(searchQuery, selectedTestament, selectedBook)
+                            )
+                        }
+                    },
                     onResultClick = { result ->
                         openVerse(result.bookName, result.chapter, result.verse)
                     },
@@ -542,7 +555,7 @@ private fun SearchPageIntro() {
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
-            text = "Encuentra pasajes, palabras y conexiones bíblicas.",
+            text = stringResource(R.string.search_intro_description),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

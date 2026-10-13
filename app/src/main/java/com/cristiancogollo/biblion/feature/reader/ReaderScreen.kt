@@ -111,7 +111,6 @@ import com.cristiancogollo.biblion.feature.reader.ui.ReaderCrossReferenceIcon
 import com.cristiancogollo.biblion.feature.reader.ui.ReaderCrossReferencesSheet
 import com.cristiancogollo.biblion.feature.reader.ui.ReaderVerseReference
 import com.cristiancogollo.biblion.feature.bibi.engine.CrossReferenceVoteEngine
-import com.cristiancogollo.biblion.core.ui.StudyModeLandscapeLock
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
@@ -231,9 +230,7 @@ fun ReaderScreen(
     @Suppress("UNUSED_PARAMETER")
     val deprecatedInitialStudyId = initialStudyId
 
-    StudyModeLandscapeLock(enabled = isStudyModeEnabled)
-
-    if (isStudyModeEnabled && isLandscape) {
+    if (isStudyModeEnabled) {
         // Nuevo: Usar SplitLayoutController con ViewModel compartido
         val context = LocalContext.current
         val repository = remember {
@@ -635,6 +632,9 @@ fun ReaderContent(
             )
         )
     }
+    var isChapterLoading by remember(bookName) { mutableStateOf(!bookName.isNullOrBlank()) }
+    var chapterLoadFailed by remember(bookName) { mutableStateOf(false) }
+    var isBookUnavailableInVersion by remember(bookName) { mutableStateOf(false) }
     var continuousNextChapterContent by remember(bookName) {
         mutableStateOf<ChapterContent?>(null)
     }
@@ -898,6 +898,9 @@ fun ReaderContent(
         continuousPreviousChapterContent = null
         continuousNextChapterContent = null
         continuousNextChapterLoadFailed = false
+        isChapterLoading = true
+        chapterLoadFailed = false
+        isBookUnavailableInVersion = false
         chapterContent = chapterContent.copy(
             verses = emptyList(),
             titlesByVerse = emptyMap(),
@@ -911,6 +914,9 @@ fun ReaderContent(
     ) {
         readerJobs.chapterLoad?.cancel()
         readerJobs.adjacentPrefetch?.cancel()
+        isChapterLoading = true
+        chapterLoadFailed = false
+        isBookUnavailableInVersion = false
         readerJobs.chapterLoad = scope.launch {
             try {
                 val content = BibleRepository.getChapter(
@@ -925,24 +931,42 @@ fun ReaderContent(
                     selectedVersionKey == versionKey
                 ) {
                     chapterContent = content
+                    isChapterLoading = false
+                    chapterLoadFailed = content.verses.isEmpty()
+                    isBookUnavailableInVersion = content.chapterCount == 0
                     readerJobs.adjacentPrefetch = scope.launch {
                         delay(300)
                         listOf(chapter - 1, chapter + 1)
                             .filter { adjacent -> adjacent in 1..content.chapterCount }
                             .forEach { adjacent ->
-                                BibleRepository.getChapter(
-                                    context = context,
-                                    bookName = book,
-                                    chapterNumber = adjacent,
-                                    versionKey = versionKey,
-                                )
+                                try {
+                                    BibleRepository.getChapter(
+                                        context = context,
+                                        bookName = book,
+                                        chapterNumber = adjacent,
+                                        versionKey = versionKey,
+                                    )
+                                } catch (cancelled: CancellationException) {
+                                    throw cancelled
+                                } catch (error: Exception) {
+                                    Log.w("READER", "Adjacent chapter prefetch failed", error)
+                                }
                             }
                     }
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (e: Exception) {
-                Log.e("READER", "Error loading chapter: ${e.message}")
+                Log.e("READER", "Error loading chapter", e)
+                if (
+                    bookName == book &&
+                    selectedChapter == chapter &&
+                    selectedVersionKey == versionKey
+                ) {
+                    isChapterLoading = false
+                    chapterLoadFailed = true
+                    isBookUnavailableInVersion = false
+                }
             }
         }
     }
@@ -1123,6 +1147,8 @@ fun ReaderContent(
             pendingScrollToTop = false
             selectedChapter = shiftedWindow.chapter
             chapterContent = shiftedWindow.current
+            isChapterLoading = false
+            chapterLoadFailed = false
             continuousPreviousChapterContent = shiftedWindow.previous
             continuousNextChapterContent = shiftedWindow.next
             continuousNextChapterLoadFailed = false
@@ -1971,7 +1997,37 @@ fun ReaderContent(
                     }
                 }
             }
-
+                if (verses.isEmpty() && (isChapterLoading || chapterLoadFailed)) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(24.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        if (isChapterLoading) {
+                            CircularProgressIndicator()
+                        } else {
+                            if (isBookUnavailableInVersion) {
+                                Text(
+                                    stringResource(
+                                        R.string.reader_book_unavailable_in_version,
+                                        bookName.orEmpty(),
+                                        selectedVersionKey.uppercase(),
+                                    ),
+                                )
+                                TextButton(onClick = { showVersionDialog = true }) {
+                                    Text(stringResource(R.string.reader_choose_another_version))
+                                }
+                            } else {
+                                Text(stringResource(R.string.reader_chapter_load_error))
+                                TextButton(onClick = {
+                                    bookName?.let { loadChapter(it, selectedChapter, selectedVersionKey) }
+                                }) {
+                                    Text(stringResource(R.string.action_retry))
+                                }
+                            }
+                        }
+                    }
+                }
                 }
             }
             }

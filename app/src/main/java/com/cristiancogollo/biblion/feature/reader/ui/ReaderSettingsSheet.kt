@@ -3,6 +3,7 @@ package com.cristiancogollo.biblion.feature.reader.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -34,6 +35,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -48,7 +51,7 @@ import com.cristiancogollo.biblion.feature.reader.ReaderFontFamily
 import com.cristiancogollo.biblion.feature.reader.ReaderPreferences
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun ReaderSettingsSheet(
     fontSizeSp: Float,
@@ -58,6 +61,12 @@ fun ReaderSettingsSheet(
 ) {
     var draftFontSize by remember(fontSizeSp) { mutableFloatStateOf(fontSizeSp) }
     var draft by remember(preferences) { mutableStateOf(preferences.normalized()) }
+    val contextFontSizeLabel = stringResource(R.string.reader_font_size)
+    val contextFontSizeValue = stringResource(R.string.reader_font_size_value, draftFontSize.roundToInt())
+    val contextLineSpacingLabel = stringResource(R.string.reader_line_spacing)
+    val contextLineSpacingValue = stringResource(R.string.reader_line_spacing_value, draft.lineSpacingMultiplier)
+    val contextTextWidthLabel = stringResource(R.string.reader_text_width)
+    val contextTextWidthValue = stringResource(R.string.reader_text_width_value, draft.textWidthDp.roundToInt())
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -108,6 +117,10 @@ fun ReaderSettingsSheet(
                         ),
                     )
                     Slider(
+                        modifier = Modifier.semantics {
+                            contentDescription = contextFontSizeLabel
+                            stateDescription = contextFontSizeValue
+                        },
                         value = draftFontSize.coerceIn(12f, 35f),
                         onValueChange = { draftFontSize = it },
                         valueRange = 12f..35f,
@@ -132,6 +145,10 @@ fun ReaderSettingsSheet(
                         ),
                     )
                     Slider(
+                        modifier = Modifier.semantics {
+                            contentDescription = contextLineSpacingLabel
+                            stateDescription = contextLineSpacingValue
+                        },
                         value = draft.lineSpacingMultiplier,
                         onValueChange = {
                             draft = draft.copy(lineSpacingMultiplier = it)
@@ -147,6 +164,10 @@ fun ReaderSettingsSheet(
                         ),
                     )
                     Slider(
+                        modifier = Modifier.semantics {
+                            contentDescription = contextTextWidthLabel
+                            stateDescription = contextTextWidthValue
+                        },
                         value = draft.textWidthDp,
                         onValueChange = { draft = draft.copy(textWidthDp = it) },
                         valueRange = READER_MIN_TEXT_WIDTH_DP..READER_MAX_TEXT_WIDTH_DP,
@@ -322,13 +343,14 @@ private fun SettingsHeading(text: String) {
     )
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun <T> ChoiceRow(
     options: List<Pair<T, String>>,
     selected: T,
     onSelected: (T) -> Unit,
 ) {
-    Row(
+    FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -336,8 +358,7 @@ private fun <T> ChoiceRow(
             FilterChip(
                 selected = selected == value,
                 onClick = { onSelected(value) },
-                label = { Text(label, maxLines = 1) },
-                modifier = Modifier.weight(1f),
+                label = { Text(label) },
             )
         }
     }

@@ -206,37 +206,35 @@ fun PagedEditorUnitRenderer(
                         splitViewModel?.onEditorFocused(block.id, itemIndex)
                             ?: viewModel?.onEditorFocused(block.id, itemIndex)
                     }
-                    StudyEditorDebugLog.log(
-                        "FOCUS_CHANGED",
+                    StudyEditorDebugLog.log("FOCUS_CHANGED") {
                         "renderer=paged block=${block.id.value} item=$itemIndex " +
-                            "focused=${focusState.isFocused} hasFocus=${focusState.hasFocus}",
-                    )
+                            "focused=${focusState.isFocused} hasFocus=${focusState.hasFocus}"
+                    }
                 },
             textStyle = textStyle,
             visualTransformation = visualTransformation,
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
             singleLine = false,
             onTextLayout = { result ->
-                val gapLayout = unit.gaps.joinToString(";") { gap ->
-                    val markerOffset = gap.offset.coerceIn(0, result.layoutInput.text.length)
-                    val spacerOffset = (markerOffset + 1)
-                        .coerceIn(0, result.layoutInput.text.length)
-                    val continuationOffset = (markerOffset + 3)
-                        .coerceIn(0, result.layoutInput.text.length)
-                    val markerLine = result.getLineForOffset(markerOffset)
-                    val spacerLine = result.getLineForOffset(spacerOffset)
-                    val continuationLine = result.getLineForOffset(continuationOffset)
-                    "offset=${gap.offset} expected=${gap.startPx}..${gap.startPx + gap.heightPx} " +
-                        "actual=${result.getLineTop(markerLine)}:" +
-                        "${result.getLineTop(spacerLine)}.." +
-                        "${result.getLineTop(continuationLine)}"
-                }
-                StudyEditorDebugLog.log(
-                    "PAGED_FIELD_LAYOUT",
+                StudyEditorDebugLog.log("PAGED_FIELD_LAYOUT") {
+                    val gapLayout = unit.gaps.joinToString(";") { gap ->
+                        val markerOffset = gap.offset.coerceIn(0, result.layoutInput.text.length)
+                        val spacerOffset = (markerOffset + 1)
+                            .coerceIn(0, result.layoutInput.text.length)
+                        val continuationOffset = (markerOffset + 3)
+                            .coerceIn(0, result.layoutInput.text.length)
+                        val markerLine = result.getLineForOffset(markerOffset)
+                        val spacerLine = result.getLineForOffset(spacerOffset)
+                        val continuationLine = result.getLineForOffset(continuationOffset)
+                        "offset=${gap.offset} expected=${gap.startPx}..${gap.startPx + gap.heightPx} " +
+                            "actual=${result.getLineTop(markerLine)}:" +
+                            "${result.getLineTop(spacerLine)}.." +
+                            "${result.getLineTop(continuationLine)}"
+                    }
                     "block=${block.id.value} item=$itemIndex length=${fieldValue.text.length} " +
                         "layout=${result.size.width}x${result.size.height} lines=${result.lineCount} " +
-                        "unitHeightPx=${unit.heightPx} gaps=[$gapLayout]",
-                )
+                        "unitHeightPx=${unit.heightPx} gaps=[$gapLayout]"
+                }
             },
             keyboardOptions = KeyboardOptions(imeAction = imeAction),
             keyboardActions = KeyboardActions(

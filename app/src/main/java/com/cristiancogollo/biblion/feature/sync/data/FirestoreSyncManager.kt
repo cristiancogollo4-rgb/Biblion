@@ -6,8 +6,11 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.SetOptions
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -60,17 +63,36 @@ private data class RemoteHighlightChapter(
     val deletedAt: Long? = null
 )
 
+private data class SyncSession(
+    val id: Long,
+    val user: AuthUser,
+    var recoveryAttempts: Int = 0,
+    val coroutineJob: Job = SupervisorJob(),
+    val preferencesReady: CompletableDeferred<Unit> = CompletableDeferred(),
+    val highlightsReady: CompletableDeferred<Unit> = CompletableDeferred(),
+    val studiesReady: CompletableDeferred<Unit> = CompletableDeferred(),
+)
+
 object FirestoreSyncManager {
     private const val TAG = "FirestoreSync"
     private const val SCHEMA_VERSION = 2L
+    private const val MAX_LISTENER_RECOVERY_ATTEMPTS = 4
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val syncMutex = Mutex()
+    private val preferencesMutex = Mutex()
+    private val highlightsMutex = Mutex()
+    private val studiesMutex = Mutex()
+    private val lifecycleLock = Any()
     private val _syncErrors = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
+    @Volatile
     private var appContext: Context? = null
-    private var currentUser: AuthUser? = null
+    @Volatile
+    private var currentSession: SyncSession? = null
+    private var nextSessionId = 0L
     private var listeners: List<ListenerRegistration> = emptyList()
+    private var bootstrapJob: Job? = null
+    private var recoveryJob: Job? = null
     private var studiesSyncJob: Job? = null
     private var lastErrorNotificationAt: Long = 0L
 
@@ -94,6 +116,8 @@ object FirestoreSyncManager {
             try {
                 action()
                 return true
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (e: Exception) {
                 Log.w(TAG, "Attempt ${attempt + 1}/$maxRetries failed", e)
                 if (attempt < maxRetries - 1) {
@@ -107,127 +131,226 @@ object FirestoreSyncManager {
 
     fun initialize(context: Context) {
         appContext = context.applicationContext
-        FirebaseFirestore.setLoggingEnabled(true)
+        FirebaseFirestore.setLoggingEnabled(BuildConfig.DEBUG)
         Log.d(TAG, "Initialized FirestoreSyncManager")
     }
 
     fun start(user: AuthUser) {
         val context = appContext ?: return
-        if (currentUser?.uid == user.uid && listeners.isNotEmpty()) return
-        stop()
-        currentUser = user
-        Log.d(TAG, "Starting sync for uid=${user.uid}, email=${user.email}")
-        scope.launch {
-            runCatching {
-                syncMutex.withLock {
-                    Log.d(TAG, "Ensuring root user document")
-                    ensureUserDocument(user)
-                    Log.d(TAG, "Pushing preferences")
-                    pushPreferences(context)
-                    Log.d(TAG, "Pulling remote studies")
-                    pullStudies(context, user.uid)
-                    Log.d(TAG, "Pushing local studies")
-                    pushStudies(context, user.uid)
-                    Log.d(TAG, "Pushing highlights")
-                    pushAllHighlights(context)
-                    Log.d(TAG, "Attaching realtime listeners")
-                    attachListeners(context, user.uid)
-                    Log.d(TAG, "Initial sync bootstrap completed")
-                }
-            }.onFailure {
-                Log.e(TAG, "Failed to start sync for ${user.uid}", it)
+        synchronized(lifecycleLock) {
+            val active = currentSession
+            if (
+                active?.user?.uid == user.uid &&
+                (bootstrapJob?.isActive == true || listeners.isNotEmpty())
+            ) {
+                return
+            }
+
+            startLocked(context, user, recoveryAttempts = 0)
+        }
+    }
+
+    private fun startLocked(context: Context, user: AuthUser, recoveryAttempts: Int) {
+        stopLocked()
+        val session = SyncSession(
+            id = ++nextSessionId,
+            user = user,
+            recoveryAttempts = recoveryAttempts,
+        )
+        currentSession = session
+        Log.d(TAG, "Starting sync session=${session.id} for uid=${user.uid}")
+        bootstrapJob = scope.launch(session.coroutineJob) {
+            runInitialSync(context, session)
+        }
+    }
+
+    fun stop() {
+        synchronized(lifecycleLock) { stopLocked() }
+    }
+
+    fun refreshNow() {
+        val userToRestart = synchronized(lifecycleLock) {
+            val session = currentSession
+            if (
+                session == null ||
+                bootstrapJob?.isActive == true ||
+                listeners.isNotEmpty() || recoveryJob?.isActive == true
+            ) {
+                null
+            } else {
+                session.user
+            }
+        }
+        if (userToRestart != null) {
+            start(userToRestart)
+        } else {
+            val session = currentSession
+            if (session?.studiesReady?.isCompleted == true &&
+                isSessionActive(session) && recoveryJob?.isActive != true
+            ) {
+                requestStudiesSync()
+            }
+        }
+    }
+
+    private suspend fun runInitialSync(context: Context, session: SyncSession) {
+        runCatching {
+            if (isSessionActive(session)) {
+                Log.d(TAG, "Attaching realtime listeners for session=${session.id}")
+                attachListeners(context, session)
+                Log.d(TAG, "Initial sync bootstrap completed for session=${session.id}")
+            }
+            // A missing or offline profile must not prevent the studies listener from recovering.
+            if (isSessionActive(session)) ensureUserDocument(session.user)
+        }.onFailure { error ->
+            if (error !is CancellationException && isSessionActive(session)) {
+                Log.e(TAG, "Failed to start sync for ${session.user.uid}", error)
                 notifySyncError()
             }
         }
     }
 
-    fun stop() {
-        if (listeners.isNotEmpty() || currentUser != null) {
-            Log.d(TAG, "Stopping sync for uid=${currentUser?.uid}")
+    private fun stopLocked() {
+        val session = currentSession
+        currentSession = null
+        if (listeners.isNotEmpty() || session != null) {
+            Log.d(TAG, "Stopping sync session=${session?.id} uid=${session?.user?.uid}")
         }
-        listeners.forEach { it.remove() }
-        listeners = emptyList()
+        bootstrapJob?.cancel()
+        bootstrapJob = null
+        recoveryJob?.cancel()
+        recoveryJob = null
         studiesSyncJob?.cancel()
         studiesSyncJob = null
-        currentUser = null
+        session?.coroutineJob?.cancel()
+        session?.preferencesReady?.cancel()
+        session?.highlightsReady?.cancel()
+        session?.studiesReady?.cancel()
+        listeners.forEach { it.remove() }
+        listeners = emptyList()
     }
 
-    fun refreshNow() {
+    private fun isSessionActive(session: SyncSession): Boolean = currentSession === session
+
+    private fun scheduleListenerRecovery(session: SyncSession) {
         val context = appContext ?: return
-        val user = currentUser ?: return
-        scope.launch {
-            runCatching {
-                syncMutex.withLock {
-                    ensureUserDocument(user)
-                    pushPreferences(context)
-                    pullStudies(context, user.uid)
-                    pushStudies(context, user.uid)
-                    pushAllHighlights(context, user.uid)
+        synchronized(lifecycleLock) {
+            if (!isSessionActive(session) || recoveryJob?.isActive == true) return
+            listeners.forEach { it.remove() }
+            listeners = emptyList()
+            if (session.recoveryAttempts >= MAX_LISTENER_RECOVERY_ATTEMPTS) {
+                Log.w(TAG, "Listener recovery exhausted for uid=${session.user.uid}")
+                return
+            }
+            val nextAttempt = session.recoveryAttempts + 1
+            val delayMs = 1_000L shl (nextAttempt - 1)
+            recoveryJob = scope.launch(session.coroutineJob) {
+                delay(delayMs)
+                synchronized(lifecycleLock) {
+                    if (isSessionActive(session)) {
+                        startLocked(context, session.user, recoveryAttempts = nextAttempt)
+                    }
                 }
-            }.onFailure {
-                Log.w(TAG, "Failed to refresh sync", it)
-                notifySyncError()
+            }
+        }
+    }
+
+    private fun markSessionHealthy(session: SyncSession) {
+        synchronized(lifecycleLock) {
+            if (isSessionActive(session) &&
+                session.preferencesReady.isCompleted &&
+                session.highlightsReady.isCompleted &&
+                session.studiesReady.isCompleted
+            ) {
+                session.recoveryAttempts = 0
             }
         }
     }
 
     fun requestPreferencesSync() {
         val context = appContext ?: return
-        val user = currentUser ?: return
-        scope.launch {
+        val session = currentSession ?: return
+        scope.launch(session.coroutineJob) {
             runCatching {
-                syncMutex.withLock {
-                    ensureUserDocument(user)
-                    pushPreferences(context)
+                withTimeout(15_000L) { session.preferencesReady.await() }
+                preferencesMutex.withLock {
+                    if (!isSessionActive(session)) return@withLock
+                    pushPreferences(context, session.user.uid)
                 }
-            }.onFailure {
-                Log.w(TAG, "Failed to push preferences", it)
-                notifySyncError()
+            }.onFailure { error ->
+                if (error !is CancellationException && isSessionActive(session)) {
+                    Log.w(TAG, "Failed to push preferences", error)
+                    notifySyncError()
+                }
             }
         }
     }
 
     fun requestStudiesSync() {
         val context = appContext ?: return
-        val user = currentUser ?: return
-        studiesSyncJob?.cancel()
-        studiesSyncJob = scope.launch {
-            delay(750L)
-            val success = withRetry(maxRetries = 3, initialDelayMs = 1_000L) {
-                syncMutex.withLock {
-                    pushStudies(context, user.uid)
+        synchronized(lifecycleLock) {
+            val session = currentSession ?: return
+            studiesSyncJob?.cancel()
+            studiesSyncJob = scope.launch(session.coroutineJob) {
+                try {
+                    delay(750L)
+                    withTimeout(15_000L) { session.studiesReady.await() }
+                    if (!isSessionActive(session)) return@launch
+                    val success = withRetry(maxRetries = 3, initialDelayMs = 1_000L) {
+                        studiesMutex.withLock {
+                            if (!isSessionActive(session)) return@withLock
+                            pushStudies(context, session.user.uid)
+                        }
+                    }
+                    if (!success && isSessionActive(session)) {
+                        Log.w(TAG, "Failed to push studies after retries")
+                        notifySyncError()
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    if (isSessionActive(session)) {
+                        Log.w(TAG, "Studies sync did not become ready", error)
+                        notifySyncError()
+                    }
                 }
-            }
-            if (!success) {
-                Log.w(TAG, "Failed to push studies after retries")
-                notifySyncError()
             }
         }
     }
 
     fun requestHighlightsSync(book: String, chapter: Int, verses: Map<String, Int>) {
-        val user = currentUser ?: return
-        scope.launch {
+        val session = currentSession ?: return
+        scope.launch(session.coroutineJob) {
             runCatching {
-                pushHighlightChapter(user.uid, book, chapter, verses)
-            }.onFailure {
-                Log.w(TAG, "Failed to push chapter highlights", it)
-                notifySyncError()
+                withTimeout(15_000L) { session.highlightsReady.await() }
+                highlightsMutex.withLock {
+                    if (!isSessionActive(session)) return@withLock
+                    pushHighlightChapter(session.user.uid, book, chapter, verses)
+                }
+            }.onFailure { error ->
+                if (error !is CancellationException && isSessionActive(session)) {
+                    Log.w(TAG, "Failed to push chapter highlights", error)
+                    notifySyncError()
+                }
             }
         }
     }
 
     fun requestHighlightsFullSync() {
         val context = appContext ?: return
-        val user = currentUser ?: return
-        scope.launch {
+        val session = currentSession ?: return
+        scope.launch(session.coroutineJob) {
             runCatching {
-                syncMutex.withLock {
-                    pushAllHighlights(context, user.uid)
+                withTimeout(15_000L) { session.highlightsReady.await() }
+                highlightsMutex.withLock {
+                    if (!isSessionActive(session)) return@withLock
+                    pushAllHighlights(context, session.user.uid)
                 }
-            }.onFailure {
-                Log.w(TAG, "Failed to push all highlights", it)
-                notifySyncError()
+            }.onFailure { error ->
+                if (error !is CancellationException && isSessionActive(session)) {
+                    Log.w(TAG, "Failed to push all highlights", error)
+                    notifySyncError()
+                }
             }
         }
     }
@@ -291,8 +414,8 @@ object FirestoreSyncManager {
         Log.d(TAG, "Wrote users/${user.uid}")
     }
 
-    private suspend fun pushPreferences(context: Context) {
-        val user = currentUser ?: return
+    private suspend fun pushPreferences(context: Context, userUid: String) {
+        if (userUid.isBlank()) return
         val snapshot = AppPreferencesSyncStore.getAppPreferencesSnapshot(
             context = context,
             defaultDarkMode = false
@@ -311,12 +434,12 @@ object FirestoreSyncManager {
             "readerFontSizeUpdatedAt" to snapshot.readerFontSizeUpdatedAt,
             "updatedAt" to updatedAt
         )
-        Log.d(TAG, "Writing users/${user.uid}/preferences/app updatedAt=$updatedAt")
-        preferencesDocument(user.uid).set(doc, SetOptions.merge()).awaitCompletion()
-        Log.d(TAG, "Wrote users/${user.uid}/preferences/app")
+        Log.d(TAG, "Writing users/$userUid/preferences/app updatedAt=$updatedAt")
+        preferencesDocument(userUid).set(doc, SetOptions.merge()).awaitCompletion()
+        Log.d(TAG, "Wrote users/$userUid/preferences/app")
     }
 
-    private suspend fun pushStudies(context: Context, userUid: String = currentUser?.uid.orEmpty()) {
+    private suspend fun pushStudies(context: Context, userUid: String) {
         if (userUid.isBlank()) return
         val repository = studyRepository(context)
         val dirty = repository.getDirtyForSync(userUid)
@@ -379,15 +502,7 @@ object FirestoreSyncManager {
         }
     }
 
-    private suspend fun pullStudies(context: Context, userUid: String) {
-        if (userUid.isBlank()) return
-        val snapshot = withTimeout(15_000L) {
-            studiesCollection(userUid).get().awaitResult()
-        }
-        applyRemoteStudies(context, snapshot, userUid)
-    }
-
-    private suspend fun pushAllHighlights(context: Context, userUid: String = currentUser?.uid.orEmpty()) {
+    private suspend fun pushAllHighlights(context: Context, userUid: String) {
         if (userUid.isBlank()) return
         val snapshots = AppPreferencesSyncStore.getAllHighlightChapters(context)
         Log.d(TAG, "Found ${snapshots.size} highlight chapters to sync for uid=$userUid")
@@ -426,53 +541,130 @@ object FirestoreSyncManager {
             .awaitCompletion()
     }
 
-    private suspend fun attachListeners(context: Context, userUid: String) {
-        listeners = listOf(
-            preferencesDocument(userUid).addSnapshotListener { snapshot, error ->
+    private fun attachListeners(context: Context, session: SyncSession) {
+        val userUid = session.user.uid
+        // Readiness needs the cache-to-server event even when document contents do not change.
+        val registrations = listOf(
+            preferencesDocument(userUid).addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
+                if (!isSessionActive(session)) return@addSnapshotListener
                 if (error != null) {
                     Log.w(TAG, "Preferences listener failed", error)
                     notifySyncError()
+                    scheduleListenerRecovery(session)
                     return@addSnapshotListener
                 }
-                if (snapshot == null || !snapshot.exists()) return@addSnapshotListener
-                scope.launch { applyRemotePreferences(context, snapshot.data.orEmpty()) }
+                if (snapshot == null) return@addSnapshotListener
+                scope.launch(session.coroutineJob) {
+                    runCatching {
+                        preferencesMutex.withLock {
+                            if (!isSessionActive(session)) return@withLock
+                            if (snapshot.exists()) {
+                                applyRemotePreferences(context, snapshot.data.orEmpty())
+                            }
+                            val isInitialServerSnapshot =
+                                !snapshot.metadata.isFromCache && !session.preferencesReady.isCompleted
+                            if (isInitialServerSnapshot) {
+                                session.preferencesReady.complete(Unit)
+                                pushPreferences(context, userUid)
+                            }
+                            markSessionHealthy(session)
+                        }
+                    }.onFailure { failure ->
+                        if (failure !is CancellationException && isSessionActive(session)) {
+                            Log.w(TAG, "Failed to apply remote preferences", failure)
+                            notifySyncError()
+                        }
+                    }
+                }
             },
-            highlightsCollection(userUid).addSnapshotListener { snapshot, error ->
+            highlightsCollection(userUid).addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
+                if (!isSessionActive(session)) return@addSnapshotListener
                 if (error != null) {
                     Log.w(TAG, "Highlights listener failed", error)
                     notifySyncError()
+                    scheduleListenerRecovery(session)
                     return@addSnapshotListener
                 }
                 if (snapshot == null) return@addSnapshotListener
-                scope.launch { applyRemoteHighlights(context, snapshot) }
+                scope.launch(session.coroutineJob) {
+                    runCatching {
+                        highlightsMutex.withLock {
+                            if (!isSessionActive(session)) return@withLock
+                            applyRemoteHighlights(context, snapshot)
+                            val isInitialServerSnapshot =
+                                !snapshot.metadata.isFromCache && !session.highlightsReady.isCompleted
+                            if (isInitialServerSnapshot) {
+                                session.highlightsReady.complete(Unit)
+                                pushAllHighlights(context, userUid)
+                            }
+                            markSessionHealthy(session)
+                        }
+                    }.onFailure { failure ->
+                        if (failure !is CancellationException && isSessionActive(session)) {
+                            Log.w(TAG, "Failed to apply remote highlights", failure)
+                            notifySyncError()
+                        }
+                    }
+                }
             },
-            studiesCollection(userUid).addSnapshotListener { snapshot, error ->
+            studiesCollection(userUid).addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
+                if (!isSessionActive(session)) return@addSnapshotListener
                 if (error != null) {
                     Log.w(TAG, "Studies listener failed", error)
                     notifySyncError()
+                    scheduleListenerRecovery(session)
                     return@addSnapshotListener
                 }
                 if (snapshot == null) return@addSnapshotListener
-                scope.launch {
+                scope.launch(session.coroutineJob) {
                     runCatching {
-                        syncMutex.withLock {
-                            applyRemoteStudies(context, snapshot, userUid)
-                            pushStudies(context, userUid)
+                        studiesMutex.withLock {
+                            if (!isSessionActive(session)) return@withLock
+                            if (!session.studiesReady.isCompleted ||
+                                snapshot.getDocumentChanges(MetadataChanges.EXCLUDE).isNotEmpty()
+                            ) {
+                                applyRemoteStudies(context, snapshot, userUid)
+                            }
+                            if (!isSessionActive(session)) return@withLock
+                            val isInitialServerSnapshot =
+                                !snapshot.metadata.isFromCache && !session.studiesReady.isCompleted
+                            if (isInitialServerSnapshot) {
+                                session.studiesReady.complete(Unit)
+                                pushStudies(context, userUid)
+                            }
+                            markSessionHealthy(session)
                         }
-                    }.onFailure {
-                        Log.w(TAG, "Failed to apply remote studies", it)
-                        notifySyncError()
+                    }.onFailure { failure ->
+                        if (failure !is CancellationException && isSessionActive(session)) {
+                            Log.w(TAG, "Failed to apply remote studies", failure)
+                            notifySyncError()
+                            if (session.studiesReady.isCompleted) requestStudiesSync()
+                        }
                     }
                 }
             }
         )
+        synchronized(lifecycleLock) {
+            if (isSessionActive(session) && recoveryJob?.isActive != true) {
+                listeners.forEach { it.remove() }
+                listeners = registrations
+            } else {
+                registrations.forEach { it.remove() }
+            }
+        }
     }
 
     private fun notifySyncError() {
-        val now = System.currentTimeMillis()
-        if (now - lastErrorNotificationAt < 15_000L) return
-        lastErrorNotificationAt = now
-        _syncErrors.tryEmit(Unit)
+        val shouldNotify = synchronized(lifecycleLock) {
+            val now = System.currentTimeMillis()
+            if (now - lastErrorNotificationAt < 15_000L) {
+                false
+            } else {
+                lastErrorNotificationAt = now
+                true
+            }
+        }
+        if (shouldNotify) _syncErrors.tryEmit(Unit)
     }
 
     private suspend fun applyRemotePreferences(context: Context, data: Map<String, Any>) {

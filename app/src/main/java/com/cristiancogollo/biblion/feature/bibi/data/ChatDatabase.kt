@@ -9,8 +9,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ChatSessionEntity::class, ChatMessageEntity::class],
-    version = 2,
-    exportSchema = false
+    version = 3,
+    exportSchema = true
 )
 abstract class ChatDatabase : RoomDatabase() {
     abstract fun sessionDao(): ChatSessionDao
@@ -25,6 +25,18 @@ abstract class ChatDatabase : RoomDatabase() {
             }
         }
 
+        internal val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE chat_sessions ADD COLUMN owner_uid TEXT NOT NULL DEFAULT '$GUEST_CHAT_OWNER'"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_chat_sessions_owner_uid_updated_at " +
+                        "ON chat_sessions(owner_uid, updated_at)"
+                )
+            }
+        }
+
         @Volatile
         private var instance: ChatDatabase? = null
 
@@ -35,7 +47,7 @@ abstract class ChatDatabase : RoomDatabase() {
                     ChatDatabase::class.java,
                     "bibi_chat.db"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { instance = it }
             }

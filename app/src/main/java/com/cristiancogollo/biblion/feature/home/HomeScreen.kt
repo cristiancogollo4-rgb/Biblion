@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -59,7 +60,6 @@ import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 import com.cristiancogollo.biblion.ui.theme.LocalBiblionThemeMode
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -194,10 +194,10 @@ fun HomeScreen(
         bottomBar = {
             BiblionBottomNavigation(
                 currentRoute = currentRoute,
-                onHome = { navController.navigateSingleTop(Screen.Home.route) },
-                onBible = { navController.navigateSingleTop(Screen.Books.createRoute(Testament.OLD)) },
-                onSearch = { navController.navigateSingleTop(Screen.Search.route) },
-                onStudy = { navController.navigateSingleTop(StudyDocScreen.StudyDocsList.route) },
+                onHome = { navController.navigateTopLevel(Screen.Home.route) },
+                onBible = { navController.navigateTopLevel(Screen.Books.createRoute(Testament.OLD)) },
+                onSearch = { navController.navigateTopLevel(Screen.Search.createRoute()) },
+                onStudy = { navController.navigateTopLevel(StudyDocScreen.StudyDocsList.route) },
                 onProfile = onNavigateToProfile,
                         onGuidedTutorialTargetAction = onGuidedTutorialTargetAction,
                         activeTutorialTargetKey = guidedStep?.targetKey,
@@ -389,7 +389,7 @@ private fun HomeDailyVerseCard(
                 )
                 Text(
                     text = verse.reference,
-                    color = BiblionGoldPrimary,
+                    color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.labelLarge,
                 )
@@ -413,19 +413,19 @@ private fun HomeEmptyReadingCard(onOpenBible: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = BiblionGoldPrimary)
                 Spacer(Modifier.width(8.dp))
-                Text("CONTINUAR LECTURA", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.home_continue_reading), fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold)
             }
             Text(
-                "Por el momento no has leído nada.",
+                stringResource(R.string.home_no_recent_reading),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                "Abre un libro de la Biblia para comenzar tu recorrido.",
+                stringResource(R.string.home_open_book_hint),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             TextButton(onClick = onOpenBible) {
-                Text("Abrir Biblia", color = BiblionGoldPrimary)
+                Text(stringResource(R.string.home_open_bible), color = MaterialTheme.colorScheme.primary)
                 Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
             }
         }
@@ -666,15 +666,6 @@ private fun HomeAnnouncementsCarousel(
     val pagerState = rememberPagerState(pageCount = { announcements.size })
     val coroutineScope = rememberCoroutineScope()
 
-    LaunchedEffect(pagerState, announcements.size) {
-        while (true) {
-            delay(6_000)
-            if (!pagerState.isScrollInProgress) {
-                pagerState.animateScrollToPage((pagerState.currentPage + 1) % announcements.size)
-            }
-        }
-    }
-
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -824,8 +815,11 @@ private fun HomeAnnouncementsCarousel(
                 )
                 Box(
                     modifier = Modifier
-                        .size(width = 40.dp, height = 40.dp)
-                        .semantics { contentDescription = indicatorDescription }
+                        .size(width = 48.dp, height = 48.dp)
+                        .semantics {
+                            contentDescription = indicatorDescription
+                            this.selected = selected
+                        }
                         .clickable {
                             coroutineScope.launch {
                                 pagerState.animateScrollToPage(index)

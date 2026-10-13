@@ -1,6 +1,5 @@
 package com.cristiancogollo.biblion.feature.studydocs.ui.editor
 
-import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -26,7 +25,6 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -43,6 +41,7 @@ import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
 import com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.toAnnotatedString
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment
+import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.composeFontFamily
 import com.mohamedrejeb.richeditor.model.RichTextState
 import com.mohamedrejeb.richeditor.ui.BasicRichTextEditor
 
@@ -64,6 +63,7 @@ fun UnifiedBlockRenderer(
     isActive: Boolean,
     isEditing: Boolean,
     allBlocks: List<StudyBlock>,
+    activeListItemIndex: Int? = null,
     focusRequest: EditorFocusRequest? = null,
     splitViewModel: StudyDocSplitViewModel? = null,
     viewModel: StudyDocViewModel? = null,
@@ -83,6 +83,7 @@ fun UnifiedBlockRenderer(
                 allBlocks = allBlocks,
                 textStyle = textStyle,
                 isActive = isActive,
+                activeListItemIndex = activeListItemIndex,
                 focusRequest = focusRequest,
                 splitViewModel = splitViewModel,
                 viewModel = viewModel,
@@ -90,7 +91,10 @@ fun UnifiedBlockRenderer(
             )
             return
         }
-        Log.d("BIBLION_STUDY", "UnifiedBlockRenderer(block) EDITING blockId=${block.id} richState=${richState != null} text=[${richState?.annotatedString?.text?.take(40)}]")
+        StudyEditorDebugLog.log("BLOCK_RENDER") {
+            "editing blockId=${block.id} richState=${richState != null} " +
+                "text=[${richState?.annotatedString?.text?.take(40)}]"
+        }
         val focusRequester = remember(block.id) { FocusRequester() }
         var hasPhysicalFocus by remember(block.id) { mutableStateOf(false) }
         val editorKey = EditorTextKey(block.id)
@@ -123,7 +127,7 @@ fun UnifiedBlockRenderer(
             }
         }
 
-        LaunchedEffect(richState, block.id, splitViewModel, viewModel) {
+        LaunchedEffect(richState, block.id, isActive, splitViewModel, viewModel) {
             if (richState != null) {
                 snapshotFlow { richState.selection }
                     .collect {
@@ -366,6 +370,7 @@ private fun EditableListBlock(
     allBlocks: List<StudyBlock>,
     textStyle: TextStyle,
     isActive: Boolean,
+    activeListItemIndex: Int?,
     focusRequest: EditorFocusRequest?,
     splitViewModel: StudyDocSplitViewModel?,
     viewModel: StudyDocViewModel?,
@@ -379,6 +384,13 @@ private fun EditableListBlock(
     val listStart = if (block is StudyBlock.OrderedList) {
         calculateOrderedListNumber(allBlocks, blockIndex)
     } else 0
+    val resolvedActiveItemIndex = activeListItemIndex ?: when {
+        splitViewModel != null ->
+            splitViewModel.editorState.value.activeListItemIndex
+        viewModel != null ->
+            viewModel.uiState.value.activeListItemIndex
+        else -> null
+    }
 
     Column(modifier = modifier.fillMaxWidth()) {
         items.forEachIndexed { itemIndex, _ ->
@@ -387,9 +399,7 @@ private fun EditableListBlock(
                 ?: return@forEachIndexed
             val itemFocusRequester = remember(block.id, itemIndex) { FocusRequester() }
             var hasPhysicalFocus by remember(block.id, itemIndex) { mutableStateOf(false) }
-            val activeItemIndex = splitViewModel?.editorState?.value?.activeListItemIndex
-                ?: viewModel?.uiState?.value?.activeListItemIndex
-            val isItemActive = isActive && activeItemIndex == itemIndex
+            val isItemActive = isActive && resolvedActiveItemIndex == itemIndex
 
             val editorKey = EditorTextKey(block.id, itemIndex)
             LaunchedEffect(editorKey) {
@@ -421,7 +431,14 @@ private fun EditableListBlock(
                     }
                 }
             }
-            LaunchedEffect(state, block.id, itemIndex, splitViewModel, viewModel) {
+            LaunchedEffect(
+                state,
+                block.id,
+                itemIndex,
+                isItemActive,
+                splitViewModel,
+                viewModel,
+            ) {
                 snapshotFlow { state.selection }
                     .collect {
                         if (isItemActive) {
@@ -549,6 +566,7 @@ fun UnifiedBlockRenderer(
     isOwnerFragment: Boolean,
     richState: RichTextState?,
     isActive: Boolean,
+    activeListItemIndex: Int? = null,
     focusRequest: EditorFocusRequest? = null,
     splitViewModel: StudyDocSplitViewModel? = null,
     viewModel: StudyDocViewModel? = null,
@@ -567,7 +585,11 @@ fun UnifiedBlockRenderer(
         )
         return
     }
-    Log.d("BIBLION_STUDY", "UnifiedBlockRenderer fragment=$fragment isEditing=$isEditing isOwnerFragment=$isOwnerFragment richState=${richState != null} blockId=${fragment.originBlockId} blockType=${block::class.simpleName}")
+    StudyEditorDebugLog.log("FRAGMENT_RENDER_CALL") {
+        "fragment=$fragment editing=$isEditing owner=$isOwnerFragment " +
+            "richState=${richState != null} blockId=${fragment.originBlockId} " +
+            "blockType=${block::class.simpleName}"
+    }
     val blockIndex = allBlocks.indexOfFirst { it.id == fragment.originBlockId }
     val textStyle = remember(block, block.fontSize, isEditing) { buildTextStyle(block, textColor) }
     fragment.charRangeOrNull()?.let { (start, endExclusive) ->
@@ -633,6 +655,7 @@ fun UnifiedBlockRenderer(
             blockIndex = blockIndex,
             richState = richState,
             isActive = isActive,
+            activeListItemIndex = activeListItemIndex,
             isEditing = true,
             allBlocks = allBlocks,
             focusRequest = focusRequest,
@@ -1109,16 +1132,10 @@ private fun PageFragment.charRangeOrNull(): Pair<Int, Int>? = when (this) {
 }
 
 private fun buildTextStyle(block: StudyBlock, textColor: Color): TextStyle {
-    val fontSizeSp = when (block) {
-        is StudyBlock.Heading -> when (block.level) {
-            1 -> 20.sp; 2 -> 18.sp; 3 -> 16.sp; else -> block.fontSize.sp
-        }
-        else -> block.fontSize.sp
-    }
     return TextStyle(
-        fontSize = fontSizeSp,
+        fontSize = block.fontSize.sp,
         fontWeight = if (block is StudyBlock.Heading) FontWeight.Bold else FontWeight.Normal,
-        fontFamily = if (block is StudyBlock.Verse) FontFamily.Serif else FontFamily.Default,
+        fontFamily = block.composeFontFamily(),
         fontStyle = if (block is StudyBlock.Quote) FontStyle.Italic else FontStyle.Normal,
         textAlign = block.alignment.toTextAlign(),
         color = textColor,
@@ -1129,7 +1146,8 @@ private fun buildTextStyle(block: StudyBlock, textColor: Color): TextStyle {
 internal fun calculateOrderedListNumber(blocks: List<StudyBlock>, index: Int): Int {
     var n = 1
     for (i in (index - 1) downTo 0) {
-        if (blocks[i] is StudyBlock.OrderedList) n++ else return n
+        val previous = blocks[i] as? StudyBlock.OrderedList ?: return n
+        n += previous.items.size
     }
     return n
 }

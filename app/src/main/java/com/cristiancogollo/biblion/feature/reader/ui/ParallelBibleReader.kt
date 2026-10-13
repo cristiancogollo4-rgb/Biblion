@@ -324,6 +324,7 @@ private fun IndependentBiblePane(
     var adjacentRetryRequest by remember { mutableIntStateOf(0) }
     var loading by remember { mutableStateOf(true) }
     var loadFailed by remember { mutableStateOf(false) }
+    var versionPickerRequest by remember { mutableIntStateOf(0) }
     var appliedTargetRequest by remember { mutableIntStateOf(-1) }
     var referenceVersesByChapter by remember(selection.bookName) {
         mutableStateOf<Map<Int, Set<Int>>>(emptyMap())
@@ -532,6 +533,7 @@ private fun IndependentBiblePane(
             selection = selection,
             chapterCount = content.chapterCount,
             versions = versions,
+            versionPickerRequest = versionPickerRequest,
             onReadingOptionsClick = onReadingOptionsClick,
             onSelectionChange = { next ->
                 val changingOnlyVersion = next.bookName == selection.bookName &&
@@ -568,6 +570,26 @@ private fun IndependentBiblePane(
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(24.dp),
                 )
+            }
+
+            content.chapterCount == 0 -> Box(
+                Modifier.fillMaxSize(), contentAlignment = Alignment.Center,
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        stringResource(
+                            R.string.reader_book_unavailable_in_version,
+                            selection.bookName,
+                            selection.versionKey.uppercase(),
+                        ),
+                    )
+                    TextButton(onClick = { versionPickerRequest += 1 }) {
+                        Text(stringResource(R.string.reader_choose_another_version))
+                    }
+                }
             }
 
             else -> LazyColumn(

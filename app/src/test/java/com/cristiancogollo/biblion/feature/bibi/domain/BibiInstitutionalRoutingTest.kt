@@ -73,4 +73,57 @@ class BibiInstitutionalRoutingTest {
         assertTrue(remoteCalled)
         assertTrue(result.answer == balanced)
     }
+
+    @Test
+    fun `general baptism question recovers from workers unverified warning`() = runBlocking {
+        val orchestrator = BibiOrchestrator(RemoteBibiGateway {
+            WorkerClient.RichWorkerResponse(
+                InstitutionalDoctrinePolicy.UNVERIFIED_ANSWER,
+                emptyList(), emptyList(), "low", null, "unverified_institutional_doctrine",
+            )
+        })
+
+        val result = orchestrator.answer(
+            app, "¿Es necesario el bautismo para salvación?",
+            reader, null, emptyList(), emptyList(), forceRemote = true,
+        )
+
+        assertTrue(result.answer.contains("Hechos 2:38"))
+        assertFalse(result.answer.contains("No tengo una declaración oficial"))
+    }
+
+    @Test
+    fun `general baptism question also recovers from a legacy warning without intent`() = runBlocking {
+        val orchestrator = BibiOrchestrator(RemoteBibiGateway {
+            WorkerClient.RichWorkerResponse(
+                InstitutionalDoctrinePolicy.UNVERIFIED_ANSWER,
+                emptyList(), emptyList(), "low", null, null,
+            )
+        })
+
+        val result = orchestrator.answer(
+            app, "¿Es necesario el bautismo para salvación?",
+            reader, null, emptyList(), emptyList(), forceRemote = true,
+        )
+
+        assertTrue(result.answer.contains("Hechos 2:38"))
+    }
+
+    @Test
+    fun `general baptism question recovers from an unsolicited institutional claim`() = runBlocking {
+        val orchestrator = BibiOrchestrator(RemoteBibiGateway {
+            WorkerClient.RichWorkerResponse(
+                "Según la Iglesia Bautista, el bautismo no es necesario para la salvación.",
+                emptyList(), emptyList(), "high", null, null,
+            )
+        })
+
+        val result = orchestrator.answer(
+            app, "¿Es necesario el bautismo para salvación?",
+            reader, null, emptyList(), emptyList(), forceRemote = true,
+        )
+
+        assertTrue(result.answer.contains("Hechos 2:38"))
+        assertFalse(result.answer.contains("Iglesia Bautista"))
+    }
 }

@@ -1,6 +1,7 @@
 package com.cristiancogollo.biblion.feature.bibi.ui
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -10,6 +11,8 @@ import com.cristiancogollo.biblion.feature.achievements.tracking.AchievementTrac
 import com.cristiancogollo.biblion.feature.bibi.data.ChatSession
 import com.cristiancogollo.biblion.feature.bibi.domain.BibiOrchestrator
 import com.cristiancogollo.biblion.feature.bibi.domain.BibiReferenceContextResolver
+import com.cristiancogollo.biblion.feature.bibi.domain.DoctrinalPerspectivePolicy
+import com.cristiancogollo.biblion.feature.bibi.engine.KnowledgeEngine
 import com.cristiancogollo.biblion.feature.bibi.model.BibiContext
 import com.cristiancogollo.biblion.feature.bibi.model.BibiMessageText
 import com.cristiancogollo.biblion.feature.bibi.model.BibiPassage
@@ -19,6 +22,7 @@ import com.cristiancogollo.biblion.feature.bibi.model.ChatExchange
 import com.cristiancogollo.biblion.feature.bibi.model.Confidence
 import com.cristiancogollo.biblion.feature.bibi.model.Source
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -63,69 +67,23 @@ class BibiViewModel(
         initialGreeting = greeting
         initialSuggestions = suggestions
         viewModelScope.launch {
-            val restored = withContext(Dispatchers.IO) {
-                val session = ChatSessionRepository.getMostRecentSession(appContext, mode)
-                val messages = session?.let {
-                    ChatSessionRepository.getSessionMessages(appContext, it.id)
-                }.orEmpty()
-                RestoredChat(
-                    session = session,
-                    messages = messages,
-                    history = ChatSessionRepository.buildChatHistory(messages),
-                    sessions = ChatSessionRepository.getAllSessions(appContext),
-                )
-            }
-            currentSessionId = restored.session?.id
-            chatHistory = restored.history
-            lastQueries = chatHistory.map { it.question }.takeLast(5)
-            val restoredMessages = restored.messages.map {
-                BibiChatMessage(
-                    role = it.role,
-                    text = if (it.role == "assistant") {
-                        BibiMessageText.normalize(it.content)
-                    } else {
-                        it.content
-                    },
-                    contextPassages = it.contextPassages,
-                )
-            }
-            _uiState.value = _uiState.value.copy(
-                messages = restoredMessages.ifEmpty {
-                    listOf(
-                        BibiChatMessage(
-                            role = "assistant",
-                            text = greeting,
-                            suggestions = suggestions,
-                        )
+            try {
+                val restored = withContext(Dispatchers.IO) {
+                    val session = ChatSessionRepository.getMostRecentSession(appContext, mode)
+                    val messages = session?.let {
+                        ChatSessionRepository.getSessionMessages(appContext, it.id)
+                    }.orEmpty()
+                    RestoredChat(
+                        session = session,
+                        messages = messages,
+                        history = ChatSessionRepository.buildChatHistory(messages),
+                        sessions = ChatSessionRepository.getAllSessions(appContext),
                     )
-                },
-                isInitialized = true,
-                sessions = restored.sessions,
-                activeSessionId = restored.session?.id,
-            )
-        }
-    }
-
-    fun startNewChat() {
-        if (_uiState.value.isLoading) return
-        currentSessionId = null
-        resetConversation()
-    }
-
-    fun openChat(sessionId: Long, mode: String) {
-        if (_uiState.value.isLoading || sessionId == currentSessionId) return
-        val session = _uiState.value.sessions.firstOrNull { it.id == sessionId } ?: return
-        if (session.mode != mode) return
-        viewModelScope.launch {
-            val restored = withContext(Dispatchers.IO) {
-                val messages = ChatSessionRepository.getSessionMessages(appContext, sessionId)
-                messages to ChatSessionRepository.buildChatHistory(messages)
-            }
-            currentSessionId = sessionId
-            chatHistory = restored.second
-            lastQueries = chatHistory.map { it.question }.takeLast(5)
-            _uiState.value = _uiState.value.copy(
-                messages = restored.first.map {
+                }
+                currentSessionId = restored.session?.id
+                chatHistory = restored.history
+                lastQueries = chatHistory.map { it.question }.takeLast(5)
+                val restoredMessages = restored.messages.map {
                     BibiChatMessage(
                         role = it.role,
                         text = if (it.role == "assistant") {
@@ -135,15 +93,74 @@ class BibiViewModel(
                         },
                         contextPassages = it.contextPassages,
                     )
-                },
-                activeSessionId = sessionId,
-                completedExchanges = 0,
-            )
+                }
+                _uiState.value = _uiState.value.copy(
+                    messages = restoredMessages.ifEmpty {
+                        listOf(BibiChatMessage("assistant", greeting, suggestions))
+                    },
+                    isInitialized = true,
+                    sessions = restored.sessions,
+                    activeSessionId = restored.session?.id,
+                )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Log.w("BibiViewModel", "No se pudo restaurar el chat", error)
+                _uiState.value = _uiState.value.copy(
+                    messages = listOf(BibiChatMessage("assistant", greeting, suggestions)),
+                    isInitialized = true,
+                )
+            }
+        }
+    }
+
+    fun startNewChat() {
+        if (!_uiState.value.isInitialized || _uiState.value.isLoading) return
+        currentSessionId = null
+        resetConversation()
+    }
+
+    fun openChat(sessionId: Long, mode: String) {
+        if (!_uiState.value.isInitialized || _uiState.value.isLoading || sessionId == currentSessionId) return
+        val session = _uiState.value.sessions.firstOrNull { it.id == sessionId } ?: return
+        if (session.mode != mode) return
+        _uiState.value = _uiState.value.copy(isLoading = true)
+        viewModelScope.launch {
+            try {
+                val restored = withContext(Dispatchers.IO) {
+                    val messages = ChatSessionRepository.getSessionMessages(appContext, sessionId)
+                    messages to ChatSessionRepository.buildChatHistory(messages)
+                }
+                currentSessionId = sessionId
+                chatHistory = restored.second
+                lastQueries = chatHistory.map { it.question }.takeLast(5)
+                _uiState.value = _uiState.value.copy(
+                    messages = restored.first.map {
+                        BibiChatMessage(
+                            role = it.role,
+                            text = if (it.role == "assistant") {
+                                BibiMessageText.normalize(it.content)
+                            } else {
+                                it.content
+                            },
+                            contextPassages = it.contextPassages,
+                        )
+                    },
+                    activeSessionId = sessionId,
+                    completedExchanges = 0,
+                )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Log.w("BibiViewModel", "No se pudo abrir el chat", error)
+            } finally {
+                _uiState.value = _uiState.value.copy(isLoading = false)
+            }
         }
     }
 
     fun deleteCurrentChat() {
-        if (_uiState.value.isLoading) return
+        if (!_uiState.value.isInitialized || _uiState.value.isLoading) return
         val sessionId = currentSessionId
         currentSessionId = null
         resetConversation()
@@ -180,84 +197,128 @@ class BibiViewModel(
         isTutorial: Boolean = false,
     ) {
         val query = question.trim()
-        if (query.isEmpty() || _uiState.value.isLoading) return
+        if (query.isEmpty() || !_uiState.value.isInitialized || _uiState.value.isLoading) return
         _uiState.value = _uiState.value.copy(
             messages = _uiState.value.messages + BibiChatMessage("user", query),
             isLoading = true,
         )
+        val conversationPerspective = DoctrinalPerspectivePolicy.perspectiveFromUserMessages(
+            _uiState.value.messages.filter { it.role == "user" }.map { it.text },
+        )
 
         viewModelScope.launch {
-            val resolvedContext = withContext(Dispatchers.IO) {
-                BibiReferenceContextResolver.resolve(appContext, query, bibiContext)
-            }
-            val result = if (resolvedContext.error != null) {
-                BibiQueryResult(
-                    answer = resolvedContext.error,
-                    confidence = Confidence.HIGH,
-                    source = Source.LOCAL,
-                    intent = "EXPLAIN_VERSE",
-                )
-            } else {
-                withContext(Dispatchers.IO) {
-                    orchestrator.answer(
-                        context = appContext,
-                        question = query,
-                        bibiContext = resolvedContext.context,
-                        userName = userName,
-                        chatHistory = chatHistory,
-                        lastQueries = lastQueries,
-                        forceRemote = forceRemote,
+            try {
+                val resolvedContext = withContext(Dispatchers.IO) {
+                    BibiReferenceContextResolver.resolve(appContext, query, bibiContext)
+                }
+                val result = if (resolvedContext.error != null) {
+                    BibiQueryResult(
+                        answer = resolvedContext.error,
+                        confidence = Confidence.HIGH,
+                        source = Source.LOCAL,
+                        intent = "EXPLAIN_VERSE",
                     )
+                } else {
+                    withContext(Dispatchers.IO) {
+                        orchestrator.answer(
+                            context = appContext,
+                            question = query,
+                            bibiContext = resolvedContext.context,
+                            userName = userName,
+                            chatHistory = chatHistory,
+                            lastQueries = lastQueries,
+                            forceRemote = forceRemote,
+                            conversationPerspective = conversationPerspective,
+                        )
+                    }
                 }
-            }
-            val displayAnswer = buildString {
-                append(BibiMessageText.normalize(result.answer))
-                result.disclaimer?.takeIf { it.isNotBlank() }?.let {
-                    append("\n\nNota: ")
-                    append(BibiMessageText.normalize(it))
+                val displayAnswer = buildString {
+                    append(BibiMessageText.normalize(result.answer))
+                    result.disclaimer?.takeIf { it.isNotBlank() }?.let {
+                        append("\n\nNota: ")
+                        append(BibiMessageText.normalize(it))
+                    }
                 }
-            }
-            val exchange = ChatExchange(
-                question = query,
-                response = displayAnswer,
-                resolvedTerm = result.resolvedTerm,
-                intent = result.intent,
-            )
-            chatHistory = (chatHistory + exchange).takeLast(10)
-            lastQueries = (lastQueries + query).takeLast(5)
-            persistExchange(
-                query = query,
-                answer = displayAnswer,
-                resolvedTerm = result.resolvedTerm,
-                intent = result.intent,
-                mode = if (bibiContext is BibiContext.Reader) "reader" else "study",
-                contextPassages = resolvedContext.explicitPassages,
-                title = when (bibiContext) {
-                    is BibiContext.Reader -> bibiContext.book.ifBlank { "Lector" }
-                    is BibiContext.Study -> bibiContext.title.ifBlank { "Estudio" }
-                },
-            )
-            AchievementTracker.track(
-                appContext,
-                AchievementEvent.BibiAnswerCompleted(
+                val contextPassages = if (resolvedContext.error == null) {
+                    resolvedContext.explicitPassages.ifEmpty {
+                        val passageIntent = KnowledgeEngine.detectIntent(query, lastQueries) in setOf(
+                            KnowledgeEngine.BibiIntent.EXPLAIN_VERSE,
+                            KnowledgeEngine.BibiIntent.RELATED,
+                            KnowledgeEngine.BibiIntent.TOPICS,
+                            KnowledgeEngine.BibiIntent.APPLICATION,
+                            KnowledgeEngine.BibiIntent.COMPARE_VERSIONS,
+                        )
+                        (bibiContext as? BibiContext.Reader)
+                            ?.takeIf { it.hasExplicitSelection && passageIntent }
+                            ?.passages.orEmpty()
+                    }
+                } else {
+                    emptyList()
+                }
+                chatHistory = (chatHistory + ChatExchange(
+                    question = query,
+                    response = displayAnswer,
+                    resolvedTerm = result.resolvedTerm,
                     intent = result.intent,
-                    isTutorial = isTutorial,
-                    wasSuccessful = displayAnswer.isNotBlank() &&
-                        result.confidence != Confidence.LOW &&
-                        resolvedContext.error == null,
-                ),
-            )
-            _uiState.value = _uiState.value.copy(
-                messages = _uiState.value.messages + BibiChatMessage(
-                    role = "assistant",
-                    text = displayAnswer,
-                    suggestions = result.suggestions,
-                    suggestedBlocks = result.suggestedBlocks,
-                    contextPassages = resolvedContext.explicitPassages,
-                ),
-                isLoading = false,
-                completedExchanges = _uiState.value.completedExchanges + 1,
-            )
+                )).takeLast(10)
+                lastQueries = (lastQueries + query).takeLast(5)
+                try {
+                    persistExchange(
+                        query = query,
+                        answer = displayAnswer,
+                        resolvedTerm = result.resolvedTerm,
+                        intent = result.intent,
+                        mode = if (bibiContext is BibiContext.Reader) "reader" else "study",
+                        contextPassages = contextPassages,
+                        title = when (bibiContext) {
+                            is BibiContext.Reader -> bibiContext.book.ifBlank { "Lector" }
+                            is BibiContext.Study -> bibiContext.title.ifBlank { "Estudio" }
+                        },
+                    )
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    Log.w("BibiViewModel", "No se pudo guardar la respuesta", error)
+                }
+                _uiState.value = _uiState.value.copy(
+                    messages = _uiState.value.messages + BibiChatMessage(
+                        role = "assistant",
+                        text = displayAnswer,
+                        suggestions = result.suggestions,
+                        suggestedBlocks = result.suggestedBlocks,
+                        contextPassages = contextPassages,
+                    ),
+                    completedExchanges = _uiState.value.completedExchanges + 1,
+                )
+                try {
+                    AchievementTracker.track(
+                        appContext,
+                        AchievementEvent.BibiAnswerCompleted(
+                            intent = result.intent,
+                            isTutorial = isTutorial,
+                            wasSuccessful = displayAnswer.isNotBlank() &&
+                                result.confidence != Confidence.LOW &&
+                                resolvedContext.error == null,
+                        ),
+                    )
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    Log.w("BibiViewModel", "No se pudo registrar el logro", error)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Log.e("BibiViewModel", "No se pudo responder la pregunta", error)
+                _uiState.value = _uiState.value.copy(
+                    messages = _uiState.value.messages + BibiChatMessage(
+                        role = "assistant",
+                        text = "No pude responder en este momento. Intenta de nuevo.",
+                    ),
+                )
+            } finally {
+                _uiState.value = _uiState.value.copy(isLoading = false)
+            }
         }
     }
 

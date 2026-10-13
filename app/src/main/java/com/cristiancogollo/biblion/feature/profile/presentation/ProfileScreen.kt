@@ -1,7 +1,9 @@
 package com.cristiancogollo.biblion
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.util.LruCache
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -14,9 +16,12 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -87,6 +92,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -119,8 +127,13 @@ import com.cristiancogollo.biblion.feature.achievements.tracking.AchievementTrac
 import com.cristiancogollo.biblion.feature.achievements.data.AchievementRepository
 import com.cristiancogollo.biblion.feature.achievements.presentation.ACHIEVEMENTS_ROUTE
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.net.URL
+import kotlin.math.max
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -180,11 +193,11 @@ fun ProfileScreen(
         bottomBar = {
             BiblionBottomNavigation(
                 currentRoute = currentRoute?.destination?.route,
-                onHome = { navController.navigateSingleTop(Screen.Home.route) },
-                onBible = { navController.navigateSingleTop(Screen.Books.createRoute(Testament.OLD)) },
-                onSearch = { navController.navigateSingleTop(Screen.Search.route) },
-                onStudy = { navController.navigateSingleTop(StudyDocScreen.StudyDocsList.route) },
-                onProfile = { navController.navigateSingleTop(Screen.Profile.route) }
+                onHome = { navController.navigateTopLevel(Screen.Home.route) },
+                onBible = { navController.navigateTopLevel(Screen.Books.createRoute(Testament.OLD)) },
+                onSearch = { navController.navigateTopLevel(Screen.Search.createRoute()) },
+                onStudy = { navController.navigateTopLevel(StudyDocScreen.StudyDocsList.route) },
+                onProfile = { navController.navigateTopLevel(Screen.Profile.route) }
             )
         },
         containerColor = MaterialTheme.colorScheme.background
@@ -650,13 +663,13 @@ private fun ProfileIdentityPanel(
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         shadowElevation = 2.dp,
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(48.dp)
                             .clickable { photoPicker.launch("image/*") },
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.AddAPhoto,
-                                contentDescription = "Cambiar foto",
+                                contentDescription = stringResource(R.string.profile_change_photo),
                                 tint = BiblionGoldPrimary,
                                 modifier = Modifier.size(17.dp),
                             )
@@ -1118,14 +1131,16 @@ private fun ProfileLogrosCard(onSeeAll: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val repository = remember(context) { AchievementRepository(context) }
     val achievements by repository.observeProgress().collectAsState(initial = emptyList())
-    val featured = achievements
-        .sortedWith(
-            compareByDescending<com.cristiancogollo.biblion.feature.achievements.domain.AchievementProgress> {
-                it.isUnlocked
-            }.thenByDescending { it.normalizedProgress }
-        )
-        .take(3)
-    val unlockedCount = achievements.count { it.isUnlocked }
+    val featured = remember(achievements) {
+        achievements
+            .sortedWith(
+                compareByDescending<com.cristiancogollo.biblion.feature.achievements.domain.AchievementProgress> {
+                    it.isUnlocked
+                }.thenByDescending { it.normalizedProgress }
+            )
+            .take(3)
+    }
+    val unlockedCount = remember(achievements) { achievements.count { it.isUnlocked } }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -1179,7 +1194,7 @@ private fun ProfileLogrosCard(onSeeAll: () -> Unit) {
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     contentPadding = PaddingValues(horizontal = 18.dp),
                 ) {
-                    items(featured) { progress ->
+                    items(featured, key = { it.definition.id }) { progress ->
                         Surface(
                             modifier = Modifier.width(176.dp),
                             shape = RoundedCornerShape(18.dp),
@@ -1263,16 +1278,78 @@ private fun ProfileAvatar(
 
 @Composable
 private fun RemoteProfileImage(url: String, modifier: Modifier = Modifier) {
-    var imageBitmap by remember(url) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    var imageBitmap by remember(url) {
+        mutableStateOf(ProfileImageLoader.cached(url)?.asImageBitmap())
+    }
     LaunchedEffect(url) {
-        imageBitmap = withContext(Dispatchers.IO) {
-            runCatching {
-                URL(url).openStream().use { stream -> BitmapFactory.decodeStream(stream)?.asImageBitmap() }
-            }.getOrNull()
-        }
+        imageBitmap = ProfileImageLoader.load(url)?.asImageBitmap()
     }
     imageBitmap?.let {
         Image(bitmap = it, contentDescription = null, modifier = modifier, contentScale = ContentScale.Crop)
+    }
+}
+
+private object ProfileImageLoader {
+    private const val TARGET_SIZE_PX = 512
+    private const val MAX_DOWNLOAD_BYTES = 8 * 1024 * 1024
+    private const val CACHE_SIZE_KB = 8 * 1024
+
+    private val loadMutex = Mutex()
+    private val cache = object : LruCache<String, Bitmap>(CACHE_SIZE_KB) {
+        override fun sizeOf(key: String, value: Bitmap): Int =
+            (value.allocationByteCount / 1024).coerceAtLeast(1)
+    }
+
+    fun cached(url: String): Bitmap? = cache.get(url)
+
+    suspend fun load(url: String): Bitmap? = withContext(Dispatchers.IO) {
+        cached(url) ?: loadMutex.withLock {
+            cached(url) ?: downloadSampledBitmap(url)?.also { cache.put(url, it) }
+        }
+    }
+
+    private fun downloadSampledBitmap(url: String): Bitmap? = runCatching {
+        val connection = URL(url).openConnection().apply {
+            connectTimeout = 10_000
+            readTimeout = 15_000
+            useCaches = true
+        }
+        val declaredSize = connection.contentLengthLong
+        if (declaredSize > MAX_DOWNLOAD_BYTES) return null
+        val bytes = connection.getInputStream().use { input ->
+            input.readBytesUpTo(MAX_DOWNLOAD_BYTES) ?: return null
+        }
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = calculateSampleSize(bounds.outWidth, bounds.outHeight)
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+    }.getOrNull()
+
+    private fun calculateSampleSize(width: Int, height: Int): Int {
+        var sampleSize = 1
+        while (max(width, height) / (sampleSize * 2) >= TARGET_SIZE_PX) {
+            sampleSize *= 2
+        }
+        return sampleSize
+    }
+
+    private fun InputStream.readBytesUpTo(maxBytes: Int): ByteArray? {
+        val output = ByteArrayOutputStream(minOf(maxBytes, 64 * 1024))
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        var total = 0
+        while (true) {
+            val count = read(buffer)
+            if (count < 0) break
+            total += count
+            if (total > maxBytes) return null
+            output.write(buffer, 0, count)
+        }
+        return output.toByteArray()
     }
 }
 
@@ -1720,6 +1797,7 @@ private fun ProfileEditAvatar(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AvatarColorSelector(
     selectedColor: Long,
@@ -1734,15 +1812,34 @@ private fun AvatarColorSelector(
         0xFFB08900UL.toLong(),
         0xFF9D0208UL.toLong()
     )
+    val colorNames = listOf(
+        stringResource(R.string.avatar_color_turquoise),
+        stringResource(R.string.avatar_color_blue),
+        stringResource(R.string.avatar_color_purple),
+        stringResource(R.string.avatar_color_green),
+        stringResource(R.string.avatar_color_gold),
+        stringResource(R.string.avatar_color_red),
+    )
 
-    Row(
+    FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        colors.forEach { colorLong ->
+        colors.forEachIndexed { index, colorLong ->
             val color = Color(colorLong.toInt())
             Box(
                 modifier = Modifier
+                    .size(48.dp)
+                    .selectable(
+                        selected = selectedColor == colorLong,
+                        enabled = enabled,
+                        role = Role.RadioButton,
+                        onClick = { onAvatarColorChange(colorLong) },
+                    )
+                    .semantics { contentDescription = colorNames[index] },
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(Modifier
                     .size(28.dp)
                     .clip(CircleShape)
                     .background(color.copy(alpha = if (enabled) 1f else 0.34f))
@@ -1750,9 +1847,8 @@ private fun AvatarColorSelector(
                         width = if (selectedColor == colorLong) 3.dp else 1.dp,
                         color = if (selectedColor == colorLong) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outlineVariant,
                         shape = CircleShape
-                    )
-                    .clickable(enabled = enabled) { onAvatarColorChange(colorLong) }
-            )
+                    ))
+            }
         }
     }
 }

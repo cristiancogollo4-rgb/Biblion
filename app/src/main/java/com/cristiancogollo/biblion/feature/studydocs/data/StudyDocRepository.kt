@@ -4,28 +4,70 @@ import com.cristiancogollo.biblion.FirestoreSyncManager
 import com.cristiancogollo.biblion.feature.studydocs.model.DocId
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
 import com.cristiancogollo.biblion.feature.studydocs.model.hasPersistableTitle
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
+
+enum class StudyDocSyncStatus { LOCAL_ONLY, PENDING, SYNCED }
+
+data class StudyDocListEntry(
+    val doc: StudyDoc,
+    val syncStatus: StudyDocSyncStatus,
+)
 
 class StudyDocRepository(
     private val dao: StudyDocDao,
     private val clock: () -> Long = { System.currentTimeMillis() },
+    private val ownerUidProvider: () -> String? = { null },
+    private val serializationDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
 
-    fun observeAll(): Flow<List<StudyDoc>> = dao.observeAll().map { list -> list.mapNotNull { it.toDoc() } }
+    fun observeAll(): Flow<List<StudyDoc>> = dao.observeAll().map(::decodeAll)
     fun observeByNotebook(notebookRemoteId: String): Flow<List<StudyDoc>> =
-        dao.observeByNotebook(notebookRemoteId).map { list -> list.mapNotNull { it.toDoc() } }
+        dao.observeByNotebook(notebookRemoteId).map(::decodeAll)
     fun observeByOwner(ownerUid: String): Flow<List<StudyDoc>> =
-        dao.observeByOwner(ownerUid).map { list -> list.mapNotNull { it.toDoc() } }
-    fun search(query: String): Flow<List<StudyDoc>> = dao.search("%${query.trim()}%").map { list -> list.mapNotNull { it.toDoc() } }
+        dao.observeByOwner(ownerUid).map(::decodeAll)
+    fun observeVisibleForOwner(ownerUid: String?): Flow<List<StudyDoc>> =
+        if (ownerUid == null) {
+            dao.observeAll().map { list ->
+                decodeAll(list.filter { it.ownerUid == null })
+            }
+        } else {
+            observeByOwner(ownerUid)
+        }
+    fun observeVisibleEntriesForOwner(ownerUid: String?): Flow<List<StudyDocListEntry>> =
+        (if (ownerUid == null) dao.observeAll() else dao.observeByOwner(ownerUid))
+            .map { entities ->
+                withContext(serializationDispatcher) {
+                    entities.asSequence()
+                        .filter { ownerUid != null || it.ownerUid == null }
+                        .mapNotNull { entity ->
+                            entity.toDoc()?.let { doc ->
+                                StudyDocListEntry(
+                                    doc = doc,
+                                    syncStatus = when {
+                                        ownerUid == null -> StudyDocSyncStatus.LOCAL_ONLY
+                                        !entity.isDirty && entity.lastSyncedAt != null -> StudyDocSyncStatus.SYNCED
+                                        else -> StudyDocSyncStatus.PENDING
+                                    },
+                                )
+                            }
+                        }.toList()
+                }
+            }
+    fun search(query: String): Flow<List<StudyDoc>> =
+        dao.search("%${query.trim()}%").map(::decodeAll)
 
-    suspend fun getById(id: Long): StudyDoc? = dao.getById(id)?.toDoc()
-    suspend fun getByRemoteId(remoteId: String): StudyDoc? = dao.getByRemoteId(remoteId)?.toDoc()
+    suspend fun getById(id: Long): StudyDoc? = decode(dao.getById(id))
+    suspend fun getByRemoteId(remoteId: String): StudyDoc? = decode(dao.getByRemoteId(remoteId))
     suspend fun getEntityByRemoteId(remoteId: String): StudyDocEntity? = dao.getByRemoteId(remoteId)
     suspend fun getDirtyForSync(ownerUid: String): List<StudyDocEntity> =
         dao.getDirtyForSync(ownerUid)
     suspend fun getDeletedForSync(ownerUid: String): List<StudyDocEntity> =
         dao.getDeletedForSync(ownerUid)
+    suspend fun claimUnowned(ownerUid: String) = dao.claimUnowned(ownerUid)
 
     suspend fun save(doc: StudyDoc, ownerUid: String? = null) {
         check(doc.hasPersistableTitle()) {
@@ -49,6 +91,7 @@ class StudyDocRepository(
         val remoteId = doc.remoteId ?: doc.id.value
         val now = clock()
         val existing = dao.getByRemoteId(remoteId)
+        val docJson = withContext(serializationDispatcher) { StudyDocJson.encode(doc) }
         val entity = StudyDocEntity(
             remoteId = remoteId,
             title = doc.title,
@@ -56,10 +99,10 @@ class StudyDocRepository(
             tagsCsv = doc.metadata.tags.joinToString(","),
             blockCount = doc.blocks.size,
             version = doc.version,
-            docJson = StudyDocJson.encode(doc),
+            docJson = docJson,
             createdAt = existing?.createdAt ?: now,
             updatedAt = now,
-            ownerUid = ownerUid ?: existing?.ownerUid,
+            ownerUid = existing?.ownerUid ?: ownerUid ?: ownerUidProvider(),
             lastSyncedAt = existing?.lastSyncedAt,
             syncVersion = existing?.syncVersion ?: 0L,
             isDirty = true,
@@ -115,6 +158,12 @@ class StudyDocRepository(
 
     suspend fun hardDeleteByRemoteId(remoteId: String) = dao.hardDeleteByRemoteId(remoteId)
     suspend fun countActive(): Int = dao.countActive()
+
+    private suspend fun decode(entity: StudyDocEntity?): StudyDoc? =
+        withContext(serializationDispatcher) { entity?.toDoc() }
+
+    private suspend fun decodeAll(entities: List<StudyDocEntity>): List<StudyDoc> =
+        withContext(serializationDispatcher) { entities.mapNotNull { it.toDoc() } }
 }
 
 private fun StudyDocEntity.toDoc(): StudyDoc? = StudyDocJson.decode(docJson)

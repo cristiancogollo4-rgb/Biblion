@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import com.google.firebase.auth.FirebaseAuth
 
 data class ChatSession(
     val id: Long,
@@ -38,6 +39,9 @@ object ChatSessionRepository {
     private suspend fun messageDao(context: Context) =
         ChatDatabase.getInstance(context).messageDao()
 
+    private fun currentOwnerUid(): String =
+        FirebaseAuth.getInstance().currentUser?.uid ?: GUEST_CHAT_OWNER
+
     suspend fun createSession(
         context: Context,
         title: String,
@@ -45,15 +49,19 @@ object ChatSessionRepository {
         mode: String
     ): Long = withContext(Dispatchers.IO) {
         try {
+            val ownerUid = currentOwnerUid()
             val entity = ChatSessionEntity(
                 title = title,
                 firstQuery = firstQuery,
-                mode = mode
+                mode = mode,
+                ownerUid = ownerUid,
             )
             val dao = sessionDao(context)
             val sessionId = dao.insert(entity)
-            sessionsToPrune(dao.getAll())
-                .forEach { dao.delete(it) }
+            sessionsToPrune(dao.getAll(ownerUid)).forEach { session ->
+                messageDao(context).deleteBySession(session.id)
+                dao.delete(session)
+            }
             sessionId
         } catch (e: Exception) {
             android.util.Log.e("ChatSession", "Error creating session", e)
@@ -64,7 +72,7 @@ object ChatSessionRepository {
     suspend fun updateSessionTimestamp(context: Context, sessionId: Long) = withContext(Dispatchers.IO) {
         try {
             val dao = sessionDao(context)
-            val existing = dao.getById(sessionId) ?: return@withContext
+            val existing = dao.getById(sessionId, currentOwnerUid()) ?: return@withContext
             dao.update(existing.copy(updatedAt = System.currentTimeMillis()))
         } catch (e: Exception) {
             android.util.Log.e("ChatSession", "Error updating session", e)
@@ -77,6 +85,9 @@ object ChatSessionRepository {
         content: String
     ): Long = withContext(Dispatchers.IO) {
         try {
+            if (sessionDao(context).getById(sessionId, currentOwnerUid()) == null) {
+                return@withContext 0L
+            }
             messageDao(context).insert(
                 ChatMessageEntity(
                     sessionId = sessionId,
@@ -99,6 +110,9 @@ object ChatSessionRepository {
         contextPassages: List<BibiPassage> = emptyList(),
     ): Long = withContext(Dispatchers.IO) {
         try {
+            if (sessionDao(context).getById(sessionId, currentOwnerUid()) == null) {
+                return@withContext 0L
+            }
             messageDao(context).insert(
                 ChatMessageEntity(
                     sessionId = sessionId,
@@ -119,7 +133,7 @@ object ChatSessionRepository {
 
     suspend fun getAllSessions(context: Context): List<ChatSession> = withContext(Dispatchers.IO) {
         try {
-            sessionDao(context).getAll().map { it.toDomain() }
+            sessionDao(context).getAll(currentOwnerUid()).map { it.toDomain() }
         } catch (e: Exception) {
             emptyList()
         }
@@ -127,7 +141,7 @@ object ChatSessionRepository {
 
     suspend fun getMostRecentSession(context: Context): ChatSession? = withContext(Dispatchers.IO) {
         try {
-            sessionDao(context).getMostRecent()?.toDomain()
+            sessionDao(context).getMostRecent(currentOwnerUid())?.toDomain()
         } catch (e: Exception) {
             null
         }
@@ -136,7 +150,7 @@ object ChatSessionRepository {
     suspend fun getMostRecentSession(context: Context, mode: String): ChatSession? =
         withContext(Dispatchers.IO) {
             try {
-                sessionDao(context).getMostRecentByMode(mode)?.toDomain()
+                sessionDao(context).getMostRecentByMode(mode, currentOwnerUid())?.toDomain()
             } catch (e: Exception) {
                 null
             }
@@ -145,6 +159,9 @@ object ChatSessionRepository {
     suspend fun getSessionMessages(context: Context, sessionId: Long): List<ChatMessage> =
         withContext(Dispatchers.IO) {
             try {
+                if (sessionDao(context).getById(sessionId, currentOwnerUid()) == null) {
+                    return@withContext emptyList()
+                }
                 messageDao(context).getBySession(sessionId).map { it.toDomain() }
             } catch (e: Exception) {
                 emptyList()
@@ -153,7 +170,12 @@ object ChatSessionRepository {
 
     suspend fun deleteSession(context: Context, sessionId: Long) = withContext(Dispatchers.IO) {
         try {
-            sessionDao(context).deleteById(sessionId)
+            val ownerUid = currentOwnerUid()
+            if (sessionDao(context).getById(sessionId, ownerUid) == null) {
+                return@withContext
+            }
+            messageDao(context).deleteBySession(sessionId)
+            sessionDao(context).deleteById(sessionId, ownerUid)
         } catch (e: Exception) {
             android.util.Log.e("ChatSession", "Error deleting session", e)
         }
@@ -162,10 +184,12 @@ object ChatSessionRepository {
     suspend fun deleteAllSessions(context: Context) = withContext(Dispatchers.IO) {
         try {
             val dao = sessionDao(context)
-            val all = dao.getAll()
-            for (session in all) {
-                dao.delete(session)
+            val ownerUid = currentOwnerUid()
+            val ownedSessions = dao.getAll(ownerUid)
+            for (session in ownedSessions) {
+                messageDao(context).deleteBySession(session.id)
             }
+            dao.deleteAllByOwner(ownerUid)
         } catch (e: Exception) {
             android.util.Log.e("ChatSession", "Error clearing all sessions", e)
         }

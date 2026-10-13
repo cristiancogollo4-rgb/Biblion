@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDatabase
+import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -68,9 +69,12 @@ class ProfileViewModel @JvmOverloads constructor(
         if (user == null) return
 
         studiesJob = viewModelScope.launch {
-            StudyDocDatabase.getInstance(getApplication()).studyDocDao().observeAll().collect { docs ->
-                val count = docs.count { it.ownerUid == user.uid || it.ownerUid.isNullOrBlank() }
-                _state.update { it.copy(totalLocalEnsenanzas = count) }
+            val studyRepository = StudyDocRepository(
+                StudyDocDatabase.getInstance(getApplication()).studyDocDao(),
+            )
+            studyRepository.claimUnowned(user.uid)
+            studyRepository.observeByOwner(user.uid).collect { docs ->
+                _state.update { it.copy(totalLocalEnsenanzas = docs.size) }
             }
         }
 

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,26 +22,31 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.produceState
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -59,11 +66,14 @@ import com.cristiancogollo.biblion.feature.studydocs.ui.editor.styledText
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.DocumentZoomState
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.rememberDocumentZoomState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 private const val EDITING_PAGINATION_DEBOUNCE_MS = 64L
+private val paginationDispatcher = Dispatchers.Default.limitedParallelism(1)
 
 private val DarkStudyWorkspace = Color(0xFF050608)
 private val DarkStudyPage = Color(0xFF181A20)
@@ -84,6 +94,7 @@ fun PaginatedSheet(
     modifier: Modifier = Modifier,
     zoomState: DocumentZoomState = rememberDocumentZoomState(),
     viewMode: SheetViewMode = SheetViewMode.PAGINATED,
+    activeEditorKey: PagedEditorUnitKey? = null,
     contentFragmentRenderer: @Composable (PageFragment, Int) -> Unit = { _, _ -> },
     contentBlockRenderer: @Composable (StudyBlock, Int) -> Unit = { _, _ -> },
     contentPagedEditorRenderer: @Composable (PagedEditorUnit, Density) -> Unit = { _, _ -> },
@@ -94,6 +105,7 @@ fun PaginatedSheet(
             isEditing = isEditing,
             modifier = modifier,
             zoomState = zoomState,
+            activeEditorKey = activeEditorKey,
             contentBlockRenderer = contentBlockRenderer,
         )
     } else {
@@ -102,6 +114,7 @@ fun PaginatedSheet(
             isEditing = isEditing,
             modifier = modifier,
             zoomState = zoomState,
+            activeEditorKey = activeEditorKey,
             contentFragmentRenderer = contentFragmentRenderer,
             contentPagedEditorRenderer = contentPagedEditorRenderer,
         )
@@ -114,13 +127,18 @@ private fun PaginatedSheetImpl(
     isEditing: Boolean,
     modifier: Modifier,
     zoomState: DocumentZoomState,
+    activeEditorKey: PagedEditorUnitKey?,
     contentFragmentRenderer: @Composable (PageFragment, Int) -> Unit,
     contentPagedEditorRenderer: @Composable (PagedEditorUnit, Density) -> Unit,
 ) {
     val density = LocalDensity.current
     val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val workspaceColor = if (isDarkTheme) DarkStudyWorkspace else LightStudyWorkspace
-    val textMeasurer = rememberTextMeasurer()
+    // Pagination runs off the main thread while gap calibration runs during
+    // composition. Separate measurers prevent their internal caches from
+    // being accessed concurrently.
+    val paginationTextMeasurer = rememberTextMeasurer()
+    val editorTextMeasurer = rememberTextMeasurer()
     val pageWidthPx = with(density) {
         (PageDimensions.LETTER_WIDTH - PageDimensions.PAGE_MARGIN * 2).toPx()
     }
@@ -150,34 +168,32 @@ private fun PaginatedSheetImpl(
         key2 = pageWidthPx,
         key3 = pageHeightPx,
     ) {
-        StudyEditorDebugLog.log(
-            "PAGINATE_START",
-            "mode=paginated blocks=${StudyEditorDebugLog.blocksSummary(paginationBlocks)} " +
-                "widthPx=$pageWidthPx heightPx=$pageHeightPx",
-        )
-        value = withContext(Dispatchers.Default) {
+        StudyEditorDebugLog.log("PAGINATE_START") {
+            "mode=paginated blockCount=${paginationBlocks.size} " +
+                "widthPx=$pageWidthPx heightPx=$pageHeightPx"
+        }
+        value = withContext(paginationDispatcher) {
+            val paginationContext = currentCoroutineContext()
             PaginationEngine.paginate(
                 blocks = paginationBlocks,
                 pageWidthPx = pageWidthPx,
                 pageHeightPx = pageHeightPx,
-                textMeasurer = textMeasurer,
+                textMeasurer = paginationTextMeasurer,
                 density = density,
+                cancellationCheck = { paginationContext.ensureActive() },
             )
         }
-        StudyEditorDebugLog.log(
-            "PAGINATE_DONE",
+        StudyEditorDebugLog.log("PAGINATE_DONE") {
             "mode=paginated pages=${value.size} fragments=${value.sumOf { it.fragments.size }} " +
-                "blocks=${StudyEditorDebugLog.blocksSummary(paginationBlocks)}",
-        )
+                "blockCount=${paginationBlocks.size}"
+        }
     }
 
-    val animatedZoom by animateFloatAsState(
-        targetValue = zoomState.zoom,
-        animationSpec = spring(dampingRatio = 0.8f, stiffness = 400f),
-        label = "documentZoom",
-    )
+    // Only the committed zoom affects measurement. The pinch preview is a
+    // graphics-layer transform, so text is laid out once after fingers lift.
+    val renderedZoom = zoomState.zoom
     val virtualDensity = Density(
-        density = density.density * animatedZoom,
+        density = density.density * renderedZoom,
         fontScale = density.fontScale,
     )
 
@@ -193,13 +209,39 @@ private fun PaginatedSheetImpl(
         // Keep the scaled canvas at least as wide as the viewport. Without this
         // lower bound, zoom values below 1x anchor the page to the left because
         // horizontalScroll cannot represent the negative offset needed to center it.
-        val canvasWidth = maxOf(baseCanvasWidth, maxWidth / animatedZoom)
+        val canvasWidth = maxOf(baseCanvasWidth, maxWidth / renderedZoom)
         val canvasHeight = 48.dp +
             (PageDimensions.LETTER_HEIGHT * pages.size) +
             (20.dp * (pages.size - 1).coerceAtLeast(0))
         val pageGapPx = with(density) { 20.dp.toPx() }
         val pageMarginPx = with(density) { PageDimensions.PAGE_MARGIN.toPx() }
         val canvasVerticalPaddingPx = with(density) { 24.dp.toPx() }
+        val horizontalScrollState = rememberScrollState()
+        val verticalScrollState = rememberScrollState()
+        var viewportHeightPx by remember { mutableIntStateOf(0) }
+        var previousRenderedZoom by remember { mutableFloatStateOf(renderedZoom) }
+        LaunchedEffect(renderedZoom, viewportHeightPx) {
+            val oldZoom = previousRenderedZoom
+            if (oldZoom != renderedZoom && oldZoom > 0f) {
+                previousRenderedZoom = renderedZoom
+                val target = anchoredScrollOffset(
+                    scrollOffsetPx = verticalScrollState.value,
+                    viewportPx = viewportHeightPx,
+                    anchorFraction = zoomState.gestureAnchorFraction.y,
+                    zoomRatio = renderedZoom / oldZoom,
+                    maxOffsetPx = verticalScrollState.maxValue,
+                )
+                verticalScrollState.scrollTo(target)
+            }
+        }
+        val visiblePages = visiblePageRange(
+            scrollOffsetPx = verticalScrollState.value,
+            viewportHeightPx = viewportHeightPx,
+            pageHeightPx = with(density) { PageDimensions.LETTER_HEIGHT.toPx() } * renderedZoom,
+            pageGapPx = pageGapPx * renderedZoom,
+            topPaddingPx = canvasVerticalPaddingPx * renderedZoom,
+            pageCount = pages.size,
+        )
         val rawEditorUnits = remember(
             pages,
             pageHeightPx,
@@ -215,8 +257,15 @@ private fun PaginatedSheetImpl(
                 canvasVerticalPaddingPx = canvasVerticalPaddingPx,
             )
         }
-        val editorUnits = remember(rawEditorUnits, pageWidthPx, density) {
-            rawEditorUnits.map { unit ->
+        val editorUnits = remember(rawEditorUnits, visiblePages, activeEditorKey, pageWidthPx, density) {
+            val firstVisiblePx = canvasVerticalPaddingPx +
+                visiblePages.first * (with(density) { PageDimensions.LETTER_HEIGHT.toPx() } + pageGapPx)
+            val lastVisiblePx = canvasVerticalPaddingPx +
+                (visiblePages.last + 1) * (with(density) { PageDimensions.LETTER_HEIGHT.toPx() } + pageGapPx)
+            rawEditorUnits.asSequence().filter { unit ->
+                unit.key == activeEditorKey ||
+                    (unit.topPx <= lastVisiblePx && unit.topPx + unit.heightPx >= firstVisiblePx)
+            }.map { unit ->
                 val unitWidthPx = when (unit.block) {
                     is StudyBlock.BulletList,
                     is StudyBlock.OrderedList,
@@ -232,57 +281,44 @@ private fun PaginatedSheetImpl(
                     textStyle = PaginationEngine.textStyleFor(unit.block, density),
                     widthPx = unitWidthPx,
                     density = density,
-                    textMeasurer = textMeasurer,
+                    textMeasurer = editorTextMeasurer,
                 )
-            }
+            }.toList()
         }
         val baseContentSize = with(density) {
             Size(baseCanvasWidth.toPx(), canvasHeight.toPx())
         }
-        val horizontalScrollState = rememberScrollState()
-        val verticalScrollState = rememberScrollState()
 
         LaunchedEffect(baseContentSize) {
             zoomState.updateContent(baseContentSize)
         }
         val viewportWidthPx = with(density) { maxWidth.toPx() }
         val horizontalScrollMax = horizontalScrollState.maxValue
-        LaunchedEffect(baseContentSize.width, viewportWidthPx, animatedZoom, horizontalScrollMax) {
-            val scaledWidth = baseContentSize.width * animatedZoom
+        LaunchedEffect(baseContentSize.width, viewportWidthPx, renderedZoom, horizontalScrollMax, zoomState.isGesturing) {
+            if (zoomState.isGesturing) return@LaunchedEffect
+            val scaledWidth = baseContentSize.width * renderedZoom
             val requestedOffset = ((scaledWidth - viewportWidthPx).coerceAtLeast(0f) / 2f)
                 .roundToInt()
             val centeredOffset = requestedOffset.coerceIn(0, horizontalScrollMax)
-            StudyEditorDebugLog.log(
-                "SHEET_CENTER_REQUEST",
+            StudyEditorDebugLog.log("SHEET_CENTER_REQUEST") {
                 "mode=paginated canvasPx=${baseContentSize.width} viewportPx=$viewportWidthPx " +
-                    "zoom=$animatedZoom scaledPx=$scaledWidth requested=$requestedOffset " +
-                    "max=$horizontalScrollMax applied=$centeredOffset current=${horizontalScrollState.value}",
-            )
+                    "zoom=$renderedZoom scaledPx=$scaledWidth requested=$requestedOffset " +
+                    "max=$horizontalScrollMax applied=$centeredOffset current=${horizontalScrollState.value}"
+            }
             horizontalScrollState.scrollTo(centeredOffset)
-            StudyEditorDebugLog.log(
-                "SHEET_CENTER_APPLIED",
-                "mode=paginated value=${horizontalScrollState.value} max=${horizontalScrollState.maxValue}",
-            )
+            StudyEditorDebugLog.log("SHEET_CENTER_APPLIED") {
+                "mode=paginated value=${horizontalScrollState.value} max=${horizontalScrollState.maxValue}"
+            }
         }
-        LaunchedEffect(horizontalScrollState) {
-            snapshotFlow { horizontalScrollState.value to horizontalScrollState.maxValue }
-                .collect { (value, max) ->
-                    StudyEditorDebugLog.log(
-                        "SHEET_SCROLL",
-                        "mode=paginated value=$value max=$max zoom=${zoomState.zoom}",
-                    )
-                }
-        }
-
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .onSizeChanged {
-                    StudyEditorDebugLog.log(
-                        "SHEET_VIEWPORT",
-                        "mode=paginated widthPx=${it.width} heightPx=${it.height}",
-                    )
+                    StudyEditorDebugLog.log("SHEET_VIEWPORT") {
+                        "mode=paginated widthPx=${it.width} heightPx=${it.height}"
+                    }
                     zoomState.updateViewport(it.toSize())
+                    viewportHeightPx = it.height
                 }
                 .documentTransformGestures(zoomState)
                 .pointerInput(isEditing) {
@@ -300,6 +336,7 @@ private fun PaginatedSheetImpl(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
+                            .zoomGesturePreview(zoomState)
                             .horizontalScroll(horizontalScrollState)
                             .verticalScroll(verticalScrollState),
                     ) {
@@ -316,15 +353,33 @@ private fun PaginatedSheetImpl(
                                     verticalArrangement = Arrangement.spacedBy(20.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                 ) {
-                                    pages.forEach { page ->
-                                        key(page.index) {
+                                    val pagesBefore = visiblePages.first
+                                    if (pagesBefore > 0) {
+                                        Spacer(
+                                            Modifier.height(
+                                                PageDimensions.LETTER_HEIGHT * pagesBefore.toFloat() +
+                                                    20.dp * (pagesBefore - 1).toFloat()
+                                            )
+                                        )
+                                    }
+                                    visiblePages.forEach { pageIndex ->
+                                        key(pageIndex) {
                                             PageCard(
-                                                page = page,
+                                                page = pages[pageIndex],
                                                 contentFragmentRenderer = contentFragmentRenderer,
                                                 editorOverlay = isEditing,
                                                 baseDensity = density,
                                             )
                                         }
+                                    }
+                                    val pagesAfter = pages.size - visiblePages.last - 1
+                                    if (pagesAfter > 0) {
+                                        Spacer(
+                                            Modifier.height(
+                                                PageDimensions.LETTER_HEIGHT * pagesAfter.toFloat() +
+                                                    20.dp * (pagesAfter - 1).toFloat()
+                                            )
+                                        )
                                     }
                                 }
                                 if (isEditing) {
@@ -364,13 +419,22 @@ private fun PagelessSheet(
     isEditing: Boolean,
     modifier: Modifier,
     zoomState: DocumentZoomState,
+    activeEditorKey: PagedEditorUnitKey?,
     contentBlockRenderer: @Composable (StudyBlock, Int) -> Unit,
 ) {
     val density = LocalDensity.current
     val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val pageColor = if (isDarkTheme) DarkStudyPage else MaterialTheme.colorScheme.surface
     val horizontalScrollState = rememberScrollState()
-    val verticalScrollState = rememberScrollState()
+    val blockListState = rememberLazyListState()
+
+    LaunchedEffect(activeEditorKey?.blockId, blocks.size) {
+        if (!isEditing) return@LaunchedEffect
+        val activeIndex = blocks.indexOfFirst { it.id == activeEditorKey?.blockId }
+        if (activeIndex >= 0 && blockListState.layoutInfo.visibleItemsInfo.none { it.index == activeIndex }) {
+            blockListState.scrollToItem(activeIndex)
+        }
+    }
 
     BoxWithConstraints(
         modifier = modifier
@@ -379,21 +443,11 @@ private fun PagelessSheet(
             .clipToBounds()
             .background(pageColor),
     ) {
-        LaunchedEffect(blocks) {
-            StudyEditorDebugLog.log(
-                "PAGINATE_CONTENT_CHANGE",
-                "mode=pageless blocks=${StudyEditorDebugLog.blocksSummary(blocks)}",
-            )
-        }
-        val animatedZoom by animateFloatAsState(
-            targetValue = zoomState.zoom,
-            animationSpec = spring(dampingRatio = 0.8f, stiffness = 400f),
-            label = "documentZoom",
-        )
+        val renderedZoom = zoomState.zoom
         val baseCanvasWidth = maxWidth.coerceAtLeast(320.dp)
         // Preserve a viewport-sized scaled canvas at low zoom so the page stays
         // centered instead of becoming left-anchored.
-        val canvasWidth = maxOf(baseCanvasWidth, maxWidth / animatedZoom)
+        val canvasWidth = maxOf(baseCanvasWidth, maxWidth / renderedZoom)
         val baseContentSize = with(density) {
             Size(baseCanvasWidth.toPx(), 1f)
         }
@@ -401,46 +455,34 @@ private fun PagelessSheet(
             zoomState.updateContent(baseContentSize)
         }
         val virtualDensity = Density(
-            density = density.density * animatedZoom,
+            density = density.density * renderedZoom,
             fontScale = density.fontScale,
         )
         val viewportWidthPx = with(density) { maxWidth.toPx() }
         val horizontalScrollMax = horizontalScrollState.maxValue
-        LaunchedEffect(baseContentSize.width, viewportWidthPx, animatedZoom, horizontalScrollMax) {
-            val scaledWidth = baseContentSize.width * animatedZoom
+        LaunchedEffect(baseContentSize.width, viewportWidthPx, renderedZoom, horizontalScrollMax, zoomState.isGesturing) {
+            if (zoomState.isGesturing) return@LaunchedEffect
+            val scaledWidth = baseContentSize.width * renderedZoom
             val requestedOffset = ((scaledWidth - viewportWidthPx).coerceAtLeast(0f) / 2f)
                 .roundToInt()
             val centeredOffset = requestedOffset.coerceIn(0, horizontalScrollMax)
-            StudyEditorDebugLog.log(
-                "SHEET_CENTER_REQUEST",
+            StudyEditorDebugLog.log("SHEET_CENTER_REQUEST") {
                 "mode=pageless canvasPx=${baseContentSize.width} viewportPx=$viewportWidthPx " +
-                    "zoom=$animatedZoom scaledPx=$scaledWidth requested=$requestedOffset " +
-                    "max=$horizontalScrollMax applied=$centeredOffset current=${horizontalScrollState.value}",
-            )
+                    "zoom=$renderedZoom scaledPx=$scaledWidth requested=$requestedOffset " +
+                    "max=$horizontalScrollMax applied=$centeredOffset current=${horizontalScrollState.value}"
+            }
             horizontalScrollState.scrollTo(centeredOffset)
-            StudyEditorDebugLog.log(
-                "SHEET_CENTER_APPLIED",
-                "mode=pageless value=${horizontalScrollState.value} max=${horizontalScrollState.maxValue}",
-            )
+            StudyEditorDebugLog.log("SHEET_CENTER_APPLIED") {
+                "mode=pageless value=${horizontalScrollState.value} max=${horizontalScrollState.maxValue}"
+            }
         }
-        LaunchedEffect(horizontalScrollState) {
-            snapshotFlow { horizontalScrollState.value to horizontalScrollState.maxValue }
-                .collect { (value, max) ->
-                    StudyEditorDebugLog.log(
-                        "SHEET_SCROLL",
-                        "mode=pageless value=$value max=$max zoom=${zoomState.zoom}",
-                    )
-                }
-        }
-
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .onSizeChanged {
-                    StudyEditorDebugLog.log(
-                        "SHEET_VIEWPORT",
-                        "mode=pageless widthPx=${it.width} heightPx=${it.height}",
-                    )
+                    StudyEditorDebugLog.log("SHEET_VIEWPORT") {
+                        "mode=pageless widthPx=${it.width} heightPx=${it.height}"
+                    }
                     zoomState.updateViewport(it.toSize())
                 }
                 .documentTransformGestures(zoomState)
@@ -456,20 +498,23 @@ private fun PagelessSheet(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .horizontalScroll(horizontalScrollState)
-                        .verticalScroll(verticalScrollState),
+                        .zoomGesturePreview(zoomState)
+                        .horizontalScroll(horizontalScrollState),
                 ) {
                     CompositionLocalProvider(LocalDensity provides virtualDensity) {
-                        Column(
+                        LazyColumn(
+                            state = blockListState,
                             modifier = Modifier
                                 .width(canvasWidth)
-                                .padding(vertical = 24.dp, horizontal = 16.dp),
+                                .fillMaxSize(),
+                            contentPadding = PaddingValues(vertical = 24.dp, horizontal = 16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            blocks.forEachIndexed { idx, block ->
-                                key(block.id) {
-                                    contentBlockRenderer(block, idx)
-                                }
+                            itemsIndexed(
+                                items = blocks,
+                                key = { index, block -> "${block.id.value}:$index" },
+                            ) { idx, block ->
+                                contentBlockRenderer(block, idx)
                             }
                         }
                     }
@@ -479,45 +524,83 @@ private fun PagelessSheet(
     }
 }
 
+private fun Modifier.zoomGesturePreview(zoomState: DocumentZoomState): Modifier =
+    graphicsLayer {
+        val scale = zoomState.visualScale
+        scaleX = scale
+        scaleY = scale
+        val anchor = zoomState.gestureAnchorFraction
+        transformOrigin = TransformOrigin(anchor.x, anchor.y)
+    }
+
 private fun Modifier.documentTransformGestures(
     zoomState: DocumentZoomState,
 ): Modifier = pointerInput(zoomState) {
     awaitEachGesture {
         awaitFirstDown(requireUnconsumed = false)
-        StudyEditorDebugLog.log(
-            "SHEET_GESTURE_START",
-            "zoom=${zoomState.zoom}",
-        )
-        var gestureZoom = zoomState.zoom
-        var event = awaitPointerEvent(PointerEventPass.Initial)
-        while (event.changes.any { it.pressed }) {
-            val pressedCount = event.changes.count { it.pressed }
-            if (pressedCount >= 2) {
-                val zoomChange = event.calculateZoom()
-                if (zoomChange.isFinite() && zoomChange != 1f) {
-                    gestureZoom = (gestureZoom * zoomChange).coerceIn(
-                        DocumentZoomState.MIN_ZOOM,
-                        DocumentZoomState.MAX_ZOOM,
-                    )
-                    zoomState.set(gestureZoom)
-                    StudyEditorDebugLog.log(
-                        "SHEET_PINCH",
-                        "zoomChange=$zoomChange zoom=$gestureZoom pointers=$pressedCount",
-                    )
-                }
-                event.changes.forEach { it.consume() }
-            } else if (pressedCount == 1) {
-                // A second finger may be added after a one-finger scroll.
-                // Start the next pinch from the current committed zoom.
-                gestureZoom = zoomState.zoom
-            }
-            event = awaitPointerEvent(PointerEventPass.Initial)
+        StudyEditorDebugLog.log("SHEET_GESTURE_START") {
+            "zoom=${zoomState.zoom}"
         }
-        StudyEditorDebugLog.log(
-            "SHEET_GESTURE_END",
-            "zoom=${zoomState.zoom}",
-        )
+        var didPinch = false
+        var event = awaitPointerEvent(PointerEventPass.Initial)
+        try {
+            while (event.changes.any { it.pressed }) {
+                val pressedCount = event.changes.count { it.pressed }
+                if (pressedCount >= 2) {
+                    if (!didPinch) {
+                        val centroid = event.calculateCentroid()
+                        zoomState.beginGesture(
+                            Offset(
+                                if (centroid.x.isFinite() && size.width > 0) centroid.x / size.width else 0.5f,
+                                if (centroid.y.isFinite() && size.height > 0) centroid.y / size.height else 0.5f,
+                            ),
+                        )
+                        didPinch = true
+                    }
+                    zoomState.updateGesture(event.calculateZoom())
+                    event.changes.forEach { it.consume() }
+                }
+                event = awaitPointerEvent(PointerEventPass.Initial)
+            }
+        } finally {
+            if (didPinch) zoomState.endGesture()
+        }
+        StudyEditorDebugLog.log("SHEET_GESTURE_END") {
+            "zoom=${zoomState.zoom}"
+        }
     }
+}
+
+/** Inclusive page window, including a small prefetch margin above and below. */
+internal fun visiblePageRange(
+    scrollOffsetPx: Int,
+    viewportHeightPx: Int,
+    pageHeightPx: Float,
+    pageGapPx: Float,
+    topPaddingPx: Float,
+    pageCount: Int,
+    overscanPages: Int = 2,
+): IntRange {
+    if (pageCount == 0) return IntRange.EMPTY
+    val stride = (pageHeightPx + pageGapPx).coerceAtLeast(1f)
+    val first = (((scrollOffsetPx - topPaddingPx) / stride).toInt() - overscanPages)
+        .coerceIn(0, pageCount - 1)
+    val last = (((scrollOffsetPx + viewportHeightPx - topPaddingPx) / stride).toInt() + overscanPages)
+        .coerceIn(first, pageCount - 1)
+    return first..last
+}
+
+internal fun anchoredScrollOffset(
+    scrollOffsetPx: Int,
+    viewportPx: Int,
+    anchorFraction: Float,
+    zoomRatio: Float,
+    maxOffsetPx: Int,
+): Int {
+    val anchorPx = viewportPx * anchorFraction.coerceIn(0f, 1f)
+    return ((scrollOffsetPx + anchorPx) * zoomRatio - anchorPx)
+        .roundToInt()
+        .coerceIn(0, maxOffsetPx.coerceAtLeast(0))
 }
 
 @Composable

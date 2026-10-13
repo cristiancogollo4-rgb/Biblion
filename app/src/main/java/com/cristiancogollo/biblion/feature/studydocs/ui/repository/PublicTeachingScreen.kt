@@ -1,10 +1,14 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@file:OptIn(
+    androidx.compose.material3.ExperimentalMaterial3Api::class,
+    androidx.compose.foundation.layout.ExperimentalLayoutApi::class,
+)
 
 package com.cristiancogollo.biblion.feature.studydocs.ui.repository
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -38,6 +42,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.cristiancogollo.biblion.R
 import com.cristiancogollo.biblion.feature.studydocs.model.DocTagGroups
 import com.cristiancogollo.biblion.feature.studydocs.model.PublicTeaching
 
@@ -76,12 +82,13 @@ fun PublicTeachingScreen(
                 onValueChange = viewModel::setQuery,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 singleLine = true,
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = "Buscar") },
-                placeholder = { Text("Buscar por titulo o autor") },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                placeholder = { Text(stringResource(R.string.public_teaching_search_hint)) },
             )
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 repositoryTags.take(4).forEach { tag ->
                     FilterChip(
@@ -101,7 +108,7 @@ fun PublicTeachingScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        state.error ?: "No hay ensenanzas publicadas con estos filtros.",
+                        state.error ?: stringResource(R.string.public_teaching_empty),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

@@ -8,7 +8,7 @@ import androidx.room.RoomDatabase
 @Database(
     entities = [SearchHistoryEntity::class],
     version = 1,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class SearchHistoryDatabase : RoomDatabase() {
     abstract fun searchHistoryDao(): SearchHistoryDao

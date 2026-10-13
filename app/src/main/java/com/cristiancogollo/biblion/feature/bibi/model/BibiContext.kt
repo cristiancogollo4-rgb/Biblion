@@ -38,6 +38,29 @@ data class BibiPassage(
     fun asPromptText(): String = "$reference $text".trim()
 }
 
+fun formatBibiPassageSelection(passages: List<BibiPassage>): String {
+    if (passages.isEmpty()) return ""
+    return passages.groupBy { it.book to it.chapter }
+        .entries
+        .joinToString("; ") { (location, chapterPassages) ->
+            val verseNumbers = chapterPassages.map { it.verse }.distinct().sorted()
+            val ranges = mutableListOf<String>()
+            var start = verseNumbers.first()
+            var end = start
+            for (verse in verseNumbers.drop(1)) {
+                if (verse == end + 1) {
+                    end = verse
+                } else {
+                    ranges += if (start == end) "$start" else "$start-$end"
+                    start = verse
+                    end = verse
+                }
+            }
+            ranges += if (start == end) "$start" else "$start-$end"
+            "${location.first} ${location.second}:${ranges.joinToString(", ")}"
+        }
+}
+
 data class BibiQueryResult(
     val answer: String,
     val suggestions: List<BibiSuggestion> = emptyList(),

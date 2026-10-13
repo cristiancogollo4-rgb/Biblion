@@ -18,6 +18,11 @@ class CompactStudyLayoutTest {
     }
 
     @Test
+    fun `phone portrait uses one pane`() {
+        assertTrue(shouldUseCompactStudyLayout(widthDp = 390, heightDp = 844))
+    }
+
+    @Test
     fun `expanded viewport keeps split layout`() {
         assertFalse(shouldUseCompactStudyLayout(widthDp = 840, heightDp = 480))
     }

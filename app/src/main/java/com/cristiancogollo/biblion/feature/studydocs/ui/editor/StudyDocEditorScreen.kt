@@ -13,9 +13,15 @@ import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.ViewStream
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -45,10 +51,11 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import com.cristiancogollo.biblion.core.ui.StudyModeLandscapeLock
 import com.cristiancogollo.biblion.feature.bibi.ui.BibiStudyFloatingWindow
+import com.cristiancogollo.biblion.R
 import com.cristiancogollo.biblion.feature.achievements.domain.AchievementEvent
 import com.cristiancogollo.biblion.feature.achievements.tracking.AchievementTracker
 import com.cristiancogollo.biblion.feature.bibi.ui.StudyBibiController
@@ -56,6 +63,8 @@ import com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel
 import com.cristiancogollo.biblion.feature.studydocs.model.DocConfig
 import com.cristiancogollo.biblion.feature.studydocs.model.capabilities
 import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PaginatedSheet
+import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PagedEditorUnitKey
+import com.cristiancogollo.biblion.feature.studydocs.ui.pagination.SheetViewMode
 import com.cristiancogollo.biblion.ui.theme.BiblionThemeMode
 import kotlinx.coroutines.launch
 
@@ -77,8 +86,6 @@ fun StudyDocEditorScreen(
     currentUserName: String? = null,
     bibiController: StudyBibiController? = null,
 ) {
-    StudyModeLandscapeLock()
-
     val configuration = LocalConfiguration.current
     val useCompactStudyLayout = isSplitMode && shouldUseCompactStudyLayout(
         widthDp = configuration.screenWidthDp,
@@ -96,8 +103,18 @@ fun StudyDocEditorScreen(
 
     var showSaveDialog by remember { mutableStateOf(false) }
     var explicitSavePending by remember { mutableStateOf(false) }
+    var pendingSaveBaseline by remember { mutableStateOf<Long?>(null) }
+    var showSavingExitNotice by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val standaloneZoomState = rememberDocumentZoomState()
+    val standaloneFluidDefault = configuration.screenWidthDp < 900 ||
+        configuration.screenHeightDp < 480
+    var standaloneViewMode by rememberSaveable(standaloneFluidDefault) {
+        mutableStateOf(
+            if (standaloneFluidDefault) SheetViewMode.PAGELESS else SheetViewMode.PAGINATED
+        )
+    }
+    var compactActionsExpanded by remember { mutableStateOf(false) }
     var isFullScreen by remember { mutableStateOf(false) }
     var showDiscardDialog by remember { mutableStateOf(false) }
     val internalBibiController = remember { StudyBibiController() }
@@ -139,30 +156,34 @@ fun StudyDocEditorScreen(
         }
 
     val requestExit: (String) -> Unit = { source ->
-        val hasDraftContent = editorState.doc.blocks.size > 1 || editorState.doc.blocks.any { block ->
-            block.toStyledTextList().any { it.raw.isNotBlank() }
-        }
-        val isExistingTeaching = editorState.doc.remoteId != null
-        val hasPendingNewTeaching = !isExistingTeaching &&
-            (editorState.hasUnsavedChanges || hasDraftContent || editorState.doc.title.isNotBlank())
-        val shouldWarn = !editorState.isSaving && if (isExistingTeaching) {
-            editorState.hasUnsavedChanges
+        if (editorState.isSaving) {
+            showSavingExitNotice = true
         } else {
-            hasPendingNewTeaching
-        }
-        Log.d(
-            "BIBLION_STUDY_EXIT",
-            "event source=$source existing=$isExistingTeaching unsaved=${editorState.hasUnsavedChanges} " +
-                "saving=${editorState.isSaving} blocks=${editorState.doc.blocks.size} " +
-                "hasDraftContent=$hasDraftContent titleBlank=${editorState.doc.title.isBlank()} " +
-                "showBefore=$showDiscardDialog shouldWarn=$shouldWarn",
-        )
-        if (shouldWarn) {
-            showDiscardDialog = true
-            Log.d("BIBLION_STUDY_EXIT", "event source=$source action=show_discard_dialog")
-        } else {
-            Log.d("BIBLION_STUDY_EXIT", "event source=$source action=onBack_without_dialog")
-            onBack()
+            val hasDraftContent = editorState.doc.blocks.size > 1 || editorState.doc.blocks.any { block ->
+                block.toStyledTextList().any { it.raw.isNotBlank() }
+            }
+            val isExistingTeaching = editorState.doc.remoteId != null
+            val hasPendingNewTeaching = !isExistingTeaching &&
+                (editorState.hasUnsavedChanges || hasDraftContent || editorState.doc.title.isNotBlank())
+            val shouldWarn = if (isExistingTeaching) {
+                editorState.hasUnsavedChanges
+            } else {
+                hasPendingNewTeaching
+            }
+            Log.d(
+                "BIBLION_STUDY_EXIT",
+                "event source=$source existing=$isExistingTeaching unsaved=${editorState.hasUnsavedChanges} " +
+                    "saving=${editorState.isSaving} blocks=${editorState.doc.blocks.size} " +
+                    "hasDraftContent=$hasDraftContent titleBlank=${editorState.doc.title.isBlank()} " +
+                    "showBefore=$showDiscardDialog shouldWarn=$shouldWarn",
+            )
+            if (shouldWarn) {
+                showDiscardDialog = true
+                Log.d("BIBLION_STUDY_EXIT", "event source=$source action=show_discard_dialog")
+            } else {
+                Log.d("BIBLION_STUDY_EXIT", "event source=$source action=onBack_without_dialog")
+                onBack()
+            }
         }
     }
 
@@ -177,6 +198,10 @@ fun StudyDocEditorScreen(
 
     LaunchedEffect(showDiscardDialog) {
         Log.d("BIBLION_STUDY_EXIT", "dialog_state showDiscardDialog=$showDiscardDialog")
+    }
+
+    LaunchedEffect(editorState.isSaving) {
+        if (!editorState.isSaving) showSavingExitNotice = false
     }
 
     LaunchedEffect(remoteId) {
@@ -202,8 +227,12 @@ fun StudyDocEditorScreen(
         Log.d("BIBLION_STUDY", "StudyDocEditorScreen state isLoading=${editorState.isLoading} blocks=${editorState.doc.blocks.size} activeBlockId=${editorState.activeBlockId} lastError=${editorState.lastError}")
     }
 
-    LaunchedEffect(editorState.lastSavedAt) {
-        if (explicitSavePending && editorState.lastSavedAt != null && editorState.lastError == null) {
+    LaunchedEffect(editorState.lastSavedAt, editorState.isSaving, editorState.lastError) {
+        if (explicitSavePending && !editorState.isSaving && editorState.lastSavedAt != null &&
+            editorState.lastSavedAt != pendingSaveBaseline && editorState.lastError == null
+        ) {
+            explicitSavePending = false
+            showSaveDialog = false
             val doc = editorState.doc
             AchievementTracker.track(
                 context,
@@ -214,34 +243,46 @@ fun StudyDocEditorScreen(
                     isExplicitSave = true,
                 ),
             )
-            explicitSavePending = false
+            if (!isSplitMode) {
+                snackbarHostState.showSnackbar(context.getString(R.string.study_save_done))
+            }
         }
     }
 
-    LaunchedEffect(editorState.doc.blocks) {
-        val doc = editorState.doc
-        val documentId = doc.remoteId ?: doc.id.value
-        val types = doc.blocks.map { it::class.simpleName.orEmpty() }.filter { it.isNotBlank() }.toSet()
-        AchievementTracker.track(
-            context,
-            AchievementEvent.StudyBlockTypesChanged(documentId, types),
-            countAsMeaningfulUse = false,
-        )
-        if (doc.blocks.any { it is com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock.Verse }) {
-            AchievementTracker.track(
-                context,
-                AchievementEvent.VerseBlockInserted(documentId),
-                countAsMeaningfulUse = false,
-            )
+    val achievementSnapshot = remember(editorState.doc.blocks) {
+        val blocks = editorState.doc.blocks
+        val types = blocks
+            .map { it::class.simpleName.orEmpty() }
+            .filter { it.isNotBlank() }
+            .toSet()
+        val hasVerse = blocks.any {
+            it is com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock.Verse
         }
-        val maxVersions = doc.blocks
+        val maxVersions = blocks
             .filterIsInstance<com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock.Verse>()
             .maxOfOrNull { block -> block.displayedVersions().size }
             ?: 0
+        Triple(types, hasVerse, maxVersions)
+    }
+    val achievementDocumentId = editorState.doc.remoteId ?: editorState.doc.id.value
+    LaunchedEffect(achievementDocumentId, achievementSnapshot) {
+        val (types, hasVerse, maxVersions) = achievementSnapshot
+        AchievementTracker.track(
+            context,
+            AchievementEvent.StudyBlockTypesChanged(achievementDocumentId, types),
+            countAsMeaningfulUse = false,
+        )
+        if (hasVerse) {
+            AchievementTracker.track(
+                context,
+                AchievementEvent.VerseBlockInserted(achievementDocumentId),
+                countAsMeaningfulUse = false,
+            )
+        }
         if (maxVersions >= 2) {
             AchievementTracker.track(
                 context,
-                AchievementEvent.VerseVersionCompared(documentId, maxVersions),
+                AchievementEvent.VerseVersionCompared(achievementDocumentId, maxVersions),
                 countAsMeaningfulUse = false,
             )
         }
@@ -264,12 +305,36 @@ fun StudyDocEditorScreen(
         SaveTeachingDialog(
             currentTitle = editorState.doc.title,
             currentTags = editorState.doc.metadata.tags,
+            isSaving = editorState.isSaving,
+            saveError = if (explicitSavePending) editorState.lastError else null,
             onSave = { title, tags ->
-                explicitSavePending = true
-                splitViewModel?.saveNow(title, tags) ?: viewModel?.saveNow(title, tags)
-                showSaveDialog = false
+                val baseline = editorState.lastSavedAt
+                val accepted = splitViewModel?.saveNow(title, tags)
+                    ?: viewModel?.saveNow(title, tags)
+                    ?: false
+                if (accepted) {
+                    explicitSavePending = true
+                    pendingSaveBaseline = baseline
+                }
             },
-            onDismiss = { showSaveDialog = false },
+            onDismiss = {
+                if (!editorState.isSaving) {
+                    showSaveDialog = false
+                    explicitSavePending = false
+                }
+            },
+        )
+    }
+
+    if (showSavingExitNotice) {
+        AlertDialog(
+            onDismissRequest = { showSavingExitNotice = false },
+            text = { Text(stringResource(R.string.study_save_wait_exit)) },
+            confirmButton = {
+                TextButton(onClick = { showSavingExitNotice = false }) {
+                    Text(stringResource(android.R.string.ok))
+                }
+            },
         )
     }
 
@@ -338,7 +403,8 @@ fun StudyDocEditorScreen(
                                 onBack = { requestExit("panel_back") },
                                 isFullScreen = true,
                                 isDarkTheme = isDarkTheme,
-                                onToggleDarkTheme = onToggleDarkTheme,
+                                themeMode = themeMode,
+                                onThemeModeChange = onThemeModeChange,
                                 navController = navController,
                                 showFullScreenToggle = false,
                                 isCompactLayout = true,
@@ -395,7 +461,8 @@ fun StudyDocEditorScreen(
                             isFullScreen = isFullScreen,
                             onToggleFullScreen = { isFullScreen = !isFullScreen },
                             isDarkTheme = isDarkTheme,
-                            onToggleDarkTheme = onToggleDarkTheme,
+                            themeMode = themeMode,
+                            onThemeModeChange = onThemeModeChange,
                             navController = navController,
                             onBibiClick = activeBibiController::open,
                         )
@@ -431,18 +498,73 @@ fun StudyDocEditorScreen(
                         }
                     },
                     actions = {
-                        ZoomMenu(zoomState = standaloneZoomState, showStepButtons = true)
-                        IconButton(
-                            onClick = { splitViewModel?.undo() ?: viewModel?.undo() },
-                            enabled = editorState.canUndo,
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.Undo, "Deshacer")
-                        }
-                        IconButton(
-                            onClick = { splitViewModel?.redo() ?: viewModel?.redo() },
-                            enabled = editorState.canRedo,
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.Redo, "Rehacer")
+                        ZoomMenu(zoomState = standaloneZoomState, showStepButtons = !standaloneFluidDefault)
+                        if (standaloneFluidDefault) {
+                            Box {
+                                IconButton(onClick = { compactActionsExpanded = true }) {
+                                    Icon(Icons.Default.MoreVert, stringResource(R.string.study_action_options))
+                                }
+                                DropdownMenu(
+                                    expanded = compactActionsExpanded,
+                                    onDismissRequest = { compactActionsExpanded = false },
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.study_action_undo)) },
+                                        onClick = {
+                                            compactActionsExpanded = false
+                                            splitViewModel?.undo() ?: viewModel?.undo()
+                                        },
+                                        enabled = editorState.canUndo,
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.study_action_redo)) },
+                                        onClick = {
+                                            compactActionsExpanded = false
+                                            splitViewModel?.redo() ?: viewModel?.redo()
+                                        },
+                                        enabled = editorState.canRedo,
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(
+                                            if (standaloneViewMode == SheetViewMode.PAGINATED) R.string.view_mode_pageless
+                                            else R.string.view_mode_paginated
+                                        )) },
+                                        onClick = {
+                                            compactActionsExpanded = false
+                                            standaloneViewMode = if (standaloneViewMode == SheetViewMode.PAGINATED) {
+                                                SheetViewMode.PAGELESS
+                                            } else SheetViewMode.PAGINATED
+                                        },
+                                    )
+                                }
+                            }
+                        } else {
+                            IconButton(onClick = {
+                                standaloneViewMode = if (standaloneViewMode == SheetViewMode.PAGINATED) {
+                                    SheetViewMode.PAGELESS
+                                } else SheetViewMode.PAGINATED
+                            }) {
+                                Icon(
+                                    if (standaloneViewMode == SheetViewMode.PAGINATED) Icons.Default.ViewStream
+                                    else Icons.Default.Description,
+                                    contentDescription = stringResource(
+                                        if (standaloneViewMode == SheetViewMode.PAGINATED) R.string.view_mode_pageless
+                                        else R.string.view_mode_paginated,
+                                    ),
+                                )
+                            }
+                            IconButton(
+                                onClick = { splitViewModel?.undo() ?: viewModel?.undo() },
+                                enabled = editorState.canUndo,
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.Undo, stringResource(R.string.study_action_undo))
+                            }
+                            IconButton(
+                                onClick = { splitViewModel?.redo() ?: viewModel?.redo() },
+                                enabled = editorState.canRedo,
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.Redo, stringResource(R.string.study_action_redo))
+                            }
                         }
                         IconButton(
                             onClick = { showSaveDialog = true },
@@ -498,8 +620,14 @@ fun StudyDocEditorScreen(
                     onBackgroundColor = { color ->
                         splitViewModel?.setActiveBackgroundColor(color) ?: viewModel?.setActiveBackgroundColor(color)
                     },
-                    onClearColor = {
-                        splitViewModel?.clearActiveColor() ?: viewModel?.clearActiveColor()
+                    onClearTextColor = {
+                        splitViewModel?.clearActiveTextColor() ?: viewModel?.clearActiveTextColor()
+                    },
+                    onClearBackgroundColor = {
+                        splitViewModel?.clearActiveBackgroundColor() ?: viewModel?.clearActiveBackgroundColor()
+                    },
+                    onClearFormatting = {
+                        splitViewModel?.clearActiveFormatting() ?: viewModel?.clearActiveFormatting()
                     },
                     onStepFontSize = { delta ->
                         splitViewModel?.stepFontSizeActive(delta) ?: viewModel?.stepFontSizeActive(delta)
@@ -528,6 +656,10 @@ fun StudyDocEditorScreen(
                     isEditing = true,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     zoomState = standaloneZoomState,
+                    viewMode = standaloneViewMode,
+                    activeEditorKey = editorState.activeBlockId?.let {
+                        PagedEditorUnitKey(it, editorState.activeListItemIndex)
+                    },
                     contentFragmentRenderer = { fragment, _ ->
                         val itemIndex = when (fragment) {
                             is com.cristiancogollo.biblion.feature.studydocs.ui.pagination.PageFragment.ListItemSlice -> fragment.itemIndex
@@ -560,6 +692,7 @@ fun StudyDocEditorScreen(
                                 isOwnerFragment = isOwner,
                                 richState = richState,
                                 isActive = isOwner,
+                                activeListItemIndex = editorState.activeListItemIndex,
                                 focusRequest = editorState.focusRequest,
                                 splitViewModel = splitViewModel,
                                 viewModel = viewModel,
@@ -570,7 +703,32 @@ fun StudyDocEditorScreen(
                             )
                         }
                     },
-                    contentBlockRenderer = { _, _ -> },
+                    contentBlockRenderer = { block, index ->
+                        val richState = splitViewModel?.blockRichStates?.get(block.id)
+                            ?: viewModel?.blockRichStates?.get(block.id)
+                        if (block is com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock.Verse ||
+                            block is com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock.BulletList ||
+                            block is com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock.OrderedList ||
+                            richState != null
+                        ) {
+                            UnifiedBlockRenderer(
+                                block = block,
+                                blockIndex = index,
+                                richState = richState,
+                                isActive = editorState.activeBlockId == block.id,
+                                isEditing = true,
+                                allBlocks = editorState.doc.blocks,
+                                activeListItemIndex = editorState.activeListItemIndex,
+                                focusRequest = editorState.focusRequest,
+                                splitViewModel = splitViewModel,
+                                viewModel = viewModel,
+                                onVerseClick = onVerseSelected,
+                                onVerseComparisonSelected = onVerseComparisonSelected,
+                                onVerseDelete = onVerseDelete,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    },
                     contentPagedEditorRenderer = { unit, baseDensity ->
                         val richState = splitViewModel?.richStateFor(
                             unit.key.blockId,

@@ -3,7 +3,9 @@ package com.cristiancogollo.biblion.feature.studydocs.ui.list
 import com.cristiancogollo.biblion.MainDispatcherRule
 import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDao
 import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocEntity
+import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocJson
 import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocRepository
+import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocSyncStatus
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -16,12 +18,18 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class StudyDocsListViewModelFilterTest {
 
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
-    private fun vm(): StudyDocsListViewModel = StudyDocsListViewModel(StudyDocRepository(FakeDao()))
+    private fun vm(): StudyDocsListViewModel = StudyDocsListViewModel(
+        StudyDocRepository(
+            dao = FakeDao(),
+            serializationDispatcher = mainDispatcherRule.dispatcher,
+        ),
+    )
 
     private fun fakeDaoWithDocs(vararg docs: StudyDoc): FakeDao {
         val entities = docs.map { doc ->
@@ -41,6 +49,75 @@ class StudyDocsListViewModelFilterTest {
         val vm = vm()
         val visible = vm.state.value.visibleDocs
         assertTrue(visible.isEmpty())
+    }
+
+    @Test
+    fun `authenticated list exposes only documents owned by the current user`() = runTest {
+        val first = StudyDoc(
+            id = com.cristiancogollo.biblion.feature.studydocs.model.DocId("owner-a"),
+            title = "Documento de A",
+        )
+        val second = StudyDoc(
+            id = com.cristiancogollo.biblion.feature.studydocs.model.DocId("owner-b"),
+            title = "Documento de B",
+        )
+        val dao = FakeDao(
+            initial = listOf(
+                StudyDocEntity(
+                    remoteId = first.id.value,
+                    title = first.title,
+                    docJson = StudyDocJson.encode(first),
+                    ownerUid = "user-a",
+                ),
+                StudyDocEntity(
+                    remoteId = second.id.value,
+                    title = second.title,
+                    docJson = StudyDocJson.encode(second),
+                    ownerUid = "user-b",
+                ),
+            ),
+        )
+        val viewModel = StudyDocsListViewModel(
+            repository = StudyDocRepository(
+                dao = dao,
+                serializationDispatcher = mainDispatcherRule.dispatcher,
+            ),
+            ownerUid = "user-a",
+        )
+
+        advanceUntilIdle()
+
+        assertEquals(listOf("Documento de A"), viewModel.state.value.docs.map { it.title })
+    }
+
+    @Test
+    fun `library distinguishes local pending and synced teachings`() = runTest {
+        fun entity(id: String, owner: String?, dirty: Boolean, syncedAt: Long?) = StudyDocEntity(
+            remoteId = id,
+            title = id,
+            ownerUid = owner,
+            isDirty = dirty,
+            lastSyncedAt = syncedAt,
+            docJson = StudyDocJson.encode(StudyDoc(
+                id = com.cristiancogollo.biblion.feature.studydocs.model.DocId(id),
+                title = id,
+            )),
+        )
+        val dao = FakeDao(initial = listOf(
+            entity("pending", "user-a", true, null),
+            entity("synced", "user-a", false, 123L),
+            entity("local", null, true, null),
+        ))
+        val repository = StudyDocRepository(dao, serializationDispatcher = mainDispatcherRule.dispatcher)
+        val signedIn = StudyDocsListViewModel(repository, ownerUid = "user-a")
+        advanceUntilIdle()
+        assertEquals(StudyDocSyncStatus.PENDING, signedIn.state.value.syncStatuses["pending"])
+        assertEquals(StudyDocSyncStatus.SYNCED, signedIn.state.value.syncStatuses["synced"])
+        assertNull(signedIn.state.value.syncStatuses["local"])
+
+        val guest = StudyDocsListViewModel(repository)
+        advanceUntilIdle()
+        assertEquals(StudyDocSyncStatus.LOCAL_ONLY, guest.state.value.syncStatuses["local"])
     }
 
     @Test fun `setTitleFilter updates state`() {
@@ -69,6 +146,15 @@ class StudyDocsListViewModelFilterTest {
         assertEquals(setOf("predicacion", "jovenes"), vm.state.value.selectedTagFilters)
     }
 
+    @Test fun `toggleTagFilter normalizes case and accents`() {
+        val vm = vm()
+        vm.toggleTagFilter("Predicación")
+        assertEquals(setOf("predicacion"), vm.state.value.selectedTagFilters)
+
+        vm.toggleTagFilter("PREDICACION")
+        assertTrue(vm.state.value.selectedTagFilters.isEmpty())
+    }
+
     @Test fun `clearTagFilters empties the filter set`() {
         val vm = vm()
         vm.toggleTagFilter("predicacion")
@@ -90,7 +176,7 @@ class StudyDocsListViewModelFilterTest {
         assertEquals("La fe en Cristo", visible[0].title)
     }
 
-    @Test fun `StudyDocsListState visibleDocs matches any of selected tags`() {
+    @Test fun `visibleDocs matches any selected tag within the same group`() {
         val state = StudyDocsListState(
             docs = listOf(
                 StudyDoc(
@@ -108,6 +194,40 @@ class StudyDocsListViewModelFilterTest {
         )
         val visible = state.visibleDocs
         assertEquals(2, visible.size)
+    }
+
+    @Test fun `visibleDocs requires matches across different tag groups`() {
+        val state = StudyDocsListState(
+            docs = listOf(
+                StudyDoc(
+                    id = com.cristiancogollo.biblion.feature.studydocs.model.DocId("a"),
+                    title = "Predicacion para jovenes",
+                    metadata = com.cristiancogollo.biblion.feature.studydocs.model.DocMetadata(
+                        tags = listOf("predicacion", "jovenes"),
+                    ),
+                ),
+                StudyDoc(
+                    id = com.cristiancogollo.biblion.feature.studydocs.model.DocId("b"),
+                    title = "Predicacion para iglesia",
+                    metadata = com.cristiancogollo.biblion.feature.studydocs.model.DocMetadata(
+                        tags = listOf("predicacion", "iglesia"),
+                    ),
+                ),
+                StudyDoc(
+                    id = com.cristiancogollo.biblion.feature.studydocs.model.DocId("c"),
+                    title = "Devocional para jovenes",
+                    metadata = com.cristiancogollo.biblion.feature.studydocs.model.DocMetadata(
+                        tags = listOf("devocional", "jovenes"),
+                    ),
+                ),
+            ),
+            selectedTagFilters = setOf("predicacion", "jovenes"),
+        )
+
+        assertEquals(
+            listOf("Predicacion para jovenes"),
+            state.visibleDocs.map(StudyDoc::title),
+        )
     }
 
     @Test fun `StudyDocsListState visibleDocs combines title and tag filters`() {
@@ -161,11 +281,48 @@ class StudyDocsListViewModelFilterTest {
         assertEquals("FE PARA JOVENES", state.visibleDocs[0].title)
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test fun `visibleDocs title match ignores accents and repeated spaces`() {
+        val state = StudyDocsListState(
+            docs = listOf(
+                StudyDoc(
+                    id = com.cristiancogollo.biblion.feature.studydocs.model.DocId("a"),
+                    title = "Oración   diaria",
+                ),
+                StudyDoc(
+                    id = com.cristiancogollo.biblion.feature.studydocs.model.DocId("b"),
+                    title = "Estudio semanal",
+                ),
+            ),
+            titleFilter = "oracion diaria",
+        )
+
+        assertEquals(listOf("Oración   diaria"), state.visibleDocs.map(StudyDoc::title))
+    }
+
+    @Test fun `tag filters ignore case and accents`() {
+        val state = StudyDocsListState(
+            docs = listOf(
+                StudyDoc(
+                    id = com.cristiancogollo.biblion.feature.studydocs.model.DocId("a"),
+                    title = "Enseñanza",
+                    metadata = com.cristiancogollo.biblion.feature.studydocs.model.DocMetadata(
+                        tags = listOf("Predicación", "Jóvenes"),
+                    ),
+                ),
+            ),
+            selectedTagFilters = setOf("predicacion", "jovenes"),
+        )
+
+        assertEquals(1, state.visibleDocs.size)
+    }
+
     @Test
     fun `updateTags persists the new teaching tags`() = runTest {
         val dao = FakeDao()
-        val repository = StudyDocRepository(dao)
+        val repository = StudyDocRepository(
+            dao = dao,
+            serializationDispatcher = mainDispatcherRule.dispatcher,
+        )
         val doc = StudyDoc(
             id = com.cristiancogollo.biblion.feature.studydocs.model.DocId("doc-tags"),
             title = "Enseñanza con etiquetas",
@@ -200,7 +357,13 @@ private class FakeDao(
 
     override fun observeAll(): Flow<List<StudyDocEntity>> = flowOf(docs.toList())
     override fun observeByNotebook(notebookRemoteId: String): Flow<List<StudyDocEntity>> = flowOf(emptyList())
-    override fun observeByOwner(ownerUid: String): Flow<List<StudyDocEntity>> = flowOf(emptyList())
+    override fun observeByOwner(ownerUid: String): Flow<List<StudyDocEntity>> =
+        flowOf(docs.filter { it.ownerUid == ownerUid })
+    override suspend fun claimUnowned(ownerUid: String) {
+        docs = docs.map { entity ->
+            if (entity.ownerUid == null) entity.copy(ownerUid = ownerUid) else entity
+        }.toMutableList()
+    }
     override fun search(query: String): Flow<List<StudyDocEntity>> = flowOf(emptyList())
     override suspend fun getById(id: Long): StudyDocEntity? = docs.find { it.id == id }
     override suspend fun getByRemoteId(remoteId: String): StudyDocEntity? = docs.find { it.remoteId == remoteId }

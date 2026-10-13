@@ -25,6 +25,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,6 +46,8 @@ import com.cristiancogollo.biblion.feature.studydocs.ui.Screen as StudyDocScreen
 import com.cristiancogollo.biblion.core.ui.motion.BiblionMotion
 import com.cristiancogollo.biblion.core.ui.motion.rememberBiblionMotionEnabled
 
+internal val LocalPrimaryNavigationVisible = compositionLocalOf { true }
+
 @Composable
 fun BiblionBottomNavigation(
     currentRoute: String?,
@@ -57,6 +60,8 @@ fun BiblionBottomNavigation(
     activeTutorialTargetKey: String? = null,
     modifier: Modifier = Modifier
 ) {
+    if (!LocalPrimaryNavigationVisible.current) return
+
     val configuration = LocalConfiguration.current
     val viewportWidth = configuration.screenWidthDp.dp
     val capsuleWidth = (configuration.screenWidthDp - 32)
@@ -70,14 +75,14 @@ fun BiblionBottomNavigation(
 
     Popup(
         alignment = Alignment.BottomCenter,
-        properties = PopupProperties(focusable = false)
+        properties = PopupProperties(focusable = false),
     ) {
         Box(
             modifier = modifier
                 .width(viewportWidth)
                 .navigationBarsPadding()
                 .padding(vertical = 12.dp),
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.Center,
         ) {
             Surface(
                 modifier = Modifier
@@ -85,14 +90,14 @@ fun BiblionBottomNavigation(
                 shape = RoundedCornerShape(32.dp),
                 color = capsuleColor,
                 shadowElevation = 18.dp,
-                tonalElevation = 0.dp
+                tonalElevation = 0.dp,
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 8.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     BiblionBottomNavigationItem("Home", Icons.Default.Home, currentRoute == Screen.Home.route, onHome)
                     BiblionBottomNavigationItem(
@@ -110,7 +115,7 @@ fun BiblionBottomNavigation(
                     BiblionBottomNavigationItem(
                         label = "Buscar",
                         icon = Icons.Default.Search,
-                        selected = currentRoute?.startsWith(Screen.Search.route) == true,
+                        selected = currentRoute?.startsWith(Screen.Search.route.substringBefore("?")) == true,
                         onClick = {
                             onGuidedTutorialTargetAction(GuidedTutorialTargets.NAV_SEARCH)
                             onSearch()
@@ -129,7 +134,12 @@ fun BiblionBottomNavigation(
                         tutorialHighlighted =
                             activeTutorialTargetKey == GuidedTutorialTargets.NAV_STUDY,
                     )
-                    BiblionBottomNavigationItem("Perfil", Icons.Default.AccountCircle, currentRoute?.startsWith(Screen.Profile.route) == true, onProfile)
+                    BiblionBottomNavigationItem(
+                        "Perfil",
+                        Icons.Default.AccountCircle,
+                        currentRoute?.startsWith(Screen.Profile.route) == true,
+                        onProfile,
+                    )
                 }
             }
         }
