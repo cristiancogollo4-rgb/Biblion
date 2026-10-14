@@ -42,11 +42,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cristiancogollo.biblion.addSharedPrimaryDestinations
+import com.cristiancogollo.biblion.LocalPrimaryNavigationVisible
 import com.cristiancogollo.biblion.R
 import com.cristiancogollo.biblion.AuthDialog
 import com.cristiancogollo.biblion.AuthDialogMode
@@ -597,6 +598,7 @@ private fun SaveStatus(
 @Composable
 internal fun BibleReaderPane(
     modifier: Modifier = Modifier,
+    localNavController: NavHostController,
     isDarkTheme: Boolean = false,
     onToggleDarkTheme: (Boolean) -> Unit = {},
     themeMode: BiblionThemeMode = if (isDarkTheme) BiblionThemeMode.DARK else BiblionThemeMode.LIGHT,
@@ -605,7 +607,6 @@ internal fun BibleReaderPane(
     requestedPassage: com.cristiancogollo.biblion.feature.bibi.model.BibiPassage? = null,
     onRequestedPassageConsumed: () -> Unit = {},
 ) {
-    val localNavController = rememberNavController()
     val context = LocalContext.current
     val appContext = context.applicationContext
     val scope = rememberCoroutineScope()
@@ -673,6 +674,8 @@ internal fun BibleReaderPane(
         localNavController.navigate("auth")
     }
 
+    // El editor dibuja una sola cápsula; las rutas internas no deben crear Popups propios.
+    CompositionLocalProvider(LocalPrimaryNavigationVisible provides false) {
     NavHost(
         navController = localNavController,
         startDestination = "home",
@@ -788,6 +791,7 @@ internal fun BibleReaderPane(
             )
         }
 
+    }
     }
 
     // DEBUG eliminado: el if (showAuthDialog) estaba fuera del NavHost y no se

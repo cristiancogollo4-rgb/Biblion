@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Save
@@ -50,10 +52,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import com.cristiancogollo.biblion.BiblionBottomNavigation
+import com.cristiancogollo.biblion.Screen
+import com.cristiancogollo.biblion.Testament
+import com.cristiancogollo.biblion.navigateTopLevel
+import com.cristiancogollo.biblion.feature.studydocs.ui.Screen as StudyDocScreen
 import com.cristiancogollo.biblion.feature.bibi.ui.BibiStudyFloatingWindow
 import com.cristiancogollo.biblion.R
 import com.cristiancogollo.biblion.feature.achievements.domain.AchievementEvent
@@ -96,6 +106,9 @@ fun StudyDocEditorScreen(
     val focusManager = LocalFocusManager.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val studyPaneNavController = rememberNavController()
+    val studyPaneRoute = studyPaneNavController.currentBackStackEntryAsState().value?.destination?.route
+    val isKeyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
     // Usar splitViewModel si está disponible (modo split), sino usar viewModel (modo standalone)
     val editorState by (splitViewModel?.editorState ?: viewModel?.uiState)?.collectAsState()
@@ -116,11 +129,37 @@ fun StudyDocEditorScreen(
     }
     var compactActionsExpanded by remember { mutableStateOf(false) }
     var isFullScreen by remember { mutableStateOf(false) }
+    var pendingPaneRoute by remember { mutableStateOf<String?>(null) }
+    var studySectionSelected by rememberSaveable { mutableStateOf(false) }
     var showDiscardDialog by remember { mutableStateOf(false) }
     val internalBibiController = remember { StudyBibiController() }
     val activeBibiController = bibiController ?: internalBibiController
     var requestedBibiPassage by remember {
         mutableStateOf<com.cristiancogollo.biblion.feature.bibi.model.BibiPassage?>(null)
+    }
+
+    fun navigateInStudyPane(route: String) {
+        studySectionSelected = false
+        compactStudyPane = "bible"
+        if (isFullScreen && !useCompactStudyLayout) {
+            pendingPaneRoute = route
+            isFullScreen = false
+        } else {
+            studyPaneNavController.navigateTopLevel(route)
+        }
+    }
+
+    LaunchedEffect(isFullScreen, pendingPaneRoute) {
+        if (!isFullScreen) {
+            pendingPaneRoute?.let { route ->
+                pendingPaneRoute = null
+                studyPaneNavController.navigateTopLevel(route)
+            }
+        }
+    }
+
+    LaunchedEffect(studyPaneRoute) {
+        if (studyPaneRoute != null) studySectionSelected = false
     }
 
     val onVerseComparisonSelected:
@@ -144,6 +183,7 @@ fun StudyDocEditorScreen(
                 }
             }
     }
+
     val onVerseSelected:
         (com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock.Verse) -> Unit =
         { block ->
@@ -363,6 +403,7 @@ fun StudyDocEditorScreen(
                         },
                         biblePane = {
                             BibleReaderPane(
+                                localNavController = studyPaneNavController,
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .background(MaterialTheme.colorScheme.surface),
@@ -416,6 +457,7 @@ fun StudyDocEditorScreen(
                     Row(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))) {
                         if (!isFullScreen) {
                             BibleReaderPane(
+                                localNavController = studyPaneNavController,
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxHeight()
@@ -756,6 +798,35 @@ fun StudyDocEditorScreen(
             }
         }
     }
+    }
+
+    // Navega solo el panel de consulta; el documento permanece montado y conserva su estado.
+    if (isSplitMode && navController != null && !editorState.isLoading &&
+        !isKeyboardVisible && pendingPaneRoute == null
+    ) {
+        BiblionBottomNavigation(
+            currentRoute = if (studySectionSelected || (useCompactStudyLayout && compactDocumentActive)) {
+                StudyDocScreen.StudyDocsList.route
+            } else {
+                studyPaneRoute
+            },
+            onHome = {
+                navigateInStudyPane(Screen.Home.route)
+            },
+            onBible = {
+                navigateInStudyPane(Screen.Books.createRoute(Testament.OLD))
+            },
+            onSearch = {
+                navigateInStudyPane(Screen.Search.createRoute())
+            },
+            onStudy = {
+                studySectionSelected = true
+                compactStudyPane = "document"
+            },
+            onProfile = {
+                navigateInStudyPane(Screen.Profile.route)
+            },
+        )
     }
 
     if (activeBibiController.isOpen) {
