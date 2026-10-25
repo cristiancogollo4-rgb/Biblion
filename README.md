@@ -4,33 +4,40 @@
 
 # 📖 Biblion
 
-**App de lectura y estudio de la Biblia, 100 % offline**
+**Lectura bíblica, búsqueda de versículos y estudio personal — 100 % offline**
 
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0-7F52FF?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org/)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?style=flat-square&logo=android&logoColor=white)](https://developer.android.com/compose)
 [![Room](https://img.shields.io/badge/Room-2.7-34A853?style=flat-square&logo=android&logoColor=white)](https://developer.android.com/training/data-storage/room)
 [![Offline](https://img.shields.io/badge/100%25-Offline-5D4037?style=flat-square)](#)
 
-*🚧 Proyecto en desarrollo activo*
-
 </div>
 
 ---
 
-## 🔍 ¿Qué es Biblion?
+> [!WARNING]
+> **Biblion está en desarrollo activo (no es una versión final).**
+> Algunas funcionalidades evolucionan, la navegación y el diseño visual pueden cambiar, y pueden existir comportamientos no definitivos.
 
-Biblion es una app Android para **leer y estudiar la Biblia sin conexión a internet**: cinco versiones completas embebidas en la app, un lector con resaltados persistentes, búsqueda instantánea y un **modo estudio** con editor de texto enriquecido para apuntes, cuadernos y citas bíblicas vinculadas.
+## 🔍 ¿Qué es?
 
-No consume ninguna API ni backend: todo el contenido vive en el dispositivo.
+Biblion nace de una necesidad concreta: tener una experiencia de lectura y estudio bíblico **clara, ordenada y sin conexión**, en el celular y sin interfaces recargadas.
+
+Está pensada para:
+- 🙏 Personas que leen la Biblia a diario
+- 🔎 Quienes necesitan encontrar versículos por texto rápidamente
+- ✍️ Creyentes que organizan enseñanzas y notas personales en un solo lugar
 
 ## ✨ Funcionalidades
 
-- 📚 **5 versiones bíblicas** integradas: RV1960, NVI, DHH, TLA y NTV (JSON en assets)
-- 📖 **Lector fluido** por libro → capítulo → versículo, con tamaño de letra ajustable
+- 📚 **5 versiones bíblicas** integradas desde assets: RV1960, NVI, DHH, TLA y NTV
+- 📖 Lectura por testamento → libro → capítulo, con tamaño de letra ajustable
 - 🖍️ **Resaltados persistentes** de versículos
-- 🔎 **Búsqueda global** con índice rápido por versión
-- ✍️ **Modo estudio**: cuadernos, estudios y enseñanzas con editor enriquecido y citas vinculadas
-- 🌅 **Versículo del día** en la pantalla de inicio
+- 🔎 **Búsqueda por palabra o frase** dentro de la versión seleccionada, con navegación directa al pasaje
+- ✍️ **Modo estudio**: cuadernos, estudios y enseñanzas con editor enriquecido (*rich text*)
+- 🗂️ Gestión de enseñanzas guardadas: crear, abrir, editar y eliminar, con etiquetas/metadatos
+- 🔗 Citas bíblicas vinculadas dentro del flujo de estudio
+- 🌅 **Versículo del día** con persistencia diaria
 - 🌐 Interfaz en **español e inglés**
 
 ## 🏗️ Arquitectura
@@ -43,10 +50,10 @@ feature/home · feature/books · feature/reader · feature/search · feature/stu
 
 | Capa | Detalle |
 | --- | --- |
-| UI | Jetpack Compose + Material 3, edge-to-edge (sin XML de layouts) |
+| UI | Jetpack Compose + Material 3, edge-to-edge (sin layouts XML) |
 | ViewModel | Por feature, con Kotlin Flow y coroutines |
 | Datos | Room (`study_mode.db`), cache LRU en memoria, SharedPreferences |
-| Búsqueda | Índice en memoria construido y cacheado por versión bíblica |
+| Búsqueda | Índice en memoria, construido y cacheado por versión bíblica |
 
 ## 🧪 Stack técnico
 
@@ -59,14 +66,14 @@ feature/home · feature/books · feature/reader · feature/search · feature/stu
 
 ```bash
 git clone https://github.com/cristiancogollo4-rgb/Biblion.git
-# Abrir en Android Studio (Ladybug+) y ejecutar:
+# Abrir en Android Studio y ejecutar:
 ./gradlew :app:assembleDebug
 ```
 
 ## 🗺️ Roadmap
 
 - [ ] Publicación en Play Store
-- [ ] Aparición de versión PDT en el selector
+- [ ] Activar versión PDT en el selector
 - [ ] Modo oscuro y tema dinámico
 - [ ] Sincronización opcional de estudios entre dispositivos
 
