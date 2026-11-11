@@ -26,7 +26,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @Composable
-fun StudyDocsListRoute(navController: NavController) {
+fun StudyDocsListRoute(navController: NavController, readOnly: Boolean = false) {
     val context = LocalContext.current
     val ownerUid = FirebaseAuth.getInstance().currentUser?.uid
     val repository = remember {
@@ -45,10 +45,15 @@ fun StudyDocsListRoute(navController: NavController) {
     StudyDocsListScreen(
         navController = navController,
         viewModel = viewModel,
+        readOnly = readOnly,
         onBack = { navController.popBackStack() },
         onOpenDoc = { doc -> navController.navigate(Screen.StudyDocRead.createRoute(doc.remoteId ?: doc.id.value)) },
-        onEditDoc = { doc -> navController.navigate(Screen.StudyDocEditor.createRoute(doc.remoteId ?: doc.id.value)) },
-        onNewDoc = { navController.navigate(Screen.StudyDocEditor.newRoute()) },
+        onEditDoc = { doc ->
+            if (!readOnly) navController.navigate(Screen.StudyDocEditor.createRoute(doc.remoteId ?: doc.id.value))
+        },
+        onNewDoc = {
+            if (!readOnly) navController.navigate(Screen.StudyDocEditor.newRoute())
+        },
         onShare = { doc, format -> StudyShareManager.share(context, doc, format) },
         onRequestPublication = { doc ->
             val uid = FirebaseAuth.getInstance().currentUser?.uid
@@ -131,6 +136,7 @@ fun PublicTeachingRoute(navController: NavController) {
 fun StudyDocReadRoute(
     navController: NavController,
     remoteId: String,
+    readOnly: Boolean = false,
 ) {
     val context = LocalContext.current
     val repository = remember {
@@ -143,8 +149,11 @@ fun StudyDocReadRoute(
     StudyDocReadScreen(
         viewModel = viewModel,
         remoteId = remoteId,
+        readOnly = readOnly,
         onBack = { navController.popBackStack() },
-        onEdit = { navController.navigate(Screen.StudyDocEditor.createRoute(remoteId)) },
+        onEdit = {
+            if (!readOnly) navController.navigate(Screen.StudyDocEditor.createRoute(remoteId))
+        },
     )
 }
 

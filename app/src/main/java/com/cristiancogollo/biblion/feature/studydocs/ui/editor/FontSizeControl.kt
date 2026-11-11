@@ -73,7 +73,7 @@ internal fun FontSizeControl(
     ) {
         IconButton(
             onClick = { onStepFontSize(-1) },
-            modifier = Modifier.size(36.dp),
+            modifier = Modifier.size(40.dp),
         ) {
             Icon(
                 Icons.Filled.Remove,
@@ -144,7 +144,7 @@ internal fun FontSizeControl(
                 )
                 IconButton(
                     onClick = { expanded = true },
-                    modifier = Modifier.size(28.dp),
+                    modifier = Modifier.size(36.dp),
                 ) {
                     Icon(
                         Icons.Filled.ArrowDropDown,
@@ -182,7 +182,7 @@ internal fun FontSizeControl(
 
         IconButton(
             onClick = { onStepFontSize(1) },
-            modifier = Modifier.size(36.dp),
+            modifier = Modifier.size(40.dp),
         ) {
             Icon(
                 Icons.Filled.Add,

@@ -120,6 +120,8 @@ Los borradores permanecen locales hasta que el usuario publica una ensenanza. La
 
 ## Repositorio del proyecto
 
+La documentación local de la fase 1 tiene dos recorridos —guía de uso y guía técnica— en [`docs-site/`](docs-site/README.md). Para abrirla en el navegador, entra a esa carpeta y ejecuta `npm install` y `npm run docs:dev`.
+
 El codigo fuente de Biblion se encuentra en GitHub:
 
 **https://github.com/cristiancogollo4-rgb/Biblion**

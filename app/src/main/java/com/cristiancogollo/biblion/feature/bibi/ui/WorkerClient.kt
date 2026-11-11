@@ -101,6 +101,16 @@ object WorkerClient {
         val intentDetected: String?,
     )
 
+    private val localGreetingLine = Regex("""^\s*¡Hola[^\n]*\n*""")
+
+    /**
+     * El saludo local ("¡Hola Juan! ...") forma parte del texto guardado de las
+     * respuestas. El nombre visible del usuario nunca debe llegar al Worker.
+     * No se borra el nombre en el resto del texto: "Juan" tambien es un libro.
+     */
+    internal fun stripLocalGreeting(response: String): String =
+        response.replaceFirst(localGreetingLine, "").trim()
+
     fun buildRequest(
         question: String,
         context: BibiContext,
@@ -113,7 +123,7 @@ object WorkerClient {
         val commonHistory = chatHistory.takeLast(5).map {
             ChatHistoryEntry(
                 question = it.question,
-                response = it.response,
+                response = stripLocalGreeting(it.response),
                 resolvedTerm = it.resolvedTerm,
                 intent = it.intent,
             )

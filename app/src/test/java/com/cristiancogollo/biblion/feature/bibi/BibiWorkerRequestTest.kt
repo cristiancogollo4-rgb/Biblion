@@ -81,4 +81,31 @@ class BibiWorkerRequestTest {
         assertEquals(2, request.study?.currentOutline?.size)
         assertEquals("Efesios 2:8 Porque por gracia sois salvos", request.bible?.passages?.single())
     }
+
+    @Test
+    fun `chat history sent to worker never carries the local greeting with the user name`() {
+        val request = WorkerClient.buildRequest(
+            question = "profundiza sobre Abraham",
+            context = BibiContext.Reader(
+                book = "Genesis",
+                chapter = 12,
+                passages = emptyList(),
+                bibleVersion = "rvr1960",
+            ),
+            intent = "question",
+            chatHistory = listOf(
+                com.cristiancogollo.biblion.feature.bibi.model.ChatExchange(
+                    question = "¿quién fue Abraham?",
+                    response = "¡Hola Cristian! Veo que estás leyendo Génesis 12.\n\nAbraham\nPatriarca de Israel.",
+                    resolvedTerm = "Abraham",
+                    intent = "WHO",
+                )
+            ),
+            lastQueries = emptyList(),
+        )
+
+        val serialized = request.toString()
+        assertTrue(!serialized.contains("Cristian"))
+        assertTrue(serialized.contains("Patriarca de Israel"))
+    }
 }

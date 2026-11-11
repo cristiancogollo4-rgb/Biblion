@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion.feature.studydocs.ui.editor
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.content.res.Configuration
 import android.widget.Toast
 import android.util.Log
@@ -613,8 +614,8 @@ internal fun BibleReaderPane(
     val googleCredentialsAuth = remember(context) { GoogleCredentialsAuth(context) }
     val authViewModel: AuthViewModel = viewModel()
     val profileViewModel: ProfileViewModel = viewModel()
-    val authState by authViewModel.state.collectAsState()
-    val profileState by profileViewModel.state.collectAsState()
+    val authState by authViewModel.state.collectAsStateWithLifecycle()
+    val profileState by profileViewModel.state.collectAsStateWithLifecycle()
     val startGoogleSignIn: () -> Unit = {
         val activity = context.findActivity()
         if (activity == null) {
@@ -686,6 +687,7 @@ internal fun BibleReaderPane(
         }
         addSharedPrimaryDestinations(
             navController = localNavController,
+            studyLibraryReadOnly = true,
             isDarkTheme = isDarkTheme,
             onToggleDarkTheme = onToggleDarkTheme,
             themeMode = themeMode,

@@ -5,6 +5,7 @@
 
 package com.cristiancogollo.biblion.feature.studydocs.ui.repository
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,7 +61,7 @@ fun PublicTeachingScreen(
     onBack: () -> Unit,
     onOpenDownloaded: (String) -> Unit,
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {

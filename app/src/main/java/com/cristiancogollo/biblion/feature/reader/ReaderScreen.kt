@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.app.Activity
 import android.content.ClipData
 import android.content.Context
@@ -64,6 +65,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -243,13 +246,7 @@ fun ReaderScreen(
             factory = com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocSplitViewModel.Factory(repository)
         )
 
-        DisposableEffect(Unit) {
-            onDispose {
-                com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDatabase.resetInstance()
-            }
-        }
-
-        val splitState by splitViewModel.splitState.collectAsState()
+        val splitState by splitViewModel.splitState.collectAsStateWithLifecycle()
 
         if (useCompactStudyLayout) {
             val activePane = if (compactStudyPane == "bible") {
@@ -365,6 +362,7 @@ private fun StudyModeNavigation(
         addSharedPrimaryDestinations(
             navController = splitNavController,
             openBooksInStudyMode = true,
+            studyLibraryReadOnly = true,
             isDarkTheme = isDarkTheme,
             onToggleDarkTheme = onToggleDarkTheme,
             currentUserName = currentUserName,
@@ -450,12 +448,6 @@ private fun StudyDocEditorSplitContent(
     val viewModel: com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel = viewModel(
         factory = com.cristiancogollo.biblion.feature.studydocs.domain.StudyDocViewModel.Factory(repository)
     )
-    DisposableEffect(Unit) {
-        onDispose {
-            com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDatabase.resetInstance()
-        }
-    }
-
     com.cristiancogollo.biblion.feature.studydocs.ui.editor.StudyDocEditorScreen(
         viewModel = viewModel,
         onBack = { navController.popBackStackOrNavigateHome() },
@@ -698,6 +690,7 @@ fun ReaderContent(
     }
     var openCrossReference by remember { mutableStateOf<ReaderVerseReference?>(null) }
     var horizontalDrag by remember { mutableFloatStateOf(0f) }
+    val haptic = LocalHapticFeedback.current
     var pendingTargetVerse by remember(bookName, targetVerse) { mutableStateOf(targetVerse) }
     val lazyListState = rememberLazyListState()
     var pendingScrollRestoration by remember { mutableStateOf<Pair<String, Int>?>(null) }
@@ -1403,7 +1396,8 @@ fun ReaderContent(
                     onNavigationIconClick = {
                         val popped = navController.popBackStackOrNavigateHome()
                         if (!popped) {
-                            context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                            // Libera cualquier bloqueo heredado sin fijar vertical (rompe tablets).
+                            context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                         }
                     },
                     selectedVersionName = selectedVersionKey.uppercase(),
@@ -1557,7 +1551,50 @@ fun ReaderContent(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxHeight(),
+                        .fillMaxHeight()
+                        // El gesto vive en el contenedor completo para que en tablet
+                        // tambien funcione sobre los margenes laterales del texto.
+                        .pointerInput(
+                            bookName,
+                            selectedChapter,
+                            chapterCount,
+                            effectiveReaderPreferences.continuousScrolling,
+                        ) {
+                            if (effectiveReaderPreferences.continuousScrolling) {
+                                return@pointerInput
+                            }
+                            val swipeThresholdPx = CHAPTER_SWIPE_THRESHOLD.toPx()
+                            detectHorizontalDragGestures(
+                                onHorizontalDrag = { _, dragAmount ->
+                                    horizontalDrag += dragAmount
+                                },
+                                onDragCancel = { horizontalDrag = 0f },
+                                onDragEnd = {
+                                    if (bookName.isNullOrBlank() || chapterCount <= 1) {
+                                        horizontalDrag = 0f
+                                        return@detectHorizontalDragGestures
+                                    }
+                                    when {
+                                        horizontalDrag <= -swipeThresholdPx && selectedChapter < chapterCount -> {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            navigateToChapterWithAnimation(
+                                                targetChapter = selectedChapter + 1,
+                                                direction = 1
+                                            )
+                                        }
+
+                                        horizontalDrag >= swipeThresholdPx && selectedChapter > 1 -> {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            navigateToChapterWithAnimation(
+                                                targetChapter = selectedChapter - 1,
+                                                direction = -1
+                                            )
+                                        }
+                                    }
+                                    horizontalDrag = 0f
+                                }
+                            )
+                        },
                     contentAlignment = Alignment.TopCenter,
                 ) {
                 LazyColumn(
@@ -1574,43 +1611,6 @@ fun ReaderContent(
                         translationX = chapterSlideOffset.value
                         alpha = 1f - (abs(chapterSlideOffset.value) / width * 0.45f)
                             .coerceIn(0f, 0.35f)
-                    }
-                    .pointerInput(
-                        bookName,
-                        selectedChapter,
-                        chapterCount,
-                        effectiveReaderPreferences.continuousScrolling,
-                    ) {
-                        if (effectiveReaderPreferences.continuousScrolling) {
-                            return@pointerInput
-                        }
-                        detectHorizontalDragGestures(
-                            onHorizontalDrag = { _, dragAmount ->
-                                horizontalDrag += dragAmount
-                            },
-                            onDragEnd = {
-                                if (bookName.isNullOrBlank() || chapterCount <= 1) {
-                                    horizontalDrag = 0f
-                                    return@detectHorizontalDragGestures
-                                }
-                                when {
-                                    horizontalDrag <= -40f && selectedChapter < chapterCount -> {
-                                        navigateToChapterWithAnimation(
-                                            targetChapter = selectedChapter + 1,
-                                            direction = 1
-                                        )
-                                    }
-
-                                    horizontalDrag >= 40f && selectedChapter > 1 -> {
-                                        navigateToChapterWithAnimation(
-                                            targetChapter = selectedChapter - 1,
-                                            direction = -1
-                                        )
-                                    }
-                                }
-                                horizontalDrag = 0f
-                            }
-                        )
                     },
                     state = lazyListState,
                     contentPadding = PaddingValues(
@@ -2504,6 +2504,7 @@ fun VerseItem(
     )
     val selectActionLabel = stringResource(R.string.reader_verse_action_select)
     val currentOnShowActions by rememberUpdatedState(onShowActions)
+    val verseHaptic = LocalHapticFeedback.current
     val currentOnToggleSelection by rememberUpdatedState(onToggleSelection)
     val currentAllowTapSelection by rememberUpdatedState(allowTapSelection)
     val verseStateDescription = when {
@@ -2614,7 +2615,10 @@ fun VerseItem(
                         onTap = {
                             if (currentAllowTapSelection) currentOnToggleSelection()
                         },
-                        onLongPress = { currentOnShowActions() },
+                        onLongPress = {
+                            verseHaptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            currentOnShowActions()
+                        },
                     )
                 }
                 .onPreviewKeyEvent { keyEvent ->
@@ -2647,3 +2651,6 @@ fun VerseItem(
         }
     }
 }
+
+/** Distancia minima para cambiar de capitulo; en dp para ser estable entre densidades. */
+private val CHAPTER_SWIPE_THRESHOLD = 88.dp

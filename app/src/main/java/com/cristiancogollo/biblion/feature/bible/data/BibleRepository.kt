@@ -290,12 +290,15 @@ object BibleRepository {
             BibleSearchTestament.NEW -> (OLD_TESTAMENT_LAST_BOOK_INDEX + 1) to LAST_BOOK_INDEX
             BibleSearchTestament.ALL -> null to null
         }
+        val likeTerm = toAccentInsensitiveLikeTerm(query)
+        if (likeTerm.isEmpty()) return@withContext emptyList()
         bibleDao(context).searchVersesFiltered(
             versionKey = versionKey,
-            query = query,
+            query = likeTerm,
             normalizedBookName = normalizedBook,
             minBookIndex = minBookIndex,
-            maxBookIndex = maxBookIndex
+            maxBookIndex = maxBookIndex,
+            limit = MAX_SEARCH_RESULTS,
         )
             .map { row ->
                 SearchResult(
@@ -308,6 +311,21 @@ object BibleRepository {
             }
     }
 }
+
+/** Tope de resultados: palabras muy comunes ("de", "que") devolverian decenas de miles. */
+const val MAX_SEARCH_RESULTS = 300
+
+/**
+ * Normaliza la consulta para la busqueda sin tildes: el SQL quita las tildes del
+ * texto, asi que la consulta tambien se compara sin ellas. Escapa los comodines
+ * de LIKE para que "%" o "_" escritos por el usuario sean literales.
+ */
+internal fun toAccentInsensitiveLikeTerm(query: String): String =
+    java.text.Normalizer.normalize(query.trim(), java.text.Normalizer.Form.NFD)
+        .replace(Regex("""\p{Mn}+"""), "")
+        .replace("""\""", """\\""")
+        .replace("%", """\%""")
+        .replace("_", """\_""")
 
 data class BibleSearchFilter(
     val testament: BibleSearchTestament = BibleSearchTestament.ALL,

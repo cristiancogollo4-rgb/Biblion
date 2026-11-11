@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion.feature.studydocs.ui.list
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -101,6 +102,7 @@ import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
 fun StudyDocsListScreen(
     navController: NavController,
     viewModel: StudyDocsListViewModel,
+    readOnly: Boolean = false,
     onBack: () -> Unit,
     onOpenDoc: (StudyDoc) -> Unit,
     onEditDoc: (StudyDoc) -> Unit,
@@ -108,7 +110,7 @@ fun StudyDocsListScreen(
     onShare: (StudyDoc, StudyShareFormat) -> Unit = { _, _ -> },
     onRequestPublication: (StudyDoc) -> Unit = {},
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val visibleDocs = state.visibleDocs
     val hasActiveFilters = state.titleFilter.isNotBlank() ||
         state.selectedTagFilters.isNotEmpty()
@@ -156,6 +158,7 @@ fun StudyDocsListScreen(
                     documentCount = state.docs.size,
                     filteredDocumentCount = visibleDocs.size,
                     hasActiveFilters = hasActiveFilters,
+                    readOnly = readOnly,
                     onNewDoc = onNewDoc,
                 )
 
@@ -181,6 +184,7 @@ fun StudyDocsListScreen(
                     StudyLibraryEmptyState(
                         hasDocuments = state.docs.isNotEmpty(),
                         hasActiveFilters = hasActiveFilters,
+                        readOnly = readOnly,
                         onNewDoc = onNewDoc,
                         onClearFilters = {
                             viewModel.setTitleFilter("")
@@ -204,6 +208,7 @@ fun StudyDocsListScreen(
                             TeachingCard(
                                 doc = doc,
                                 syncStatus = state.syncStatuses[doc.remoteId ?: doc.id.value],
+                                readOnly = readOnly,
                                 onOpen = { onOpenDoc(doc) },
                                 onEdit = { onEditDoc(doc) },
                                 onEditMetadata = {
@@ -458,6 +463,7 @@ private fun StudyLibraryHeader(
     documentCount: Int,
     filteredDocumentCount: Int,
     hasActiveFilters: Boolean,
+    readOnly: Boolean,
     onNewDoc: () -> Unit,
 ) {
     Row(
@@ -489,19 +495,21 @@ private fun StudyLibraryHeader(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Spacer(modifier = Modifier.width(12.dp))
-        Button(
-            onClick = onNewDoc,
-            shape = RoundedCornerShape(14.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Add,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(stringResource(R.string.study_library_new), fontWeight = FontWeight.SemiBold)
+        if (!readOnly) {
+            Spacer(modifier = Modifier.width(12.dp))
+            Button(
+                onClick = onNewDoc,
+                shape = RoundedCornerShape(14.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.study_library_new), fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }
@@ -588,6 +596,7 @@ private fun StudyFilterShelf(
 private fun StudyLibraryEmptyState(
     hasDocuments: Boolean,
     hasActiveFilters: Boolean,
+    readOnly: Boolean,
     onNewDoc: () -> Unit,
     onClearFilters: () -> Unit,
     modifier: Modifier = Modifier,
@@ -622,6 +631,8 @@ private fun StudyLibraryEmptyState(
                 Text(
                     text = if (hasDocuments) {
                         "No encontramos enseñanzas"
+                    } else if (readOnly) {
+                        stringResource(R.string.study_library_read_only_empty_title)
                     } else {
                         "Tu espacio de estudio comienza aquí"
                     },
@@ -635,34 +646,38 @@ private fun StudyLibraryEmptyState(
                 Text(
                     text = if (hasDocuments) {
                         "Prueba otra búsqueda o limpia los filtros seleccionados."
+                    } else if (readOnly) {
+                        stringResource(R.string.study_library_read_only_empty_description)
                     } else {
                         "Escribe, organiza y guarda tu primera enseñanza en BIBLION."
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(modifier = Modifier.height(20.dp))
-                Button(
-                    onClick = if (hasDocuments && hasActiveFilters) onClearFilters else onNewDoc,
-                    shape = RoundedCornerShape(14.dp),
-                ) {
-                    Icon(
-                        imageVector = if (hasDocuments && hasActiveFilters) {
-                            Icons.Filled.Clear
-                        } else {
-                            Icons.Filled.Add
-                        },
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        if (hasDocuments && hasActiveFilters) {
-                            "Limpiar filtros"
-                        } else {
-                            "Crear mi primera enseñanza"
-                        }
-                    )
+                if (!readOnly || (hasDocuments && hasActiveFilters)) {
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Button(
+                        onClick = if (hasDocuments && hasActiveFilters) onClearFilters else onNewDoc,
+                        shape = RoundedCornerShape(14.dp),
+                    ) {
+                        Icon(
+                            imageVector = if (hasDocuments && hasActiveFilters) {
+                                Icons.Filled.Clear
+                            } else {
+                                Icons.Filled.Add
+                            },
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            if (hasDocuments && hasActiveFilters) {
+                                "Limpiar filtros"
+                            } else {
+                                "Crear mi primera enseñanza"
+                            }
+                        )
+                    }
                 }
             }
         }

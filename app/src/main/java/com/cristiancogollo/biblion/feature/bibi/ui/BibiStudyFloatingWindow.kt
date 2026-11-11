@@ -5,6 +5,8 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -18,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
@@ -66,7 +69,11 @@ fun BibiFloatingWindow(
     val horizontalMargin = if (isCompactWidth) 8 else 20
     val verticalMargin = if (isCompactHeight) 8 else 20
     val availableWidth = (configuration.screenWidthDp - horizontalMargin * 2).coerceAtLeast(1)
-    val availableHeight = (configuration.screenHeightDp - verticalMargin * 2).coerceAtLeast(1)
+    // La ventana usa adjustNothing: el Popup debe dejar sitio al teclado por si mismo.
+    val density = LocalDensity.current
+    val imeBottomDp = with(density) { WindowInsets.ime.getBottom(density).toDp().value.toInt() }
+    val availableHeight = (configuration.screenHeightDp - verticalMargin * 2 - imeBottomDp)
+        .coerceAtLeast(160)
     val preferredWidth = when {
         configuration.screenWidthDp < 360 -> availableWidth
         isCompactWidth -> minOf(availableWidth, 400)
@@ -94,7 +101,7 @@ fun BibiFloatingWindow(
                 end = horizontalMargin.dp,
                 start = if (isCompactWidth) horizontalMargin.dp else 0.dp,
                 top = verticalMargin.dp,
-                bottom = verticalMargin.dp,
+                bottom = verticalMargin.dp + imeBottomDp.dp,
             ),
         ) {
             Surface(

@@ -127,6 +127,9 @@ object KnowledgeEngine {
         val hasVerseReference = verseRefRegex.containsMatchIn(q)
 
         return when {
+            // Peticiones explicitas de profundizar ganan a WHO/DEFINE: "explica mas",
+            // "cuentame mas sobre Moises" no deben repetir la ficha del diccionario.
+            explicitDeepenPhrases.any(q::contains) -> BibiIntent.DIVE_DEEPER
             asksComparison && mentionsVersion -> BibiIntent.COMPARE_VERSIONS
             asksConceptRelationship && !hasVerseReference &&
                 !q.contains("versiculo") && !q.contains("pasaje") -> BibiIntent.COMPARE_CONCEPTS
@@ -260,6 +263,15 @@ object KnowledgeEngine {
             else -> BibiIntent.FALLBACK
         }
     }
+
+    /** Frases inequivocas (sin tildes): se evalua antes que el resto de intenciones. */
+    private val explicitDeepenPhrases = listOf(
+        "profundiza", "amplia mas", "amplia sobre", "amplia eso",
+        "explica mas", "explicame mas", "explicame eso",
+        "cuentame mas", "cuantame mas", "contame mas",
+        "dime mas", "hablame mas", "habla mas",
+        "mas detalle", "quiero saber mas",
+    )
 
     private fun diveDeeperDetect(query: String, lastQueries: List<String>): Boolean {
         val deepen = listOf(
@@ -916,6 +928,10 @@ object KnowledgeEngine {
         val term = run {
             val deepPatterns = listOf(
                 "cuentame mas sobre", "cuéntame más sobre",
+                "cuantame mas sobre", "contame mas sobre",
+                "cuentame mas de", "cuantame mas de", "contame mas de",
+                "dime mas de", "hablame mas sobre",
+                "profundiza en", "profundiza mas sobre", "profundiza mas en",
                 "hablame mas de", "háblame más de",
                 "profundiza sobre", "amplia sobre",
                 "explica mas sobre", "explica más sobre",

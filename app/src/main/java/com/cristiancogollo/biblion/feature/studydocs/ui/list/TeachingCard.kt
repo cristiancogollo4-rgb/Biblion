@@ -105,6 +105,7 @@ private fun cachePageCount(key: TeachingCardPageCountKey, pageCount: Int) {
  * - Menu de mas opciones (3 puntos)
  *
  * @param doc documento de estudio v2 a renderizar
+ * @param readOnly oculta las acciones de modificación en el panel de consulta
  * @param onOpen abre el lector del documento
  * @param onEdit abre el editor v2 en modo edicion
  * @param onEditMetadata abre el dialogo para editar titulo y tags
@@ -116,6 +117,7 @@ private fun cachePageCount(key: TeachingCardPageCountKey, pageCount: Int) {
 fun TeachingCard(
     doc: StudyDoc,
     syncStatus: StudyDocSyncStatus? = null,
+    readOnly: Boolean = false,
     onOpen: () -> Unit,
     onEdit: () -> Unit,
     onEditMetadata: () -> Unit,
@@ -280,54 +282,56 @@ fun TeachingCard(
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Box {
-                            IconButton(
-                                onClick = { menuExpanded = true },
-                                modifier = Modifier.size(48.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.MoreVert,
-                                    contentDescription = stringResource(R.string.study_library_more_options),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = menuExpanded,
-                                onDismissRequest = { menuExpanded = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.study_library_edit)) },
-                                    leadingIcon = { Icon(Icons.Filled.Edit, null) },
-                                    onClick = {
-                                        menuExpanded = false
-                                        onEdit()
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.study_library_tags)) },
-                                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, null) },
-                                    onClick = {
-                                        menuExpanded = false
-                                        onEditMetadata()
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.study_library_share)) },
-                                    leadingIcon = { Icon(Icons.Filled.Share, null) },
-                                    onClick = {
-                                        menuExpanded = false
-                                        onShare()
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.study_library_delete)) },
-                                    leadingIcon = { Icon(Icons.Filled.Delete, null) },
-                                    onClick = {
-                                        menuExpanded = false
-                                        onDelete()
-                                    }
-                                )
+                        if (!readOnly) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Box {
+                                IconButton(
+                                    onClick = { menuExpanded = true },
+                                    modifier = Modifier.size(48.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.MoreVert,
+                                        contentDescription = stringResource(R.string.study_library_more_options),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = menuExpanded,
+                                    onDismissRequest = { menuExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.study_library_edit)) },
+                                        leadingIcon = { Icon(Icons.Filled.Edit, null) },
+                                        onClick = {
+                                            menuExpanded = false
+                                            onEdit()
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.study_library_tags)) },
+                                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, null) },
+                                        onClick = {
+                                            menuExpanded = false
+                                            onEditMetadata()
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.study_library_share)) },
+                                        leadingIcon = { Icon(Icons.Filled.Share, null) },
+                                        onClick = {
+                                            menuExpanded = false
+                                            onShare()
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.study_library_delete)) },
+                                        leadingIcon = { Icon(Icons.Filled.Delete, null) },
+                                        onClick = {
+                                            menuExpanded = false
+                                            onDelete()
+                                        }
+                                    )
+                                }
                             }
                         }
                     }

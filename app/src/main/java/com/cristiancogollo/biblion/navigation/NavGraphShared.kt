@@ -23,6 +23,7 @@ import com.cristiancogollo.biblion.ui.theme.BiblionThemeMode
 fun NavGraphBuilder.addSharedPrimaryDestinations(
     navController: NavController,
     openBooksInStudyMode: Boolean = false,
+    studyLibraryReadOnly: Boolean = false,
     includeHome: Boolean = true,
     includeBooks: Boolean = true,
     includeSearch: Boolean = true,
@@ -121,7 +122,7 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
 
     // Rutas del modo estudio v2 (estudydocs)
     composable(StudyDocScreen.StudyDocsList.route) {
-        StudyDocsListRoute(navController = navController)
+        StudyDocsListRoute(navController = navController, readOnly = studyLibraryReadOnly)
     }
 
     composable(Screen.BiblionRepository.route) {
@@ -129,14 +130,18 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
     }
 
     composable(StudyDocScreen.StudyDocEditor.newRoute()) {
-        StudyDocEditorRoute(
-            navController = navController,
-            remoteId = null,
-            isDarkTheme = isDarkTheme,
-            onToggleDarkTheme = onToggleDarkTheme,
-            themeMode = themeMode,
-            onThemeModeChange = onThemeModeChange,
-        )
+        if (studyLibraryReadOnly) {
+            StudyDocsListRoute(navController = navController, readOnly = true)
+        } else {
+            StudyDocEditorRoute(
+                navController = navController,
+                remoteId = null,
+                isDarkTheme = isDarkTheme,
+                onToggleDarkTheme = onToggleDarkTheme,
+                themeMode = themeMode,
+                onThemeModeChange = onThemeModeChange,
+            )
+        }
     }
 
     composable(
@@ -144,14 +149,22 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
         arguments = listOf(navArgument(StudyDocScreen.StudyDocEditor.ARG_REMOTE_ID) { type = NavType.StringType })
     ) { backStackEntry ->
         val remoteId = backStackEntry.arguments?.getString(StudyDocScreen.StudyDocEditor.ARG_REMOTE_ID)
-        StudyDocEditorRoute(
-            navController = navController,
-            remoteId = remoteId,
-            isDarkTheme = isDarkTheme,
-            onToggleDarkTheme = onToggleDarkTheme,
-            themeMode = themeMode,
-            onThemeModeChange = onThemeModeChange,
-        )
+        if (studyLibraryReadOnly) {
+            if (remoteId != null) {
+                StudyDocReadRoute(navController = navController, remoteId = remoteId, readOnly = true)
+            } else {
+                StudyDocsListRoute(navController = navController, readOnly = true)
+            }
+        } else {
+            StudyDocEditorRoute(
+                navController = navController,
+                remoteId = remoteId,
+                isDarkTheme = isDarkTheme,
+                onToggleDarkTheme = onToggleDarkTheme,
+                themeMode = themeMode,
+                onThemeModeChange = onThemeModeChange,
+            )
+        }
     }
 
     composable(
@@ -163,6 +176,7 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
         StudyDocReadRoute(
             navController = navController,
             remoteId = remoteId,
+            readOnly = studyLibraryReadOnly,
         )
     }
 

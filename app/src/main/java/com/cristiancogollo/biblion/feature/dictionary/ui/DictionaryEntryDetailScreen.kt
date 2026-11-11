@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion.feature.dictionary.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -130,7 +131,7 @@ fun DictionaryEntryDetailScreen(
     val viewModel: DictionaryEntryDetailViewModel = viewModel(
         factory = DictionaryEntryDetailViewModel.Factory(entryId = entryId, appContext = appContext)
     )
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
     LaunchedEffect(state) {
         val entry = (state as? DictionaryEntryDetailUiState.Success)?.entry ?: return@LaunchedEffect

@@ -1,5 +1,13 @@
 package com.cristiancogollo.biblion.feature.bibi.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -85,7 +93,7 @@ fun BibiChatPanel(
         key = viewModelKey,
         factory = remember(context) { BibiViewModel.Factory(context) },
     )
-    val uiState by bibiViewModel.uiState.collectAsState()
+    val uiState by bibiViewModel.uiState.collectAsStateWithLifecycle()
     var input by remember { mutableStateOf("") }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
@@ -149,7 +157,7 @@ fun BibiChatPanel(
                 onClick = { showHistory = true },
                 enabled = uiState.isInitialized && !uiState.isLoading && uiState.sessions.isNotEmpty(),
             ) {
-                Icon(Icons.Default.History, contentDescription = "Historial de chats")
+                Icon(Icons.Default.History, contentDescription = stringResource(R.string.bibi_action_history))
             }
             IconButton(
                 onClick = {
@@ -158,7 +166,7 @@ fun BibiChatPanel(
                 },
                 enabled = uiState.isInitialized && !uiState.isLoading,
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Crear nuevo chat")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.bibi_action_new_chat))
             }
             IconButton(
                 onClick = { showDeleteConfirmation = true },
@@ -167,12 +175,12 @@ fun BibiChatPanel(
             ) {
                 Icon(
                     Icons.Default.DeleteOutline,
-                    contentDescription = "Eliminar chat",
+                    contentDescription = stringResource(R.string.bibi_action_delete_chat),
                     tint = MaterialTheme.colorScheme.error,
                 )
             }
             IconButton(onClick = onClose) {
-                Icon(Icons.Default.Close, contentDescription = "Cerrar Bibi")
+                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.bibi_action_close))
             }
         }
         HorizontalDivider()
@@ -220,13 +228,32 @@ fun BibiChatPanel(
                 )
             }
             if (!uiState.isInitialized || uiState.isLoading) {
-                item {
-                    CircularProgressIndicator(
+                item(key = "bibi-loading") {
+                    Row(
                         modifier = Modifier
-                            .padding(12.dp)
-                            .size(24.dp),
-                        strokeWidth = 2.dp,
-                    )
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .semantics { liveRegion = LiveRegionMode.Polite },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .padding(8.dp)
+                                .size(20.dp),
+                            strokeWidth = 2.dp,
+                        )
+                        if (uiState.isLoading) {
+                            Text(
+                                text = stringResource(R.string.bibi_thinking),
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            TextButton(onClick = { bibiViewModel.cancelQuestion() }) {
+                                Text(stringResource(R.string.bibi_action_stop))
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -237,16 +264,9 @@ fun BibiChatPanel(
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedTextField(
-                value = input,
-                onValueChange = { input = it },
-                placeholder = { Text(placeholder) },
-                modifier = Modifier.weight(1f),
-                maxLines = 3,
-            )
-            IconButton(
-                enabled = input.isNotBlank() && uiState.isInitialized && !uiState.isLoading,
-                onClick = {
+            val canSend = input.isNotBlank() && uiState.isInitialized && !uiState.isLoading
+            val submitInput = {
+                if (canSend) {
                     val query = input.trim()
                     input = ""
                     forceScrollToNewest = true
@@ -256,9 +276,25 @@ fun BibiChatPanel(
                         userName = currentUserName,
                         isTutorial = isTutorial,
                     )
-                },
+                }
+            }
+            OutlinedTextField(
+                value = input,
+                onValueChange = { input = it },
+                placeholder = { Text(placeholder) },
+                modifier = Modifier.weight(1f),
+                maxLines = 3,
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Sentences,
+                    imeAction = ImeAction.Send,
+                ),
+                keyboardActions = KeyboardActions(onSend = { submitInput() }),
+            )
+            IconButton(
+                enabled = canSend,
+                onClick = { submitInput() },
             ) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Enviar")
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.bibi_action_send))
             }
         }
     }
@@ -266,9 +302,9 @@ fun BibiChatPanel(
     if (showDeleteConfirmation) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
-            title = { Text("Eliminar conversación") },
+            title = { Text(stringResource(R.string.bibi_delete_title)) },
             text = {
-                Text("Se eliminarán permanentemente los mensajes de este chat.")
+                Text(stringResource(R.string.bibi_delete_message))
             },
             confirmButton = {
                 Button(
@@ -278,12 +314,12 @@ fun BibiChatPanel(
                         bibiViewModel.deleteCurrentChat()
                     },
                 ) {
-                    Text("Eliminar")
+                    Text(stringResource(R.string.bibi_delete_confirm))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirmation = false }) {
-                    Text("Cancelar")
+                    Text(stringResource(R.string.bibi_cancel))
                 }
             },
         )
@@ -292,10 +328,10 @@ fun BibiChatPanel(
     if (showHistory) {
         AlertDialog(
             onDismissRequest = { showHistory = false },
-            title = { Text("Historial de conversaciones") },
+            title = { Text(stringResource(R.string.bibi_history_title)) },
             text = {
                 if (uiState.sessions.isEmpty()) {
-                    Text("Todavía no tienes conversaciones guardadas.")
+                    Text(stringResource(R.string.bibi_history_empty))
                 } else {
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -338,10 +374,10 @@ fun BibiChatPanel(
                                     )
                                     Text(
                                         when {
-                                            session.mode == mode && session.mode == "study" -> "Estudio"
-                                            session.mode == mode -> "Lectura"
-                                            session.mode == "study" -> "Disponible desde Estudio"
-                                            else -> "Disponible desde Lectura"
+                                            session.mode == mode && session.mode == "study" -> stringResource(R.string.bibi_history_mode_study)
+                                            session.mode == mode -> stringResource(R.string.bibi_history_mode_reading)
+                                            session.mode == "study" -> stringResource(R.string.bibi_history_from_study)
+                                            else -> stringResource(R.string.bibi_history_from_reading)
                                         },
                                         style = MaterialTheme.typography.labelSmall,
                                         color = if (isCompatibleMode) {
@@ -358,7 +394,7 @@ fun BibiChatPanel(
             },
             confirmButton = {
                 TextButton(onClick = { showHistory = false }) {
-                    Text("Cerrar")
+                    Text(stringResource(R.string.bibi_close))
                 }
             },
         )

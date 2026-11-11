@@ -216,7 +216,7 @@ internal fun VerseReferenceHeader(
             Box {
                 IconButton(
                     onClick = { expanded = true },
-                    modifier = Modifier.size(34.dp),
+                    modifier = Modifier.size(44.dp),
                 ) {
                     Icon(
                         imageVector = Icons.Default.CompareArrows,
@@ -265,7 +265,7 @@ internal fun VerseReferenceHeader(
         if (onDelete != null) {
             IconButton(
                 onClick = onDelete,
-                modifier = Modifier.size(34.dp),
+                modifier = Modifier.size(44.dp),
             ) {
                 Icon(
                     imageVector = Icons.Default.Delete,

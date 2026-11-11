@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.os.Bundle
 import android.content.Intent
 import android.net.Uri
@@ -71,17 +72,11 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun MainActivity.BiblionApp() {
     val activity = this
-    val importUri by incomingImportUri.collectAsState()
+    val importUri by incomingImportUri.collectAsStateWithLifecycle()
     var themeMode by remember {
         mutableStateOf(
             ThemePreferences.getThemeMode(activity)
         )
-    }
-    var showLaunchScreen by remember { mutableStateOf(true) }
-
-    LaunchedEffect(Unit) {
-        delay(350)
-        showLaunchScreen = false
     }
 
     DisposableEffect(Unit) {
@@ -104,24 +99,20 @@ private fun MainActivity.BiblionApp() {
         Surface(
             modifier = Modifier.fillMaxSize()
         ) {
-            if (showLaunchScreen) {
-                BiblionLaunchScreen(isDarkTheme = themeMode == BiblionThemeMode.DARK)
-            } else {
-                AppNavigation(
-                    isDarkTheme = themeMode == BiblionThemeMode.DARK,
-                    onToggleDarkTheme = { enabled ->
-                        themeMode = if (enabled) BiblionThemeMode.DARK else BiblionThemeMode.LIGHT
-                        ThemePreferences.setThemeMode(activity, themeMode)
-                    },
-                    themeMode = themeMode,
-                    onThemeModeChange = { selected ->
-                        themeMode = selected
-                        ThemePreferences.setThemeMode(activity, selected)
-                    },
-                    incomingImportUri = importUri,
-                    onImportUriConsumed = { incomingImportUri.value = null },
-                )
-            }
+            AppNavigation(
+                isDarkTheme = themeMode == BiblionThemeMode.DARK,
+                onToggleDarkTheme = { enabled ->
+                    themeMode = if (enabled) BiblionThemeMode.DARK else BiblionThemeMode.LIGHT
+                    ThemePreferences.setThemeMode(activity, themeMode)
+                },
+                themeMode = themeMode,
+                onThemeModeChange = { selected ->
+                    themeMode = selected
+                    ThemePreferences.setThemeMode(activity, selected)
+                },
+                incomingImportUri = importUri,
+                onImportUriConsumed = { incomingImportUri.value = null },
+            )
         }
     }
 }
@@ -129,20 +120,3 @@ private fun MainActivity.BiblionApp() {
 @Suppress("DEPRECATION")
 private fun Intent.studyImportUri(): Uri? =
     data ?: getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
-
-@Composable
-private fun BiblionLaunchScreen(isDarkTheme: Boolean) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        contentAlignment = Alignment.Center
-    ) {
-        Image(
-            painter = painterResource(id = biblionLogoRes(isDarkTheme)),
-            contentDescription = null,
-            modifier = Modifier.size(144.dp),
-            contentScale = ContentScale.Fit
-        )
-    }
-}

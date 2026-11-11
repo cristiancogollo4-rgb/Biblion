@@ -64,6 +64,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import com.cristiancogollo.biblion.core.ui.motion.rememberBiblionMotionEnabled
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import com.cristiancogollo.biblion.GuidedTutorialProgress
 import com.cristiancogollo.biblion.GuidedTutorialScreenTarget
@@ -186,13 +188,13 @@ fun SearchScreen(
     val coroutineScope = rememberCoroutineScope()
     val isKeyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
-    var searchQuery by remember { mutableStateOf("") }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     var uiState by remember { mutableStateOf<SearchUiState>(SearchUiState.Idle) }
     var recentSearches by remember { mutableStateOf<List<SearchHistoryEntry>>(emptyList()) }
     var showAllRecent by remember { mutableStateOf(false) }
-    var selectedTestament by remember { mutableStateOf(BibleSearchTestament.ALL) }
-    var selectedBook by remember { mutableStateOf<String?>(null) }
-    var expandedTopicSlug by remember { mutableStateOf<String?>(null) }
+    var selectedTestament by rememberSaveable { mutableStateOf(BibleSearchTestament.ALL) }
+    var selectedBook by rememberSaveable { mutableStateOf<String?>(null) }
+    var expandedTopicSlug by rememberSaveable { mutableStateOf<String?>(null) }
     // Indica si el primer render ya termino. Se usa para diferir la carga
     // de secciones pesadas (carrusel, busquedas recientes) y evitar el bloqueo
     // del primer frame que causa "Skipped 89 frames" en el Choreographer.
@@ -571,9 +573,10 @@ private fun SearchInputCard(
     onClear: () -> Unit
 ) {
     var placeholderIndex by remember { mutableStateOf(0) }
+    val motionEnabled = rememberBiblionMotionEnabled()
 
-    LaunchedEffect(query) {
-        if (query.isEmpty()) {
+    LaunchedEffect(query, motionEnabled) {
+        if (query.isEmpty() && motionEnabled) {
             while (true) {
                 delay(3500)
                 placeholderIndex = (placeholderIndex + 1) % rotatingPlaceholders.size

@@ -2,6 +2,7 @@ package com.cristiancogollo.biblion.feature.bibi.ui
 
 import android.content.Context
 import android.util.Log
+import com.cristiancogollo.biblion.R
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -23,6 +24,7 @@ import com.cristiancogollo.biblion.feature.bibi.model.Confidence
 import com.cristiancogollo.biblion.feature.bibi.model.Source
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -57,6 +59,7 @@ class BibiViewModel(
     private var currentSessionId: Long? = null
     private var chatHistory: List<ChatExchange> = emptyList()
     private var lastQueries: List<String> = emptyList()
+    private var activeQuestionJob: Job? = null
     private var initializedMode: String? = null
     private var initialGreeting: String = ""
     private var initialSuggestions: List<BibiSuggestion> = emptyList()
@@ -206,7 +209,7 @@ class BibiViewModel(
             _uiState.value.messages.filter { it.role == "user" }.map { it.text },
         )
 
-        viewModelScope.launch {
+        activeQuestionJob = viewModelScope.launch {
             try {
                 val resolvedContext = withContext(Dispatchers.IO) {
                     BibiReferenceContextResolver.resolve(appContext, query, bibiContext)
@@ -262,6 +265,18 @@ class BibiViewModel(
                     intent = result.intent,
                 )).takeLast(10)
                 lastQueries = (lastQueries + query).takeLast(5)
+                _uiState.value = _uiState.value.copy(
+                    messages = _uiState.value.messages + BibiChatMessage(
+                        role = "assistant",
+                        text = displayAnswer,
+                        suggestions = result.suggestions,
+                        suggestedBlocks = result.suggestedBlocks,
+                        contextPassages = contextPassages,
+                    ),
+                    completedExchanges = _uiState.value.completedExchanges + 1,
+                )
+                // La respuesta ya es visible; guardar y registrar logros no debe poder cancelarse.
+                activeQuestionJob = null
                 try {
                     persistExchange(
                         query = query,
@@ -280,16 +295,6 @@ class BibiViewModel(
                 } catch (error: Exception) {
                     Log.w("BibiViewModel", "No se pudo guardar la respuesta", error)
                 }
-                _uiState.value = _uiState.value.copy(
-                    messages = _uiState.value.messages + BibiChatMessage(
-                        role = "assistant",
-                        text = displayAnswer,
-                        suggestions = result.suggestions,
-                        suggestedBlocks = result.suggestedBlocks,
-                        contextPassages = contextPassages,
-                    ),
-                    completedExchanges = _uiState.value.completedExchanges + 1,
-                )
                 try {
                     AchievementTracker.track(
                         appContext,
@@ -313,13 +318,34 @@ class BibiViewModel(
                 _uiState.value = _uiState.value.copy(
                     messages = _uiState.value.messages + BibiChatMessage(
                         role = "assistant",
-                        text = "No pude responder en este momento. Intenta de nuevo.",
+                        text = appContext.getString(R.string.bibi_error_retry_message),
+                        suggestions = listOf(
+                            BibiSuggestion(
+                                label = appContext.getString(R.string.bibi_action_retry),
+                                query = query,
+                                isAi = forceRemote,
+                            )
+                        ),
                     ),
                 )
             } finally {
                 _uiState.value = _uiState.value.copy(isLoading = false)
             }
         }
+    }
+
+    /** Detiene una respuesta en curso (p. ej. el Worker tarda) sin bloquear el chat. */
+    fun cancelQuestion() {
+        val job = activeQuestionJob ?: return
+        if (!job.isActive) return
+        job.cancel()
+        _uiState.value = _uiState.value.copy(
+            messages = _uiState.value.messages + BibiChatMessage(
+                role = "assistant",
+                text = appContext.getString(R.string.bibi_answer_cancelled),
+            ),
+            isLoading = false,
+        )
     }
 
     private suspend fun persistExchange(

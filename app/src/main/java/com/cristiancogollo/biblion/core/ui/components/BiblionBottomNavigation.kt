@@ -58,7 +58,8 @@ fun BiblionBottomNavigation(
     onProfile: () -> Unit,
     onGuidedTutorialTargetAction: (String) -> Unit = {},
     activeTutorialTargetKey: String? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    allowReselectStudy: Boolean = false,
 ) {
     if (!LocalPrimaryNavigationVisible.current) return
 
@@ -131,6 +132,7 @@ fun BiblionBottomNavigation(
                             onGuidedTutorialTargetAction(GuidedTutorialTargets.NAV_STUDY)
                             onStudy()
                         },
+                        allowReselect = allowReselectStudy,
                         tutorialHighlighted =
                             activeTutorialTargetKey == GuidedTutorialTargets.NAV_STUDY,
                     )
@@ -153,6 +155,7 @@ private fun BiblionBottomNavigationItem(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    allowReselect: Boolean = false,
     tutorialHighlighted: Boolean = false,
 ) {
     val itemShape = RoundedCornerShape(18.dp)
@@ -163,7 +166,7 @@ private fun BiblionBottomNavigationItem(
         label = "navigationIconColor",
     )
     TextButton(
-        onClick = { if (!selected) onClick() },
+        onClick = { if (!selected || allowReselect) onClick() },
         modifier = modifier.then(
             if (tutorialHighlighted) {
                 Modifier

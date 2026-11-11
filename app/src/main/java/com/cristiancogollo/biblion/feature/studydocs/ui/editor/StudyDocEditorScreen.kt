@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion.feature.studydocs.ui.editor
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
@@ -111,7 +112,7 @@ fun StudyDocEditorScreen(
     val isKeyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
     // Usar splitViewModel si está disponible (modo split), sino usar viewModel (modo standalone)
-    val editorState by (splitViewModel?.editorState ?: viewModel?.uiState)?.collectAsState()
+    val editorState by (splitViewModel?.editorState ?: viewModel?.uiState)?.collectAsStateWithLifecycle()
         ?: remember { mutableStateOf(com.cristiancogollo.biblion.feature.studydocs.domain.StudyEditorUiState()) }
 
     var showSaveDialog by remember { mutableStateOf(false) }
@@ -130,7 +131,6 @@ fun StudyDocEditorScreen(
     var compactActionsExpanded by remember { mutableStateOf(false) }
     var isFullScreen by remember { mutableStateOf(false) }
     var pendingPaneRoute by remember { mutableStateOf<String?>(null) }
-    var studySectionSelected by rememberSaveable { mutableStateOf(false) }
     var showDiscardDialog by remember { mutableStateOf(false) }
     val internalBibiController = remember { StudyBibiController() }
     val activeBibiController = bibiController ?: internalBibiController
@@ -139,7 +139,6 @@ fun StudyDocEditorScreen(
     }
 
     fun navigateInStudyPane(route: String) {
-        studySectionSelected = false
         compactStudyPane = "bible"
         if (isFullScreen && !useCompactStudyLayout) {
             pendingPaneRoute = route
@@ -156,10 +155,6 @@ fun StudyDocEditorScreen(
                 studyPaneNavController.navigateTopLevel(route)
             }
         }
-    }
-
-    LaunchedEffect(studyPaneRoute) {
-        if (studyPaneRoute != null) studySectionSelected = false
     }
 
     val onVerseComparisonSelected:
@@ -805,11 +800,12 @@ fun StudyDocEditorScreen(
         !isKeyboardVisible && pendingPaneRoute == null
     ) {
         BiblionBottomNavigation(
-            currentRoute = if (studySectionSelected || (useCompactStudyLayout && compactDocumentActive)) {
+            currentRoute = if (useCompactStudyLayout && compactDocumentActive) {
                 StudyDocScreen.StudyDocsList.route
             } else {
                 studyPaneRoute
             },
+            allowReselectStudy = true,
             onHome = {
                 navigateInStudyPane(Screen.Home.route)
             },
@@ -819,10 +815,7 @@ fun StudyDocEditorScreen(
             onSearch = {
                 navigateInStudyPane(Screen.Search.createRoute())
             },
-            onStudy = {
-                studySectionSelected = true
-                compactStudyPane = "document"
-            },
+            onStudy = { navigateInStudyPane(StudyDocScreen.StudyDocsList.route) },
             onProfile = {
                 navigateInStudyPane(Screen.Profile.route)
             },

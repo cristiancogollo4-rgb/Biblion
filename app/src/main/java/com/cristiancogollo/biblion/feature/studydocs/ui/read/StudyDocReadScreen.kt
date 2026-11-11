@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion.feature.studydocs.ui.read
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -65,10 +66,11 @@ private data class BibleDialogRequest(
 fun StudyDocReadScreen(
     viewModel: StudyDocViewModel,
     remoteId: String? = null,
+    readOnly: Boolean = false,
     onBack: () -> Unit,
     onEdit: () -> Unit,
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val readZoomState = rememberDocumentZoomState()
     val narrowViewport = LocalConfiguration.current.screenWidthDp < 900
     var viewMode by rememberSaveable(narrowViewport) {
@@ -184,8 +186,10 @@ fun StudyDocReadScreen(
                         }
                     }
                     ZoomMenu(zoomState = readZoomState, showStepButtons = !narrowViewport)
-                    IconButton(onClick = onEdit, enabled = uiState.lastError == null) {
-                        Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.study_library_edit))
+                    if (!readOnly) {
+                        IconButton(onClick = onEdit, enabled = uiState.lastError == null) {
+                            Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.study_library_edit))
+                        }
                     }
                 },
             )

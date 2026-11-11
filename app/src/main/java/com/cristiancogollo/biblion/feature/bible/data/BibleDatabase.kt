@@ -208,11 +208,16 @@ interface BibleDao {
         SELECT bookName, chapter, verse, text
         FROM bible_verses
         WHERE versionKey = :versionKey
-            AND text LIKE '%' || :query || '%' COLLATE NOCASE
             AND (:normalizedBookName IS NULL OR normalizedBookName = :normalizedBookName)
             AND (:minBookIndex IS NULL OR bookIndex >= :minBookIndex)
             AND (:maxBookIndex IS NULL OR bookIndex <= :maxBookIndex)
+            AND REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(text,
+                'á','a'),'é','e'),'í','i'),'ó','o'),'ú','u'),'ü','u'),'ñ','n'),
+                'Á','A'),'É','E'),'Í','I'),'Ó','O'),'Ú','U'),'Ü','U'),'Ñ','N')
+                LIKE '%' || :query || '%' ESCAPE '\' COLLATE NOCASE
         ORDER BY bookIndex ASC, chapter ASC, verse ASC
+        LIMIT :limit
         """
     )
     suspend fun searchVersesFiltered(
@@ -220,7 +225,8 @@ interface BibleDao {
         query: String,
         normalizedBookName: String?,
         minBookIndex: Int?,
-        maxBookIndex: Int?
+        maxBookIndex: Int?,
+        limit: Int,
     ): List<BibleSearchRow>
 
     @Query(

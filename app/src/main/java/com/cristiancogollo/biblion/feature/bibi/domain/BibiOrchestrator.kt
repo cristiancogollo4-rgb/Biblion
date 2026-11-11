@@ -65,14 +65,25 @@ class BibiOrchestrator(
         val localResponse = if (forceRemote || doctrinalContext.isDebatedQuestion) {
             null
         } else {
-            KnowledgeEngine.answer(
-                context = context,
-                question = question,
-                userContext = bibiContext.toKnowledgeContext(userName, chatHistory, lastQueries),
-            )
+            // Si una base local falla (asset corrupto, disco lleno) Bibi sigue con la IA.
+            try {
+                KnowledgeEngine.answer(
+                    context = context,
+                    question = question,
+                    userContext = bibiContext.toKnowledgeContext(userName, chatHistory, lastQueries),
+                )
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                android.util.Log.w("BibiOrchestrator", "Respuesta local no disponible", error)
+                null
+            }
         }
 
-        if (localResponse != null && localResponse.confidence != Confidence.LOW) {
+        // Profundizar es justo lo que el diccionario local no puede hacer: la respuesta
+        // local solo sirve como contexto para la IA y como respaldo sin conexion.
+        val wantsDeeper = intent == KnowledgeEngine.BibiIntent.DIVE_DEEPER
+        if (!wantsDeeper && localResponse != null && localResponse.confidence != Confidence.LOW) {
             val localAnswer = localResponse.buildChatText()
             if (InstitutionalDoctrinePolicy.containsUnsupportedAttribution(localAnswer)) {
                 return attributionFallback()
@@ -170,12 +181,16 @@ class BibiOrchestrator(
                 },
                 confidence = remoteResponse.confidence.toConfidence(),
                 source = Source.AI,
+                // Mantiene el sujeto para anaforas posteriores ("¿y donde vivio?").
+                resolvedTerm = localResponse?.title?.takeIf { localResponse.confidence != Confidence.LOW },
                 intent = remoteResponse.intentDetected ?: intent.name,
             )
         }
 
         val fallback = (if (doctrinalContext.isDebatedQuestion) {
             doctrinalContext.fallbackAnswer()
+        } else if (wantsDeeper && localResponse != null) {
+            DEEPEN_OFFLINE_NOTE + localResponse.buildChatText()
         } else localResponse?.buildChatText())
             ?: "No pude procesar tu pregunta. Intenta mencionar un pasaje, personaje o tema biblico concreto."
         return BibiQueryResult(
@@ -326,3 +341,6 @@ private fun String.toConfidence(): Confidence = when (lowercase()) {
     "low" -> Confidence.LOW
     else -> Confidence.MEDIUM
 }
+
+private const val DEEPEN_OFFLINE_NOTE =
+    "No pude conectar con la IA para profundizar. Mientras tanto, esto es lo que tengo en el diccionario:\n\n"

@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.runtime.Composable
@@ -49,15 +50,19 @@ fun AppNavigation(
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel()
     val profileViewModel: ProfileViewModel = viewModel()
-    val authState by authViewModel.state.collectAsState()
-    val profileState by profileViewModel.state.collectAsState()
+    val authState by authViewModel.state.collectAsStateWithLifecycle()
+    val profileState by profileViewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val appContext = context.applicationContext
     val googleCredentialsAuth = remember(context) { GoogleCredentialsAuth(context) }
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(Unit) {
-        AchievementBackfill.runOnce(context)
+        // Trabajo de mantenimiento: fuera del hilo principal y despues del primer render.
+        kotlinx.coroutines.delay(STARTUP_DEFERRED_WORK_MS)
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            AchievementBackfill.runOnce(appContext)
+        }
     }
     val activity = context.findActivity()
     var showAuthDialog by remember { mutableStateOf(false) }
@@ -161,10 +166,6 @@ fun AppNavigation(
                 authViewModel.onGoogleSignInUnavailable()
             }
         }
-    }
-
-    LaunchedEffect(appContext) {
-        FirestoreSyncManager.initialize(appContext)
     }
 
     LaunchedEffect(appContext) {
@@ -635,3 +636,6 @@ private fun preferredUserName(profileState: ProfileUiState, currentUser: AuthUse
     )
     return candidates.firstOrNull { it.isNotBlank() }
 }
+
+/** Retraso para tareas no visibles al arrancar, cuando Home ya esta pintado. */
+private const val STARTUP_DEFERRED_WORK_MS = 1_500L
