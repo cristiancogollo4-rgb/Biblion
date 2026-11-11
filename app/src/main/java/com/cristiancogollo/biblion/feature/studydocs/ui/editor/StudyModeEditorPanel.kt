@@ -48,7 +48,6 @@ import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cristiancogollo.biblion.addSharedPrimaryDestinations
-import com.cristiancogollo.biblion.LocalPrimaryNavigationVisible
 import com.cristiancogollo.biblion.R
 import com.cristiancogollo.biblion.AuthDialog
 import com.cristiancogollo.biblion.AuthDialogMode
@@ -675,8 +674,6 @@ internal fun BibleReaderPane(
         localNavController.navigate("auth")
     }
 
-    // El editor dibuja una sola cápsula; las rutas internas no deben crear Popups propios.
-    CompositionLocalProvider(LocalPrimaryNavigationVisible provides false) {
     NavHost(
         navController = localNavController,
         startDestination = "home",
@@ -793,7 +790,6 @@ internal fun BibleReaderPane(
             )
         }
 
-    }
     }
 
     // DEBUG eliminado: el if (showAuthDialog) estaba fuera del NavHost y no se

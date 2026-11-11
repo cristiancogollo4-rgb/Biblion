@@ -126,16 +126,6 @@ fun BooksScreen(
                         showNavigationIcon = false
                     )
                 },
-                bottomBar = {
-                    BiblionBottomNavigation(
-                        currentRoute = currentRoute,
-                        onHome = { navController.navigateTopLevel(Screen.Home.route) },
-                        onBible = { navController.navigateTopLevel(Screen.Books.createRoute(selectedTestament)) },
-                        onSearch = { navController.navigateTopLevel(Screen.Search.createRoute()) },
-                        onStudy = { navController.navigateTopLevel(StudyDocScreen.StudyDocsList.route) },
-                        onProfile = onNavigateToProfile
-                    )
-                }
             ) { innerPadding ->
             Column(
                 modifier = Modifier

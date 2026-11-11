@@ -190,16 +190,6 @@ fun ProfileScreen(
             ProfileBrandTopBar(onSettingsClick = { showSettings = true })
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
-        bottomBar = {
-            BiblionBottomNavigation(
-                currentRoute = currentRoute?.destination?.route,
-                onHome = { navController.navigateTopLevel(Screen.Home.route) },
-                onBible = { navController.navigateTopLevel(Screen.Books.createRoute(Testament.OLD)) },
-                onSearch = { navController.navigateTopLevel(Screen.Search.createRoute()) },
-                onStudy = { navController.navigateTopLevel(StudyDocScreen.StudyDocsList.route) },
-                onProfile = { navController.navigateTopLevel(Screen.Profile.route) }
-            )
-        },
         containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
 

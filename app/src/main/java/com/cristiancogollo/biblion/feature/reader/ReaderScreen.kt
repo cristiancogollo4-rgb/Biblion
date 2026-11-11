@@ -275,6 +275,8 @@ fun ReaderScreen(
                             isDarkTheme = isDarkTheme,
                             onToggleDarkTheme = onToggleDarkTheme,
                             currentUserName = currentUserName,
+                            primaryNavigationVisible = activePane ==
+                                com.cristiancogollo.biblion.feature.studydocs.ui.editor.CompactStudyPane.Bible,
                         )
                     }
                 },
@@ -306,6 +308,13 @@ fun ReaderScreen(
                                 currentUserName = currentUserName,
                             )
                         }
+                    } else {
+                        // En modo enfoque no hay panel de Biblia que navegar.
+                        RegisterPrimaryNavigationOverride(PrimaryNavigationOverride(
+                            currentRoute = null,
+                            visible = false,
+                            onHome = {}, onBible = {}, onSearch = {}, onStudy = {}, onProfile = {},
+                        ))
                     }
                 },
                 rightPane = {
@@ -355,8 +364,24 @@ private fun StudyModeNavigation(
     isDarkTheme: Boolean,
     onToggleDarkTheme: (Boolean) -> Unit,
     currentUserName: String?,
+    primaryNavigationVisible: Boolean = true,
 ) {
     val splitNavController = rememberNavController()
+    val splitEntry by splitNavController.currentBackStackEntryAsState()
+
+    // La barra del shell navega este panel; el lector principal no cambia de ruta.
+    RegisterPrimaryNavigationOverride(
+        PrimaryNavigationOverride(
+            currentRoute = splitEntry?.destination?.route,
+            visible = primaryNavigationVisible,
+            onHome = { splitNavController.navigateTopLevel(Screen.Home.route) },
+            onBible = { splitNavController.navigateTopLevel(Screen.Books.createRoute(Testament.OLD)) },
+            onSearch = { splitNavController.navigateTopLevel(Screen.Search.createRoute()) },
+            onStudy = { splitNavController.navigateTopLevel(StudyDocScreen.StudyDocsList.route) },
+            // Este panel no tiene ruta de perfil, igual que antes en Home y Biblia.
+            onProfile = {},
+        )
+    )
 
     NavHost(navController = splitNavController, startDestination = Screen.Home.route) {
         addSharedPrimaryDestinations(
@@ -1470,18 +1495,6 @@ fun ReaderContent(
                     )
                 )
             },
-            bottomBar = {
-                BiblionBottomNavigation(
-                    currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route,
-                    onHome = { navController.navigateTopLevel(Screen.Home.route) },
-                    onBible = { navController.navigateTopLevel(Screen.Books.createRoute(Testament.OLD)) },
-                    onSearch = { navController.navigateTopLevel(Screen.Search.createRoute()) },
-                    onStudy = { navController.navigateTopLevel(StudyDocScreen.StudyDocsList.route) },
-                    onProfile = { navController.navigateTopLevel(Screen.Profile.route) },
-                        onGuidedTutorialTargetAction = onGuidedTutorialTargetAction,
-                        activeTutorialTargetKey = guidedStep?.targetKey,
-                    )
-            }
         ) { padding ->
         Box(
             modifier = Modifier

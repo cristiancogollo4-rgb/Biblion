@@ -191,18 +191,6 @@ fun HomeScreen(
                 showNavigationIcon = false,
             )
         },
-        bottomBar = {
-            BiblionBottomNavigation(
-                currentRoute = currentRoute,
-                onHome = { navController.navigateTopLevel(Screen.Home.route) },
-                onBible = { navController.navigateTopLevel(Screen.Books.createRoute(Testament.OLD)) },
-                onSearch = { navController.navigateTopLevel(Screen.Search.createRoute()) },
-                onStudy = { navController.navigateTopLevel(StudyDocScreen.StudyDocsList.route) },
-                onProfile = onNavigateToProfile,
-                        onGuidedTutorialTargetAction = onGuidedTutorialTargetAction,
-                        activeTutorialTargetKey = guidedStep?.targetKey,
-                    )
-        },
     ) { innerPadding ->
         Column(
             modifier = Modifier

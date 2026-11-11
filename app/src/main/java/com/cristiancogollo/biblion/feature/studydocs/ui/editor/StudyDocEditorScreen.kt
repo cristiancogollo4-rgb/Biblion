@@ -60,7 +60,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.cristiancogollo.biblion.BiblionBottomNavigation
+import com.cristiancogollo.biblion.PrimaryNavigationOverride
+import com.cristiancogollo.biblion.RegisterPrimaryNavigationOverride
 import com.cristiancogollo.biblion.Screen
 import com.cristiancogollo.biblion.Testament
 import com.cristiancogollo.biblion.navigateTopLevel
@@ -796,29 +797,23 @@ fun StudyDocEditorScreen(
     }
 
     // Navega solo el panel de consulta; el documento permanece montado y conserva su estado.
-    if (isSplitMode && navController != null && !editorState.isLoading &&
-        !isKeyboardVisible && pendingPaneRoute == null
-    ) {
-        BiblionBottomNavigation(
-            currentRoute = if (useCompactStudyLayout && compactDocumentActive) {
-                StudyDocScreen.StudyDocsList.route
-            } else {
-                studyPaneRoute
-            },
-            allowReselectStudy = true,
-            onHome = {
-                navigateInStudyPane(Screen.Home.route)
-            },
-            onBible = {
-                navigateInStudyPane(Screen.Books.createRoute(Testament.OLD))
-            },
-            onSearch = {
-                navigateInStudyPane(Screen.Search.createRoute())
-            },
-            onStudy = { navigateInStudyPane(StudyDocScreen.StudyDocsList.route) },
-            onProfile = {
-                navigateInStudyPane(Screen.Profile.route)
-            },
+    // La barra del shell ocupa el mismo lugar; aquí solo se le indica qué panel navegar.
+    if (navController != null) {
+        RegisterPrimaryNavigationOverride(
+            PrimaryNavigationOverride(
+                currentRoute = if (useCompactStudyLayout && compactDocumentActive) {
+                    StudyDocScreen.StudyDocsList.route
+                } else {
+                    studyPaneRoute
+                },
+                allowReselectStudy = true,
+                visible = isSplitMode && !editorState.isLoading && pendingPaneRoute == null,
+                onHome = { navigateInStudyPane(Screen.Home.route) },
+                onBible = { navigateInStudyPane(Screen.Books.createRoute(Testament.OLD)) },
+                onSearch = { navigateInStudyPane(Screen.Search.createRoute()) },
+                onStudy = { navigateInStudyPane(StudyDocScreen.StudyDocsList.route) },
+                onProfile = { navigateInStudyPane(Screen.Profile.route) },
+            )
         )
     }
 

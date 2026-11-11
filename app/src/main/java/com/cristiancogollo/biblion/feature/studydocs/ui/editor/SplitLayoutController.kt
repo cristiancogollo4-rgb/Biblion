@@ -22,7 +22,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -32,14 +31,13 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import com.cristiancogollo.biblion.LocalPrimaryNavigationVisible
 import com.cristiancogollo.biblion.R
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 
 /**
  * Controlador de layout para modo estudio split-screen.
  *
- * Distribución fija 50/50.
+ * DistribuciÃ³n fija 50/50.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -226,9 +224,6 @@ private fun BoxScope.CompactPaneLayer(
             .then(if (active) Modifier else Modifier.clearAndSetSemantics { }),
         contentAlignment = Alignment.Center,
     ) {
-        // A Popup no le afecta el alpha del panel oculto: su navegación debe desaparecer.
-        CompositionLocalProvider(LocalPrimaryNavigationVisible provides active) {
-            content()
-        }
+        content()
     }
 }

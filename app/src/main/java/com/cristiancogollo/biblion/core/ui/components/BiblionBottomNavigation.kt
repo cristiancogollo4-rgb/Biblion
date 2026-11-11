@@ -25,7 +25,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,8 +33,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
 import com.cristiancogollo.biblion.ui.theme.BiblionBlueNavigation
 import com.cristiancogollo.biblion.ui.theme.BiblionDarkNavigation
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
@@ -46,8 +43,10 @@ import com.cristiancogollo.biblion.feature.studydocs.ui.Screen as StudyDocScreen
 import com.cristiancogollo.biblion.core.ui.motion.BiblionMotion
 import com.cristiancogollo.biblion.core.ui.motion.rememberBiblionMotionEnabled
 
-internal val LocalPrimaryNavigationVisible = compositionLocalOf { true }
-
+/**
+ * Cápsula de navegación principal. Es un elemento normal del árbol de Compose: la app la
+ * dibuja una sola vez desde [PrimaryNavigationBar], por encima del NavHost.
+ */
 @Composable
 fun BiblionBottomNavigation(
     currentRoute: String?,
@@ -61,10 +60,7 @@ fun BiblionBottomNavigation(
     modifier: Modifier = Modifier,
     allowReselectStudy: Boolean = false,
 ) {
-    if (!LocalPrimaryNavigationVisible.current) return
-
     val configuration = LocalConfiguration.current
-    val viewportWidth = configuration.screenWidthDp.dp
     val capsuleWidth = (configuration.screenWidthDp - 32)
         .coerceIn(0, 680)
         .dp
@@ -74,75 +70,70 @@ fun BiblionBottomNavigation(
         BiblionThemeMode.DARK -> BiblionDarkNavigation
     }
 
-    Popup(
-        alignment = Alignment.BottomCenter,
-        properties = PopupProperties(focusable = false),
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Box(
-            modifier = modifier
-                .width(viewportWidth)
-                .navigationBarsPadding()
-                .padding(vertical = 12.dp),
-            contentAlignment = Alignment.Center,
+        Surface(
+            modifier = Modifier
+                .width(capsuleWidth),
+            shape = RoundedCornerShape(32.dp),
+            color = capsuleColor,
+            shadowElevation = 18.dp,
+            tonalElevation = 0.dp,
         ) {
-            Surface(
+            Row(
                 modifier = Modifier
-                    .width(capsuleWidth),
-                shape = RoundedCornerShape(32.dp),
-                color = capsuleColor,
-                shadowElevation = 18.dp,
-                tonalElevation = 0.dp,
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    BiblionBottomNavigationItem("Home", Icons.Default.Home, currentRoute == Screen.Home.route, onHome)
-                    BiblionBottomNavigationItem(
-                        label = "Biblia",
-                        icon = Icons.Default.MenuBook,
-                        selected = currentRoute?.startsWith(Screen.Books.route.substringBefore("/{")) == true ||
-                            currentRoute?.startsWith("reader") == true,
-                        onClick = {
-                            onGuidedTutorialTargetAction(GuidedTutorialTargets.NAV_BIBLE)
-                            onBible()
-                        },
-                        tutorialHighlighted =
-                            activeTutorialTargetKey == GuidedTutorialTargets.NAV_BIBLE,
-                    )
-                    BiblionBottomNavigationItem(
-                        label = "Buscar",
-                        icon = Icons.Default.Search,
-                        selected = currentRoute?.startsWith(Screen.Search.route.substringBefore("?")) == true,
-                        onClick = {
-                            onGuidedTutorialTargetAction(GuidedTutorialTargets.NAV_SEARCH)
-                            onSearch()
-                        },
-                        tutorialHighlighted =
-                            activeTutorialTargetKey == GuidedTutorialTargets.NAV_SEARCH,
-                    )
-                    BiblionBottomNavigationItem(
-                        label = "Estudio",
-                        icon = Icons.Default.EditNote,
-                        selected = currentRoute?.startsWith(StudyDocScreen.StudyDocsList.route) == true,
-                        onClick = {
-                            onGuidedTutorialTargetAction(GuidedTutorialTargets.NAV_STUDY)
-                            onStudy()
-                        },
-                        allowReselect = allowReselectStudy,
-                        tutorialHighlighted =
-                            activeTutorialTargetKey == GuidedTutorialTargets.NAV_STUDY,
-                    )
-                    BiblionBottomNavigationItem(
-                        "Perfil",
-                        Icons.Default.AccountCircle,
-                        currentRoute?.startsWith(Screen.Profile.route) == true,
-                        onProfile,
-                    )
-                }
+                BiblionBottomNavigationItem("Home", Icons.Default.Home, currentRoute == Screen.Home.route, onHome)
+                BiblionBottomNavigationItem(
+                    label = "Biblia",
+                    icon = Icons.Default.MenuBook,
+                    selected = currentRoute?.startsWith(Screen.Books.route.substringBefore("/{")) == true ||
+                        currentRoute?.startsWith("reader") == true,
+                    onClick = {
+                        onGuidedTutorialTargetAction(GuidedTutorialTargets.NAV_BIBLE)
+                        onBible()
+                    },
+                    tutorialHighlighted =
+                        activeTutorialTargetKey == GuidedTutorialTargets.NAV_BIBLE,
+                )
+                BiblionBottomNavigationItem(
+                    label = "Buscar",
+                    icon = Icons.Default.Search,
+                    selected = currentRoute?.startsWith(Screen.Search.route.substringBefore("?")) == true,
+                    onClick = {
+                        onGuidedTutorialTargetAction(GuidedTutorialTargets.NAV_SEARCH)
+                        onSearch()
+                    },
+                    tutorialHighlighted =
+                        activeTutorialTargetKey == GuidedTutorialTargets.NAV_SEARCH,
+                )
+                BiblionBottomNavigationItem(
+                    label = "Estudio",
+                    icon = Icons.Default.EditNote,
+                    selected = currentRoute?.startsWith(StudyDocScreen.StudyDocsList.route) == true,
+                    onClick = {
+                        onGuidedTutorialTargetAction(GuidedTutorialTargets.NAV_STUDY)
+                        onStudy()
+                    },
+                    allowReselect = allowReselectStudy,
+                    tutorialHighlighted =
+                        activeTutorialTargetKey == GuidedTutorialTargets.NAV_STUDY,
+                )
+                BiblionBottomNavigationItem(
+                    "Perfil",
+                    Icons.Default.AccountCircle,
+                    currentRoute?.startsWith(Screen.Profile.route) == true,
+                    onProfile,
+                )
             }
         }
     }

@@ -399,18 +399,6 @@ fun SearchScreen(
                 showSearchIcon = false,
             )
         },
-        bottomBar = {
-            if (!isKeyboardVisible) {
-                BiblionBottomNavigation(
-                    currentRoute = navController.currentBackStackEntry?.destination?.route,
-                    onHome = { navController.navigateTopLevel(Screen.Home.route) },
-                    onBible = { navController.navigateTopLevel(Screen.Books.createRoute(Testament.OLD)) },
-                    onSearch = { navController.navigateTopLevel(Screen.Search.createRoute()) },
-                    onStudy = { navController.navigateTopLevel(StudyDocScreen.StudyDocsList.route) },
-                    onProfile = { navController.navigateTopLevel(Screen.Profile.route) }
-                )
-            }
-        }
     ) { innerPadding ->
         Box(
             modifier = Modifier

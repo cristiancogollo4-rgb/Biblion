@@ -3,7 +3,12 @@ package com.cristiancogollo.biblion
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -310,6 +315,9 @@ fun AppNavigation(
         }
     }
 
+    val primaryNavigationRegistry = remember { PrimaryNavigationRegistry() }
+    CompositionLocalProvider(LocalPrimaryNavigationRegistry provides primaryNavigationRegistry) {
+    Box(modifier = Modifier.fillMaxSize()) {
     NavHost(
         navController = navController,
         startDestination = Screen.Home.route,
@@ -573,6 +581,23 @@ fun AppNavigation(
             )
         }
 
+    }
+
+    PrimaryNavigationBar(
+        navController = navController,
+        registry = primaryNavigationRegistry,
+        onProfile = {
+            if (authState.isAuthenticated) {
+                navController.navigateTopLevel(Screen.Profile.route)
+            } else {
+                openAuthDialog(AuthDialogMode.LOGIN)
+            }
+        },
+        guidedTutorial = activeGuidedTutorial,
+        onGuidedTutorialTargetAction = ::handleGuidedTutorialTargetAction,
+        modifier = Modifier.align(Alignment.BottomCenter),
+    )
+    }
     }
 
     AchievementUnlockedHost()
