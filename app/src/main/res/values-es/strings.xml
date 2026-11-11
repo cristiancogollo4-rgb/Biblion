@@ -302,8 +302,6 @@
     <string name="home_announcement_personalize_action">Comenzar a leer</string>
     <string name="guide_close_book_description">Cerrar y elegir un libro</string>
     <string name="action_retry">Reintentar</string>
-    <string name="reader_next_chapter_load_error">No se pudo cargar el siguiente cap&#237;tulo.</string>
-    <string name="reader_loading_next_chapter">Cargando el siguiente cap&#237;tulo&#8230;</string>
 
     <!-- Busqueda y diccionario -->
     <string name="search_topics_section_subtitle">Temas b&#237;blicos relacionados con tu b&#250;squeda</string>
@@ -354,7 +352,11 @@
     <string name="reader_width_focused">Concentrado</string>
     <string name="reader_settings_flow">Flujo de lectura</string>
     <string name="reader_continuous_title">Lectura continua</string>
-    <string name="reader_continuous_description">Desplázate sin cortes hacia el capítulo anterior o el siguiente.</string>
+    <string name="reader_continuous_description">Despl&#225;zate de un cap&#237;tulo al siguiente sin usar los botones.</string>
+    <string name="reader_next_chapter_load_error">No se pudo cargar el siguiente cap&#237;tulo.</string>
+    <string name="reader_chapter_end">Fin de %1$s %2$d</string>
+    <string name="reader_book_end">Terminaste %1$s</string>
+    <string name="reader_continue_with_chapter">Continuar con %1$s %2$d</string>
     <string name="reader_text_presentation">Presentación del texto</string>
     <string name="reader_text_layout_separated">Separado</string>
     <string name="reader_text_layout_flowing">De corrido</string>
@@ -398,6 +400,12 @@
     <string name="reader_parallel_choose_chapter">Elige un capítulo</string>
     <string name="reader_parallel_chapters_error">No se pudieron cargar los capítulos de este libro.</string>
     <string name="reader_parallel_choose_version">Elige una versión</string>
+    <string name="reader_parallel_link">Vincular lecturas</string>
+    <string name="reader_parallel_unlink">Desvincular lecturas</string>
+    <string name="reader_parallel_linked_state">Vinculadas</string>
+    <string name="reader_parallel_unlinked_state">Independientes</string>
+    <string name="reader_parallel_swap">Intercambiar lecturas</string>
+    <string name="reader_parallel_open_description">Compara dos versiones lado a lado o apiladas.</string>
     <string name="reader_previous_chapter">Capítulo anterior</string>
     <string name="reader_next_chapter">Capítulo siguiente</string>
     <string name="reader_chapter_short">Cap. %1$d</string>

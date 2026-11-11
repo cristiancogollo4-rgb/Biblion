@@ -19,12 +19,12 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -46,6 +46,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -58,7 +59,6 @@ import androidx.compose.ui.unit.dp
 import com.cristiancogollo.biblion.BibleRepository
 import com.cristiancogollo.biblion.BibleVersionOption
 import com.cristiancogollo.biblion.R
-import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import kotlinx.coroutines.CancellationException
 import java.text.Normalizer
 import java.util.Locale
@@ -71,139 +71,129 @@ internal fun PaneNavigationControls(
     versions: List<BibleVersionOption>,
     versionPickerRequest: Int = 0,
     onSelectionChange: (BiblePaneSelection) -> Unit,
-    onReadingOptionsClick: () -> Unit,
 ) {
     var showPassagePicker by remember { mutableStateOf(false) }
-    var passagePickerStartsWithBooks by remember { mutableStateOf(false) }
     var showVersionMenu by remember { mutableStateOf(false) }
     LaunchedEffect(versionPickerRequest) {
         if (versionPickerRequest > 0) showVersionMenu = true
     }
-    val accent = if (paneNumber == 1) MaterialTheme.colorScheme.primary else BiblionGoldPrimary
-    val versionDescription = stringResource(
-        R.string.reader_parallel_version_button, selection.versionKey.uppercase(Locale.ROOT),
-    )
-    val bookDescription = stringResource(R.string.reader_parallel_book_button, selection.bookName)
-    val chapterDescription = stringResource(R.string.reader_parallel_chapter_button, selection.chapter)
+    val accent = parallelPaneAccent(paneNumber)
+    val versionLabel = selection.versionKey.uppercase(Locale.ROOT)
+    val versionDescription = stringResource(R.string.reader_parallel_version_button, versionLabel)
+    val passage = "${selection.bookName} ${selection.chapter}"
+    val passageDescription = stringResource(R.string.reader_parallel_passage_button, passage)
 
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .padding(start = 10.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box {
-                Surface(
-                    onClick = { showVersionMenu = true },
-                    enabled = versions.isNotEmpty(),
-                    shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier
-                        .heightIn(min = 48.dp)
-                        .semantics { contentDescription = versionDescription },
-                ) {
-                    Row(
-                        modifier = Modifier.padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = selection.versionKey.uppercase(Locale.ROOT),
-                            style = MaterialTheme.typography.labelLarge,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = null)
-                    }
-                }
-                DropdownMenu(
-                    expanded = showVersionMenu,
-                    onDismissRequest = { showVersionMenu = false },
-                    modifier = Modifier.widthIn(min = 180.dp, max = 260.dp).heightIn(max = 400.dp),
-                ) {
-                    versions.forEach { version ->
-                        DropdownMenuItem(
-                            text = { Text(version.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                            leadingIcon = if (version.key == selection.versionKey) {
-                                { Icon(Icons.Default.Check, contentDescription = null, tint = accent) }
-                            } else {
-                                null
-                            },
-                            onClick = {
-                                showVersionMenu = false
-                                onSelectionChange(selection.copy(versionKey = version.key))
-                            },
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.weight(1f))
-            IconButton(onClick = onReadingOptionsClick, modifier = Modifier.size(48.dp)) {
+        // Marca de identidad del panel (azul / dorado), sin numeros ni etiquetas extra.
+        Box(
+            modifier = Modifier
+                .size(width = 4.dp, height = 28.dp)
+                .background(accent, RoundedCornerShape(2.dp)),
+        )
+        Box(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier
+                    .padding(start = 6.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { showPassagePicker = true }
+                    .heightIn(min = 48.dp)
+                    .padding(horizontal = 8.dp)
+                    .semantics { contentDescription = passageDescription },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = passage,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontFamily = FontFamily.Serif,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
                 Icon(
-                    Icons.Default.MoreVert,
-                    contentDescription = stringResource(R.string.reader_settings_title),
+                    Icons.Default.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
-                Text(
-                    text = stringResource(R.string.reader_parallel_pane, paneNumber),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
+        Box {
+            Surface(
+                onClick = { showVersionMenu = true },
+                enabled = versions.isNotEmpty(),
+                shape = RoundedCornerShape(50),
+                color = accent.copy(alpha = 0.14f),
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .padding(vertical = 6.dp)
+                    .semantics { contentDescription = versionDescription },
+            ) {
+                Row(
+                    modifier = Modifier.padding(start = 12.dp, end = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text(
-                        text = selection.bookName,
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
-                            .clickable {
-                                passagePickerStartsWithBooks = true
-                                showPassagePicker = true
-                            }
-                            .semantics { contentDescription = bookDescription }
-                            .padding(top = 8.dp, bottom = 8.dp),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontFamily = FontFamily.Serif,
+                        text = versionLabel,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
-                    Text(
-                        text = selection.chapter.toString(),
-                        modifier = Modifier
-                            .widthIn(min = 48.dp)
-                            .heightIn(min = 48.dp)
-                            .clickable {
-                                passagePickerStartsWithBooks = false
-                                showPassagePicker = true
-                            }
-                            .semantics { contentDescription = chapterDescription }
-                            .padding(horizontal = 8.dp, vertical = 8.dp),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontFamily = FontFamily.Serif,
-                        maxLines = 1,
+                    Icon(
+                        Icons.Default.KeyboardArrowDown,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
                     )
                 }
             }
-            IconButton(
-                onClick = { onSelectionChange(selection.copy(chapter = selection.chapter - 1)) },
-                enabled = selection.chapter > 1,
-                modifier = Modifier.size(48.dp),
+            DropdownMenu(
+                expanded = showVersionMenu,
+                onDismissRequest = { showVersionMenu = false },
+                modifier = Modifier.widthIn(min = 180.dp, max = 260.dp).heightIn(max = 400.dp),
             ) {
-                Icon(
-                    Icons.Default.ChevronLeft,
-                    contentDescription = stringResource(R.string.reader_previous_chapter),
-                )
+                versions.forEach { version ->
+                    DropdownMenuItem(
+                        text = { Text(version.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        leadingIcon = if (version.key == selection.versionKey) {
+                            { Icon(Icons.Default.Check, contentDescription = null, tint = accent) }
+                        } else {
+                            null
+                        },
+                        onClick = {
+                            showVersionMenu = false
+                            onSelectionChange(selection.copy(versionKey = version.key))
+                        },
+                    )
+                }
             }
-            IconButton(
-                onClick = { onSelectionChange(selection.copy(chapter = selection.chapter + 1)) },
-                enabled = selection.chapter < chapterCount,
-                modifier = Modifier.size(48.dp),
-            ) {
-                Icon(
-                    Icons.Default.ChevronRight,
-                    contentDescription = stringResource(R.string.reader_next_chapter),
-                )
-            }
+        }
+        IconButton(
+            onClick = { onSelectionChange(selection.copy(chapter = selection.chapter - 1)) },
+            enabled = selection.chapter > 1,
+            modifier = Modifier.size(44.dp),
+        ) {
+            Icon(
+                Icons.Default.ChevronLeft,
+                contentDescription = stringResource(R.string.reader_previous_chapter),
+            )
+        }
+        IconButton(
+            onClick = { onSelectionChange(selection.copy(chapter = selection.chapter + 1)) },
+            enabled = selection.chapter < chapterCount,
+            modifier = Modifier.size(44.dp),
+        ) {
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = stringResource(R.string.reader_next_chapter),
+            )
         }
     }
 
@@ -211,7 +201,7 @@ internal fun PaneNavigationControls(
         ParallelPassagePicker(
             selection = selection,
             currentChapterCount = chapterCount,
-            initiallyChoosingBook = passagePickerStartsWithBooks,
+            initiallyChoosingBook = false,
             onDismiss = { showPassagePicker = false },
             onSelected = { book, chapter ->
                 showPassagePicker = false

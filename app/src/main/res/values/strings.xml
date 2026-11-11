@@ -333,8 +333,6 @@
     <string name="home_announcement_personalize_action">Start reading</string>
     <string name="guide_close_book_description">Close and choose a book</string>
     <string name="action_retry">Retry</string>
-    <string name="reader_next_chapter_load_error">Could not load the next chapter.</string>
-    <string name="reader_loading_next_chapter">Loading next chapter…</string>
     <!-- Lector: personalización y accesibilidad -->
     <string name="reader_settings_title">Opciones de lectura</string>
     <string name="reader_settings_subtitle">Ajusta el texto y la forma de recorrer los capítulos.</string>
@@ -355,8 +353,12 @@
     <string name="reader_width_comfortable">Cómodo</string>
     <string name="reader_width_focused">Concentrado</string>
     <string name="reader_settings_flow">Flujo de lectura</string>
-    <string name="reader_continuous_title">Lectura continua</string>
-    <string name="reader_continuous_description">Desplázate sin cortes hacia el capítulo anterior o el siguiente.</string>
+    <string name="reader_continuous_title">Continuous reading</string>
+    <string name="reader_continuous_description">Scroll from one chapter to the next without using the buttons.</string>
+    <string name="reader_next_chapter_load_error">Could not load the next chapter.</string>
+    <string name="reader_chapter_end">End of %1$s %2$d</string>
+    <string name="reader_book_end">You finished %1$s</string>
+    <string name="reader_continue_with_chapter">Continue with %1$s %2$d</string>
     <string name="reader_text_presentation">Presentación del texto</string>
     <string name="reader_text_layout_separated">Separado</string>
     <string name="reader_text_layout_flowing">De corrido</string>
@@ -400,6 +402,12 @@
     <string name="reader_parallel_choose_chapter">Choose a chapter</string>
     <string name="reader_parallel_chapters_error">Could not load the chapters for this book.</string>
     <string name="reader_parallel_choose_version">Choose a version</string>
+    <string name="reader_parallel_link">Link readings</string>
+    <string name="reader_parallel_unlink">Unlink readings</string>
+    <string name="reader_parallel_linked_state">Linked</string>
+    <string name="reader_parallel_unlinked_state">Independent</string>
+    <string name="reader_parallel_swap">Swap readings</string>
+    <string name="reader_parallel_open_description">Compare two versions side by side or stacked.</string>
     <string name="reader_previous_chapter">Capítulo anterior</string>
     <string name="reader_next_chapter">Capítulo siguiente</string>
     <string name="reader_chapter_short">Cap. %1$d</string>

@@ -1,32 +1,20 @@
 package com.cristiancogollo.biblion.feature.reader
 
-/** Chapter item keys stay stable when a chapter moves between adjacent and active slots. */
-internal fun chapterForReaderItemKey(key: Any?): Int? {
-    val itemKey = key as? String ?: return null
-    if (!itemKey.startsWith("chapter-")) return null
-    val remainder = itemKey.removePrefix("chapter-")
-    val chapter = remainder.substringBefore('-').toIntOrNull()?.takeIf { it > 0 }
-        ?: return null
-    val itemKind = remainder.substringAfter('-', missingDelimiterValue = "")
-    if (
-        itemKind != "header" &&
-        !itemKind.startsWith("verse-") &&
-        !itemKind.startsWith("section-")
-    ) return null
-    return chapter
-}
-
-internal fun continuousChapterDirection(
-    firstVisibleItemKey: Any?,
-    currentChapter: Int,
+/**
+ * In continuous mode every chapter in the window starts with a header item, so the current
+ * chapter body starts after the previous chapter (header + body) and its own header.
+ */
+internal fun currentChapterBodyStartIndex(
+    continuousScrolling: Boolean,
     hasPreviousChapter: Boolean,
-    hasNextChapter: Boolean,
-): Int? = when (chapterForReaderItemKey(firstVisibleItemKey)) {
-    currentChapter - 1 -> if (hasPreviousChapter) -1 else null
-    currentChapter + 1 -> if (hasNextChapter) 1 else null
-    else -> null
+    previousBodyItemCount: Int,
+): Int = when {
+    !continuousScrolling -> 0
+    hasPreviousChapter -> previousBodyItemCount + 2
+    else -> 1
 }
 
+/** Capitulo activo y sus vecinos cargados. Avanzar conserva el actual como anterior. */
 internal data class ContinuousChapterWindow<T>(
     val chapter: Int,
     val current: T,

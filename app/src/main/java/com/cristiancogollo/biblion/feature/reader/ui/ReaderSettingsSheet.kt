@@ -15,7 +15,11 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -43,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cristiancogollo.biblion.R
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.feature.reader.READER_MAX_LINE_SPACING
 import com.cristiancogollo.biblion.feature.reader.READER_MAX_TEXT_WIDTH_DP
 import com.cristiancogollo.biblion.feature.reader.READER_MIN_LINE_SPACING
@@ -58,6 +63,7 @@ fun ReaderSettingsSheet(
     preferences: ReaderPreferences,
     onDismiss: () -> Unit,
     onApply: (Float, ReaderPreferences) -> Unit,
+    onOpenParallelReading: (() -> Unit)? = null,
 ) {
     var draftFontSize by remember(fontSizeSp) { mutableFloatStateOf(fontSizeSp) }
     var draft by remember(preferences) { mutableStateOf(preferences.normalized()) }
@@ -93,6 +99,10 @@ fun ReaderSettingsSheet(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+
+                if (onOpenParallelReading != null) {
+                    ParallelReadingEntry(onClick = onOpenParallelReading)
+                }
 
                 // La muestra queda fuera del contenedor desplazable: nunca desaparece al ajustar.
                 ReaderPreview(
@@ -403,5 +413,44 @@ private fun SettingsSwitch(
             onCheckedChange = onCheckedChange,
             enabled = enabled,
         )
+    }
+}
+
+@Composable
+private fun ParallelReadingEntry(onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = BiblionGoldPrimary.copy(alpha = 0.14f),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Default.ViewAgenda,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.reader_parallel_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = stringResource(R.string.reader_parallel_open_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
