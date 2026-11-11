@@ -80,6 +80,7 @@ import com.cristiancogollo.biblion.feature.reader.ContinuousChapterScroll
 import com.cristiancogollo.biblion.feature.reader.ContinuousChapterWindow
 import com.cristiancogollo.biblion.feature.reader.NEIGHBOR_CHAPTER_ALPHA
 import kotlinx.coroutines.async
+import androidx.compose.animation.rememberSplineBasedDecay
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
@@ -614,7 +615,8 @@ private fun IndependentBiblePane(
         if (continuous && !loading && previousContent != null) "chapter-$contentChapter-header" else null,
     )
     val scope = rememberCoroutineScope()
-    val continuousScroll = remember(listState, scope, density) {
+    val chapterFlingDecay = rememberSplineBasedDecay<Float>()
+    val continuousScroll = remember(listState, scope, density, chapterFlingDecay) {
         ContinuousChapterScroll(
             listState = listState,
             scope = scope,
@@ -622,9 +624,10 @@ private fun IndependentBiblePane(
             currentStartKey = { latestCurrentStartKey },
             canCommit = { direction -> if (direction > 0) nextContent != null else previousContent != null },
             onCommitted = { direction -> shiftWindow(direction) },
-            commitDistancePx = with(density) { 56.dp.toPx() },
-            commitVelocityPx = with(density) { 900.dp.toPx() },
+            commitDistancePx = with(density) { 44.dp.toPx() },
+            commitVelocityPx = with(density) { 600.dp.toPx() },
             minPullPx = with(density) { 12.dp.toPx() },
+            flingDecay = chapterFlingDecay,
             reduceMotion = { preferences.reduceMotion },
         )
     }
@@ -957,11 +960,6 @@ private fun IndependentBiblePane(
                 }
 
                 else -> Box(Modifier.fillMaxSize()) {
-                val shownPull by animateFloatAsState(
-                    targetValue = continuousScroll.pull,
-                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                    label = "parallelChapterPull",
-                )
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
@@ -969,7 +967,7 @@ private fun IndependentBiblePane(
                         .nestedScroll(continuousScroll.connection)
                         .graphicsLayer {
                             val slide = slideOffset.value
-                            translationY = slide - shownPull * 0.5f
+                            translationY = slide - continuousScroll.pull
                             alpha = 1f - (kotlin.math.abs(slide) / 48.dp.toPx()).coerceIn(0f, 1f)
                         },
                     contentPadding = PaddingValues(
@@ -995,6 +993,7 @@ private fun IndependentBiblePane(
                                     chapter = slot.chapter,
                                     separateFromPrevious = slot.separateFromPrevious,
                                     modifier = Modifier.graphicsLayer { this.alpha = alpha },
+                                    fontFamily = preferences.fontFamily.asComposeFontFamily(),
                                 )
                             }
 

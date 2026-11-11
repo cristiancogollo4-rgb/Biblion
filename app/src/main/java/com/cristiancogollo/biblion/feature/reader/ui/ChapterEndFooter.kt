@@ -1,5 +1,7 @@
 package com.cristiancogollo.biblion.feature.reader.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,12 +23,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.cristiancogollo.biblion.R
+import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 
 /**
  * Cierre de capitulo cuando no hay un capitulo siguiente en la misma lista: en modo por
@@ -94,8 +100,8 @@ internal fun ChapterEndFooter(
 }
 
 /**
- * Inicio de capitulo en lectura continua, como en YouVersion: un numero grande y discreto,
- * con un espacio amplio que separa del capitulo anterior.
+ * Inicio de capitulo en lectura continua: el libro en versalitas discretas, el numero con la
+ * tipografia del lector y una linea dorada, centrados y separados del capitulo anterior.
  */
 @Composable
 internal fun ContinuousChapterStart(
@@ -103,26 +109,39 @@ internal fun ContinuousChapterStart(
     chapter: Int,
     separateFromPrevious: Boolean,
     modifier: Modifier = Modifier,
+    fontFamily: FontFamily? = null,
 ) {
-    Row(
+    val description = "$bookName $chapter"
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = if (separateFromPrevious) 72.dp else 4.dp, bottom = 8.dp)
-            .semantics(mergeDescendants = true) { heading() },
-        verticalAlignment = Alignment.Bottom,
+            .padding(top = if (separateFromPrevious) 64.dp else 8.dp, bottom = 20.dp)
+            .semantics(mergeDescendants = true) {
+                heading()
+                contentDescription = description
+            },
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = chapter.toString(),
-            style = MaterialTheme.typography.displayMedium,
-            fontWeight = FontWeight.Light,
+            text = bookName.uppercase(),
+            style = MaterialTheme.typography.labelMedium,
+            letterSpacing = 2.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.width(12.dp))
         Text(
-            text = bookName,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 10.dp),
+            text = chapter.toString(),
+            fontFamily = fontFamily,
+            fontSize = 40.sp,
+            lineHeight = 48.sp,
+            fontWeight = FontWeight.Normal,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.height(6.dp))
+        Box(
+            modifier = Modifier
+                .width(28.dp)
+                .height(2.dp)
+                .background(BiblionGoldPrimary, RoundedCornerShape(1.dp)),
         )
     }
 }

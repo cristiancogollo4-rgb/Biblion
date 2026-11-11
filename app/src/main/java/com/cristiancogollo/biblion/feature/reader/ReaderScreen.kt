@@ -118,6 +118,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.animation.rememberSplineBasedDecay
 import com.cristiancogollo.biblion.feature.reader.readerVerseForeground
 import com.cristiancogollo.biblion.feature.reader.ui.BiblePaneSelection
 import com.cristiancogollo.biblion.feature.reader.ui.FlowingBibleSection
@@ -1120,7 +1121,8 @@ fun ReaderContent(
         }
     }
 
-    val continuousScroll = remember(lazyListState, scope, density) {
+    val chapterFlingDecay = rememberSplineBasedDecay<Float>()
+    val continuousScroll = remember(lazyListState, scope, density, chapterFlingDecay) {
         ContinuousChapterScroll(
             listState = lazyListState,
             scope = scope,
@@ -1160,6 +1162,7 @@ fun ReaderContent(
             commitDistancePx = with(density) { CONTINUOUS_COMMIT_DISTANCE.toPx() },
             commitVelocityPx = with(density) { CONTINUOUS_COMMIT_VELOCITY.toPx() },
             minPullPx = with(density) { 12.dp.toPx() },
+            flingDecay = chapterFlingDecay,
             reduceMotion = { readerPreferences.reduceMotion },
         )
     }
@@ -1620,11 +1623,6 @@ fun ReaderContent(
                 )
             } else {
             Row(modifier = Modifier.fillMaxSize()) {
-                val shownPull by animateFloatAsState(
-                    targetValue = continuousScroll.pull,
-                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                    label = "chapterBoundaryPull",
-                )
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -1685,10 +1683,10 @@ fun ReaderContent(
                         val slideDistance = (if (chapterSlideVertical) 48.dp else 72.dp).toPx()
                         // El empuje en el limite desplaza levemente el texto como respuesta.
                         if (chapterSlideVertical) {
-                            translationY = slide - shownPull * 0.5f
+                            translationY = slide - continuousScroll.pull
                         } else {
                             translationX = slide
-                            translationY = -shownPull * 0.5f
+                            translationY = -continuousScroll.pull
                         }
                         alpha = 1f - (abs(slide) / slideDistance).coerceIn(0f, 1f)
                     },
@@ -1723,6 +1721,7 @@ fun ReaderContent(
                                 chapter = chapter,
                                 separateFromPrevious = separateFromPrevious,
                                 modifier = Modifier.graphicsLayer { this.alpha = alpha },
+                                fontFamily = effectiveReaderPreferences.fontFamily.asComposeFontFamily(),
                             )
                         }
                     }
@@ -2503,7 +2502,7 @@ fun VerseItem(
 private val CHAPTER_SWIPE_THRESHOLD = 88.dp
 
 /** Empuje (con resistencia) en el limite que confirma el paso de capitulo, medido en YouVersion. */
-private val CONTINUOUS_COMMIT_DISTANCE = 56.dp
+private val CONTINUOUS_COMMIT_DISTANCE = 44.dp
 
 /** Velocidad de lanzamiento en el limite que tambien confirma el paso. */
-private val CONTINUOUS_COMMIT_VELOCITY = 900.dp
+private val CONTINUOUS_COMMIT_VELOCITY = 600.dp

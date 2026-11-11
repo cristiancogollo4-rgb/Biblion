@@ -1,8 +1,10 @@
 package com.cristiancogollo.biblion.feature.reader
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.animation.core.DecayAnimationSpec
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.calculateTargetValue
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -15,6 +17,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.unit.Velocity
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.max
@@ -23,11 +26,12 @@ import kotlin.math.min
 /*
  * Lectura continua al estilo de YouVersion (medido en tablet Android):
  * - Dentro del capitulo activo el scroll es libre.
- * - El capitulo vecino asoma atenuado, pero el scroll se detiene en el limite: el inicio del
- *   siguiente no sube de NEXT_CHAPTER_PEEK_LINE y el del actual no baja de
- *   PREVIOUS_CHAPTER_PEEK_LINE. Una inercia nunca cruza de capitulo.
- * - Empujar mas alla del limite (distancia o velocidad suficiente) confirma el paso: la lista
- *   se desliza hasta el nuevo capitulo y este pasa a ser el activo.
+ * - El capitulo vecino asoma atenuado y una inercia suave se detiene en el limite: el inicio
+ *   del siguiente no sube de NEXT_CHAPTER_PEEK_LINE y el del actual no baja de
+ *   PREVIOUS_CHAPTER_PEEK_LINE.
+ * - El texto sigue al dedo mas alla del limite (borde elastico). Soltar con recorrido o
+ *   velocidad suficiente confirma el paso; un lanzamiento fuerte desde dentro del capitulo
+ *   continua hasta el siguiente. La animacion conserva la velocidad del gesto.
  */
 
 /** Linea (fraccion del alto visible) que el inicio del capitulo siguiente no cruza sin confirmar. */
@@ -42,8 +46,14 @@ internal const val COMMITTED_CHAPTER_TOP_LINE = 0.12f
 /** Opacidad del capitulo vecino. */
 internal const val NEIGHBOR_CHAPTER_ALPHA = 0.38f
 
-/** El empuje en el limite avanza menos que el dedo, para que se sienta como un tope. */
-internal const val CHAPTER_BOUNDARY_RESISTANCE = 0.4f
+/** Fraccion del arrastre que el texto sigue mas alla del limite (borde elastico). */
+internal const val CHAPTER_BOUNDARY_RESISTANCE = 0.55f
+
+/** Una inercia que llega al limite con esta proporcion de la velocidad de paso, continua. */
+private const val FLING_CARRY_FACTOR = 1.6f
+
+/** Cuadros mas separados que esto no sirven para estimar la velocidad de la inercia. */
+private const val MAX_FLING_FRAME_NANOS = 50_000_000L
 
 /** Pixeles que la lista puede avanzar antes de que el siguiente capitulo llegue a su linea. */
 internal fun forwardRoomBeforeBoundary(nextStartOffset: Int?, boundaryLine: Float): Float =
@@ -105,9 +115,14 @@ internal class ContinuousChapterScroll(
     private val commitDistancePx: Float,
     private val commitVelocityPx: Float,
     private val minPullPx: Float,
+    /** Inercia del sistema: predice si un lanzamiento llegaria al capitulo siguiente. */
+    private val flingDecay: DecayAnimationSpec<Float>,
     private val reduceMotion: () -> Boolean,
 ) {
-    /** Empuje acumulado contra el limite (positivo = hacia el siguiente). */
+    /**
+     * Desplazamiento visual del texto mas alla del limite (positivo = hacia el siguiente).
+     * El texto sigue al dedo con algo de resistencia, como un borde elastico.
+     */
     var pull by mutableFloatStateOf(0f)
         private set
 
@@ -117,6 +132,9 @@ internal class ContinuousChapterScroll(
     /** Direccion del paso en curso; permite atenuar/aclarar los capitulos durante la animacion. */
     var committingDirection by mutableIntStateOf(0)
         private set
+
+    private var settleJob: Job? = null
+    private var lastFlingFrameNanos = 0L
 
     private fun offsetOf(key: Any?): Int? =
         key?.let { k -> listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == k }?.offset }
@@ -128,14 +146,23 @@ internal class ContinuousChapterScroll(
         return info.viewportStartOffset + height * fraction
     }
 
+    private fun forwardRoom(): Float = viewportLine(NEXT_CHAPTER_PEEK_LINE)
+        ?.let { forwardRoomBeforeBoundary(offsetOf(nextStartKey()), it) }
+        ?: Float.POSITIVE_INFINITY
+
+    private fun backwardRoom(): Float = viewportLine(PREVIOUS_CHAPTER_PEEK_LINE)
+        ?.let { backwardRoomBeforeBoundary(offsetOf(currentStartKey()), it) }
+        ?: Float.POSITIVE_INFINITY
+
     val connection = object : NestedScrollConnection {
         override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
             if (isCommitting) return available
             if (available.y == 0f) return Offset.Zero
+            if (source == NestedScrollSource.UserInput) settleJob?.cancel()
             var remaining = available.y
             var consumed = 0f
 
-            // Si el usuario se devuelve, primero se deshace el empuje acumulado.
+            // Si el usuario se devuelve, primero se recoge el borde elastico.
             if (source == NestedScrollSource.UserInput && pull != 0f) {
                 if (pull > 0f && remaining > 0f) {
                     val used = min(remaining, pull / CHAPTER_BOUNDARY_RESISTANCE)
@@ -151,15 +178,28 @@ internal class ContinuousChapterScroll(
                 if (remaining == 0f) return Offset(0f, consumed)
             }
 
-            val nextLine = viewportLine(NEXT_CHAPTER_PEEK_LINE) ?: return Offset(0f, consumed)
-            val previousLine = viewportLine(PREVIOUS_CHAPTER_PEEK_LINE) ?: return Offset(0f, consumed)
             val (_, excess) = splitScrollAtBoundary(
                 deltaY = remaining,
-                forwardRoom = forwardRoomBeforeBoundary(offsetOf(nextStartKey()), nextLine),
-                backwardRoom = backwardRoomBeforeBoundary(offsetOf(currentStartKey()), previousLine),
+                forwardRoom = forwardRoom(),
+                backwardRoom = backwardRoom(),
             )
+            if (source != NestedScrollSource.UserInput) {
+                // Velocidad de la inercia estimada por cuadro: si llega fuerte al limite,
+                // continua hasta el capitulo vecino en vez de frenar en seco.
+                val now = System.nanoTime()
+                val elapsed = (now - lastFlingFrameNanos).coerceAtLeast(1L)
+                lastFlingFrameNanos = now
+                if (excess != 0f && elapsed < MAX_FLING_FRAME_NANOS) {
+                    val scrollVelocity = -remaining / (elapsed / 1_000_000_000f)
+                    val direction = if (scrollVelocity > 0f) 1 else -1
+                    if (abs(scrollVelocity) >= commitVelocityPx * FLING_CARRY_FACTOR && canCommit(direction)) {
+                        commit(direction, scrollVelocity)
+                        return available
+                    }
+                }
+            }
             if (excess == 0f) return Offset(0f, consumed)
-            // Solo el arrastre del usuario empuja; la inercia simplemente se detiene en el limite.
+            // El arrastre mueve el texto mas alla del limite; una inercia suave se detiene en el.
             if (source == NestedScrollSource.UserInput) {
                 pull += -excess * CHAPTER_BOUNDARY_RESISTANCE
             }
@@ -169,52 +209,103 @@ internal class ContinuousChapterScroll(
         override suspend fun onPreFling(available: Velocity): Velocity {
             if (isCommitting) return available
             val released = pull
-            if (released == 0f) return Velocity.Zero
-            pull = 0f
-            val direction = chapterCommitDirection(
-                pull = released,
-                velocityY = available.y,
-                distanceThresholdPx = commitDistancePx,
-                velocityThresholdPx = commitVelocityPx,
-                minPullPx = minPullPx,
-            )
-            if (direction != null && canCommit(direction)) commit(direction)
-            // El gesto termina en el limite o en la transicion, nunca con inercia sobrante.
-            return available
+            if (released != 0f) {
+                val direction = chapterCommitDirection(
+                    pull = released,
+                    velocityY = available.y,
+                    distanceThresholdPx = commitDistancePx,
+                    velocityThresholdPx = commitVelocityPx,
+                    minPullPx = minPullPx,
+                )
+                if (direction != null && canCommit(direction)) {
+                    commit(direction, scrollVelocity = -available.y)
+                } else {
+                    settleBack()
+                }
+                // El gesto termina en el limite o en la transicion, nunca con inercia sobrante.
+                return available
+            }
+
+            // Lanzamiento desde dentro del capitulo: si la inercia llegaria con fuerza al
+            // capitulo vecino, se continua hasta el sin detenerse (como en YouVersion).
+            val scrollVelocity = -available.y
+            if (abs(scrollVelocity) < commitVelocityPx) return Velocity.Zero
+            val direction = if (scrollVelocity > 0f) 1 else -1
+            val room = if (direction > 0) forwardRoom() else backwardRoom()
+            if (room.isInfinite()) return Velocity.Zero
+            val travel = abs(flingDecay.calculateTargetValue(0f, scrollVelocity))
+            val overshoot = travel - room
+            if (overshoot >= commitDistancePx / CHAPTER_BOUNDARY_RESISTANCE && canCommit(direction)) {
+                commit(direction, scrollVelocity)
+                return available
+            }
+            return Velocity.Zero
         }
     }
 
-    private fun commit(direction: Int) {
+    private fun settleBack() {
+        val from = pull
+        settleJob?.cancel()
+        settleJob = scope.launch {
+            if (reduceMotion()) {
+                pull = 0f
+                return@launch
+            }
+            animate(
+                initialValue = from,
+                targetValue = 0f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
+            ) { value, _ -> pull = value }
+        }
+    }
+
+    private fun commit(direction: Int, scrollVelocity: Float) {
         val distance = if (direction > 0) {
-            val start = offsetOf(nextStartKey()) ?: return
-            val line = viewportLine(COMMITTED_CHAPTER_TOP_LINE) ?: return
+            val start = offsetOf(nextStartKey()) ?: return settleBack()
+            val line = viewportLine(COMMITTED_CHAPTER_TOP_LINE) ?: return settleBack()
             start - line
         } else {
-            val start = offsetOf(currentStartKey()) ?: return
-            val line = viewportLine(NEXT_CHAPTER_PEEK_LINE) ?: return
+            val start = offsetOf(currentStartKey()) ?: return settleBack()
+            val line = viewportLine(NEXT_CHAPTER_PEEK_LINE) ?: return settleBack()
             start - line
         }
+        settleJob?.cancel()
         isCommitting = true
         committingDirection = direction
         scope.launch {
             try {
-                if (reduceMotion()) {
-                    listState.scrollBy(distance)
-                } else {
-                    listState.animateScrollBy(
-                        value = distance,
-                        animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
-                    )
+                listState.scroll {
+                    // El texto ya esta desplazado por el borde elastico: se convierte ese
+                    // desplazamiento en scroll real para que no haya salto visual.
+                    val alreadyMoved = pull
+                    scrollBy(alreadyMoved)
+                    pull = 0f
+                    val rest = distance - alreadyMoved
+                    if (reduceMotion()) {
+                        scrollBy(rest)
+                    } else {
+                        var previous = 0f
+                        // Conserva la velocidad del gesto: el paso continua el movimiento del dedo.
+                        animate(
+                            initialValue = 0f,
+                            targetValue = rest,
+                            initialVelocity = scrollVelocity,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioNoBouncy,
+                                stiffness = Spring.StiffnessLow,
+                            ),
+                        ) { value, _ ->
+                            scrollBy(value - previous)
+                            previous = value
+                        }
+                    }
                 }
                 onCommitted(direction)
             } finally {
+                pull = 0f
                 isCommitting = false
                 committingDirection = 0
             }
         }
     }
-}
-
-private suspend fun LazyListState.scrollBy(distance: Float) {
-    scroll { scrollBy(distance) }
 }
