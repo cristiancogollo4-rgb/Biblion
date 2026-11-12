@@ -120,6 +120,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.animation.rememberSplineBasedDecay
 import com.cristiancogollo.biblion.feature.reader.readerVerseForeground
+import com.cristiancogollo.biblion.feature.reader.ReaderHighlightColorIndices
+import com.cristiancogollo.biblion.feature.reader.readerHighlightPalette
 import com.cristiancogollo.biblion.feature.reader.ui.BiblePaneSelection
 import com.cristiancogollo.biblion.feature.reader.ui.FlowingBibleSection
 import com.cristiancogollo.biblion.feature.reader.ui.ParallelBibleReader
@@ -129,9 +131,9 @@ import com.cristiancogollo.biblion.feature.reader.ui.ReaderCrossReferencesSheet
 import com.cristiancogollo.biblion.feature.reader.ui.ReaderVerseReference
 import com.cristiancogollo.biblion.feature.bibi.engine.CrossReferenceVoteEngine
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
-import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
+import com.cristiancogollo.biblion.ui.theme.LocalBiblionThemeMode
 import com.cristiancogollo.biblion.feature.bibi.ui.BibiReaderOverlay
 import com.cristiancogollo.biblion.feature.bibi.model.BibiContext
 import com.cristiancogollo.biblion.feature.bibi.model.BibiPassage
@@ -139,14 +141,6 @@ import com.cristiancogollo.biblion.feature.achievements.domain.AchievementEvent
 import com.cristiancogollo.biblion.feature.achievements.tracking.AchievementTracker
 import com.cristiancogollo.biblion.feature.bibi.ui.StudyBibiController
 import com.cristiancogollo.biblion.feature.studydocs.ui.Screen as StudyDocScreen
-
-internal val readerHighlightPalette = listOf(
-    Color(0x00000000),
-    Color(0xFFFFF2A8),
-    Color(0xFFC8F7C5),
-    Color(0xFFFFD0D0),
-    Color(0xFFD8E8FF)
-)
 
 private val newTestamentBookNames = setOf(
     "mateo", "marcos", "lucas", "juan", "hechos", "romanos",
@@ -716,9 +710,10 @@ fun ReaderContent(
         mutableStateOf<Map<Int, Map<String, Int>>>(emptyMap())
     }
     val verseHighlights = highlightsByChapter[selectedChapter].orEmpty()
-    val currentHighlightColors = remember(verseHighlights) {
+    val highlightPalette = readerHighlightPalette
+    val currentHighlightColors = remember(verseHighlights, highlightPalette) {
         verseHighlights.mapValues { (_, colorIndex) ->
-            readerHighlightPalette.getOrElse(colorIndex) { Color.Transparent }
+            highlightPalette.getOrElse(colorIndex) { Color.Transparent }
         }
     }
     var showDialog by remember { mutableStateOf(false) }
@@ -898,7 +893,7 @@ fun ReaderContent(
                         chapter = chapter,
                         verses = content.verses,
                         verseKeyProvider = { verse -> "$targetBook|$chapter|$verse" },
-                        validColorIndices = readerHighlightPalette.indices,
+                        validColorIndices = ReaderHighlightColorIndices,
                     )
                 }
             }
@@ -2327,20 +2322,23 @@ fun VerseItem(
         VerseSelectionRangePosition.Middle -> 2.dp
         else -> 12.dp
     }
+    val themeMode = LocalBiblionThemeMode.current
     val containerColor = if (isRangeSelected) {
-        BiblionBluePrimary.copy(alpha = 0.14f)
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
     } else {
         highlightColor
     }
     val verseTextColor = readerVerseForeground(
         highlightColor = highlightColor,
         normalColor = MaterialTheme.colorScheme.onSurface,
+        mode = themeMode,
         isRangeSelected = isRangeSelected,
     )
     val sideBarColor = BiblionGoldPrimary
     val primaryColor = readerVerseForeground(
         highlightColor = highlightColor,
         normalColor = MaterialTheme.colorScheme.primary,
+        mode = themeMode,
         isRangeSelected = isRangeSelected,
     )
     val verseAccessibilityDescription = stringResource(

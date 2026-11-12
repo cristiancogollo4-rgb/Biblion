@@ -31,7 +31,7 @@ class RichTextBridgeTest {
 
         assertTrue(html.contains("<strong>"))
         assertTrue(html.contains("<em>"))
-        assertTrue(html.contains("<u>"))
+        assertTrue(html.contains("text-decoration: underline"))
         assertTrue(html.contains("color:#1E88E5"))
         assertTrue(html.contains("background-color:#FFF2CC"))
         assertTrue(html.contains("font-size:18.0px"))

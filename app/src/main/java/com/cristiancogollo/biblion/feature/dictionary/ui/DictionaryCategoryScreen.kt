@@ -68,17 +68,6 @@ import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
-private val categoryColors = mapOf(
-    DictionaryCategory.PERSON to Color(0xFF8D6E63),
-    DictionaryCategory.PLACE to Color(0xFF4CAF50),
-    DictionaryCategory.CONCEPT to Color(0xFF1976D2),
-    DictionaryCategory.OBJECT to Color(0xFFFF9800),
-    DictionaryCategory.PRACTICE to Color(0xFF7B1FA2),
-    DictionaryCategory.EVENT to Color(0xFFD32F2F),
-    DictionaryCategory.BOOK to Color(0xFF5D4037),
-    DictionaryCategory.OTHER to Color(0xFF607D8B)
-)
-
 private val categoryLabelRes = mapOf(
     DictionaryCategory.PERSON to R.string.dictionary_category_person,
     DictionaryCategory.PLACE to R.string.dictionary_category_place,
@@ -123,7 +112,7 @@ fun DictionaryCategoryScreen(
     val catEnum = DictionaryCategory.entries.find {
         it.name.equals(category, ignoreCase = true)
     } ?: DictionaryCategory.OTHER
-    val catColor = categoryColors[catEnum] ?: Color(0xFF607D8B)
+    val catColor = catEnum.accentColor
     val catLabel = stringResource(categoryLabelRes[catEnum] ?: R.string.dictionary_category_other)
 
     var query by remember { mutableStateOf("") }

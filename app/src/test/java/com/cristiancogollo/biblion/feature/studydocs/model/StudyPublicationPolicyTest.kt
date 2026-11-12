@@ -33,9 +33,20 @@ class StudyPublicationPolicyTest {
         val document = StudyDoc(
             title = "La fe",
             blocks = listOf(StudyBlock.Paragraph( text = StyledText("Contenido") )),
-            metadata = DocMetadata(tags = listOf("estudio-biblico", "fe", "finalizado")),
+            metadata = DocMetadata(tags = listOf("estudio-biblico", "iglesia", "fe", "finalizado")),
         )
 
         assertEquals(PublicationEligibility.ELIGIBLE, StudyPublicationPolicy.evaluate(document, profile))
+    }
+
+    @Test
+    fun `final teaching without audience is not eligible`() {
+        val document = StudyDoc(
+            title = "La fe",
+            blocks = listOf(StudyBlock.Paragraph(text = StyledText("Contenido"))),
+            metadata = DocMetadata(tags = listOf("estudio-biblico", "fe", "finalizado")),
+        )
+
+        assertEquals(PublicationEligibility.TAGS_REQUIRED, StudyPublicationPolicy.evaluate(document, profile))
     }
 }

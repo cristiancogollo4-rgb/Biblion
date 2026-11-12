@@ -25,7 +25,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cristiancogollo.biblion.R
 import com.cristiancogollo.biblion.feature.reader.BibleTextSection
-import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
+import com.cristiancogollo.biblion.feature.reader.readerVerseForeground
+import com.cristiancogollo.biblion.ui.theme.LocalBiblionThemeMode
 
 private const val VERSE_ANNOTATION_TAG = "biblion_verse"
 
@@ -63,6 +64,8 @@ fun FlowingBibleSection(
 
     val primaryColor = MaterialTheme.colorScheme.primary
     val textColor = MaterialTheme.colorScheme.onSurface
+    val selectionColor = primaryColor.copy(alpha = 0.18f)
+    val themeMode = LocalBiblionThemeMode.current
     val accessibilityDescription = stringResource(
         R.string.reader_flowing_section_accessibility,
         section.verses.joinToString(" ") { (number, text) -> "$number $text" },
@@ -75,22 +78,23 @@ fun FlowingBibleSection(
         highlightColors,
         primaryColor,
         textColor,
+        themeMode,
     ) {
         buildAnnotatedString {
             section.verses.forEachIndexed { index, (verseNumber, verseText) ->
                 val start = length
-                val background = if (verseNumber in selectedVerseNumbers) {
-                    BiblionBluePrimary.copy(alpha = 0.16f)
-                } else {
-                    highlightColors[verseNumber] ?: Color.Transparent
-                }
+                val isSelected = verseNumber in selectedVerseNumbers
+                val highlight = highlightColors[verseNumber] ?: Color.Transparent
+                val background = if (isSelected) selectionColor else highlight
+                val verseTextColor = readerVerseForeground(highlight, textColor, themeMode, isSelected)
+                val verseNumberColor = readerVerseForeground(highlight, primaryColor, themeMode, isSelected)
                 if (showVerseNumbers) {
                     withStyle(
                         SpanStyle(
                             fontSize = (fontSize.value * 0.6f).sp,
                             fontWeight = FontWeight.Bold,
                             baselineShift = BaselineShift.Superscript,
-                            color = primaryColor,
+                            color = verseNumberColor,
                             background = background,
                         )
                     ) {
@@ -100,7 +104,7 @@ fun FlowingBibleSection(
                 }
                 withStyle(
                     SpanStyle(
-                        color = textColor,
+                        color = verseTextColor,
                         background = background,
                     )
                 ) {

@@ -22,6 +22,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import com.cristiancogollo.biblion.ui.theme.BiblionPalette
+import com.cristiancogollo.biblion.ui.theme.LocalBiblionThemeMode
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,7 +44,8 @@ fun PopularTopicCard(
     topic: PopularTopic,
     onClick: () -> Unit
 ) {
-    val color = Color(topic.topicColor)
+    val color = CategoryLabels.color(topic.category)
+    val onColor = BiblionPalette.onAccent(LocalBiblionThemeMode.current)
     Card(
         modifier = Modifier
             .width(160.dp)
@@ -66,7 +69,7 @@ fun PopularTopicCard(
                     ) {
                         Text(
                             text = topic.nameEs.take(1).uppercase(),
-                            color = Color.White,
+                            color = onColor,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold
                         )

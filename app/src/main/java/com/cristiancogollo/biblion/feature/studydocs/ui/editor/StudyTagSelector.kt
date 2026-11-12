@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion.feature.studydocs.ui.editor
 
+import com.cristiancogollo.biblion.feature.studydocs.model.StudyTagRules
 import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -415,8 +416,7 @@ fun normalizeStudyTag(tag: String): String {
 }
 
 fun firstIncompleteStudyTagGroupIndex(tags: List<String>): Int? =
-    suggestedStudyTagGroups.indexOfFirst { group -> group.tags.none { it in tags } }
-        .takeIf { it >= 0 }
+    StudyTagRules.firstIncompleteGroupIndex(tags)
 
 @StringRes
 fun studyTagValidationMessageRes(index: Int): Int = when (index) {

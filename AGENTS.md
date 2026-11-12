@@ -612,21 +612,17 @@ LaunchedEffect(Unit) {
 - Conteo "N versiculos" al final en color solido de la categoria.
 - **No muestra el nombre de la categoria** (tema principal) para evitar duplicacion visual.
 
-**Color por categoria** (`CategoryLabels.color(category)`):
-- PERSON: marron `0xFF8D6E63`
-- PLACE: verde `0xFF4CAF50`
-- EVENT: naranja `0xFFFF9800`
-- ATTRIBUTE_OF_GOD: rojo claro `0xFFE57373`
-- DOCTRINE: azul `0xFF1976D2`
-- CHRISTIAN_LIFE: verde claro `0xFF66BB6A`
-- CHURCH: morado `0xFF7B1FA2`
-- PROPHECY: rojo oscuro `0xFFD32F2F`
-- SIN: rojo `0xFFC62828`
-- COMPARATIVE_RELIGION: gris azulado `0xFF607D8B`
-- BOOK: marron oscuro `0xFF5D4037` (no usado en el carrusel de categorias)
-- Default: `BiblionGoldPrimary`
+**Color por categoria** (`CategoryLabels.color(category)`, composable; o `color(category, mode)`):
+- Los colores salen de `BiblionHue` + `BiblionPalette` (`ui/theme/BiblionPalette.kt`), una familia de matices sobrios compartida por Libros, Temas, Diccionario y resaltados. Cada matiz tiene variante por tema (Claro, Azul, Oscuro).
+- Temas: PERSON `BROWN`, PLACE `SAGE`, EVENT `TERRACOTTA`, ATTRIBUTE_OF_GOD `GOLD`, DOCTRINE `SLATE`, CHRISTIAN_LIFE `TEAL`, CHURCH `LAVENDER`, PROPHECY `INDIGO`, SIN `CRIMSON`, COMPARATIVE_RELIGION `STEEL`, BOOK `SAND`, default `GOLD`.
+- Diccionario (`DictionaryCategory.hue()`): PERSON `BROWN`, PLACE `SAGE`, CONCEPT `SLATE`, OBJECT `SKY`, PRACTICE `LAVENDER`, EVENT `TERRACOTTA`, BOOK `SAND`, OTHER `STEEL`.
+- Libros (`BookCategoryColors.getColors(category, mode)`): en Claro y Oscuro, tinte suave + texto + borde al ~20 %; en Azul, tarjeta azul `164672` con nombre y borde en el color de la categoria (mezclar color con azul da tonos grisaceos).
+- `PopularTopic` ya no guarda color: se resuelve al renderizar segun el tema. El texto sobre un relleno solido usa `BiblionPalette.onAccent(mode)`.
+- `ThemeContrastTest` exige texto >= 4.5:1 y limita el salto de los fondos de color respecto al fondo del tema; no introducir colores Material saturados (`FF9800`, `4CAF50`, etc.).
 
-**Tipo de color**: `PopularTopic.topicColor: Int` (packed ARGB de 32 bits). Se obtiene con `CategoryLabels.color(category).toArgb()`. **Nunca** usar `Color.value.toLong()` porque interpreta el color como packed float (RGBA 64 bits) y produce un color gris/desaturado.
+**Resaltado de versiculos**: `readerHighlightPaletteFor(mode)` (`feature/reader/ReaderHighlightPalette.kt`). Los indices persistidos 0-4 no cambian; en Claro son pasteles con texto azul marino y en Azul/Oscuro son tintes oscuros con texto crema. La seleccion usa `colorScheme.primary` al 18 %.
+
+**Tokens de tema**: `Theme.kt` declara todos los roles de Material 3 (containers, outline, surfaceContainer*) para evitar los tonos lavanda por defecto.
 
 #### Pantalla "Explorar temas" con jerarquia
 

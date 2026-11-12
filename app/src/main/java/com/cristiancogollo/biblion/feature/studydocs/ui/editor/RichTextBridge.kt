@@ -74,8 +74,8 @@ fun StyledText.Companion.fromAnnotatedString(annotated: AnnotatedString): Styled
             italic = s.fontStyle == FontStyle.Italic,
             underline = s.textDecoration?.contains(Underline) == true,
             strikethrough = s.textDecoration?.contains(LineThrough) == true,
-            color = s.color.takeIf { it != Color.Unspecified }?.toArgb(),
-            background = s.background.takeIf { it != Color.Unspecified }?.toArgb(),
+            color = s.color.toStoredColor(),
+            background = s.background.toStoredColor(),
             fontSizeSp = s.fontSize.takeIf { it.type == TextUnitType.Sp }?.value,
         )
     }
@@ -124,9 +124,14 @@ fun StyledText.toRichHtml(): String = buildString {
 private fun StyleRange.openHtmlTags(): String = buildString {
     if (bold) append("<strong>")
     if (italic) append("<em>")
-    if (underline) append("<u>")
-    if (strikethrough) append("<s>")
+    // Decorations go in one CSS declaration: the editor parses nested <u><s> by keeping
+    // only the innermost tag, which silently drops underline when both are applied.
+    val decorations = listOfNotNull(
+        "underline".takeIf { underline },
+        "line-through".takeIf { strikethrough },
+    )
     val css = buildList {
+        if (decorations.isNotEmpty()) add("text-decoration: ${decorations.joinToString(" ")}")
         color?.let { add("color:${it.toCssColor()}") }
         background?.let { add("background-color:${it.toCssColor()}") }
         fontSizeSp?.let { add("font-size:${it}px") }
@@ -135,19 +140,32 @@ private fun StyleRange.openHtmlTags(): String = buildString {
 }
 
 private fun StyleRange.closeHtmlTags(): String = buildString {
-    val cssPresent = color != null || background != null || fontSizeSp != null
+    val cssPresent = color != null || background != null || fontSizeSp != null || underline || strikethrough
     if (cssPresent) append("</span>")
-    if (strikethrough) append("</s>")
-    if (underline) append("</u>")
     if (italic) append("</em>")
     if (bold) append("</strong>")
 }
 
-private fun Int.toCssColor(): String = String.format(
-    Locale.US,
-    "#%06X",
-    this and 0x00FFFFFF,
-)
+/**
+ * The rich editor reports "no color" either as [Color.Unspecified] or as a fully
+ * transparent color. Both mean "no style"; storing the transparent one would later be
+ * written as `#000000` and come back as an opaque black highlight.
+ */
+private fun Color.toStoredColor(): Int? =
+    takeIf { it != Color.Unspecified && it.alpha > 0f }?.toArgb()
+
+private fun Int.toCssColor(): String {
+    val alpha = (this ushr 24) and 0xFF
+    if (alpha == 0xFF) return String.format(Locale.US, "#%06X", this and 0x00FFFFFF)
+    return String.format(
+        Locale.US,
+        "rgba(%d, %d, %d, %.3f)",
+        (this shr 16) and 0xFF,
+        (this shr 8) and 0xFF,
+        this and 0xFF,
+        alpha / 255f,
+    )
+}
 
 private fun buildTextDecoration(range: StyleRange): TextDecoration? {
     val decorations = mutableListOf<TextDecoration>()

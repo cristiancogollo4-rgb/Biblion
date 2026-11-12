@@ -52,6 +52,18 @@ class StudyDocSyncQueueTest {
     }
 
     @Test
+    fun autosaveWithBlankTitleKeepsPublishedTitle() = runBlocking {
+        val doc = StudyDoc(id = DocId("published-2"), title = "Gracia")
+        repository.save(doc)
+
+        repository.saveDraft(doc.copy(title = "   "))
+
+        val stored = repository.getEntityByRemoteId("published-2")!!
+        assertTrue(stored.isPublished)
+        assertEquals("Gracia", stored.title)
+    }
+
+    @Test
     fun unpublishedDraftNeverEntersCloudQueue() = runBlocking {
         repository.saveDraft(StudyDoc(id = DocId("draft-1"), title = "Borrador"))
 

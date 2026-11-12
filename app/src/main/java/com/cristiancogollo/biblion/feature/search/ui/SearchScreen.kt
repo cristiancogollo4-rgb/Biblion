@@ -239,7 +239,6 @@ fun SearchScreen(
                     nameEn = e.nameEn,
                     description = e.description.ifBlank { CategoryLabels.label(e.category) },
                     category = e.category,
-                    topicColor = CategoryLabels.color(e.category).toArgb(),
                     verseCount = e.verseCount
                 )
             }

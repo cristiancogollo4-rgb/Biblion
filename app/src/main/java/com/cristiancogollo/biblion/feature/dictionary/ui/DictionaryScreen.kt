@@ -77,19 +77,7 @@ private data class CategoryCardInfo(
     val category: DictionaryCategory,
     val labelRes: Int,
     val descRes: Int,
-    val color: Color,
     val count: Int
-)
-
-private val categoryColors = mapOf(
-    DictionaryCategory.PERSON to Color(0xFF8D6E63),
-    DictionaryCategory.PLACE to Color(0xFF4CAF50),
-    DictionaryCategory.CONCEPT to Color(0xFF1976D2),
-    DictionaryCategory.OBJECT to Color(0xFFFF9800),
-    DictionaryCategory.PRACTICE to Color(0xFF7B1FA2),
-    DictionaryCategory.EVENT to Color(0xFFD32F2F),
-    DictionaryCategory.BOOK to Color(0xFF5D4037),
-    DictionaryCategory.OTHER to Color(0xFF607D8B)
 )
 
 private val categoryLabelRes = mapOf(
@@ -129,7 +117,6 @@ fun DictionaryScreen(navController: NavController) {
                 category = cat,
                 labelRes = categoryLabelRes[cat] ?: R.string.dictionary_category_other,
                 descRes = categoryDescRes[cat] ?: R.string.dictionary_category_other_desc,
-                color = categoryColors[cat] ?: Color(0xFF607D8B),
                 count = countMap[cat] ?: 0
             )
         }
@@ -384,13 +371,14 @@ private fun DictionaryCategoryCard(
     info: CategoryCardInfo,
     onClick: () -> Unit
 ) {
+    val categoryColor = info.category.accentColor
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = info.color.copy(alpha = 0.10f)),
+        colors = CardDefaults.cardColors(containerColor = categoryColor.copy(alpha = 0.10f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
@@ -399,7 +387,7 @@ private fun DictionaryCategoryCard(
         ) {
             Surface(
                 modifier = Modifier.size(40.dp),
-                color = info.color.copy(alpha = 0.20f),
+                color = categoryColor.copy(alpha = 0.20f),
                 shape = CircleShape
             ) {
                 Box(
@@ -408,7 +396,7 @@ private fun DictionaryCategoryCard(
                 ) {
                     Text(
                         text = stringResource(info.labelRes).take(1).uppercase(),
-                        color = info.color,
+                        color = categoryColor,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -418,7 +406,7 @@ private fun DictionaryCategoryCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(info.labelRes),
-                    color = info.color,
+                    color = categoryColor,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -434,7 +422,7 @@ private fun DictionaryCategoryCard(
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = stringResource(R.string.dictionary_category_entries, info.count),
-                    color = info.color,
+                    color = categoryColor,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Medium
                 )
@@ -442,7 +430,7 @@ private fun DictionaryCategoryCard(
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                tint = info.color
+                tint = categoryColor
             )
         }
     }

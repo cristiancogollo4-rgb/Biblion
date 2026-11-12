@@ -38,7 +38,18 @@ internal fun RichTextState.setInlineColor(target: InlineColorTarget, color: Int?
         background = target == InlineColorTarget.BACKGROUND,
     )
     syncFromStyledText(updated)
-    selection = selected
+    restoreSelection(selected)
+}
+
+/**
+ * Re-assigning the selection the editor already has makes the rich editor append an
+ * empty span with a transparent background over that range, which hides a highlight
+ * that was just applied. Only assign when it actually changes.
+ */
+internal fun RichTextState.restoreSelection(target: TextRange) {
+    val length = annotatedString.length
+    val safe = TextRange(target.start.coerceIn(0, length), target.end.coerceIn(0, length))
+    if (selection != safe) selection = safe
 }
 
 internal fun RichTextState.applyFontSizePreservingStyles(
@@ -53,10 +64,7 @@ internal fun RichTextState.applyFontSizePreservingStyles(
         fontSizeSp = fontSizeSp,
     )
     syncFromStyledText(resized)
-    selection = TextRange(
-        selectionBefore.start.coerceIn(0, annotatedString.length),
-        selectionBefore.end.coerceIn(0, annotatedString.length),
-    )
+    restoreSelection(selectionBefore)
 }
 
 internal fun StudyBlock.withBaseFontSize(fontSize: Int): StudyBlock = when (this) {

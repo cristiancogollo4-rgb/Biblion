@@ -1,7 +1,12 @@
 package com.cristiancogollo.biblion.feature.search.components
 
 import androidx.compose.ui.graphics.Color
-import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
+import com.cristiancogollo.biblion.ui.theme.BiblionHue
+import com.cristiancogollo.biblion.ui.theme.BiblionPalette
+import com.cristiancogollo.biblion.ui.theme.BiblionThemeMode
+import com.cristiancogollo.biblion.ui.theme.LocalBiblionThemeMode
 
 /**
  * Mapeo de categorias canonicas de la taxonomia Biblion a etiquetas
@@ -44,22 +49,28 @@ object CategoryLabels {
     fun sortKey(category: String): Int =
         sortOrder.indexOf(category).let { if (it < 0) Int.MAX_VALUE else it }
 
-    /**
-     * Color identitario de cada categoria, usado por el carrusel de
-     * temas populares y las pantallas de exploracion.
-     */
-    fun color(category: String): Color = when (category) {
-        "PERSON" -> Color(0xFF8D6E63)
-        "PLACE" -> Color(0xFF4CAF50)
-        "EVENT" -> Color(0xFFFF9800)
-        "ATTRIBUTE_OF_GOD" -> Color(0xFFE57373)
-        "DOCTRINE" -> Color(0xFF1976D2)
-        "CHRISTIAN_LIFE" -> Color(0xFF66BB6A)
-        "CHURCH" -> Color(0xFF7B1FA2)
-        "PROPHECY" -> Color(0xFFD32F2F)
-        "SIN" -> Color(0xFFC62828)
-        "COMPARATIVE_RELIGION" -> Color(0xFF607D8B)
-        "BOOK" -> Color(0xFF5D4037)
-        else -> BiblionGoldPrimary
+    /** Matiz identitario de cada categoria, compartido con Libros y Diccionario. */
+    fun hue(category: String): BiblionHue = when (category) {
+        "PERSON" -> BiblionHue.BROWN
+        "PLACE" -> BiblionHue.SAGE
+        "EVENT" -> BiblionHue.TERRACOTTA
+        "ATTRIBUTE_OF_GOD" -> BiblionHue.GOLD
+        "DOCTRINE" -> BiblionHue.SLATE
+        "CHRISTIAN_LIFE" -> BiblionHue.TEAL
+        "CHURCH" -> BiblionHue.LAVENDER
+        "PROPHECY" -> BiblionHue.INDIGO
+        "SIN" -> BiblionHue.CRIMSON
+        "COMPARATIVE_RELIGION" -> BiblionHue.STEEL
+        "BOOK" -> BiblionHue.SAND
+        else -> BiblionHue.GOLD
     }
+
+    /** Color de acento legible (>= 4.5:1 sobre `surface`) para el tema indicado. */
+    fun color(category: String, mode: BiblionThemeMode): Color =
+        BiblionPalette.accent(hue(category), mode)
+
+    /** Color de acento para el tema actual. */
+    @Composable
+    @ReadOnlyComposable
+    fun color(category: String): Color = color(category, LocalBiblionThemeMode.current)
 }

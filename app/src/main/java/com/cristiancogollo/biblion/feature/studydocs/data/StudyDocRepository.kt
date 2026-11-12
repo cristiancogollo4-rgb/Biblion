@@ -78,12 +78,19 @@ class StudyDocRepository(
 
     /** Saves the working copy without publishing a new teaching to the list. */
     suspend fun saveDraft(doc: StudyDoc, ownerUid: String? = null) {
-        val existing = doc.remoteId?.let { dao.getByRemoteId(it) }
+        val existing = dao.getByRemoteId(doc.remoteId ?: doc.id.value)
+        val isPublished = existing?.isPublished == true
+        // A published teaching must never lose its title through autosave.
+        val safeDoc = if (existing != null && isPublished && !doc.hasPersistableTitle()) {
+            doc.copy(title = existing.title)
+        } else {
+            doc
+        }
         saveInternal(
-            doc = doc,
+            doc = safeDoc,
             ownerUid = ownerUid,
             // Once published, autosave keeps the teaching visible while preserving its edits.
-            isPublished = existing?.isPublished == true,
+            isPublished = isPublished,
         )
     }
 

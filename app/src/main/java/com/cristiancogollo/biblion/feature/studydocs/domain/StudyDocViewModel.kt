@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion.feature.studydocs.domain
 
+import com.cristiancogollo.biblion.feature.studydocs.model.StudyTagRules
 import android.util.Log
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.graphics.Color
@@ -24,7 +25,6 @@ import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
 import com.cristiancogollo.biblion.feature.studydocs.model.capabilities
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
 import com.cristiancogollo.biblion.feature.studydocs.model.hasPersistableTitle
-import com.cristiancogollo.biblion.feature.studydocs.model.DocMetadata
 import com.cristiancogollo.biblion.feature.studydocs.model.DocConfig
 import com.cristiancogollo.biblion.feature.studydocs.model.BlockAlignment
 import com.cristiancogollo.biblion.feature.studydocs.model.StyledText
@@ -32,6 +32,7 @@ import com.cristiancogollo.biblion.feature.studydocs.ui.editor.syncFromStyledTex
 import com.cristiancogollo.biblion.feature.studydocs.ui.editor.fromAnnotatedString
 import com.mohamedrejeb.richeditor.model.RichTextState
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -62,6 +63,8 @@ data class StudyEditorUiState(
     val lastSavedAt: Long? = null,
     val isSaving: Boolean = false,
     val hasUnsavedChanges: Boolean = false,
+    /** True only for a document created in this session that was never explicitly saved. */
+    val isNewDraft: Boolean = false,
     val canUndo: Boolean = false,
     val canRedo: Boolean = false,
 )
@@ -90,6 +93,8 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
     companion object {
         private const val AUTO_SAVE_DELAY_MS = 3000L
         private const val TEXT_HISTORY_GROUP_MS = 500L
+        internal const val TAGS_INCOMPLETE_MESSAGE =
+            "La ensenanza necesita proposito, audiencia, tema y un unico estado"
     }
 
     fun newDraft() {
@@ -109,6 +114,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
             activeBlockId = block.id,
             focusRequest = initialFocusRequest,
             hasUnsavedChanges = false,
+            isNewDraft = true,
         )
         _isDocLoaded = true
     }
@@ -1039,9 +1045,13 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
 
     fun saveNow(title: String, tags: List<String>): Boolean {
         if (_uiState.value.isSaving || title.trim().isEmpty()) return false
+        if (!StudyTagRules.isValid(tags)) {
+            _uiState.update { it.copy(lastError = TAGS_INCOMPLETE_MESSAGE) }
+            return false
+        }
         _uiState.update {
             it.copy(
-                doc = it.doc.copy(title = title.trim(), metadata = DocMetadata(tags = tags)),
+                doc = it.doc.copy(title = title.trim(), metadata = it.doc.metadata.copy(tags = tags)),
                 hasUnsavedChanges = true,
             )
         }
@@ -1066,6 +1076,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
                         lastSavedAt = maxOf(System.currentTimeMillis(), (it.lastSavedAt ?: 0L) + 1L),
                         hasUnsavedChanges = false,
                         isSaving = false,
+                        isNewDraft = false,
                     )
                 }
             } catch (error: Throwable) {
@@ -1081,9 +1092,29 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
     }
 
     fun discardDraft() {
+        _autoSaveJob?.cancel()
+        if (!_uiState.value.isNewDraft) return
         val remoteId = _uiState.value.doc.remoteId ?: _uiState.value.doc.id.value
-        viewModelScope.launch { repository.discardDraft(remoteId) }
+        // Must outlive the ViewModel: the screen navigates away right after calling this.
+        viewModelScope.launch(NonCancellable) { repository.discardDraft(remoteId) }
     }
+
+    /** Persists pending edits immediately; used when leaving an already stored document. */
+    fun flushPendingDraft() {
+        _autoSaveJob?.cancel()
+        if (!_isDocLoaded || !_uiState.value.hasUnsavedChanges) return
+        val current = draftSnapshot()
+        viewModelScope.launch(NonCancellable) {
+            runCatching { repository.saveDraft(current) }
+                .onFailure { Log.e("BIBLION_STUDY", "No se pudo guardar al salir", it) }
+        }
+    }
+
+    private fun draftSnapshot(): StudyDoc =
+        _uiState.value.doc.withEditorTexts(currentRichTexts()).copy(
+            remoteId = _remoteId ?: _uiState.value.doc.remoteId ?: _uiState.value.doc.id.value,
+            updatedAt = System.currentTimeMillis(),
+        )
 
     private fun applyOp(op: StudyOp): Boolean {
         val before = currentCheckpoint()
@@ -1188,10 +1219,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
         val previous = StyledText.fromAnnotatedString(state.annotatedString)
         val next = previous.reconcileRawText(rawText, _uiState.value.activeFormat)
         state.syncFromStyledText(next)
-        state.selection = androidx.compose.ui.text.TextRange(
-            selection.start.coerceIn(0, next.length),
-            selection.end.coerceIn(0, next.length),
-        )
+        state.restoreSelection(selection)
         onRichTextChanged(blockId, state, itemIndex)
         syncActiveFormat(state)
     }
@@ -1289,10 +1317,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
         _autoSaveJob?.cancel()
         _autoSaveJob = viewModelScope.launch {
             delay(AUTO_SAVE_DELAY_MS)
-            val current = _uiState.value.doc.withEditorTexts(currentRichTexts()).copy(
-                remoteId = _remoteId ?: _uiState.value.doc.remoteId ?: _uiState.value.doc.id.value,
-                updatedAt = System.currentTimeMillis(),
-            )
+            val current = draftSnapshot()
             try {
                 repository.saveDraft(current)
             } catch (error: Throwable) {

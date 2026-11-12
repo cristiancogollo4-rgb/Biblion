@@ -98,7 +98,8 @@ fun BooksScreen(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     var testamentDrag by remember { mutableFloatStateOf(0f) }
-    val usesDarkPalette = LocalBiblionThemeMode.current != BiblionThemeMode.LIGHT
+    val themeMode = LocalBiblionThemeMode.current
+    val usesDarkPalette = themeMode != BiblionThemeMode.LIGHT
     val guidedStep = guidedTutorial
         ?.currentStep()
         ?.takeIf { it.screenTarget == GuidedTutorialScreenTarget.BOOKS }
@@ -198,7 +199,7 @@ fun BooksScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(activeCategories) { category ->
-                        val colors = BookCategoryColors.getColors(category, usesDarkPalette)
+                        val colors = BookCategoryColors.getColors(category, themeMode)
                         SuggestionChip(
                             onClick = {
                                 selectedCategoryForLegend = category
@@ -235,7 +236,7 @@ fun BooksScreen(
                     // Optimización: usamos key para que Compose identifique cada item y sea fluido.
                     itemsIndexed(booksToShow, key = { _, bookName -> bookName }) { index, bookName ->
                         val category = bookName.toBookCategory()
-                        val colorSchema = BookCategoryColors.getColors(category, usesDarkPalette)
+                        val colorSchema = BookCategoryColors.getColors(category, themeMode)
                         BookCard(
                             bookName = bookName,
                             colorSchema = colorSchema,
@@ -286,7 +287,7 @@ fun BooksScreen(
 
         if (showCategoryLegendSheet && selectedCategoryForLegend != null) {
             val category = selectedCategoryForLegend!!
-            val colors = BookCategoryColors.getColors(category, usesDarkPalette)
+            val colors = BookCategoryColors.getColors(category, themeMode)
             val booksInCategory = remember(category, currentSelectedTestament) {
                 val fullList = if (currentSelectedTestament == Testament.OLD) oldTestamentBooks else newTestamentBooks
                 fullList.filter { it.toBookCategory() == category }
@@ -387,7 +388,7 @@ fun BooksScreen(
         if (showBookDetailSheet && selectedBookForDetail != null) {
             val bookName = selectedBookForDetail!!
             val category = bookName.toBookCategory()
-            val colors = BookCategoryColors.getColors(category, usesDarkPalette)
+            val colors = BookCategoryColors.getColors(category, themeMode)
             val description = selectedBookDescription
             val verseCount = selectedBookVerseCount
 

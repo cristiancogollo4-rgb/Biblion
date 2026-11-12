@@ -1,6 +1,9 @@
 package com.cristiancogollo.biblion.feature.books
 
 import androidx.compose.ui.graphics.Color
+import com.cristiancogollo.biblion.ui.theme.BiblionHue
+import com.cristiancogollo.biblion.ui.theme.BiblionPalette
+import com.cristiancogollo.biblion.ui.theme.BiblionThemeMode
 
 enum class BookCategory(val labelEs: String, val description: String, val bookCount: Int) {
     PENTATEUCO("Pentateuco", "Orígenes del mundo y del pueblo de Israel", 5),
@@ -16,34 +19,32 @@ enum class BookCategory(val labelEs: String, val description: String, val bookCo
 
 data class CategoryColorSchema(val bg: Color, val text: Color, val border: Color)
 
+/**
+ * Un matiz sobrio por categoria, derivado de [BiblionPalette] para que las tarjetas se
+ * integren con azul, dorado y blanco en los tres temas.
+ */
 object BookCategoryColors {
-    private val lightColors = mapOf(
-        BookCategory.PENTATEUCO to CategoryColorSchema(Color(0xFFEAF3DE), Color(0xFF27500A), Color(0xFF97C459)),
-        BookCategory.HISTORICO to CategoryColorSchema(Color(0xFFE6F1FB), Color(0xFF0C447C), Color(0xFF85B7EB)),
-        BookCategory.SAPIENCIAL to CategoryColorSchema(Color(0xFFFAEEDA), Color(0xFF633806), Color(0xFFEF9F27)),
-        BookCategory.PROFETICO to CategoryColorSchema(Color(0xFFFBEAF0), Color(0xFF72243E), Color(0xFFED93B1)),
-        BookCategory.EVANGELIO to CategoryColorSchema(Color(0xFFE1F5EE), Color(0xFF085041), Color(0xFF5DCAA5)),
-        BookCategory.HISTORICO_NT to CategoryColorSchema(Color(0xFFE0F2FE), Color(0xFF0369A1), Color(0xFF7DD3FC)),
-        BookCategory.EPISTOLA_PAULINA to CategoryColorSchema(Color(0xFFF5F3FF), Color(0xFF4C1D95), Color(0xFFC7D2FE)),
-        BookCategory.EPISTOLA_CATOLICA to CategoryColorSchema(Color(0xFFEEEDFE), Color(0xFF3C3489), Color(0xFFAFA9EC)),
-        BookCategory.APOCALIPSIS to CategoryColorSchema(Color(0xFFFFF1F2), Color(0xFF9F1239), Color(0xFFFDA4AF))
+    private val hues = mapOf(
+        BookCategory.PENTATEUCO to BiblionHue.SAGE,
+        BookCategory.HISTORICO to BiblionHue.SLATE,
+        BookCategory.SAPIENCIAL to BiblionHue.SAND,
+        BookCategory.PROFETICO to BiblionHue.WINE,
+        BookCategory.EVANGELIO to BiblionHue.TEAL,
+        BookCategory.HISTORICO_NT to BiblionHue.SKY,
+        BookCategory.EPISTOLA_PAULINA to BiblionHue.LAVENDER,
+        BookCategory.EPISTOLA_CATOLICA to BiblionHue.INDIGO,
+        BookCategory.APOCALIPSIS to BiblionHue.TERRACOTTA,
     )
 
-    private val darkColors = mapOf(
-        BookCategory.PENTATEUCO to CategoryColorSchema(Color(0xFF1E2816), Color(0xFFC3E2A4), Color(0xFF3E5429)),
-        BookCategory.HISTORICO to CategoryColorSchema(Color(0xFF132335), Color(0xFFB9D8F7), Color(0xFF274465)),
-        BookCategory.SAPIENCIAL to CategoryColorSchema(Color(0xFF2E2214), Color(0xFFF7D9B2), Color(0xFF5A442B)),
-        BookCategory.PROFETICO to CategoryColorSchema(Color(0xFF331A23), Color(0xFFF9C6D6), Color(0xFF5E2E3F)),
-        BookCategory.EVANGELIO to CategoryColorSchema(Color(0xFF132A24), Color(0xFFB1EBE0), Color(0xFF25574A)),
-        BookCategory.HISTORICO_NT to CategoryColorSchema(Color(0xFF0C293A), Color(0xFF7DD3FC), Color(0xFF1B4E6B)),
-        BookCategory.EPISTOLA_PAULINA to CategoryColorSchema(Color(0xFF231834), Color(0xFFD8B4FE), Color(0xFF4338CA)),
-        BookCategory.EPISTOLA_CATOLICA to CategoryColorSchema(Color(0xFF1F1B3E), Color(0xFFC7C2FA), Color(0xFF3F3B77)),
-        BookCategory.APOCALIPSIS to CategoryColorSchema(Color(0xFF3C161D), Color(0xFFFECDD3), Color(0xFF6F1D2F))
-    )
+    fun hue(category: BookCategory): BiblionHue = hues.getValue(category)
 
-    fun getColors(category: BookCategory, isDarkTheme: Boolean): CategoryColorSchema {
-        return (if (isDarkTheme) darkColors[category] else lightColors[category])
-            ?: CategoryColorSchema(Color.LightGray, Color.DarkGray, Color.Gray)
+    fun getColors(category: BookCategory, mode: BiblionThemeMode): CategoryColorSchema {
+        val hue = hue(category)
+        return CategoryColorSchema(
+            bg = BiblionPalette.tint(hue, mode),
+            text = BiblionPalette.onTint(hue, mode),
+            border = BiblionPalette.border(hue, mode),
+        )
     }
 }
 

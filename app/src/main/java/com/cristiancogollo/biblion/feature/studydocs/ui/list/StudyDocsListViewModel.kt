@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion.feature.studydocs.ui.list
 
+import com.cristiancogollo.biblion.feature.studydocs.model.StudyTagRules
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -118,6 +119,9 @@ class StudyDocsListViewModel(
     ) {
         viewModelScope.launch {
             val result = runCatching {
+                require(StudyTagRules.isValid(tags)) {
+                    "La ensenanza necesita proposito, audiencia, tema y un unico estado"
+                }
                 repository.save(
                     doc.copy(
                         metadata = doc.metadata.copy(tags = tags.distinct()),

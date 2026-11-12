@@ -94,7 +94,8 @@ import kotlinx.coroutines.coroutineScope
 import com.cristiancogollo.biblion.feature.reader.HighlightsCache
 import com.cristiancogollo.biblion.feature.reader.ReaderPreferences
 import com.cristiancogollo.biblion.feature.reader.ReaderTextLayout
-import com.cristiancogollo.biblion.readerHighlightPalette
+import com.cristiancogollo.biblion.feature.reader.ReaderHighlightColorIndices
+import com.cristiancogollo.biblion.feature.reader.readerHighlightPalette
 import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
@@ -770,7 +771,7 @@ private fun IndependentBiblePane(
                     chapter = chapter,
                     verses = chapterContent.verses,
                     verseKeyProvider = { verse -> "$prefix$verse" },
-                    validColorIndices = readerHighlightPalette.indices,
+                    validColorIndices = ReaderHighlightColorIndices,
                 )
             }
             onHighlightsLoaded(chapter, loaded)

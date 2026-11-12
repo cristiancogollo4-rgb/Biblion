@@ -73,28 +73,10 @@ fun TopicsSection(
                     expanded = topic.slug == expandedSlug,
                     onToggleExpansion = { onToggleExpansion(topic) },
                     onVerseClick = onVerseClick,
-                    topicColor = topicColorFor(topic.category)
+                    topicColor = CategoryLabels.color(topic.category)
                 )
             }
         }
     }
 }
 
-/**
- * Asigna un color identitario por categoria. Si la categoria no tiene
- * color definido, usa el dorado Biblion como fallback.
- */
-private fun topicColorFor(category: String): Color = when (category) {
-    "ATTRIBUTE_OF_GOD" -> Color(0xFF1976D2)
-    "DOCTRINE" -> Color(0xFF7B1FA2)
-    "CHRISTIAN_LIFE" -> Color(0xFFE57373)
-    "PROPHECY" -> Color(0xFFFFB74D)
-    "SIN" -> Color(0xFF8D6E63)
-    "CHURCH" -> Color(0xFF26A69A)
-    "PERSON" -> Color(0xFF66BB6A)
-    "PLACE" -> Color(0xFF42A5F5)
-    "EVENT" -> Color(0xFFAB47BC)
-    "BOOK" -> Color(0xFF5C6BC0)
-    "COMPARATIVE_RELIGION" -> Color(0xFFEC407A)
-    else -> BiblionGoldPrimary
-}

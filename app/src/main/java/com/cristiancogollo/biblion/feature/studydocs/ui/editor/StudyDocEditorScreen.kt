@@ -198,13 +198,13 @@ fun StudyDocEditorScreen(
             val hasDraftContent = editorState.doc.blocks.size > 1 || editorState.doc.blocks.any { block ->
                 block.toStyledTextList().any { it.raw.isNotBlank() }
             }
-            val isExistingTeaching = editorState.doc.remoteId != null
-            val hasPendingNewTeaching = !isExistingTeaching &&
+            // Stored documents (published or downloaded) already autosave, so leaving persists
+            // pending edits instead of pretending they can be discarded.
+            val isExistingTeaching = !editorState.isNewDraft
+            val shouldWarn = !isExistingTeaching &&
                 (editorState.hasUnsavedChanges || hasDraftContent || editorState.doc.title.isNotBlank())
-            val shouldWarn = if (isExistingTeaching) {
-                editorState.hasUnsavedChanges
-            } else {
-                hasPendingNewTeaching
+            if (isExistingTeaching) {
+                splitViewModel?.flushPendingDraft() ?: viewModel?.flushPendingDraft()
             }
             Log.d(
                 "BIBLION_STUDY_EXIT",

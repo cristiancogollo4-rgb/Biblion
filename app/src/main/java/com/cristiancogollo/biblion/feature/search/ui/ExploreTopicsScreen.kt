@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import com.cristiancogollo.biblion.ui.theme.BiblionThemeMode
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -84,7 +85,7 @@ fun ExploreTopicsScreen(navController: NavController) {
                     category = category,
                     label = CategoryLabels.label(category),
                     count = items.size,
-                    color = CategoryLabels.color(category)
+                    color = CategoryLabels.color(category, BiblionThemeMode.LIGHT)
                 )
             }
             .sortedBy { CategoryLabels.sortKey(it.category) }

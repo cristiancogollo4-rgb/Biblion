@@ -1,5 +1,6 @@
 package com.cristiancogollo.biblion.feature.studydocs.domain
 
+import com.cristiancogollo.biblion.feature.studydocs.model.StudyTagRules
 import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -32,6 +33,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 
 /**
@@ -123,7 +125,8 @@ class StudyDocSplitViewModel(
             doc = StudyDoc(blocks = listOf(block)),
             activeBlockId = block.id,
             focusRequest = initialFocusRequest,
-            hasUnsavedChanges = false
+            hasUnsavedChanges = false,
+            isNewDraft = true,
         )
         _isDocLoaded = true
     }
@@ -594,10 +597,7 @@ class StudyDocSplitViewModel(
         val previous = StyledText.fromAnnotatedString(state.annotatedString)
         val next = previous.reconcileRawText(rawText, _editorState.value.activeFormat)
         state.syncFromStyledText(next)
-        state.selection = androidx.compose.ui.text.TextRange(
-            selection.start.coerceIn(0, next.length),
-            selection.end.coerceIn(0, next.length),
-        )
+        state.restoreSelection(selection)
         onRichTextChanged(blockId, state, itemIndex)
         syncActiveFormat(state)
     }
@@ -688,11 +688,17 @@ class StudyDocSplitViewModel(
 
     fun saveNow(title: String, tags: List<String>): Boolean {
         if (_editorState.value.isSaving || title.trim().isEmpty()) return false
+        if (!StudyTagRules.isValid(tags)) {
+            _editorState.value = _editorState.value.copy(
+                lastError = StudyDocViewModel.TAGS_INCOMPLETE_MESSAGE,
+            )
+            return false
+        }
         _autoSaveJob?.cancel()
         val current = _editorState.value.doc
             .copy(
                 title = title.trim(),
-                metadata = com.cristiancogollo.biblion.feature.studydocs.model.DocMetadata(tags = tags),
+                metadata = _editorState.value.doc.metadata.copy(tags = tags),
             )
         val texts = currentRichTexts()
         val doc = current
@@ -713,6 +719,7 @@ class StudyDocSplitViewModel(
                     lastSavedAt = maxOf(System.currentTimeMillis(), (_editorState.value.lastSavedAt ?: 0L) + 1L),
                     hasUnsavedChanges = false,
                     isSaving = false,
+                    isNewDraft = false,
                 )
             } catch (error: Throwable) {
                 _editorState.value = _editorState.value.copy(
@@ -726,9 +733,29 @@ class StudyDocSplitViewModel(
     }
 
     fun discardDraft() {
+        _autoSaveJob?.cancel()
+        if (!_editorState.value.isNewDraft) return
         val remoteId = _editorState.value.doc.remoteId ?: _editorState.value.doc.id.value
-        viewModelScope.launch { repository.discardDraft(remoteId) }
+        // Must outlive the ViewModel: the screen navigates away right after calling this.
+        viewModelScope.launch(NonCancellable) { repository.discardDraft(remoteId) }
     }
+
+    /** Persists pending edits immediately; used when leaving an already stored document. */
+    fun flushPendingDraft() {
+        _autoSaveJob?.cancel()
+        if (!_isDocLoaded || !_editorState.value.hasUnsavedChanges) return
+        val current = draftSnapshot()
+        viewModelScope.launch(NonCancellable) {
+            runCatching { repository.saveDraft(current) }
+                .onFailure { Log.e("BIBLION_STUDY", "No se pudo guardar al salir", it) }
+        }
+    }
+
+    private fun draftSnapshot(): StudyDoc =
+        _editorState.value.doc.copy(
+            remoteId = _remoteId ?: _editorState.value.doc.remoteId ?: _editorState.value.doc.id.value,
+            updatedAt = System.currentTimeMillis(),
+        ).withEditorTexts(currentRichTexts())
 
     private fun escapeHtml(text: String): String = text
         .replace("&", "&amp;")
@@ -754,10 +781,7 @@ class StudyDocSplitViewModel(
         _autoSaveJob?.cancel()
         _autoSaveJob = viewModelScope.launch {
             kotlinx.coroutines.delay(AUTO_SAVE_DELAY_MS)
-            val current = _editorState.value.doc.copy(
-                remoteId = _remoteId ?: _editorState.value.doc.remoteId ?: _editorState.value.doc.id.value,
-                updatedAt = System.currentTimeMillis(),
-            ).withEditorTexts(currentRichTexts())
+            val current = draftSnapshot()
             try {
                 repository.saveDraft(current)
             } catch (error: Throwable) {

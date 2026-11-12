@@ -25,8 +25,10 @@ object StudyPublicationPolicy {
         }
         if (!document.hasPersistableTitle()) return PublicationEligibility.TITLE_REQUIRED
         if (document.blocks.none { it.plainText().isNotBlank() }) return PublicationEligibility.CONTENT_REQUIRED
-        if (document.metadata.tags.isEmpty()) return PublicationEligibility.TAGS_REQUIRED
-        if ("finalizado" !in document.metadata.tags) return PublicationEligibility.FINAL_STATE_REQUIRED
+        val tags = document.metadata.tags
+        if (tags.isEmpty()) return PublicationEligibility.TAGS_REQUIRED
+        if ("finalizado" !in tags) return PublicationEligibility.FINAL_STATE_REQUIRED
+        if (!StudyTagRules.isValid(tags)) return PublicationEligibility.TAGS_REQUIRED
         return PublicationEligibility.ELIGIBLE
     }
 }

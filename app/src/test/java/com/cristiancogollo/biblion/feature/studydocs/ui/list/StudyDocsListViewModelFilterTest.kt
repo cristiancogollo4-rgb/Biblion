@@ -336,7 +336,7 @@ class StudyDocsListViewModelFilterTest {
 
         viewModel.updateTags(
             doc = doc,
-            tags = listOf("devocional", "adultos", "fe", "borrador"),
+            tags = listOf("devocional", "familias", "fe", "borrador"),
         ) { error ->
             callbackError = error
         }
@@ -344,8 +344,38 @@ class StudyDocsListViewModelFilterTest {
 
         assertNull(callbackError)
         assertEquals(
-            "devocional,adultos,fe,borrador",
+            "devocional,familias,fe,borrador",
             dao.getByRemoteId("doc-tags")?.tagsCsv,
+        )
+    }
+
+    @Test
+    fun `updateTags rejects tags missing a required group`() = runTest {
+        val dao = FakeDao()
+        val repository = StudyDocRepository(
+            dao = dao,
+            serializationDispatcher = mainDispatcherRule.dispatcher,
+        )
+        val doc = StudyDoc(
+            id = com.cristiancogollo.biblion.feature.studydocs.model.DocId("doc-invalid"),
+            title = "Enseñanza incompleta",
+            metadata = com.cristiancogollo.biblion.feature.studydocs.model.DocMetadata(
+                tags = listOf("predicacion", "jovenes", "fe", "finalizado"),
+            ),
+        )
+        repository.save(doc)
+        val viewModel = StudyDocsListViewModel(repository)
+        var callbackError: Throwable? = null
+
+        viewModel.updateTags(doc = doc, tags = listOf("devocional", "fe")) { error ->
+            callbackError = error
+        }
+        advanceUntilIdle()
+
+        assertTrue(callbackError is IllegalArgumentException)
+        assertEquals(
+            "predicacion,jovenes,fe,finalizado",
+            dao.getByRemoteId("doc-invalid")?.tagsCsv,
         )
     }
 }

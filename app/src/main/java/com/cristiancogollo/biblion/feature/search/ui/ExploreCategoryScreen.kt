@@ -218,7 +218,7 @@ fun ExploreCategoryScreen(
                                     )
                                 )
                             },
-                            topicColor = Color(CategoryLabels.color(topic.category).toArgb())
+                            topicColor = CategoryLabels.color(topic.category)
                         )
                     }
                     item { Spacer(modifier = Modifier.height(24.dp)) }
