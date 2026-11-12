@@ -177,6 +177,10 @@ fun NavGraphBuilder.addSharedPrimaryDestinations(
             navController = navController,
             remoteId = remoteId,
             readOnly = studyLibraryReadOnly,
+            isDarkTheme = isDarkTheme,
+            onToggleDarkTheme = onToggleDarkTheme,
+            themeMode = themeMode,
+            onThemeModeChange = onThemeModeChange,
         )
     }
 

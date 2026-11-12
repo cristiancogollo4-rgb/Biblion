@@ -7,6 +7,7 @@
     <string name="study_action_redo">Redo</string>
     <string name="study_action_options">Document options</string>
     <string name="study_action_open_bible">Open Bible</string>
+    <string name="study_action_close_bible">Close Bible</string>
     <string name="study_action_fullscreen">Full screen</string>
     <string name="study_action_split">Split screen</string>
 

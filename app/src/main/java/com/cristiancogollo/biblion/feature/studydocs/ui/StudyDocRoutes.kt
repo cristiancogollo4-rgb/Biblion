@@ -137,6 +137,10 @@ fun StudyDocReadRoute(
     navController: NavController,
     remoteId: String,
     readOnly: Boolean = false,
+    isDarkTheme: Boolean = false,
+    onToggleDarkTheme: (Boolean) -> Unit = {},
+    themeMode: BiblionThemeMode = if (isDarkTheme) BiblionThemeMode.DARK else BiblionThemeMode.LIGHT,
+    onThemeModeChange: (BiblionThemeMode) -> Unit = {},
 ) {
     val context = LocalContext.current
     val repository = remember {
@@ -154,6 +158,12 @@ fun StudyDocReadRoute(
         onEdit = {
             if (!readOnly) navController.navigate(Screen.StudyDocEditor.createRoute(remoteId))
         },
+        // En solo lectura la ensenanza ya vive dentro del panel Biblia; no se anida otro lector.
+        canOpenBible = !readOnly,
+        isDarkTheme = isDarkTheme,
+        onToggleDarkTheme = onToggleDarkTheme,
+        themeMode = themeMode,
+        onThemeModeChange = onThemeModeChange,
     )
 }
 

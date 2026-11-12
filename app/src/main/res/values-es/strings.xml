@@ -7,6 +7,7 @@
     <string name="study_action_redo">Rehacer</string>
     <string name="study_action_options">Opciones del documento</string>
     <string name="study_action_open_bible">Abrir Biblia</string>
+    <string name="study_action_close_bible">Cerrar Biblia</string>
     <string name="study_action_fullscreen">Pantalla completa</string>
     <string name="study_action_split">Pantalla dividida</string>
 
