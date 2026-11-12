@@ -6,7 +6,10 @@ import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocRepository
 import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDatabase
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.os.Build
 import android.os.Bundle
+import androidx.annotation.RequiresApi
+import com.cristiancogollo.biblion.ui.brand.BiblionIntro
 import android.content.Intent
 import android.net.Uri
 import android.content.SharedPreferences
@@ -50,6 +53,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
  */
 class MainActivity : ComponentActivity() {
     internal val incomingImportUri = MutableStateFlow<Uri?>(null)
+    internal val showIntro = mutableStateOf(false)
 
     /**
      * Ciclo de vida inicial del Activity.
@@ -58,12 +62,33 @@ class MainActivity : ComponentActivity() {
      */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) fadeOutSystemSplash()
+        showIntro.value = savedInstanceState == null
         incomingImportUri.value = intent.studyImportUri()
         enableEdgeToEdge()
         FirestoreSyncManager.initialize(this)
         if (savedInstanceState == null) purgeEmptyStudyDrafts()
         setContent {
             BiblionApp()
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            splashScreen.setSplashScreenTheme(splashThemeFor(ThemePreferences.getThemeMode(this)))
+        }
+    }
+
+    /** The system splash only shows the background; it dissolves into [BiblionIntro]. */
+    @RequiresApi(Build.VERSION_CODES.S)
+    private fun fadeOutSystemSplash() {
+        splashScreen.setOnExitAnimationListener { splashView ->
+            splashView.animate()
+                .alpha(0f)
+                .setDuration(SPLASH_FADE_MS)
+                .withEndAction { splashView.remove() }
+                .start()
         }
     }
 
@@ -132,7 +157,19 @@ private fun MainActivity.BiblionApp() {
                 onImportUriConsumed = { incomingImportUri.value = null },
             )
         }
+        if (showIntro.value) {
+            BiblionIntro(themeMode = themeMode, onFinished = { showIntro.value = false })
+        }
     }
+}
+
+private const val SPLASH_FADE_MS = 220L
+
+/** The next launch's system splash takes the background of the theme chosen in the app. */
+private fun splashThemeFor(mode: BiblionThemeMode): Int = when (mode) {
+    BiblionThemeMode.LIGHT -> R.style.Theme_Biblion_Splash_Light
+    BiblionThemeMode.DARK -> R.style.Theme_Biblion_Splash_Dark
+    BiblionThemeMode.BLUE -> R.style.Theme_Biblion_Splash_Blue
 }
 
 @Suppress("DEPRECATION")

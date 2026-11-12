@@ -3,9 +3,25 @@
 
     <style name="Theme.Biblion" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
-        <item name="android:windowBackground">@drawable/biblion_launch_background</item>
+        <item name="android:windowBackground">@color/biblion_launch_background</item>
         <item name="android:windowSplashScreenBackground">@color/biblion_launch_background</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/logo_biblion_light</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+    </style>
+
+    <!-- Splash colors matching the theme chosen inside the app (applied with setSplashScreenTheme). -->
+    <style name="Theme.Biblion.Splash.Light" parent="Theme.Biblion">
+        <item name="android:windowSplashScreenBackground">#FFFFFF</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+    </style>
+
+    <style name="Theme.Biblion.Splash.Dark" parent="Theme.Biblion">
+        <item name="android:windowSplashScreenBackground">#000000</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+    </style>
+
+    <style name="Theme.Biblion.Splash.Blue" parent="Theme.Biblion">
+        <item name="android:windowSplashScreenBackground">#0B2A4A</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
     </style>
 
 </resources>
