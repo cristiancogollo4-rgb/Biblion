@@ -55,6 +55,7 @@ internal fun FontSizeControl(
 ) {
     val focusManager = LocalFocusManager.current
     var expanded by remember { mutableStateOf(false) }
+    var fieldHadFocus by remember { mutableStateOf(false) }
     var draft by remember(currentFontSize) {
         mutableStateOf(currentFontSize.takeIf { it >= 0 }?.toString().orEmpty())
     }
@@ -63,7 +64,7 @@ internal fun FontSizeControl(
         val parsed = draft.toIntOrNull() ?: return
         val normalized = parsed.coerceIn(DocConfig.MIN_FONT_SIZE, DocConfig.MAX_FONT_SIZE)
         draft = normalized.toString()
-        onSetFontSize(normalized)
+        if (normalized != currentFontSize) onSetFontSize(normalized)
     }
 
     Row(
@@ -109,7 +110,10 @@ internal fun FontSizeControl(
                         .width(42.dp)
                         .padding(start = 6.dp)
                         .onFocusChanged { focusState ->
-                            if (!focusState.isFocused && draft.isNotBlank()) commitDraft()
+                            // onFocusChanged also fires unfocused on first composition; only a
+                            // real focus loss may commit, or opening the editor edits the doc.
+                            if (fieldHadFocus && !focusState.isFocused && draft.isNotBlank()) commitDraft()
+                            fieldHadFocus = focusState.isFocused
                         }
                         .semantics { contentDescription = "Tamano de texto" },
                     singleLine = true,

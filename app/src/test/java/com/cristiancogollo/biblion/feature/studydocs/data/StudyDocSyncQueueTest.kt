@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.cristiancogollo.biblion.feature.studydocs.model.DocId
+import com.cristiancogollo.biblion.feature.studydocs.model.StudyBlock
 import com.cristiancogollo.biblion.feature.studydocs.model.StudyDoc
+import com.cristiancogollo.biblion.feature.studydocs.model.StyledText
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -61,6 +63,50 @@ class StudyDocSyncQueueTest {
         val stored = repository.getEntityByRemoteId("published-2")!!
         assertTrue(stored.isPublished)
         assertEquals("Gracia", stored.title)
+    }
+
+    @Test
+    fun emptyNewDraftIsNeverStored() = runBlocking {
+        repository.saveDraft(StudyDoc(id = DocId("empty-1")))
+
+        assertEquals(null, repository.getEntityByRemoteId("empty-1"))
+    }
+
+    @Test
+    fun draftEmptiedByTheUserIsRemoved() = runBlocking {
+        val draft = StudyDoc(
+            id = DocId("draft-2"),
+            blocks = listOf(StudyBlock.Paragraph(text = StyledText("Idea"))),
+        )
+        repository.saveDraft(draft)
+        assertTrue(repository.getEntityByRemoteId("draft-2") != null)
+
+        repository.saveDraft(draft.copy(blocks = listOf(StudyBlock.Paragraph())))
+
+        assertEquals(null, repository.getEntityByRemoteId("draft-2"))
+    }
+
+    @Test
+    fun purgeRemovesOnlyEmptyUnpublishedDrafts() = runBlocking {
+        val dao = database.studyDocDao()
+        fun entity(id: String, doc: StudyDoc, published: Boolean) = StudyDocEntity(
+            remoteId = id,
+            title = doc.title,
+            docJson = StudyDocJson.encode(doc),
+            isPublished = published,
+        )
+        dao.insert(entity("empty", StudyDoc(id = DocId("empty")), published = false))
+        dao.insert(entity("text", StudyDoc(id = DocId("text"), blocks = listOf(StudyBlock.Paragraph(text = StyledText("6")))), published = false))
+        dao.insert(entity("titled", StudyDoc(id = DocId("titled"), title = "Idea"), published = false))
+        dao.insert(entity("published", StudyDoc(id = DocId("published")), published = true))
+        dao.insert(StudyDocEntity(remoteId = "broken", title = "", docJson = "{roto", isPublished = false))
+
+        assertEquals(1, repository.purgeEmptyDrafts())
+
+        assertEquals(null, repository.getEntityByRemoteId("empty"))
+        listOf("text", "titled", "published", "broken").forEach {
+            assertTrue(it, repository.getEntityByRemoteId(it) != null)
+        }
     }
 
     @Test

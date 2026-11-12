@@ -80,6 +80,11 @@ class StudyDocRepository(
     suspend fun saveDraft(doc: StudyDoc, ownerUid: String? = null) {
         val existing = dao.getByRemoteId(doc.remoteId ?: doc.id.value)
         val isPublished = existing?.isPublished == true
+        // An untitled, contentless draft is invisible and unrecoverable: never keep one.
+        if (!isPublished && doc.isEmpty) {
+            if (existing != null) dao.hardDelete(existing.id)
+            return
+        }
         // A published teaching must never lose its title through autosave.
         val safeDoc = if (existing != null && isPublished && !doc.hasPersistableTitle()) {
             doc.copy(title = existing.title)
@@ -138,6 +143,19 @@ class StudyDocRepository(
         if (existing != null && !existing.isPublished) {
             dao.hardDeleteByRemoteId(remoteId)
         }
+    }
+
+    /**
+     * Removes unpublished drafts with no title and no content. They never appear in the
+     * app and were left behind by an editor bug that autosaved untouched documents.
+     * Drafts with any text, or with a title, are kept. Returns how many were removed.
+     */
+    suspend fun purgeEmptyDrafts(): Int {
+        val empty = dao.getUnpublishedDrafts().filter { entity ->
+            entity.toDoc()?.isEmpty == true
+        }
+        empty.forEach { dao.hardDelete(it.id) }
+        return empty.size
     }
 
     suspend fun upsertRemote(entity: StudyDocEntity) {

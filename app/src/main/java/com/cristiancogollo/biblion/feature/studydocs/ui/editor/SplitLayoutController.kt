@@ -1,5 +1,8 @@
 package com.cristiancogollo.biblion.feature.studydocs.ui.editor
 
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
@@ -88,8 +91,11 @@ fun CompactStudyLayoutController(
     documentPane: @Composable BoxScope.() -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // The pane selector sits above both panes, so it must clear the status bar itself.
+    // Padding here also consumes the inset, so the panes' own top bars don't add it twice.
+    val insetModifier = modifier.windowInsetsPadding(WindowInsets.statusBars)
     if (LocalConfiguration.current.screenWidthDp < 600) {
-        Column(modifier = modifier.fillMaxSize()) {
+        Column(modifier = insetModifier.fillMaxSize()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -120,7 +126,7 @@ fun CompactStudyLayoutController(
         return
     }
 
-    Row(modifier = modifier.fillMaxSize()) {
+    Row(modifier = insetModifier.fillMaxSize()) {
         NavigationRail(
             modifier = Modifier
                 .fillMaxHeight()

@@ -16,8 +16,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.unit.Velocity
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.max
@@ -101,6 +104,32 @@ internal fun chapterCommitDirection(
         -velocityY * direction >= velocityThresholdPx
     return if (pushedFarEnough || flungThrough) direction else null
 }
+
+/**
+ * Indica si el inicio del capitulo destino ya cruzo la linea limite durante un paso
+ * interrumpido. Si el inicio salio de pantalla se usa su indice: hacia adelante solo puede
+ * haber quedado por encima y hacia atras, por debajo.
+ */
+internal fun hasCrossedChapterBoundary(
+    direction: Int,
+    startOffset: Int?,
+    startIndex: Int?,
+    firstVisibleIndex: Int,
+    lastVisibleIndex: Int,
+    forwardLine: Float,
+    backwardLine: Float,
+): Boolean = when {
+    startOffset != null -> if (direction > 0) {
+        startOffset < forwardLine - BOUNDARY_TOLERANCE_PX
+    } else {
+        startOffset > backwardLine + BOUNDARY_TOLERANCE_PX
+    }
+    startIndex == null -> false
+    direction > 0 -> startIndex < firstVisibleIndex
+    else -> startIndex > lastVisibleIndex
+}
+
+private const val BOUNDARY_TOLERANCE_PX = 1f
 
 @Stable
 internal class ContinuousChapterScroll(
@@ -243,6 +272,19 @@ internal class ContinuousChapterScroll(
         }
     }
 
+    private fun crossedBoundary(direction: Int, startKey: Any?, startIndex: Int?): Boolean {
+        val info = listState.layoutInfo
+        return hasCrossedChapterBoundary(
+            direction = direction,
+            startOffset = offsetOf(startKey),
+            startIndex = startIndex,
+            firstVisibleIndex = info.visibleItemsInfo.firstOrNull()?.index ?: return false,
+            lastVisibleIndex = info.visibleItemsInfo.last().index,
+            forwardLine = viewportLine(NEXT_CHAPTER_PEEK_LINE) ?: return false,
+            backwardLine = viewportLine(PREVIOUS_CHAPTER_PEEK_LINE) ?: return false,
+        )
+    }
+
     private fun settleBack() {
         val from = pull
         settleJob?.cancel()
@@ -269,6 +311,8 @@ internal class ContinuousChapterScroll(
             val line = viewportLine(NEXT_CHAPTER_PEEK_LINE) ?: return settleBack()
             start - line
         }
+        val startKey = if (direction > 0) nextStartKey() else currentStartKey()
+        val startIndex = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == startKey }?.index
         settleJob?.cancel()
         isCommitting = true
         committingDirection = direction
@@ -301,6 +345,12 @@ internal class ContinuousChapterScroll(
                     }
                 }
                 onCommitted(direction)
+            } catch (interrupted: CancellationException) {
+                // Un gesto nuevo interrumpe la animacion (frecuente en movil al leer rapido).
+                // Si el texto ya cruzo el limite, el paso se confirma igual; si no, el capitulo
+                // activo y la lista quedarian desfasados y el limite dejaria de detectarse.
+                if (!currentCoroutineContext().isActive) throw interrupted
+                if (crossedBoundary(direction, startKey, startIndex)) onCommitted(direction)
             } finally {
                 pull = 0f
                 isCommitting = false

@@ -1,5 +1,10 @@
 package com.cristiancogollo.biblion
 
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocRepository
+import com.cristiancogollo.biblion.feature.studydocs.data.StudyDocDatabase
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.os.Bundle
 import android.content.Intent
@@ -56,8 +61,21 @@ class MainActivity : ComponentActivity() {
         incomingImportUri.value = intent.studyImportUri()
         enableEdgeToEdge()
         FirestoreSyncManager.initialize(this)
+        if (savedInstanceState == null) purgeEmptyStudyDrafts()
         setContent {
             BiblionApp()
+        }
+    }
+
+    /** Cold start only: a restored editor may still hold an untouched new draft. */
+    private fun purgeEmptyStudyDrafts() {
+        val dao = StudyDocDatabase.getInstance(applicationContext).studyDocDao()
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching { StudyDocRepository(dao).purgeEmptyDrafts() }
+                .onSuccess { removed ->
+                    if (removed > 0) android.util.Log.i("BIBLION_STUDY", "Borradores vacios eliminados: $removed")
+                }
+                .onFailure { android.util.Log.w("BIBLION_STUDY", "No se pudieron limpiar borradores", it) }
         }
     }
 

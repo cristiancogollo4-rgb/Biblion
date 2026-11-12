@@ -559,7 +559,7 @@ class StudyDocViewModel(private val repository: StudyDocRepository) : ViewModel(
 
         if (selection.collapsed && textLength == 0) {
             val index = _uiState.value.doc.blocks.indexOfFirst { it.id == activeId }
-            if (index < 0) return
+            if (index < 0 || _uiState.value.doc.blocks[index].fontSize == normalizedSize) return
             val before = currentCheckpoint()
             val blocks = _uiState.value.doc.blocks.toMutableList()
             blocks[index] = blocks[index].withBaseFontSize(normalizedSize)

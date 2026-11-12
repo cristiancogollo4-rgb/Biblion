@@ -1421,7 +1421,7 @@ class StudyDocSplitViewModel(
 
         if (selection.collapsed && textLength == 0) {
             val index = _editorState.value.doc.blocks.indexOfFirst { it.id == activeId }
-            if (index < 0) return
+            if (index < 0 || _editorState.value.doc.blocks[index].fontSize == normalizedSize) return
             val before = currentCheckpoint()
             val blocks = _editorState.value.doc.blocks.toMutableList()
             blocks[index] = blocks[index].withBaseFontSize(normalizedSize)

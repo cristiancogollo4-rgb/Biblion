@@ -1,7 +1,9 @@
 package com.cristiancogollo.biblion.feature.reader
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ContinuousChapterScrollTest {
@@ -71,4 +73,44 @@ class ContinuousChapterScrollTest {
         assertEquals(1, currentChapterBodyStartIndex(true, false, 0))
         assertEquals(32, currentChapterBodyStartIndex(true, true, 30))
     }
+
+    @Test
+    fun interruptedForwardStepCommitsOnceTheNextChapterPassedItsLine() {
+        assertTrue(crossed(direction = 1, startOffset = 400))
+        assertFalse(crossed(direction = 1, startOffset = 600))
+    }
+
+    @Test
+    fun interruptedForwardStepCommitsWhenTheNextChapterLeftTheTopOfTheScreen() {
+        assertTrue(crossed(direction = 1, startOffset = null, startIndex = 40, firstVisible = 45, lastVisible = 52))
+        assertFalse(crossed(direction = 1, startOffset = null, startIndex = 60, firstVisible = 45, lastVisible = 52))
+    }
+
+    @Test
+    fun interruptedBackwardStepCommitsOnceTheCurrentChapterDroppedBelowItsLine() {
+        assertTrue(crossed(direction = -1, startOffset = 500))
+        assertFalse(crossed(direction = -1, startOffset = 380))
+        assertTrue(crossed(direction = -1, startOffset = null, startIndex = 60, firstVisible = 45, lastVisible = 52))
+    }
+
+    @Test
+    fun interruptedStepWithoutKnownStartDoesNotCommit() {
+        assertFalse(crossed(direction = 1, startOffset = null, startIndex = null))
+    }
+
+    private fun crossed(
+        direction: Int,
+        startOffset: Int?,
+        startIndex: Int? = 10,
+        firstVisible: Int = 5,
+        lastVisible: Int = 15,
+    ) = hasCrossedChapterBoundary(
+        direction = direction,
+        startOffset = startOffset,
+        startIndex = startIndex,
+        firstVisibleIndex = firstVisible,
+        lastVisibleIndex = lastVisible,
+        forwardLine = 600f,
+        backwardLine = 380f,
+    )
 }

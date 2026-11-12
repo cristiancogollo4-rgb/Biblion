@@ -399,6 +399,8 @@ private class FakeDao(
     override suspend fun getByRemoteId(remoteId: String): StudyDocEntity? = docs.find { it.remoteId == remoteId }
     override suspend fun getDirtyForSync(ownerUid: String): List<StudyDocEntity> = emptyList()
     override suspend fun getDeletedForSync(ownerUid: String): List<StudyDocEntity> = emptyList()
+    override suspend fun getUnpublishedDrafts(): List<StudyDocEntity> =
+        docs.filter { !it.isPublished && it.deletedAt == null }
     override suspend fun insert(entity: StudyDocEntity): Long {
         docs.add(entity.copy(id = (docs.size + 1).toLong()))
         return docs.size.toLong()

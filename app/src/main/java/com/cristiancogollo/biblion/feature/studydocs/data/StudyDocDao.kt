@@ -59,6 +59,9 @@ interface StudyDocDao {
     )
     suspend fun getDeletedForSync(ownerUid: String): List<StudyDocEntity>
 
+    @Query("SELECT * FROM study_docs WHERE is_published = 0 AND deleted_at IS NULL")
+    suspend fun getUnpublishedDrafts(): List<StudyDocEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entity: StudyDocEntity): Long
 
