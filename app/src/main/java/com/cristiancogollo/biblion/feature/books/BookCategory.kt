@@ -32,7 +32,9 @@ object BookCategoryColors {
         BookCategory.EVANGELIO to BiblionHue.TEAL,
         BookCategory.HISTORICO_NT to BiblionHue.SKY,
         BookCategory.EPISTOLA_PAULINA to BiblionHue.LAVENDER,
-        BookCategory.EPISTOLA_CATOLICA to BiblionHue.INDIGO,
+        // Solo se ve un testamento a la vez: repetir WINE de Profeticos no se cruza, e
+        // INDIGO se confundia con LAVENDER de Paulinas.
+        BookCategory.EPISTOLA_CATOLICA to BiblionHue.WINE,
         BookCategory.APOCALIPSIS to BiblionHue.TERRACOTTA,
     )
 
