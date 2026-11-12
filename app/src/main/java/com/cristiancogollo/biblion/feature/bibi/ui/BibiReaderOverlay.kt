@@ -39,6 +39,8 @@ fun BibiReaderOverlay(
     onGuidedTutorialTargetAction: (String) -> Unit = {},
     onTutorialEvent: (String) -> Unit = {},
     forceOpenForTutorial: Boolean = false,
+    tutorialContent: (@Composable () -> Unit)? = null,
+    onOpenChange: (Boolean) -> Unit = {},
     openRequest: Int = 0,
     requestedContext: BibiContext.Reader? = null,
     onOpenPassage: (BibiPassage) -> Unit = {},
@@ -60,10 +62,18 @@ fun BibiReaderOverlay(
         hasExplicitSelection = hasExplicitSelection,
     )
 
+    LaunchedEffect(isOpen) { onOpenChange(isOpen) }
+    var wasForcedByTutorial by remember { mutableStateOf(false) }
     LaunchedEffect(forceOpenForTutorial) {
         if (forceOpenForTutorial) {
             activeReaderContext = readerContext
             isOpen = true
+            wasForcedByTutorial = true
+        } else if (wasForcedByTutorial) {
+            // El chat es una ventana enfocable: si sigue abierta, bloquea la capsula del paso siguiente.
+            wasForcedByTutorial = false
+            isOpen = false
+            activeReaderContext = null
         }
     }
     LaunchedEffect(openRequest) {
@@ -98,6 +108,7 @@ fun BibiReaderOverlay(
                 },
                 onCompletedExchange = { onTutorialEvent("chat_exchange_completed") },
                 isTutorial = forceOpenForTutorial,
+                tutorialContent = tutorialContent,
                 onOpenPassage = {
                     isOpen = false
                     activeReaderContext = null

@@ -58,36 +58,20 @@ Biblion ya incluye:
 - Evaluador local de modelos de Bibi en `workers/bibi/evals/model_eval.mjs`.
 - Contexto para Bibi con versiones biblicas disponibles, version seleccionada, texto seleccionado, bloques actuales de la ensenanza, notas y diccionario biblico.
 - Saludo local de Bibi con el nombre visible del usuario autenticado sin incluir ese nombre en la solicitud al Worker.
-- **Tutorial guiado interactivo (primera instalacion)**: inicio automatico en Home, Bibi con logo, auto-scroll a versiculo 1, target ampliado (primeros 3 versiculos), scroll en textos largos, debug logs `GUIDE_DEBUG`.
+- **Tutorial guiado interactivo (primera instalacion)**: inicio automatico en Home, 13 pasos con progreso visible, "Saltar recorrido" siempre disponible, respaldo "Saltar este paso", aviso "Recorrido en pausa" si el usuario sale de la pantalla del paso, auto-scroll a versiculo 1, debug logs `GUIDE_DEBUG`.
 - **Referencias cruzadas con voto crowdsourced** (`app/src/main/assets/databases/cross_references_votes.db`): 340,645 pares del dataset openbile.info (CC-BY 2026-06-15). Reemplazo completo del antiguo TSK. Tabla `cross_reference_votes` con `source_book`, `source_normalized_book`, `source_chapter`, `source_verse`, `target_references` (formato Biblion), `votes` (1-1279, INTERNO). Esquema version 1. La columna `votes` se usa internamente para ranking y filtrado (default `votes >= 10`). **NUNCA** debe exponerse al usuario en la UI de Bibi.
 - **Temas canonicos v3** (`app/src/main/assets/databases/topics.db`): 693 temas canonicos en 11 categorias (BOOK 66, PERSON 126, PLACE 70, EVENT 43, ATTRIBUTE_OF_GOD 32, PROPHECY 33, COMPARATIVE_RELIGION 17, SIN 70, DOCTRINE 101, CHURCH 50, CHRISTIAN_LIFE 85). Esquema v3 con 4 tablas: `topics` (con `description` generada por Bibi Worker qwen3-8b o manual, `verse_count`, `total_aliases`, `parent_slug` para jerarquia), `topic_aliases` (1689 aliases de OpenBible con `score` 0.85-0.94 y flag `low_confidence`), `topic_references` (4704 versiculos del OSIS original con `score` 2-100), `topic_relationships` (236 jerarquias parent/child). Las traducciones ES curadas viven en `tools/topic_aliases.json`. Ver seccion "Busqueda de versiculos y temas" para detalles del pipeline de 6 fases y la pantalla "Explorar temas".
 - **Despues del tutorial**: mensaje de despedida de Bibi con mension a opcion de reinicio en Perfil.
 
 ### Flujo de primera instalacion (onboarding)
 
-**Antes**: Pantalla con pregunta "¿Como quieres usar Biblion?" y tres opciones de navegacion.
-
-**Ahora (actual)**:
-1. Usuario abre la app por primera vez.
-2. Se muestra `HomeScreen` directamente (tema claro por defecto).
-3. `LaunchedEffect(Unit)` en `AppNavigation` detecta que `hasCompletedReadingGuide == false`.
-4. Inicia automaticamente `GuidedTutorialId.READING` en step 0 (`reading-welcome`).
-5. `GuideBubble` con logo de Bibi (48dp tablet / 40dp movil) aparece en `HomeScreen`.
-6. Paso 2: target `HOME_TESTAMENT_SELECTOR` -> usuario toca testamento.
-7. Navega a `BooksScreen` -> paso 3: target `BOOKS_FIRST_BOOK`.
-8. Usuario elige libro -> navega a `ReaderScreen` -> paso 4: target `READER_CHAPTER_SELECTOR`.
-9. Usuario elige capitulo -> paso 5: `READER_TEXT` (info del lector).
-10. **Paso clave**: `reader-highlight` con target `READER_FIRST_VERSE`:
-    - `LaunchedEffect` en `ReaderScreen` hace auto-scroll a versiculo 1 (`animateScrollToItem(0)`).
-    - Target ampliado: **primeros 3 versiculos** (`index < verses.size`).
-    - Long-press en cualquiera dispara `saveHighlight` + `onGuidedTutorialTargetAction`.
-    - Tambien funciona via boton "Resaltar" en menu flotante.
-11. Paso 7: `READER_VERSION_SELECTOR` (FAB).
-12. Paso 8-9: `READER_BIBI_BUTTON` (abrir chat Bibi).
-13. Paso 10: Info "Mas alla de la lectura" (modo estudio).
-14. Paso 11: `reading-finish` -> "Comenzar a leer" (completa) / "Ver recorrido nuevamente" (RESTART).
-15. Al completar: `KEY_HAS_COMPLETED_READING_GUIDE = true`, no vuelve a auto-iniciarse.
-16. **Reinicio**: Desde Perfil -> "Reiniciar tutorial de lectura" -> vuelve a step 0.
+1. Usuario abre la app por primera vez; se muestra `HomeScreen` (tema claro por defecto).
+2. `LaunchedEffect(Unit)` en `AppNavigation` detecta `hasCompletedReadingGuide == false` e inicia `GuidedTutorialId.READING` en step 0. Si el indice guardado ya no existe (p. ej. tras quitar un paso), se limpia en vez de dejar un tutorial activo e invisible.
+3. Recorrido de 13 pasos (ver lista en la seccion `GuidedTutorialOverlay`): Home -> capsula Biblia -> elegir libro -> capitulo -> lector -> resaltar -> version -> boton de Bibi -> chat de Bibi -> mas alla de la lectura -> capsula Buscar -> pantalla de busqueda -> final.
+4. **Siempre hay salida**: "Saltar recorrido" esta visible en todos los pasos (en el final, "Ver recorrido nuevamente"). Al saltar se marca como completado y un Toast recuerda que se puede repetir desde Perfil.
+5. **Respaldo por paso**: los pasos que esperan una accion o evento muestran "Saltar este paso" a los 8 s, o a los 1.2 s si el objetivo no esta en pantalla.
+6. **Recorrido en pausa**: si la ruta actual no corresponde a `step.screenTarget` durante mas de 700 ms, `GuidedTutorialPausedBanner` ofrece "Volver" (regresa a la pantalla del paso, primero via `popBackStack`) o "Saltar recorrido".
+7. Al completar: `KEY_HAS_COMPLETED_READING_GUIDE = true`, no vuelve a auto-iniciarse. Reinicio desde Perfil -> "Reiniciar tutorial de lectura".
 
 ## 3) Principios de cambio
 
@@ -121,31 +105,34 @@ Biblion ya incluye:
 
 ### GuidedTutorialOverlay y GuideBubble
 
-El sistema de tutorial guiado usa `GuidedTutorialOverlay` + `GuideBubble` para mostrar pasos contextuales.
+El sistema de tutorial guiado (`feature/onboarding/GuidedTutorial.kt`) usa `GuidedTutorialOverlay` + `GuideBubble`.
 
-**Comportamiento actual**:
-- Inicio automatico en primera instalacion en `HomeScreen` (step `reading-welcome`).
-- `GuideBubble` muestra logo de Bibi (48dp tablet / 40dp movil) y texto con scroll vertical.
-- `heightIn(max = 500.dp)` en `Surface` + `verticalScroll(rememberScrollState())` en `Column` permite scroll en textos largos.
-- `maxLines` removido de descripcion para permitir expansion natural y activar scroll.
-- Texto titulo max 5 lineas, descripcion sin limite de lineas (solo ellipsis si excede).
+**Diseno**:
+- Velo azul marino (`BiblionBlueNavigation` al 66 %) dibujado en un `Canvas` con recorte redondeado que se anima entre objetivos y anillo dorado pulsante.
+- `GuideTouchShield` bloquea los toques fuera del recorte; solo el objetivo (y la capsula de navegacion, que esta por encima de cada pantalla) recibe toques.
+- Burbuja con avatar circular de Bibi, "Paso N de M" y camino segmentado dorado, titulo, cuerpo con scroll (alto max 46 % de pantalla), pista "Toca el elemento resaltado" cuando el paso espera una accion, y fila inferior con "Saltar recorrido" + boton principal o "Saltar este paso".
+- La burbuja va arriba si el objetivo esta en la mitad inferior o es muy alto (panel de chat), y abajo en caso contrario, respetando insets y la capsula flotante.
+- Transiciones con `BiblionMotion` y ease-out exponencial; se desactivan si la escala de animaciones del sistema es 0. `liveRegion` anuncia cada paso en TalkBack.
+- `Modifier.guidedTutorialTarget` elimina su rectangulo al salir de composicion para no recortar objetivos que ya no existen.
+- **Pasos dentro del chat de Bibi** (`READER_BIBI_CHAT_PANEL`): el chat es un `Popup` (ventana propia), asi que la guia no usa la burbuja sino `GuidedTutorialInlineCard`, inyectada en `BibiChatPanel` via `tutorialContent`. Con el teclado abierto se colapsa a una franja (progreso, titulo, "Saltar") para no tapar mensajes ni campo. Si el chat se cierra durante esos pasos, vuelve la burbuja normal; al salir de ellos el chat se cierra solo para no bloquear la capsula. Solo cuentan los intercambios completados con el panel abierto.
+- En `ReaderScreen` el overlay va fuera del contenido del `Scaffold`; dentro, la barra superior quedaria por encima del velo.
 
-**Targets del tutorial READING**:
+**Pasos del tutorial READING**:
 1. `reading-welcome` - Home, sin target, "Comenzar recorrido"
-2. `reading-testament` - Home, `HOME_TESTAMENT_SELECTOR`
-3. `reading-book` - Books, `BOOKS_FIRST_BOOK`
+2. `reading-testament` - Home, `NAV_BIBLE`
+3. `reading-book` - Books, `BOOKS_FIRST_BOOK` (tambien se cumple al abrir un libro desde su descripcion)
 4. `reading-chapter` - Reader, `READER_CHAPTER_SELECTOR`
 5. `reader-text` - Reader, `READER_TEXT`
-6. `reader-highlight` - Reader, `READER_FIRST_VERSE` (auto-scroll a versiculo 1, target primeros 3 versiculos)
+6. `reader-highlight` - Reader, `READER_FIRST_VERSE` (auto-scroll al versiculo 1)
 7. `reader-version` - Reader, `READER_VERSION_SELECTOR`
-8. `reader-bibi` - Reader, `READER_BIBI_BUTTON`
-9. `reader-bibi-chat` - Reader, `READER_BIBI_BUTTON`
-10. `reader-deeper-path` - Reader, sin target
-11. `reading-finish` - Reader, "Comenzar a leer" / "Ver recorrido nuevamente" (RESTART)
+8. `reader-bibi-chat` - Reader, `READER_BIBI_BUTTON` (abrir el chat)
+9. `reader-bibi` - Reader, `READER_BIBI_CHAT_PANEL`, avanza con `chat_exchange_completed` (tambien cuenta una respuesta con error)
+10. `reader-deeper-path` - Reader, `READER_BIBI_CHAT_PANEL`
+11. `reader-dictionary` - Reader, `NAV_SEARCH`
+12. `search-components` - Search, sin target
+13. `reading-finish` - Search, "Comenzar a leer" / "Ver recorrido nuevamente" (RESTART)
 
-**Responsive**: En pantallas < 360dp se reducen padding (12dp), logo (40dp), tipografias (Small), botones (36dp), ancho max bubble = ancho pantalla.
-
-**Debug**: Logs `GUIDE_DEBUG` en `AppNavigation`, `ReaderScreen`, `GuideBubble` para rastrear estado.
+**Debug**: Logs `GUIDE_DEBUG` en `AppNavigation` y `ReaderScreen`. Pruebas en `GuidedTutorialFlowTest`.
 
 ## 6) Modo estudio: herramientas y responsabilidades
 

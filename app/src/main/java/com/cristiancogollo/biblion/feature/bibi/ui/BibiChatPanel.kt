@@ -9,6 +9,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -85,6 +86,7 @@ fun BibiChatPanel(
     onCompletedExchange: () -> Unit = {},
     onOpenPassage: ((BibiPassage) -> Unit)? = null,
     isTutorial: Boolean = false,
+    tutorialContent: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -127,8 +129,13 @@ fun BibiChatPanel(
             lastScrolledSessionId = uiState.activeSessionId
         }
     }
+    // Solo cuentan los intercambios completados con este panel abierto; uno anterior de la misma
+    // sesion no debe saltar el paso del tutorial.
+    var seenExchanges by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(uiState.completedExchanges) {
-        if (uiState.completedExchanges > 0) onCompletedExchange()
+        val previous = seenExchanges
+        seenExchanges = uiState.completedExchanges
+        if (previous != null && uiState.completedExchanges > previous) onCompletedExchange()
     }
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -184,6 +191,11 @@ fun BibiChatPanel(
             }
         }
         HorizontalDivider()
+        if (tutorialContent != null) {
+            Box(modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 12.dp)) {
+                tutorialContent()
+            }
+        }
         val selectedReader = (bibiContext as? BibiContext.Reader)
             ?.takeIf { it.hasExplicitSelection && it.passages.isNotEmpty() }
         if (selectedReader != null) {

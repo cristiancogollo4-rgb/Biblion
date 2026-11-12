@@ -25,6 +25,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import com.cristiancogollo.biblion.feature.achievements.presentation.ACHIEVEMENTS_ROUTE
 import com.cristiancogollo.biblion.feature.achievements.presentation.AchievementsScreen
 import com.cristiancogollo.biblion.feature.achievements.presentation.AchievementUnlockedHost
@@ -108,7 +109,12 @@ fun AppNavigation(
     }
 
     LaunchedEffect(Unit) {
-        val saved = AppPreferencesSyncStore.getActiveGuidedTutorial(appContext)
+        val stored = AppPreferencesSyncStore.getActiveGuidedTutorial(appContext)
+        // Un indice fuera de rango (p. ej. tras quitar un paso) dejaria el tutorial activo e invisible.
+        val saved = stored?.takeIf { it.currentStep() != null }
+        if (stored != null && saved == null) {
+            AppPreferencesSyncStore.clearActiveGuidedTutorial(appContext)
+        }
         Log.d("GUIDE_DEBUG", "LaunchedEffect(Unit) init - saved=$saved hasCompleted=${AppPreferencesSyncStore.hasCompletedReadingGuide(appContext)}")
         activeGuidedTutorial = saved
         if (saved == null && !AppPreferencesSyncStore.hasCompletedReadingGuide(appContext)) {
@@ -271,6 +277,11 @@ fun AppNavigation(
         val current = activeGuidedTutorial
         if (current?.guideId == GuidedTutorialId.READING) {
             AppPreferencesSyncStore.completeGuidedTutorial(appContext, current.guideId)
+            Toast.makeText(
+                appContext,
+                appContext.getString(R.string.guide_skipped_toast),
+                Toast.LENGTH_LONG
+            ).show()
         } else {
             AppPreferencesSyncStore.clearActiveGuidedTutorial(appContext)
         }
@@ -312,6 +323,43 @@ fun AppNavigation(
                     }
                 }
             }
+        }
+    }
+
+    val currentNavEntry by navController.currentBackStackEntryAsState()
+    val currentTutorialScreen = guidedTutorialScreenForRoute(currentNavEntry?.destination?.route)
+    val pausedTutorialStep = activeGuidedTutorial
+        ?.currentStep()
+        ?.takeIf { currentNavEntry != null && it.screenTarget != currentTutorialScreen }
+    var showPausedTutorial by remember { mutableStateOf(false) }
+    LaunchedEffect(pausedTutorialStep?.id, currentTutorialScreen) {
+        showPausedTutorial = false
+        if (pausedTutorialStep != null) {
+            // Margen para las transiciones normales: el paso avanza antes de que cambie la ruta.
+            kotlinx.coroutines.delay(GUIDE_PAUSED_BANNER_DELAY_MS)
+            showPausedTutorial = true
+        }
+    }
+
+    fun resumeGuidedTutorialScreen() {
+        val current = activeGuidedTutorial ?: return
+        val templates = when (current.currentStep()?.screenTarget) {
+            GuidedTutorialScreenTarget.HOME -> listOf(Screen.Home.route)
+            GuidedTutorialScreenTarget.BOOKS -> listOf(Screen.Books.route)
+            GuidedTutorialScreenTarget.READER -> listOf(
+                Screen.ReaderWithBook.route,
+                Screen.ReaderWithoutBook.route
+            )
+            GuidedTutorialScreenTarget.SEARCH -> listOf(Screen.Search.route)
+            null -> emptyList()
+        }
+        // Primero vuelve a la pantalla que el usuario ya tenia abierta, para conservar su libro.
+        if (templates.any { navController.popBackStack(it, inclusive = false) }) return
+        val route = current.resumeRoute() ?: return
+        if (route == Screen.Home.route) {
+            navController.navigateTopLevel(Screen.Home.route)
+        } else {
+            navController.navigate(route) { launchSingleTop = true }
         }
     }
 
@@ -597,6 +645,13 @@ fun AppNavigation(
         onGuidedTutorialTargetAction = ::handleGuidedTutorialTargetAction,
         modifier = Modifier.align(Alignment.BottomCenter),
     )
+
+    GuidedTutorialPausedBanner(
+        visible = showPausedTutorial && pausedTutorialStep != null,
+        onResume = ::resumeGuidedTutorialScreen,
+        onSkip = ::skipGuidedTutorial,
+        modifier = Modifier.align(Alignment.TopCenter),
+    )
     }
     }
 
@@ -643,7 +698,7 @@ private fun GuidedTutorialProgress.resumeRoute(): String? {
         GuidedTutorialScreenTarget.HOME -> Screen.Home.route
         GuidedTutorialScreenTarget.BOOKS -> Screen.Books.createRoute(Testament.OLD)
         GuidedTutorialScreenTarget.READER -> Screen.Reader.createRoute(bookName = "Genesis")
-        GuidedTutorialScreenTarget.SEARCH -> Screen.Search.route
+        GuidedTutorialScreenTarget.SEARCH -> Screen.Search.createRoute()
         null -> null
     }
 }
@@ -664,3 +719,4 @@ private fun preferredUserName(profileState: ProfileUiState, currentUser: AuthUse
 
 /** Retraso para tareas no visibles al arrancar, cuando Home ya esta pintado. */
 private const val STARTUP_DEFERRED_WORK_MS = 1_500L
+private const val GUIDE_PAUSED_BANNER_DELAY_MS = 700L

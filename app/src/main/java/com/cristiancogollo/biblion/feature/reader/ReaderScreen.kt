@@ -50,6 +50,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -789,6 +791,7 @@ fun ReaderContent(
         ?.currentStep()
         ?.takeIf { it.screenTarget == GuidedTutorialScreenTarget.READER }
     val tutorialTargetBounds = remember { mutableStateMapOf<String, Rect>() }
+    var isBibiChatOpen by remember { mutableStateOf(false) }
 
     fun verseKey(verseNumber: String): String = "${bookName ?: ""}|$selectedChapter|$verseNumber"
 
@@ -2007,7 +2010,10 @@ fun ReaderContent(
             }
 
             if (showBibi && !isParallelReading) {
+                // Se mide en la ventana de la app: el chat de Bibi (Popup) usa la misma senal.
+                val isImeVisibleForTutorial = WindowInsets.ime.getBottom(LocalDensity.current) > 0
                 BibiReaderOverlay(
+                    onOpenChange = { isBibiChatOpen = it },
                     bookName = bookName,
                     chapter = selectedChapter,
                     passages = bibiPassages,
@@ -2019,8 +2025,20 @@ fun ReaderContent(
                     tutorialTargetBounds = tutorialTargetBounds,
                     onGuidedTutorialTargetAction = onGuidedTutorialTargetAction,
                     onTutorialEvent = onTutorialEvent,
-                    forceOpenForTutorial = guidedStep?.targetKey ==
-                        GuidedTutorialTargets.READER_BIBI_CHAT_PANEL,
+                    forceOpenForTutorial = guidedStepRendersInsideBibiChat(guidedStep),
+                    tutorialContent = guidedStep
+                        ?.takeIf { guidedStepRendersInsideBibiChat(it) }
+                        ?.let { step ->
+                            {
+                                GuidedTutorialInlineCard(
+                                    step = step,
+                                    onNext = onGuidedTutorialNext,
+                                    onSkip = onGuidedTutorialSkip,
+                                    onRestart = onGuidedTutorialRestart,
+                                    collapsed = isImeVisibleForTutorial,
+                                )
+                            }
+                        },
                     onOpenPassage = { passage ->
                         navController.navigate(
                             Screen.Reader.createRoute(
@@ -2201,15 +2219,6 @@ fun ReaderContent(
             )
         }
 
-        GuidedTutorialOverlay(
-            step = guidedStep,
-            targetBounds = tutorialTargetBounds,
-            onNext = onGuidedTutorialNext,
-            onSkip = onGuidedTutorialSkip,
-            onRestart = onGuidedTutorialRestart,
-            isRestart = guidedTutorial?.isRestart == true
-        )
-
         if (showReaderSettings) {
             ReaderSettingsSheet(
                 fontSizeSp = fontSizeValue,
@@ -2261,6 +2270,18 @@ fun ReaderContent(
             )
         }
         }
+
+        // Fuera del contenido del Scaffold: si no, la barra superior queda por encima del velo.
+        GuidedTutorialOverlay(
+            step = guidedStep,
+            targetBounds = tutorialTargetBounds,
+            onNext = onGuidedTutorialNext,
+            onSkip = onGuidedTutorialSkip,
+            onRestart = onGuidedTutorialRestart,
+            isRestart = guidedTutorial?.isRestart == true,
+            // Con el chat abierto la guia va dentro de el; si se cierra, vuelve la burbuja.
+            hostedInBibiChat = isBibiChatOpen && guidedStepRendersInsideBibiChat(guidedStep),
+        )
     }
 }
 

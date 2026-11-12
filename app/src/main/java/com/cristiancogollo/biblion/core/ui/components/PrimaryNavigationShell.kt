@@ -90,15 +90,6 @@ internal fun routeShowsPrimaryNavigation(route: String?): Boolean {
         route == StudyDocScreen.StudyDocsList.route
 }
 
-private fun tutorialScreenFor(route: String?): GuidedTutorialScreenTarget? = when {
-    route == null -> null
-    route == Screen.Home.route -> GuidedTutorialScreenTarget.HOME
-    route == Screen.Books.route -> GuidedTutorialScreenTarget.BOOKS
-    route.startsWith("reader") -> GuidedTutorialScreenTarget.READER
-    route == Screen.Search.route -> GuidedTutorialScreenTarget.SEARCH
-    else -> null
-}
-
 private val navigationTutorialTargets = setOf(
     GuidedTutorialTargets.NAV_BIBLE,
     GuidedTutorialTargets.NAV_SEARCH,
@@ -127,7 +118,7 @@ fun PrimaryNavigationBar(
 
     val tutorialTargetKey = guidedTutorial
         ?.currentStep()
-        ?.takeIf { it.screenTarget == tutorialScreenFor(route) }
+        ?.takeIf { it.screenTarget == guidedTutorialScreenForRoute(route) }
         ?.targetKey
         ?.takeIf { it in navigationTutorialTargets }
 

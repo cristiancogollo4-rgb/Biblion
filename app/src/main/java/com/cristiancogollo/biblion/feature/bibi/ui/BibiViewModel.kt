@@ -327,6 +327,8 @@ class BibiViewModel(
                             )
                         ),
                     ),
+                    // El intercambio termino (con error); el tutorial no debe quedar esperando.
+                    completedExchanges = _uiState.value.completedExchanges + 1,
                 )
             } finally {
                 _uiState.value = _uiState.value.copy(isLoading = false)

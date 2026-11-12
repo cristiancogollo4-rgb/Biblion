@@ -474,6 +474,8 @@ fun BooksScreen(
                             if (isBookDescriptionTutorialStep) {
                                 onGuidedTutorialTargetAction(GuidedTutorialTargets.BOOKS_LONG_PRESS)
                             } else {
+                                // Abrir el libro desde la descripcion tambien cumple el paso "Elige un libro".
+                                onGuidedTutorialTargetAction(GuidedTutorialTargets.BOOKS_FIRST_BOOK)
                                 navController.navigateSingleTop(
                                     Screen.Reader.createRoute(
                                         bookName = bookName,
