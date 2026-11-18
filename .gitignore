@@ -42,3 +42,13 @@ inspect.py
 /.zcode/
 /tmp/
 /opencode.json
+
+# Herramientas locales de agentes (la skill impeccable incluye un ejecutable de ~20 MB)
+/.agents/skills/impeccable/
+/.impeccable/
+/.codex/
+/.claude/launch.json
+
+# Material de promocion (proyectos de video y renders) y documentos administrativos
+/videos publicitarios/
+/Carta_FECP_Biblion.docx
