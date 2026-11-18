@@ -1,0 +1,206 @@
+:root {
+  --biblion-navy: #103250;
+  --biblion-navy-deep: #082b4f;
+  --biblion-gold: #b49664;
+  --biblion-gold-soft: #bfa981;
+  --biblion-ink: #17283a;
+  --biblion-paper: #f7f9fb;
+  --biblion-space-xs: 0.25rem;
+  --biblion-space-sm: 0.5rem;
+  --biblion-space-md: 1rem;
+  --biblion-space-lg: 1.5rem;
+  --biblion-space-xl: 2rem;
+  --biblion-space-2xl: 3rem;
+  --biblion-radius-sm: 0.375rem;
+  --biblion-radius-md: 0.625rem;
+  --biblion-radius-lg: 0.875rem;
+  --biblion-shadow: 0 12px 30px rgb(16 50 80 / 7%), 0 2px 8px rgb(16 50 80 / 5%);
+  --biblion-duration: 150ms;
+  --biblion-ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --vp-c-brand-1: var(--biblion-navy);
+  --vp-c-brand-2: var(--biblion-navy-deep);
+  --vp-c-brand-3: #20415c;
+  --vp-c-brand-soft: rgb(16 50 80 / 10%);
+  --vp-font-family-base: 'Segoe UI', Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  --vp-c-bg: #fff;
+  --vp-c-bg-soft: var(--biblion-paper);
+  --vp-c-text-1: var(--biblion-ink);
+}
+
+.dark {
+  --vp-c-brand-1: #dac29a;
+  --vp-c-brand-2: #c8ae80;
+  --vp-c-brand-3: var(--biblion-gold-soft);
+  --vp-c-brand-soft: rgb(191 169 129 / 15%);
+  --vp-c-bg: #101c2a;
+  --vp-c-bg-soft: #172739;
+  --vp-c-bg-alt: #142234;
+  --vp-c-text-1: #eef2f6;
+  --biblion-ink: #eef2f6;
+  --biblion-paper: #172739;
+  --biblion-shadow: 0 0 0 1px rgb(255 255 255 / 7%);
+}
+
+.VPNavBar .title img {
+  object-fit: contain;
+}
+
+.VPHome .name,
+.VPHome .text {
+  letter-spacing: -0.035em;
+}
+
+.VPHome .name {
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.VPHomeHero .image-container img {
+  filter: drop-shadow(0 12px 20px rgb(16 50 80 / 13%));
+}
+
+.doc-home-content {
+  margin: var(--biblion-space-2xl) auto 0;
+  max-width: 1152px;
+  padding: 0 var(--biblion-space-lg) var(--biblion-space-2xl);
+}
+
+.doc-home-content h2 {
+  border: 0;
+  margin-top: 0;
+  padding: 0;
+  letter-spacing: -0.025em;
+}
+
+.doc-pathways {
+  display: grid;
+  grid-template-columns: 1.08fr 0.92fr;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: var(--biblion-radius-lg);
+  overflow: hidden;
+  box-shadow: var(--biblion-shadow);
+}
+
+.doc-pathway {
+  min-width: 0;
+  padding: clamp(1.5rem, 4vw, 3rem);
+  background: var(--vp-c-bg);
+}
+
+.doc-pathway + .doc-pathway {
+  border-left: 2px solid var(--biblion-gold);
+  background: var(--vp-c-bg-soft);
+}
+
+.doc-pathway h2 {
+  font-size: clamp(1.45rem, 2.4vw, 2rem);
+  line-height: 1.2;
+}
+
+.doc-pathway p {
+  max-width: 42ch;
+  color: var(--vp-c-text-2);
+  line-height: 1.65;
+}
+
+.doc-pathway a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: var(--biblion-space-md);
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 5px;
+}
+
+.doc-pathway a:hover {
+  color: var(--vp-c-brand-2);
+}
+
+.doc-pathway a:focus-visible {
+  outline: 3px solid var(--biblion-gold);
+  outline-offset: 4px;
+  border-radius: var(--biblion-radius-sm);
+}
+
+.doc-pathway-label {
+  display: inline-block;
+  margin-bottom: var(--biblion-space-lg);
+  color: var(--vp-c-text-2);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.doc-journey {
+  margin-top: clamp(3rem, 7vw, 6rem);
+}
+
+.doc-journey > p {
+  max-width: 62ch;
+  color: var(--vp-c-text-2);
+}
+
+.doc-journey ol {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--biblion-space-lg);
+  list-style: none;
+  padding: 0;
+  margin-top: var(--biblion-space-xl);
+}
+
+.doc-journey li {
+  padding-top: var(--biblion-space-md);
+  border-top: 1px solid var(--vp-c-divider);
+}
+
+.doc-journey li strong {
+  display: block;
+  font-size: 1.05rem;
+}
+
+.doc-journey li span {
+  display: block;
+  margin-top: var(--biblion-space-xs);
+  color: var(--vp-c-text-2);
+  font-size: 0.94rem;
+  line-height: 1.5;
+}
+
+.vp-doc a,
+.doc-home-content a {
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 760px) {
+  .doc-pathways {
+    grid-template-columns: 1fr;
+  }
+
+  .doc-pathway + .doc-pathway {
+    border-left: 0;
+    border-top: 2px solid var(--biblion-gold);
+  }
+
+  .doc-journey ol {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .doc-home-content {
+    padding-inline: var(--biblion-space-md);
+  }
+
+  .doc-journey ol {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
+  .doc-pathway a {
+    transition: color var(--biblion-duration) var(--biblion-ease);
+  }
+}
