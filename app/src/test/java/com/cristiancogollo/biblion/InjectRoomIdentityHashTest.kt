@@ -107,6 +107,13 @@ class InjectRoomIdentityHashTest {
             )
         }
 
+        // Abrir el asset en escritura sube el contador de cambios de SQLite y lo deja como
+        // modificado en git aunque el hash sea el mismo: solo se escribe cuando cambia.
+        if (readStoredIdentityHash(targetFile) == identityHash) {
+            println("Identity hash de $targetDbName ya estaba al dia; no se modifica")
+            return
+        }
+
         val targetConn = android.database.sqlite.SQLiteDatabase.openDatabase(
             targetFile.absolutePath, null, android.database.sqlite.SQLiteDatabase.OPEN_READWRITE
         )
@@ -130,5 +137,24 @@ class InjectRoomIdentityHashTest {
         targetConn.close()
 
         println("Identity hash inyectado en $targetDbName")
+    }
+
+    private fun readStoredIdentityHash(dbFile: File): String? {
+        val conn = android.database.sqlite.SQLiteDatabase.openDatabase(
+            dbFile.absolutePath, null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY
+        )
+        try {
+            val hasTable = conn.rawQuery(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='room_master_table'",
+                null
+            ).use { it.count > 0 }
+            if (!hasTable) return null
+            return conn.rawQuery(
+                "SELECT identity_hash FROM room_master_table WHERE id = 42",
+                null
+            ).use { if (it.moveToFirst()) it.getString(0) else null }
+        } finally {
+            conn.close()
+        }
     }
 }
