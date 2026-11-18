@@ -1,0 +1,23 @@
+.build/
+.swiftpm/
+xtool/
+.DS_Store
+*.ipa
+*.p12
+*.mobileprovision
+.env
+reports/*.log
+.sourcekit-lsp/
+.bsp/
+dist/
+
+__pycache__/
+
+# Copias de las bases de Android (~97 MB): se copian desde ../app/src/main/assets/databases (ver README)
+Sources/BiblionCore/Resources/*.db
+
+# Configuracion de Firebase y servicios de cada entorno, como google-services.json y
+# local.properties en Android. Se parte de Services.example.plist (ver README).
+GoogleService-Info.plist
+Sources/Biblion/Resources/Services.plist
+reports/firebase-ios.jpg

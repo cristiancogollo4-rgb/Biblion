@@ -1,0 +1,22 @@
+{
+  "archive": "/mnt/c/Users/LENOVO LOQ/Desktop/PROYECTOS/Biblion/biblion-ios/dist/Biblion-Appetize-arm64.zip",
+  "bytes": 32583990,
+  "bundle_id": "com.cristiancogollo.biblion.ios",
+  "version": "0.2.0",
+  "architecture": "arm64",
+  "platform": "iOS Simulator",
+  "local_code_signature": true,
+  "minimum_ios": "17.0",
+  "database_sha256": "0f323ad248d6dc25a099075f076924b3c9bff31aecad5d3be8bf9321e5ec9573",
+  "bundled_database_sha256": {
+    "bible_content.db": "0f323ad248d6dc25a099075f076924b3c9bff31aecad5d3be8bf9321e5ec9573",
+    "dictionary_v2.db": "a06ca84fea49a7f285558b36f5cd469718bf157d9fff5d2ea2f7a5b06349187a",
+    "topics.db": "c36186c450a83e9e039c20c4b58fa7c116cf5ba9eaf774c5c57ea7a49dcbfd8e",
+    "strongs.db": "63b5f88ca1213e01ef84c55731b194a8e7bcec00c80bf86890e43126e136b7b6",
+    "cross_references_votes.db": "c4122222f20dac2172fd9163cb75d5323a6a968f5f87e53a9c2b77fe3f677ab6"
+  },
+  "google_ios_configured": true,
+  "zip_integrity": "passed",
+  "executable_permissions": "preserved",
+  "execution_in_appetize": "not_yet_verified"
+}

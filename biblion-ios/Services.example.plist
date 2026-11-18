@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>apiKey</key>
+	<string>LO_COMPLETA_configure-google.py</string>
+	<key>bibiURL</key>
+	<string>https://TU-WORKER-DE-BIBI.workers.dev/ask</string>
+	<key>googleIOSClientID</key>
+	<string>LO_COMPLETA_configure-google.py</string>
+	<key>googleRedirectScheme</key>
+	<string>LO_COMPLETA_configure-google.py</string>
+	<key>projectID</key>
+	<string>LO_COMPLETA_configure-google.py</string>
+	<key>storageBucket</key>
+	<string>LO_COMPLETA_configure-google.py</string>
+</dict>
+</plist>
