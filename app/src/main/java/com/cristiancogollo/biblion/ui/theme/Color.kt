@@ -12,8 +12,11 @@ val BiblionGoldSoft = Color(0xFFBFA981)
 val BiblionBlueNavigation = Color(0xFF082B4F)
 val BiblionDarkNavigation = Color(0xFF171717)
 
-/** Dorado legible como texto sobre blanco (4.8:1). El dorado primario queda para acentos. */
-val BiblionGoldText = Color(0xFF8A6D3B)
+/** Dorado legible como texto pequeno sobre papel (5.5:1) y blanco (5.7:1). El dorado primario queda para acentos. */
+val BiblionGoldText = Color(0xFF7D6232)
+
+/** Papel del tema Claro: un blanco calido apenas perceptible; las tarjetas quedan en blanco puro. */
+val BiblionPaper = Color(0xFFFCFAF7)
 
 /** Fondos y tintas de los temas Azul y Oscuro. */
 val BiblionBlueBackground = Color(0xFF0B2A4A)

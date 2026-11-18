@@ -42,7 +42,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -50,6 +49,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.cristiancogollo.biblion.R
 import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
+import com.cristiancogollo.biblion.ui.theme.BiblionSerif
 
 @Composable
 fun SaveTeachingDialog(
@@ -103,7 +103,7 @@ fun SaveTeachingDialog(
                             Text(
                                 text = stringResource(R.string.study_save_title),
                                 style = MaterialTheme.typography.titleLarge,
-                                fontFamily = FontFamily.Serif,
+                                fontFamily = BiblionSerif,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
                             )

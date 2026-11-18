@@ -30,7 +30,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.cristiancogollo.biblion.ui.theme.BiblionThemeMode
@@ -135,6 +137,16 @@ private fun MainActivity.BiblionApp() {
         prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose {
             prefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
+
+    val lightSystemBars = themeMode == BiblionThemeMode.LIGHT
+    SideEffect {
+        // enableEdgeToEdge() elige los iconos segun el modo del sistema: con el sistema oscuro y
+        // la app en Claro quedaban blancos sobre blanco. Deben seguir el tema de la app.
+        WindowCompat.getInsetsController(activity.window, activity.window.decorView).run {
+            isAppearanceLightStatusBars = lightSystemBars
+            isAppearanceLightNavigationBars = lightSystemBars
         }
     }
 

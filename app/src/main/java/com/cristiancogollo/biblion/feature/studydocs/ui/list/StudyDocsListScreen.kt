@@ -63,7 +63,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -87,6 +86,7 @@ import com.cristiancogollo.biblion.feature.studydocs.ui.editor.firstIncompleteSt
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
+import com.cristiancogollo.biblion.ui.theme.BiblionSerif
 
 /**
  * Pantalla principal de la lista de ensenanzas (visual v1).
@@ -344,7 +344,7 @@ private fun EditTeachingTagsSheet(
                     Text(
                         text = stringResource(R.string.study_tags_edit_title),
                         style = MaterialTheme.typography.titleLarge.copy(
-                            fontFamily = FontFamily.Serif,
+                            fontFamily = BiblionSerif,
                             fontWeight = FontWeight.Bold,
                         ),
                         color = Color.White,
@@ -465,7 +465,7 @@ private fun StudyLibraryHeader(
             Text(
                 text = "Mis enseñanzas",
                 style = MaterialTheme.typography.headlineMedium.copy(
-                    fontFamily = FontFamily.Serif,
+                    fontFamily = BiblionSerif,
                     fontWeight = FontWeight.Bold,
                 ),
                 color = MaterialTheme.colorScheme.onBackground,
@@ -625,7 +625,7 @@ private fun StudyLibraryEmptyState(
                         "Tu espacio de estudio comienza aquí"
                     },
                     style = MaterialTheme.typography.titleLarge.copy(
-                        fontFamily = FontFamily.Serif,
+                        fontFamily = BiblionSerif,
                         fontWeight = FontWeight.Bold,
                     ),
                     color = MaterialTheme.colorScheme.onSurface,
@@ -688,7 +688,7 @@ private fun StudyShareSheet(
         Text(
             text = "Compartir enseñanza",
             style = MaterialTheme.typography.titleLarge.copy(
-                fontFamily = FontFamily.Serif,
+                fontFamily = BiblionSerif,
                 fontWeight = FontWeight.Bold,
             ),
         )

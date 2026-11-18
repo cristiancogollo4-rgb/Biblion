@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import com.cristiancogollo.biblion.ui.theme.BiblionSerif
 
 const val READER_MIN_LINE_SPACING = 1.15f
 const val READER_MAX_LINE_SPACING = 2.0f
@@ -19,7 +20,7 @@ enum class ReaderFontFamily(val storageValue: String) {
     ACCESSIBLE("accessible");
 
     fun asComposeFontFamily(): FontFamily = when (this) {
-        SERIF -> FontFamily.Serif
+        SERIF -> BiblionSerif
         SANS_SERIF -> FontFamily.SansSerif
         ACCESSIBLE -> FontFamily.Monospace
     }

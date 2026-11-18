@@ -10,7 +10,7 @@
 
     <!-- Splash colors matching the theme chosen inside the app (applied with setSplashScreenTheme). -->
     <style name="Theme.Biblion.Splash.Light" parent="Theme.Biblion">
-        <item name="android:windowSplashScreenBackground">#FFFFFF</item>
+        <item name="android:windowSplashScreenBackground">#FCFAF7</item>
         <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
     </style>
 

@@ -82,7 +82,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -126,6 +125,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import com.cristiancogollo.biblion.ui.theme.BiblionSerif
 
 private val searchOldTestamentBooks = listOf(
     "Genesis", "Exodo", "Levitico", "Numeros", "Deuteronomio", "Josue", "Jueces", "Rut",
@@ -537,7 +537,7 @@ private fun SearchPageIntro() {
         Text(
             text = stringResource(R.string.search_title),
             style = MaterialTheme.typography.headlineMedium.copy(
-                fontFamily = FontFamily.Serif,
+                fontFamily = BiblionSerif,
                 fontWeight = FontWeight.Bold,
             ),
             color = MaterialTheme.colorScheme.onBackground,
@@ -929,7 +929,7 @@ private fun SearchVerseResultCard(
                 Text(
                     text = result.reference,
                     style = MaterialTheme.typography.titleSmall.copy(
-                        fontFamily = FontFamily.Serif,
+                        fontFamily = BiblionSerif,
                         fontWeight = FontWeight.Bold,
                     ),
                     color = BiblionGoldPrimary,

@@ -103,7 +103,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -134,6 +133,7 @@ import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.net.URL
 import kotlin.math.max
+import com.cristiancogollo.biblion.ui.theme.BiblionSerif
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -378,7 +378,7 @@ private fun ProfilePageIntro() {
         Text(
             text = "Perfil",
             style = MaterialTheme.typography.headlineMedium.copy(
-                fontFamily = FontFamily.Serif,
+                fontFamily = BiblionSerif,
                 fontWeight = FontWeight.Bold,
             ),
             color = MaterialTheme.colorScheme.onBackground,
@@ -474,7 +474,7 @@ private fun ProfileSettingsSheet(
             Text(
                 "Configuración",
                 style = MaterialTheme.typography.titleLarge.copy(
-                    fontFamily = FontFamily.Serif,
+                    fontFamily = BiblionSerif,
                     fontWeight = FontWeight.Bold,
                 ),
             )
@@ -674,7 +674,7 @@ private fun ProfileIdentityPanel(
                     Text(
                         text = fullName,
                         style = MaterialTheme.typography.titleLarge.copy(
-                            fontFamily = FontFamily.Serif,
+                            fontFamily = BiblionSerif,
                             fontWeight = FontWeight.Bold,
                         ),
                         color = MaterialTheme.colorScheme.onSurface,
@@ -950,7 +950,7 @@ private fun ProfileActivityAndMetricsPanel(
                 Text(
                     "Tu actividad",
                     style = MaterialTheme.typography.titleMedium.copy(
-                        fontFamily = FontFamily.Serif,
+                        fontFamily = BiblionSerif,
                         fontWeight = FontWeight.Bold,
                     ),
                     color = MaterialTheme.colorScheme.onSurface,
@@ -1053,7 +1053,7 @@ private fun ProfileCompletionCard(uiState: ProfileUiState, onCompleteNow: () -> 
                     Text(
                         "Completa tu perfil",
                         style = MaterialTheme.typography.titleMedium.copy(
-                            fontFamily = FontFamily.Serif,
+                            fontFamily = BiblionSerif,
                             fontWeight = FontWeight.Bold,
                         ),
                         color = MaterialTheme.colorScheme.onSurface,
@@ -1152,7 +1152,7 @@ private fun ProfileLogrosCard(onSeeAll: () -> Unit) {
                     Text(
                         "Logros recientes",
                         style = MaterialTheme.typography.titleMedium.copy(
-                            fontFamily = FontFamily.Serif,
+                            fontFamily = BiblionSerif,
                             fontWeight = FontWeight.Bold,
                         ),
                         color = MaterialTheme.colorScheme.onSurface,
@@ -1632,7 +1632,7 @@ private fun ProfileForm(
                 } else {
                     Text(
                         text = stringResource(R.string.profile_save).uppercase(),
-                        fontFamily = FontFamily.Serif,
+                        fontFamily = BiblionSerif,
                         fontWeight = FontWeight.Black
                     )
                 }

@@ -13,7 +13,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -36,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
 import androidx.compose.ui.Alignment
+import com.cristiancogollo.biblion.ui.theme.BiblionSerif
 
 // Optimizacion: Listas fuera del composable para evitar re-asignacion constante
 private val oldTestamentBooks = listOf(
@@ -132,7 +132,10 @@ fun BooksScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .background(MaterialTheme.colorScheme.surface)
+                    // En Claro el papel continua bajo la barra superior; Azul y Oscuro conservan su superficie.
+                    .background(
+                        if (usesDarkPalette) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.background,
+                    )
                     .pointerInput(currentSelectedTestament) {
                         detectHorizontalDragGestures(
                             onHorizontalDrag = { _, dragAmount ->
@@ -166,7 +169,7 @@ fun BooksScreen(
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.bodyLarge.copy(
-                        fontFamily = FontFamily.Serif,
+                        fontFamily = BiblionSerif,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 )

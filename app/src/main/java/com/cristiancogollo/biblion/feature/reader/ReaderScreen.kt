@@ -102,6 +102,8 @@ import com.cristiancogollo.biblion.feature.reader.HighlightsCache
 import com.cristiancogollo.biblion.feature.reader.ReaderPreferences
 import com.cristiancogollo.biblion.feature.reader.ReaderPreferencesStore
 import com.cristiancogollo.biblion.feature.reader.ReaderTextLayout
+import com.cristiancogollo.biblion.feature.reader.ReaderVerseNumberFont
+import com.cristiancogollo.biblion.feature.reader.readerSectionHeadingStyle
 import com.cristiancogollo.biblion.feature.reader.buildBibleTextSections
 import com.cristiancogollo.biblion.feature.reader.chapterBodyIndexForVerse
 import com.cristiancogollo.biblion.feature.reader.firstVerseAtBodyIndex
@@ -136,6 +138,7 @@ import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
 import com.cristiancogollo.biblion.ui.theme.LocalBiblionThemeMode
+import com.cristiancogollo.biblion.ui.theme.biblionLabelColor
 import com.cristiancogollo.biblion.feature.bibi.ui.BibiReaderOverlay
 import com.cristiancogollo.biblion.feature.bibi.model.BibiContext
 import com.cristiancogollo.biblion.feature.bibi.model.BibiPassage
@@ -1779,7 +1782,9 @@ fun ReaderContent(
                                 ) {
                                     Text(
                                         text = chapterTitle,
-                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                        style = readerSectionHeadingStyle(
+                                            effectiveReaderPreferences.fontFamily.asComposeFontFamily(),
+                                        ),
                                         color = if (effectiveReaderPreferences.highContrast) {
                                             MaterialTheme.colorScheme.onSurface
                                         } else {
@@ -2358,7 +2363,7 @@ fun VerseItem(
     val sideBarColor = BiblionGoldPrimary
     val primaryColor = readerVerseForeground(
         highlightColor = highlightColor,
-        normalColor = MaterialTheme.colorScheme.primary,
+        normalColor = biblionLabelColor(themeMode),
         mode = themeMode,
         isRangeSelected = isRangeSelected,
     )
@@ -2392,6 +2397,7 @@ fun VerseItem(
                     style = SpanStyle(
                         fontSize = (fontSize.value * 0.6).sp,
                         fontWeight = FontWeight.Bold,
+                        fontFamily = ReaderVerseNumberFont,
                         baselineShift = BaselineShift.Superscript,
                         color = primaryColor,
                     )

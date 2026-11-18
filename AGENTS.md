@@ -103,6 +103,15 @@ Biblion ya incluye:
 - En pantallas compactas, evitar controles que saturen la barra superior.
 - En pantallas grandes, se permite UI expandida como lectura dividida, siempre con fallback vertical en movil.
 
+### Tipografia y tema Claro editorial
+
+- **Fuentes de marca incluidas** en `res/font` (licencias OFL en `assets/licenses`): `BiblionSerif` (EB Garamond: regular, cursiva, semibold, bold) para Escrituras y titulos, y `BiblionDisplay` (Cormorant Garamond semibold/bold) para la marca "BIBLION" y los numeros de capitulo. Se definen en `ui/theme/Type.kt`.
+- **No usar `FontFamily.Serif`** en la UI: algunos fabricantes (p. ej. Motorola con fuentes del sistema) la reemplazan y la identidad desaparece. Excepcion temporal: el contenido de documentos de estudio (`PaginationEngine`, `BibleVerseBlock`) sigue con `FontFamily.Serif` porque cambiar la fuente movería los saltos de pagina.
+- **Etiquetas editoriales**: `BiblionEyebrowStyle` (versalitas espaciadas) en mayusculas con `biblionLabelColor()`, el dorado legible de cada tema (Claro `BiblionGoldText` #7D6232, Azul `BiblionGoldSoft`, Oscuro `BiblionGoldPrimary`). Ese mismo dorado colorea los numeros de versiculo, que van en la sans del sistema (`ReaderVerseNumberFont`).
+- **Claro editorial**: fondo papel `BiblionPaper` (#FCFAF7), tarjetas blancas; en Inicio las tarjetas llevan filete `outlineVariant` y sin sombra, y el boton de anuncios es azul con texto crema. `surfaceTint` dorado para que dialogos y tarjetas elevadas no se enfrien. Azul y Oscuro conservan sus colores y comparten la tipografia.
+- **Lector**: titulos de seccion en cursiva centrada con la fuente del lector (`readerSectionHeadingStyle`); el inicio de capitulo en lectura continua usa versalitas doradas, numero en `BiblionDisplay` con cifras de caja alta (`LiningNumerals`) y adorno de filetes.
+- **Barra de estado**: `MainActivity` ajusta los iconos segun el tema de la app (no segun el modo del sistema) para que no queden blancos sobre el papel.
+
 ### GuidedTutorialOverlay y GuideBubble
 
 El sistema de tutorial guiado (`feature/onboarding/GuidedTutorial.kt`) usa `GuidedTutorialOverlay` + `GuideBubble`.

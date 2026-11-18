@@ -357,7 +357,7 @@ private class IntroStyle(
 
         fun forMode(mode: BiblionThemeMode): IntroStyle = when (mode) {
             BiblionThemeMode.LIGHT -> IntroStyle(
-                background = listOf(Color(0xFFFFFFFF), Color(0xFFFAF7F0)),
+                background = listOf(Color(0xFFFCFAF7), Color(0xFFF7F2E9)),
                 glow = Color(0xFF2F6FD0),
                 glowAlpha = 0.10f,
                 letterBrush = LightLetter,

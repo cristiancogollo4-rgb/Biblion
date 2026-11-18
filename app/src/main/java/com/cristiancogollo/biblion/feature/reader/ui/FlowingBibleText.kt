@@ -25,8 +25,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cristiancogollo.biblion.R
 import com.cristiancogollo.biblion.feature.reader.BibleTextSection
+import com.cristiancogollo.biblion.feature.reader.ReaderVerseNumberFont
+import com.cristiancogollo.biblion.feature.reader.readerSectionHeadingStyle
 import com.cristiancogollo.biblion.feature.reader.readerVerseForeground
 import com.cristiancogollo.biblion.ui.theme.LocalBiblionThemeMode
+import com.cristiancogollo.biblion.ui.theme.biblionLabelColor
 
 private const val VERSE_ANNOTATION_TAG = "biblion_verse"
 
@@ -49,7 +52,7 @@ fun FlowingBibleSection(
     if (showHeading && !section.heading.isNullOrBlank()) {
         Text(
             text = section.heading,
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            style = readerSectionHeadingStyle(fontFamily),
             color = if (highContrast) {
                 MaterialTheme.colorScheme.onSurface
             } else {
@@ -66,6 +69,7 @@ fun FlowingBibleSection(
     val textColor = MaterialTheme.colorScheme.onSurface
     val selectionColor = primaryColor.copy(alpha = 0.18f)
     val themeMode = LocalBiblionThemeMode.current
+    val numberColor = biblionLabelColor(themeMode)
     val accessibilityDescription = stringResource(
         R.string.reader_flowing_section_accessibility,
         section.verses.joinToString(" ") { (number, text) -> "$number $text" },
@@ -77,6 +81,7 @@ fun FlowingBibleSection(
         selectedVerseNumbers,
         highlightColors,
         primaryColor,
+        numberColor,
         textColor,
         themeMode,
     ) {
@@ -87,12 +92,13 @@ fun FlowingBibleSection(
                 val highlight = highlightColors[verseNumber] ?: Color.Transparent
                 val background = if (isSelected) selectionColor else highlight
                 val verseTextColor = readerVerseForeground(highlight, textColor, themeMode, isSelected)
-                val verseNumberColor = readerVerseForeground(highlight, primaryColor, themeMode, isSelected)
+                val verseNumberColor = readerVerseForeground(highlight, numberColor, themeMode, isSelected)
                 if (showVerseNumbers) {
                     withStyle(
                         SpanStyle(
                             fontSize = (fontSize.value * 0.6f).sp,
                             fontWeight = FontWeight.Bold,
+                            fontFamily = ReaderVerseNumberFont,
                             baselineShift = BaselineShift.Superscript,
                             color = verseNumberColor,
                             background = background,

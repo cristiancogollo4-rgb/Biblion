@@ -66,11 +66,32 @@ class ThemeContrastTest {
     }
 
     @Test
+    fun editorialGoldLabelsAreReadable() {
+        // Etiquetas en versalitas, numeros de versiculo y enlaces "Ir": texto pequeno en dorado.
+        schemes.forEach { (mode, scheme) ->
+            val label = biblionLabelColor(mode)
+            assertReadable("$mode etiqueta dorada/background", label, scheme.background)
+            assertReadable("$mode etiqueta dorada/surface", label, scheme.surface)
+        }
+    }
+
+    @Test
+    fun lightThemeKeepsWarmPaperBehindWhiteCards() {
+        val scheme = LightColorScheme
+        assertTrue("las tarjetas deben ser mas claras que el papel", luminance(scheme.surface) > luminance(scheme.background))
+        assertCalm("papel frente a blanco", scheme.background, scheme.surface, maximum = 1.1)
+        assertTrue(
+            "el filete de las tarjetas debe verse sobre blanco",
+            contrast(scheme.outlineVariant, scheme.surface) >= 1.2,
+        )
+    }
+
+    @Test
     fun highlightedVersesAreReadableAndCalm() {
         schemes.forEach { (mode, scheme) ->
             readerHighlightPaletteFor(mode).drop(1).forEachIndexed { index, highlight ->
                 val text = readerVerseForeground(highlight, scheme.onSurface, mode)
-                val number = readerVerseForeground(highlight, scheme.primary, mode)
+                val number = readerVerseForeground(highlight, biblionLabelColor(mode), mode)
                 assertReadable("$mode resaltado ${index + 1} texto", text, highlight, minimum = 7.0)
                 assertReadable("$mode resaltado ${index + 1} numero", number, highlight, minimum = 3.0)
                 assertCalm("$mode resaltado ${index + 1}", highlight, scheme.background)

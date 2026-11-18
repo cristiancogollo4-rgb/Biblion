@@ -6,6 +6,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
@@ -18,38 +19,40 @@ enum class BiblionThemeMode {
 val LocalBiblionThemeMode = staticCompositionLocalOf { BiblionThemeMode.LIGHT }
 
 // Todos los roles se declaran para que Material 3 no rellene con sus tonos lavanda por defecto.
+// Claro editorial: papel calido, tarjetas blancas con filete dorado y seleccion en dorado suave.
 internal val LightColorScheme = lightColorScheme(
     primary = BiblionBluePrimary,
-    onPrimary = Color.White,
+    onPrimary = BiblionBlueCream,
     primaryContainer = Color(0xFFDCE6F0),
     onPrimaryContainer = Color(0xFF0B2540),
     inversePrimary = BiblionGoldSoft,
     secondary = BiblionBlueSecondary,
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFFE6ECF2),
-    onSecondaryContainer = BiblionBluePrimary,
+    secondaryContainer = Color(0xFFF1E8D6),
+    onSecondaryContainer = Color(0xFF4F3B17),
     tertiary = BiblionGoldPrimary,
     onTertiary = Color.White,
     tertiaryContainer = Color(0xFFF3EAD8),
     onTertiaryContainer = Color(0xFF5A4520),
-    background = Color.White,
+    background = BiblionPaper,
     onBackground = BiblionBluePrimary,
     surface = Color.White,
     onSurface = BiblionBluePrimary,
-    surfaceVariant = Color(0xFFF5F5F5),
-    onSurfaceVariant = Color(0xFF46576A),
-    surfaceTint = BiblionBluePrimary,
+    surfaceVariant = Color(0xFFF5F0E8),
+    onSurfaceVariant = Color(0xFF4E5D6B),
+    // Dialogos y tarjetas elevadas se tinen de dorado (como en Azul y Oscuro), no de azul frio.
+    surfaceTint = BiblionGoldPrimary,
     inverseSurface = BiblionBluePrimary,
     inverseOnSurface = BiblionBlueCream,
-    outline = Color(0xFF74818F),
-    outlineVariant = Color(0xFFD5DCE3),
+    outline = Color(0xFF8A7E6C),
+    outlineVariant = Color(0xFFE6DCCB),
     surfaceBright = Color.White,
-    surfaceDim = Color(0xFFE3E7EC),
+    surfaceDim = Color(0xFFE6DFD3),
     surfaceContainerLowest = Color.White,
-    surfaceContainerLow = Color(0xFFF7F8FA),
-    surfaceContainer = Color(0xFFF2F4F7),
-    surfaceContainerHigh = Color(0xFFECEFF3),
-    surfaceContainerHighest = Color(0xFFE6EAEF),
+    surfaceContainerLow = Color(0xFFFAF7F2),
+    surfaceContainer = Color(0xFFF5F1EA),
+    surfaceContainerHigh = Color(0xFFF0EBE2),
+    surfaceContainerHighest = Color(0xFFEAE3D7),
 )
 
 internal val DarkColorScheme = darkColorScheme(
@@ -119,6 +122,17 @@ internal val BlueColorScheme = darkColorScheme(
     surfaceContainerHigh = Color(0xFF164672),
     surfaceContainerHighest = Color(0xFF1A4D7C),
 )
+
+/** Dorado de las etiquetas editoriales y numeros de versiculo, legible sobre el fondo de cada tema. */
+fun biblionLabelColor(mode: BiblionThemeMode): Color = when (mode) {
+    BiblionThemeMode.LIGHT -> BiblionGoldText
+    BiblionThemeMode.BLUE -> BiblionGoldSoft
+    BiblionThemeMode.DARK -> BiblionGoldPrimary
+}
+
+@Composable
+@ReadOnlyComposable
+fun biblionLabelColor(): Color = biblionLabelColor(LocalBiblionThemeMode.current)
 
 @Composable
 fun BiblionTheme(

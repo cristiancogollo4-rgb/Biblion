@@ -31,8 +31,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.text.TextStyle
 import com.cristiancogollo.biblion.R
+import com.cristiancogollo.biblion.ui.theme.BiblionDisplay
+import com.cristiancogollo.biblion.ui.theme.BiblionEyebrowStyle
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
+import com.cristiancogollo.biblion.ui.theme.BiblionSerif
+import com.cristiancogollo.biblion.ui.theme.LiningNumerals
+import com.cristiancogollo.biblion.ui.theme.biblionLabelColor
 
 /**
  * Cierre de capitulo cuando no hay un capitulo siguiente en la misma lista: en modo por
@@ -124,24 +131,41 @@ internal fun ContinuousChapterStart(
     ) {
         Text(
             text = bookName.uppercase(),
-            style = MaterialTheme.typography.labelMedium,
-            letterSpacing = 2.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = BiblionEyebrowStyle,
+            letterSpacing = 4.sp,
+            color = biblionLabelColor(),
         )
+        val isSerif = fontFamily == BiblionSerif
         Text(
             text = chapter.toString(),
-            fontFamily = fontFamily,
-            fontSize = 40.sp,
-            lineHeight = 48.sp,
-            fontWeight = FontWeight.Normal,
+            style = TextStyle(
+                // Con la serif del lector, el numero va en la serif de exhibicion de la marca.
+                fontFamily = if (isSerif) BiblionDisplay else fontFamily,
+                fontSize = if (isSerif) 64.sp else 44.sp,
+                lineHeight = if (isSerif) 68.sp else 52.sp,
+                fontWeight = if (isSerif) FontWeight.SemiBold else FontWeight.Normal,
+                fontFeatureSettings = LiningNumerals,
+            ),
             color = MaterialTheme.colorScheme.onSurface,
         )
-        Spacer(Modifier.height(6.dp))
-        Box(
-            modifier = Modifier
-                .width(28.dp)
-                .height(2.dp)
-                .background(BiblionGoldPrimary, RoundedCornerShape(1.dp)),
-        )
+        Spacer(Modifier.height(4.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            ChapterOrnamentRule()
+            Text("✦", color = BiblionGoldPrimary, fontSize = 11.sp)
+            ChapterOrnamentRule()
+        }
     }
+}
+
+@Composable
+private fun ChapterOrnamentRule() {
+    Box(
+        modifier = Modifier
+            .width(34.dp)
+            .height(1.dp)
+            .background(BiblionGoldPrimary.copy(alpha = 0.6f), RoundedCornerShape(1.dp)),
+    )
 }

@@ -71,7 +71,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -89,6 +88,10 @@ import com.cristiancogollo.biblion.ui.theme.BiblionBluePrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldPrimary
 import com.cristiancogollo.biblion.ui.theme.BiblionGoldSoft
 import com.cristiancogollo.biblion.ui.theme.BiblionNavy
+import com.cristiancogollo.biblion.ui.theme.BiblionSerif
+import com.cristiancogollo.biblion.ui.theme.BiblionDisplay
+import com.cristiancogollo.biblion.ui.theme.BiblionEyebrowStyle
+import com.cristiancogollo.biblion.ui.theme.biblionLabelColor
 
 private enum class AppDrawerOption(val labelRes: Int) {
     HOME(R.string.drawer_home),
@@ -142,8 +145,10 @@ fun BiblionTopAppBar(
                 Text(
                     text = stringResource(R.string.biblion_wordmark),
                     style = MaterialTheme.typography.headlineSmall.copy(
-                        fontFamily = FontFamily.Serif,
+                        fontFamily = BiblionDisplay,
                         fontWeight = FontWeight.Bold,
+                        fontSize = 29.sp,
+                        letterSpacing = 3.5.sp,
                     ),
                     color = onSurfaceColor,
                 )
@@ -407,7 +412,7 @@ fun DailyVerseCard(
                 text = verse,
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface,
-                fontFamily = FontFamily.Serif
+                fontFamily = BiblionSerif
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
@@ -461,14 +466,17 @@ fun BookCard(
             contentAlignment = Alignment.Center
         ) {
             val spacious = maxWidth >= 120.dp
+            // EB Garamond es mas estrecha que la serif del sistema y de ojo mas pequeno: con dos o
+            // tres puntos mas, "1 Tesalonicenses" sigue cabiendo en una linea en telefonos de 360 dp.
             val bookFontSize = when {
-                spacious && bookName.length >= 17 -> 12.sp
-                spacious && bookName.length >= 14 -> 13.sp
-                spacious -> 14.sp
-                bookName.length >= 17 -> 9.sp
-                bookName.length >= 14 -> 10.sp
-                bookName.length >= 11 -> 11.sp
-                else -> 12.sp
+                spacious && bookName.length >= 17 -> 14.sp
+                spacious && bookName.length >= 14 -> 15.sp
+                spacious && bookName.length >= 11 -> 16.sp
+                spacious -> 17.sp
+                bookName.length >= 17 -> 11.sp
+                bookName.length >= 14 -> 12.sp
+                bookName.length >= 11 -> 13.sp
+                else -> 15.sp
             }
 
             Text(
@@ -476,8 +484,8 @@ fun BookCard(
                 textAlign = TextAlign.Center,
                 fontSize = bookFontSize,
                 color = textColor,
-                fontFamily = FontFamily.Serif,
-                fontWeight = FontWeight.Bold,
+                fontFamily = BiblionSerif,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 softWrap = false,
@@ -584,8 +592,9 @@ fun BiblionReaderTopAppBar(
                         Text(
                             text = "$bookName $chapter",
                             style = MaterialTheme.typography.titleLarge.copy(
-                                fontFamily = FontFamily.Serif,
-                                fontWeight = FontWeight.Bold
+                                fontFamily = BiblionSerif,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 24.sp,
                             ),
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
@@ -602,8 +611,9 @@ fun BiblionReaderTopAppBar(
                     Text(
                         text = titleOverride ?: "$bookName $chapter",
                         style = MaterialTheme.typography.titleLarge.copy(
-                            fontFamily = FontFamily.Serif,
-                            fontWeight = FontWeight.Bold
+                            fontFamily = BiblionSerif,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 24.sp,
                         ),
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
@@ -630,8 +640,8 @@ fun BiblionReaderTopAppBar(
                     ) {
                         Text(
                             text = selectedVersionName,
-                            style = MaterialTheme.typography.labelLarge.copy(fontFamily = FontFamily.Serif),
-                            color = MaterialTheme.colorScheme.onSurface
+                            style = BiblionEyebrowStyle.copy(fontSize = 12.sp, letterSpacing = 1.5.sp),
+                            color = biblionLabelColor(),
                         )
                     }
                 }

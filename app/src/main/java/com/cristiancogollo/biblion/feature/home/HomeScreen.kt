@@ -40,7 +40,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,6 +62,12 @@ import com.cristiancogollo.biblion.ui.theme.LocalBiblionThemeMode
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import com.cristiancogollo.biblion.ui.theme.BiblionSerif
+import com.cristiancogollo.biblion.ui.theme.BiblionBlueCream
+import com.cristiancogollo.biblion.ui.theme.BiblionEyebrowStyle
+import com.cristiancogollo.biblion.ui.theme.biblionLabelColor
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.unit.Dp
 
 // Estructura para almacenar el versículo diario
 /**
@@ -333,7 +338,8 @@ private fun HomeDailyVerseCard(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = homeCardElevation(3.dp)),
+        border = homeCardBorder(),
     ) {
         Box(modifier = Modifier.heightIn(min = 250.dp).fillMaxWidth()) {
             Image(
@@ -355,32 +361,25 @@ private fun HomeDailyVerseCard(
             )
             Column(
                 modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("✦", color = BiblionGoldPrimary, fontSize = 24.sp)
+                    Text("✦", color = BiblionGoldPrimary, fontSize = 15.sp)
                     Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = stringResource(R.string.daily_verse_title),
-                        style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Serif),
-                        fontWeight = FontWeight.Bold,
-                    )
+                    HomeEyebrow(stringResource(R.string.daily_verse_title))
                 }
                 Text(
                     text = "“${verse.text}”",
                     style = MaterialTheme.typography.bodyLarge.copy(
-                        fontFamily = FontFamily.Serif,
-                        lineHeight = 25.sp,
+                        fontFamily = BiblionSerif,
+                        fontStyle = FontStyle.Italic,
+                        fontSize = 20.sp,
+                        lineHeight = 28.sp,
+                        letterSpacing = 0.sp,
                     ),
-                    fontWeight = FontWeight.Medium,
                     modifier = Modifier.fillMaxWidth(0.80f),
                 )
-                Text(
-                    text = verse.reference,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.labelLarge,
-                )
+                HomeEyebrow(verse.reference)
             }
         }
     }
@@ -392,21 +391,20 @@ private fun HomeEmptyReadingCard(onOpenBible: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = homeCardElevation(2.dp)),
+        border = homeCardBorder(),
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = BiblionGoldPrimary)
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.home_continue_reading), fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold)
-            }
+            HomeEyebrow(stringResource(R.string.home_continue_reading))
             Text(
                 stringResource(R.string.home_no_recent_reading),
-                style = MaterialTheme.typography.titleMedium,
+                fontFamily = BiblionSerif,
                 fontWeight = FontWeight.SemiBold,
+                fontSize = 22.sp,
+                lineHeight = 26.sp,
             )
             Text(
                 stringResource(R.string.home_open_book_hint),
@@ -431,58 +429,55 @@ private fun HomeContinueReadingCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = homeCardElevation(2.dp)),
+        border = homeCardBorder(),
     ) {
-        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = BiblionGoldPrimary)
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = "CONTINUAR LECTURA",
+                HomeEyebrow(
+                    text = stringResource(R.string.home_continue_reading),
                     modifier = Modifier.weight(1f),
-                    fontFamily = FontFamily.Serif,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                 )
                 TextButton(onClick = onOpen) {
-                    Text("Ir", color = BiblionGoldPrimary)
-                    Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Text("Ir", color = biblionLabelColor(), fontWeight = FontWeight.SemiBold)
+                    Icon(
+                        Icons.Default.ArrowForward,
+                        contentDescription = null,
+                        tint = biblionLabelColor(),
+                        modifier = Modifier.size(16.dp),
+                    )
                 }
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Row(verticalAlignment = Alignment.Top) {
                 HomeBookCover(bookName = reading.book)
                 Spacer(Modifier.width(16.dp))
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
                     Text(
                         text = chapterLabel,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
+                        fontFamily = BiblionSerif,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 25.sp,
+                        lineHeight = 28.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = "Última lectura",
+                        text = "Última lectura · ${reading.book} ${reading.chapter}:${reading.verse ?: "1"}",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         description ?: "Retoma tu lectura y continúa explorando este libro.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = "${reading.book} ${reading.chapter}:${reading.verse ?: "1"}",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
+                        fontFamily = BiblionSerif,
+                        fontSize = 15.5.sp,
+                        lineHeight = 20.sp,
+                        maxLines = 3,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
@@ -490,6 +485,32 @@ private fun HomeContinueReadingCard(
         }
     }
 }
+
+/** Etiqueta editorial de Inicio: versalitas espaciadas en el dorado legible de cada tema. */
+@Composable
+private fun HomeEyebrow(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text.uppercase(),
+        style = BiblionEyebrowStyle,
+        color = biblionLabelColor(),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier,
+    )
+}
+
+/** En Claro las tarjetas se separan del papel con un filete dorado; Azul y Oscuro conservan su relieve. */
+@Composable
+private fun homeCardBorder(): BorderStroke? =
+    if (LocalBiblionThemeMode.current == BiblionThemeMode.LIGHT) {
+        BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    } else {
+        null
+    }
+
+@Composable
+private fun homeCardElevation(default: Dp): Dp =
+    if (LocalBiblionThemeMode.current == BiblionThemeMode.LIGHT) 0.dp else default
 
 @Composable
 private fun HomeBookCover(
@@ -664,6 +685,7 @@ private fun HomeAnnouncementsCarousel(
             pageSpacing = 12.dp,
         ) { page ->
             val announcement = announcements[page]
+            val isLight = LocalBiblionThemeMode.current == BiblionThemeMode.LIGHT
             val panelColor = when (LocalBiblionThemeMode.current) {
                 BiblionThemeMode.LIGHT -> BiblionNavy
                 BiblionThemeMode.BLUE -> BiblionBlueNavigation
@@ -688,7 +710,8 @@ private fun HomeAnnouncementsCarousel(
                         .background(
                             Brush.horizontalGradient(
                                 listOf(
-                                    panelColor.copy(alpha = 0.13f),
+                                    // En Claro el velo azul agrisaba el papel: la tarjeta queda blanca.
+                                    panelColor.copy(alpha = if (isLight) 0f else 0.13f),
                                     Color.Transparent,
                                 )
                             )
@@ -746,9 +769,11 @@ private fun HomeAnnouncementsCarousel(
                             Text(
                                 text = announcement.title,
                                 style = MaterialTheme.typography.titleLarge.copy(
-                                    fontFamily = FontFamily.Serif,
+                                    fontFamily = BiblionSerif,
+                                    fontSize = 24.sp,
+                                    lineHeight = 27.sp,
                                 ),
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
@@ -764,9 +789,10 @@ private fun HomeAnnouncementsCarousel(
                             Button(
                                 onClick = { onAction(announcement.action) },
                                 shape = RoundedCornerShape(50),
+                                // Claro: tinta azul sobre papel, como un sello; Azul y Oscuro: boton dorado.
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = BiblionGoldSoft,
-                                    contentColor = BiblionNavy,
+                                    containerColor = if (isLight) BiblionNavy else BiblionGoldSoft,
+                                    contentColor = if (isLight) BiblionBlueCream else BiblionNavy,
                                 ),
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                             ) {
@@ -780,6 +806,7 @@ private fun HomeAnnouncementsCarousel(
                                 Icon(
                                     imageVector = Icons.Default.ArrowForward,
                                     contentDescription = null,
+                                    tint = if (isLight) BiblionGoldSoft else BiblionNavy,
                                     modifier = Modifier.size(17.dp),
                                 )
                             }

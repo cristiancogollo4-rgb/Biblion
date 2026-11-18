@@ -53,7 +53,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.cristiancogollo.biblion.BibleRepository
@@ -62,6 +61,7 @@ import com.cristiancogollo.biblion.R
 import kotlinx.coroutines.CancellationException
 import java.text.Normalizer
 import java.util.Locale
+import com.cristiancogollo.biblion.ui.theme.BiblionSerif
 
 @Composable
 internal fun PaneNavigationControls(
@@ -110,7 +110,7 @@ internal fun PaneNavigationControls(
                 Text(
                     text = passage,
                     style = MaterialTheme.typography.titleMedium,
-                    fontFamily = FontFamily.Serif,
+                    fontFamily = BiblionSerif,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
